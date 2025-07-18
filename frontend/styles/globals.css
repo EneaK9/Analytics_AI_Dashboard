@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-2 text-body font-normal;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  /* TailAdmin Base Components */
+  .shadow-default {
+    box-shadow: 0px 8px 13px -3px rgba(0, 0, 0, 0.07);
+  }
+
+  .shadow-card {
+    box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.12);
+  }
+
+  .shadow-card-2 {
+    box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .shadow-switcher {
+    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Legacy components for backward compatibility */
+  .card {
+    @apply bg-white rounded-lg shadow-default border border-stroke;
+  }
+  
+  .card-header {
+    @apply px-6 py-4 border-b border-stroke;
+  }
+  
+  .card-body {
+    @apply p-6;
+  }
+  
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-colors;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-white hover:bg-primary/90;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-white hover:bg-secondary/90;
+  }
+  
+  .btn-success {
+    @apply bg-success text-white hover:bg-success/90;
+  }
+  
+  .btn-warning {
+    @apply bg-warning text-white hover:bg-warning/90;
+  }
+  
+  .btn-danger {
+    @apply bg-danger text-white hover:bg-danger/90;
+  }
+  
+  .stats-card {
+    @apply bg-white rounded-lg shadow-default border border-stroke p-6;
+  }
+  
+  .chart-container {
+    @apply bg-white rounded-lg shadow-default border border-stroke p-6;
+  }
+
+  /* Dark mode utilities */
+  .dark .shadow-default {
+    box-shadow: 0px 8px 13px -3px rgba(0, 0, 0, 0.4);
+  }
+
+  .dark .shadow-card {
+    box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.3);
+  }
+
+  .dark .shadow-card-2 {
+    box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.2);
+  }
+} 

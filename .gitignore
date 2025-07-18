@@ -1,0 +1,122 @@
+# ===============================
+# PROJECT ROOT .gitignore
+# ===============================
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Thumbs.db:encryptable
+
+# Editor and IDE Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vim/
+*.sublime-project
+*.sublime-workspace
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Backup Files
+*.bak
+*.backup
+*.orig
+
+# Documentation Build
+docs/_build/
+site/
+
+# Coverage Reports
+coverage/
+.coverage
+.nyc_output
+
+# Dependencies (handled by individual .gitignore files)
+# node_modules/ (handled by frontend/.gitignore)
+# venv/ (handled by backend/.gitignore)
+
+# Build Outputs
+build/
+dist/
+out/
+
+# Cache Directories
+.cache/
+.npm/
+.yarn/
+.pnp/
+.tsbuildinfo
+
+# Lock Files (keep these for reproducible builds)
+# package-lock.json
+# yarn.lock
+# Pipfile.lock
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+
+# Archive Files
+*.zip
+*.tar.gz
+*.rar
+
+# Application Specific
+*.pid
+*.seed
+*.pid.lock
+
+# Test Files
+.pytest_cache/
+.tox/
+.nox/
+.coverage.*
+htmlcov/
+.hypothesis/
+
+# Security
+*.pem
+*.key
+*.crt
+*.cert
+
+# Local Development
+.local/
+.history/
+
+# Project Specific
+setup_notes.md
+TODO.md
+NOTES.md
+scratch/
+experiments/
+
+# Ignore everything in root except essential files
+# Add any other files you want to track at root level 
