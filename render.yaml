@@ -29,7 +29,7 @@ services:
     buildCommand: |
       cd frontend
       npm ci
-      npm run build
+      npm run build:production
     startCommand: |
       cd frontend
       npm start
