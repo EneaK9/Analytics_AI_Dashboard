@@ -89,10 +89,14 @@ const SuperAdminDashboard: React.FC = () => {
 
 	const loadClients = async () => {
 		try {
+			console.log("🚀 Loading clients SUPER FAST...");
 			const response = await api.get("/superadmin/clients");
-			setClients(response.data.clients);
+			console.log("✅ Clients loaded:", response.data);
+			setClients(response.data.clients || []);
 		} catch (error) {
 			console.error("Failed to load clients:", error);
+			// Show error but don't break the UI
+			setClients([]);
 		}
 	};
 

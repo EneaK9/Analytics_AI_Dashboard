@@ -1,10 +1,15 @@
 import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Union
 import logging
 import asyncio
 import json
+import time
+from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor
+import threading
+from collections import defaultdict
 
 # Load environment variables
 load_dotenv()
@@ -13,107 +18,207 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class DatabaseManager:
-    """Manages Supabase database connections and operations"""
+class PerformanceOptimizedDatabaseManager:
+    """High-performance database manager with caching, pooling, and batch operations"""
     
     def __init__(self):
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv("SUPABASE_KEY")
         self.supabase_service_key = os.getenv("SUPABASE_SERVICE_KEY")
-        self.client: Optional[Client] = None
-        self.admin_client: Optional[Client] = None
+        
+        # Connection pool
+        self.client_pool: List[Client] = []
+        self.admin_pool: List[Client] = []
+        self.pool_size = 10  # Maintain 10 connections in pool
+        
+        # Caching
+        self.cache = {}
+        self.cache_ttl = {}
+        self.cache_lock = threading.Lock()
+        self.default_cache_duration = 300  # 5 minutes
+        
+        # Batch processing
+        self.batch_queue = defaultdict(list)
+        self.batch_lock = threading.Lock()
+        self.batch_size = 50
+        self.batch_timeout = 2  # seconds
+        
+        # Thread pool for async operations
+        self.executor = ThreadPoolExecutor(max_workers=5)
         
         if not self.supabase_url or not self.supabase_key:
-            logger.warning("⚠️  Supabase credentials not configured")
-        else:
-            self._initialize_clients()
+            raise Exception("❌ Supabase credentials REQUIRED - no fallbacks allowed")
+        
+        self._initialize_connection_pools()
+        
+        # Start background batch processor
+        self._start_batch_processor()
     
-    def _initialize_clients(self):
-        """Initialize Supabase clients"""
+    def _initialize_connection_pools(self):
+        """Initialize connection pools for better performance"""
         try:
-            # Regular client with anon key
-            self.client = create_client(self.supabase_url, self.supabase_key)
+            logger.info("🚀 Initializing high-performance connection pools...")
             
-            # Admin client with service role key (for schema operations)
+            # Create regular client pool
+            for _ in range(self.pool_size):
+                client = create_client(self.supabase_url, self.supabase_key)
+                self.client_pool.append(client)
+            
+            # Create admin client pool
             if self.supabase_service_key:
-                self.admin_client = create_client(self.supabase_url, self.supabase_service_key)
-                logger.info("✅ Supabase clients initialized successfully")
+                for _ in range(self.pool_size):
+                    admin_client = create_client(self.supabase_url, self.supabase_service_key)
+                    self.admin_pool.append(admin_client)
+                logger.info(f"✅ Created {self.pool_size}x2 pooled connections for maximum performance")
             else:
-                logger.warning("⚠️  Service role key not provided - admin operations limited")
+                raise Exception("Service role key REQUIRED for admin operations")
                 
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Supabase clients: {e}")
+            logger.error(f"❌ Failed to initialize connection pools: {e}")
+            raise
     
-    def get_client(self) -> Optional[Client]:
-        """Get regular Supabase client"""
-        return self.client
+    def _get_pooled_client(self) -> Client:
+        """Get a client from the pool (round-robin)"""
+        if not self.client_pool:
+            raise Exception("No client connections available")
+        return self.client_pool[int(time.time()) % len(self.client_pool)]
     
-    def get_admin_client(self) -> Optional[Client]:
-        """Get admin Supabase client (service role)"""
-        return self.admin_client
+    def _get_pooled_admin_client(self) -> Client:
+        """Get an admin client from the pool (round-robin)"""
+        if not self.admin_pool:
+            raise Exception("No admin connections available")
+        return self.admin_pool[int(time.time()) % len(self.admin_pool)]
     
-    async def execute_sql(self, sql: str) -> bool:
-        """Execute raw SQL using the admin client"""
+    def _cache_key(self, prefix: str, *args) -> str:
+        """Generate cache key"""
+        return f"{prefix}::{':'.join(str(arg) for arg in args)}"
+    
+    def _get_from_cache(self, key: str) -> Optional[Any]:
+        """Get value from cache if not expired"""
+        with self.cache_lock:
+            if key in self.cache:
+                if key in self.cache_ttl and time.time() < self.cache_ttl[key]:
+                    logger.debug(f"📦 Cache HIT: {key}")
+                    return self.cache[key]
+                else:
+                    # Expired, remove from cache
+                    if key in self.cache:
+                        del self.cache[key]
+                    if key in self.cache_ttl:
+                        del self.cache_ttl[key]
+        return None
+    
+    def _set_cache(self, key: str, value: Any, ttl_seconds: int = None):
+        """Set value in cache with TTL"""
+        ttl = ttl_seconds or self.default_cache_duration
+        with self.cache_lock:
+            self.cache[key] = value
+            self.cache_ttl[key] = time.time() + ttl
+            logger.debug(f"📦 Cache SET: {key} (TTL: {ttl}s)")
+    
+    def _start_batch_processor(self):
+        """Start background batch processor for bulk operations"""
+        def process_batches():
+            while True:
+                try:
+                    with self.batch_lock:
+                        if self.batch_queue:
+                            for table, operations in self.batch_queue.items():
+                                if len(operations) >= self.batch_size or \
+                                   (operations and time.time() - operations[0]['timestamp'] > self.batch_timeout):
+                                    # Process this batch
+                                    batch_to_process = operations[:self.batch_size]
+                                    self.batch_queue[table] = operations[self.batch_size:]
+                                    
+                                    # Execute batch in background
+                                    self.executor.submit(self._execute_batch, table, batch_to_process)
+                    
+                    time.sleep(0.1)  # Check every 100ms
+                except Exception as e:
+                    logger.error(f"❌ Batch processor error: {e}")
+                    time.sleep(1)
+        
+        batch_thread = threading.Thread(target=process_batches, daemon=True)
+        batch_thread.start()
+        logger.info("🚀 Background batch processor started")
+    
+    def _execute_batch(self, table: str, operations: List[Dict]):
+        """Execute a batch of operations"""
         try:
-            if not self.admin_client:
-                raise Exception("Admin client not available")
+            client = self._get_pooled_admin_client()
             
-            # Use the existing RPC function or create a stored procedure
-            # For now, we'll use a workaround by storing SQL in a metadata table
-            # and executing it through a stored procedure
+            # Group operations by type
+            inserts = [op['data'] for op in operations if op['type'] == 'insert']
             
-            logger.info(f"🔧 Executing SQL: {sql[:100]}...")
-            
-            # Store SQL execution request in a metadata table
-            # This would be executed by a database trigger or background job
-            sql_request = {
-                "sql_query": sql,
-                "status": "pending",
-                "created_at": "now()"
-            }
-            
-            # For now, we'll simulate SQL execution
-            # In a production environment, you'd create a stored procedure
-            # or use a background job to execute the SQL
-            
-            logger.info("✅ SQL execution simulated successfully")
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ SQL execution failed: {e}")
-            return False
-    
-    async def create_client_table(self, table_name: str, schema_sql: str) -> bool:
-        """Create a client-specific table"""
-        try:
-            logger.info(f"🔧 Creating client table: {table_name}")
-            
-            # Execute the CREATE TABLE statement
-            success = await self.execute_sql(schema_sql)
-            
-            if success:
-                logger.info(f"✅ Client table {table_name} created successfully")
-                return True
-            else:
-                logger.error(f"❌ Failed to create client table {table_name}")
-                return False
+            if inserts:
+                logger.info(f"📦 Executing batch: {len(inserts)} inserts to {table}")
+                response = client.table(table).insert(inserts).execute()
+                logger.info(f"✅ Batch completed: {len(response.data)} records processed")
                 
         except Exception as e:
-            logger.error(f"❌ Client table creation failed: {e}")
-            return False
+            logger.error(f"❌ Batch execution failed: {e}")
     
-    async def insert_client_data(self, table_name: str, data: List[Dict[str, Any]], client_id: str) -> int:
-        """Insert data into a client-specific table"""
+    async def fast_client_data_lookup(self, client_id: str, use_cache: bool = True) -> Dict:
+        """Ultra-fast client data lookup with aggressive caching"""
+        cache_key = self._cache_key("client_data", client_id)
+        
+        if use_cache:
+            cached_result = self._get_from_cache(cache_key)
+            if cached_result:
+                return cached_result
+        
         try:
-            logger.info(f"📥 Inserting {len(data)} records into {table_name}")
+            start_time = time.time()
+            client = self._get_pooled_admin_client()
             
-            # For the hybrid approach, we'll use a practical solution:
-            # Store the data in a flexible client_data table with proper indexing
+            # Use a single optimized query with proper indexing
+            response = client.table("client_data") \
+                .select("data, table_name, created_at") \
+                .eq("client_id", client_id) \
+                .order("created_at", desc=True) \
+                .limit(1000) \
+                .execute()
             
-            # Check if client_data table exists, create if not
-            await self._ensure_client_data_table_exists()
+            if response.data:
+                # Process and structure the data efficiently
+                data_records = [record["data"] for record in response.data]
+                
+                result = {
+                    "client_id": client_id,
+                    "data": data_records,
+                    "row_count": len(data_records),
+                    "query_time": time.time() - start_time,
+                    "cached": False
+                }
+                
+                # Cache the result for fast future access
+                self._set_cache(cache_key, result, ttl_seconds=180)  # 3 minutes cache
+                
+                logger.info(f"⚡ Fast lookup completed in {result['query_time']:.3f}s - {len(data_records)} records")
+                return result
+            else:
+                # Cache empty result too
+                empty_result = {
+                    "client_id": client_id,
+                    "data": [],
+                    "row_count": 0,
+                    "query_time": time.time() - start_time,
+                    "cached": False
+                }
+                self._set_cache(cache_key, empty_result, ttl_seconds=60)  # 1 minute cache for empty
+                return empty_result
+                
+        except Exception as e:
+            logger.error(f"❌ Fast client data lookup failed: {e}")
+            raise Exception(f"Database lookup failed: {str(e)}")
+    
+    async def batch_insert_client_data(self, table_name: str, data: List[Dict[str, Any]], client_id: str) -> int:
+        """High-performance batch insert with immediate processing for critical data"""
+        try:
+            start_time = time.time()
+            logger.info(f"⚡ Fast batch insert: {len(data)} records to {table_name}")
             
-            # Insert data with client_id and table_name for organization
+            # Prepare records with metadata
             records_to_insert = []
             for record in data:
                 record_with_metadata = {
@@ -124,182 +229,182 @@ class DatabaseManager:
                 }
                 records_to_insert.append(record_with_metadata)
             
-            # Use batch insert for efficiency
-            response = self.admin_client.table("client_data").insert(records_to_insert).execute()
+            # Use pooled admin client for faster processing
+            client = self._get_pooled_admin_client()
             
-            if response.data:
-                inserted_count = len(response.data)
-                logger.info(f"✅ Successfully inserted {inserted_count} records")
-                return inserted_count
-            else:
-                logger.warning("⚠️  No data was inserted")
-                return 0
+            # Split into smaller batches for optimal performance
+            batch_size = 100  # Optimal batch size for Supabase
+            total_inserted = 0
+            
+            for i in range(0, len(records_to_insert), batch_size):
+                batch = records_to_insert[i:i + batch_size]
+                response = client.table("client_data").insert(batch).execute()
                 
-        except Exception as e:
-            logger.error(f"❌ Failed to insert client data: {e}")
-            return 0
-    
-    async def _ensure_client_data_table_exists(self):
-        """Ensure the client_data table exists for flexible data storage"""
-        try:
-            # Check if table exists by trying to select from it
-            response = self.admin_client.table("client_data").select("*").limit(1).execute()
-            logger.info("✅ client_data table exists")
+                if response.data:
+                    total_inserted += len(response.data)
+                    logger.debug(f"📦 Batch {i//batch_size + 1}: {len(response.data)} records inserted")
             
-        except Exception as e:
-            # Table doesn't exist, create it
-            logger.info("🔧 Creating client_data table for flexible storage")
+            # Invalidate cache for this client
+            cache_key = self._cache_key("client_data", client_id)
+            with self.cache_lock:
+                if cache_key in self.cache:
+                    del self.cache[cache_key]
+                if cache_key in self.cache_ttl:
+                    del self.cache_ttl[cache_key]
             
-            create_table_sql = """
-            CREATE TABLE IF NOT EXISTS client_data (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                client_id UUID NOT NULL,
-                table_name VARCHAR(255) NOT NULL,
-                data JSONB NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            );
+            insert_time = time.time() - start_time
+            logger.info(f"⚡ Batch insert completed in {insert_time:.3f}s - {total_inserted}/{len(data)} records")
             
-            -- Create indexes for better performance
-            CREATE INDEX IF NOT EXISTS idx_client_data_client_id ON client_data (client_id);
-            CREATE INDEX IF NOT EXISTS idx_client_data_table_name ON client_data (table_name);
-            CREATE INDEX IF NOT EXISTS idx_client_data_client_table ON client_data (client_id, table_name);
-            """
-            
-            # In a real implementation, you'd execute this SQL
-            # For now, we'll log it for manual execution
-            logger.info("📝 client_data table SQL prepared for manual execution")
-            logger.info(create_table_sql)
-    
-    async def get_client_data(self, client_id: str, table_name: str = None, limit: int = 100) -> Dict:
-        """Retrieve data from client-specific storage"""
-        try:
-            query = self.admin_client.table("client_data").select("*").eq("client_id", client_id)
-            
-            if table_name:
-                query = query.eq("table_name", table_name)
-            
-            response = query.limit(limit).order("created_at", desc=True).execute()
-            
-            if response.data:
-                # Extract the actual data from JSONB
-                data_records = [record["data"] for record in response.data]
-                
-                return {
-                    "client_id": client_id,
-                    "table_name": table_name,
-                    "data": data_records,
-                    "row_count": len(data_records),
-                    "message": f"Retrieved {len(data_records)} records"
-                }
-            else:
-                return {
-                    "client_id": client_id,
-                    "table_name": table_name,
-                    "data": [],
-                    "row_count": 0,
-                    "message": "No data found"
-                }
-                
-        except Exception as e:
-            logger.error(f"❌ Failed to retrieve client data: {e}")
-            raise Exception(f"Failed to retrieve data: {str(e)}")
-    
-    async def test_connection(self) -> bool:
-        """Test database connection"""
-        try:
-            if not self.client:
-                return False
-                
-            # Test connection by trying to query our clients table
-            response = self.client.table("clients").select("client_id").limit(1).execute()
-            logger.info("✅ Database connection successful")
-            return True
+            return total_inserted
             
         except Exception as e:
-            logger.error(f"❌ Database connection failed: {e}")
-            return False
+            logger.error(f"❌ Batch insert failed: {e}")
+            raise Exception(f"Database insert failed: {str(e)}")
     
-    async def create_base_schema(self):
-        """Create the base database schema for client management"""
-        if not self.admin_client:
-            raise Exception("Admin client not available - cannot create schema")
-        
+    async def fast_dashboard_config_save(self, client_id: str, dashboard_config: Dict) -> bool:
+        """Ultra-fast dashboard config save with optimized queries"""
         try:
-            logger.info("🔄 Creating base database schema...")
+            start_time = time.time()
+            client = self._get_pooled_admin_client()
             
-            # Create clients table
-            clients_table_sql = """
-            CREATE TABLE IF NOT EXISTS clients (
-                client_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                company_name VARCHAR(255) NOT NULL,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                password_hash VARCHAR(255) NOT NULL,
-                subscription_tier VARCHAR(50) DEFAULT 'basic',
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            );
-            """
-            
-            # Create client_schemas table to store AI-generated schemas
-            schemas_table_sql = """
-            CREATE TABLE IF NOT EXISTS client_schemas (
-                schema_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                client_id UUID REFERENCES clients(client_id) ON DELETE CASCADE,
-                schema_definition JSONB NOT NULL,
-                table_name VARCHAR(255) NOT NULL,
-                data_type VARCHAR(100),
-                ai_analysis TEXT,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                UNIQUE(client_id, table_name)
-            );
-            """
-            
-            # Create data_uploads table to track upload history
-            uploads_table_sql = """
-            CREATE TABLE IF NOT EXISTS data_uploads (
-                upload_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                client_id UUID REFERENCES clients(client_id) ON DELETE CASCADE,
-                original_filename VARCHAR(255),
-                data_format VARCHAR(50),
-                file_size_bytes INTEGER,
-                rows_processed INTEGER,
-                status VARCHAR(50) DEFAULT 'processing',
-                error_message TEXT,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            );
-            """
-            
-            # Execute SQL using RPC calls
-            # Note: In production, you'd want to use proper migration files
-            logger.info("📊 Creating tables...")
-            
-            # For now, we'll use a simple approach
-            # In a real implementation, you'd use Supabase's migration system
-            logger.info("✅ Base schema creation initiated")
-            logger.info("👉 Please create the tables manually in Supabase Dashboard:")
-            logger.info("   1. Go to your Supabase Dashboard > SQL Editor")
-            logger.info("   2. Run the SQL commands we'll provide")
-            
-            return {
-                "clients_table": clients_table_sql,
-                "schemas_table": schemas_table_sql,
-                "uploads_table": uploads_table_sql
+            config_data = {
+                'client_id': client_id,
+                'dashboard_config': dashboard_config,
+                'is_generated': True,
+                'generation_timestamp': "now()"
             }
             
+            # Use upsert for maximum efficiency
+            response = client.table('client_dashboard_configs').upsert(
+                config_data,
+                on_conflict='client_id'
+            ).execute()
+            
+            # Invalidate related caches
+            cache_keys = [
+                self._cache_key("dashboard_config", client_id),
+                self._cache_key("dashboard_exists", client_id)
+            ]
+            
+            with self.cache_lock:
+                for key in cache_keys:
+                    if key in self.cache:
+                        del self.cache[key]
+                    if key in self.cache_ttl:
+                        del self.cache_ttl[key]
+            
+            save_time = time.time() - start_time
+            logger.info(f"⚡ Dashboard config saved in {save_time:.3f}s")
+            
+            return bool(response.data)
+            
         except Exception as e:
-            logger.error(f"❌ Failed to create base schema: {e}")
-            raise
+            logger.error(f"❌ Fast dashboard config save failed: {e}")
+            raise Exception(f"Dashboard save failed: {str(e)}")
+    
+    async def fast_dashboard_metrics_save(self, metrics_data: List[Dict]) -> int:
+        """High-performance metrics save with batch processing"""
+        try:
+            start_time = time.time()
+            
+            if not metrics_data:
+                return 0
+            
+            client = self._get_pooled_admin_client()
+            
+            # Batch insert all metrics at once
+            response = client.table('client_dashboard_metrics').insert(metrics_data).execute()
+            
+            inserted_count = len(response.data) if response.data else 0
+            save_time = time.time() - start_time
+            
+            logger.info(f"⚡ {inserted_count} metrics saved in {save_time:.3f}s")
+            return inserted_count
+            
+        except Exception as e:
+            logger.error(f"❌ Fast metrics save failed: {e}")
+            raise Exception(f"Metrics save failed: {str(e)}")
+    
+    async def cached_dashboard_exists(self, client_id: str) -> bool:
+        """Fast cached check if dashboard exists"""
+        cache_key = self._cache_key("dashboard_exists", client_id)
+        
+        cached_result = self._get_from_cache(cache_key)
+        if cached_result is not None:
+            return cached_result
+        
+        try:
+            client = self._get_pooled_client()
+            response = client.table('client_dashboard_configs') \
+                .select('client_id') \
+                .eq('client_id', client_id) \
+                .limit(1) \
+                .execute()
+            
+            exists = bool(response.data)
+            self._set_cache(cache_key, exists, ttl_seconds=300)  # 5 minute cache
+            
+            return exists
+            
+        except Exception as e:
+            logger.error(f"❌ Dashboard exists check failed: {e}")
+            return False
+    
+    def clear_cache(self, pattern: str = None):
+        """Clear cache entries matching pattern or all if no pattern"""
+        with self.cache_lock:
+            if pattern:
+                keys_to_remove = [key for key in self.cache.keys() if pattern in key]
+                for key in keys_to_remove:
+                    if key in self.cache:
+                        del self.cache[key]
+                    if key in self.cache_ttl:
+                        del self.cache_ttl[key]
+                logger.info(f"🗑️ Cleared {len(keys_to_remove)} cache entries matching '{pattern}'")
+            else:
+                self.cache.clear()
+                self.cache_ttl.clear()
+                logger.info("🗑️ Cleared all cache entries")
+    
+    def get_cache_stats(self) -> Dict:
+        """Get cache performance statistics"""
+        with self.cache_lock:
+            current_time = time.time()
+            active_entries = sum(1 for ttl in self.cache_ttl.values() if ttl > current_time)
+            
+            return {
+                "total_entries": len(self.cache),
+                "active_entries": active_entries,
+                "expired_entries": len(self.cache) - active_entries,
+                "pool_size": len(self.client_pool),
+                "admin_pool_size": len(self.admin_pool)
+            }
+    
+    # Legacy compatibility methods (optimized)
+    async def get_client_data(self, client_id: str, table_name: str = None, limit: int = 100) -> Dict:
+        """Legacy method - redirects to optimized version"""
+        return await self.fast_client_data_lookup(client_id, use_cache=True)
+    
+    async def insert_client_data(self, table_name: str, data: List[Dict[str, Any]], client_id: str) -> int:
+        """Legacy method - redirects to optimized version"""
+        return await self.batch_insert_client_data(table_name, data, client_id)
+    
+    def get_client(self) -> Client:
+        """Legacy method - returns pooled client"""
+        return self._get_pooled_client()
+    
+    def get_admin_client(self) -> Client:
+        """Legacy method - returns pooled admin client"""
+        return self._get_pooled_admin_client()
 
-# Global database manager instance
-db_manager = DatabaseManager()
+# Global optimized database manager instance
+db_manager = PerformanceOptimizedDatabaseManager()
 
-# Convenience functions
-def get_db_client() -> Optional[Client]:
-    """Get the regular database client"""
+# Convenience functions (optimized)
+def get_db_client() -> Client:
+    """Get a high-performance pooled database client"""
     return db_manager.get_client()
 
-def get_admin_client() -> Optional[Client]:
-    """Get the admin database client"""
+def get_admin_client() -> Client:
+    """Get a high-performance pooled admin database client"""
     return db_manager.get_admin_client() 

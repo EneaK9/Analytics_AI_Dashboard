@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+
 import {
 	AlertCircle,
 	Settings,
@@ -62,7 +62,7 @@ export default function Home() {
 					</h2>
 
 					<p className="text-body mb-8 max-w-2xl mx-auto">
-						We're building a revolutionary AI-powered analytics platform where
+						We are building a revolutionary AI-powered analytics platform where
 						each client gets a custom dashboard tailored to their unique data
 						structure. The system will automatically analyze your data and
 						create the perfect visualization interface.
@@ -96,7 +96,7 @@ export default function Home() {
 								Dynamic Dashboards
 							</h3>
 							<p className="text-body text-sm">
-								Custom interfaces generated for each client's unique data
+								Custom interfaces generated for each client&apos;s unique data
 							</p>
 						</div>
 					</div>
