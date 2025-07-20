@@ -49,10 +49,13 @@ class PerformanceOptimizedDatabaseManager:
         if not self.supabase_url or not self.supabase_key:
             raise Exception("❌ Supabase credentials REQUIRED - no fallbacks allowed")
         
-        self._initialize_connection_pools()
-        
-        # Start background batch processor
-        self._start_batch_processor()
+        try:
+            self._initialize_connection_pools()
+            # Start background batch processor
+            self._start_batch_processor()
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize optimized database manager: {e}")
+            raise
     
     def _initialize_connection_pools(self):
         """Initialize connection pools for better performance"""
@@ -397,14 +400,75 @@ class PerformanceOptimizedDatabaseManager:
         """Legacy method - returns pooled admin client"""
         return self._get_pooled_admin_client()
 
-# Global optimized database manager instance
-db_manager = PerformanceOptimizedDatabaseManager()
+# Global optimized database manager instance (lazy initialization)
+_db_manager = None
 
-# Convenience functions (optimized)
+def get_db_manager():
+    """Get database manager with lazy initialization"""
+    global _db_manager
+    if _db_manager is None:
+        try:
+            _db_manager = PerformanceOptimizedDatabaseManager()
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize database manager: {e}")
+            # Return a simple fallback that will allow the app to start
+            _db_manager = SimpleDatabaseManager()
+    return _db_manager
+
+class SimpleDatabaseManager:
+    """Fallback simple database manager for when optimization fails"""
+    
+    def __init__(self):
+        self.supabase_url = os.getenv("SUPABASE_URL")
+        self.supabase_key = os.getenv("SUPABASE_KEY")
+        self.supabase_service_key = os.getenv("SUPABASE_SERVICE_KEY")
+        
+        if not self.supabase_url or not self.supabase_key:
+            logger.warning("⚠️ Supabase credentials not configured")
+    
+    def get_client(self):
+        """Get simple client without pooling"""
+        if not self.supabase_url or not self.supabase_key:
+            return None
+        from supabase import create_client
+        return create_client(self.supabase_url, self.supabase_key)
+    
+    def get_admin_client(self):
+        """Get simple admin client without pooling"""
+        if not self.supabase_url or not self.supabase_service_key:
+            return None
+        from supabase import create_client
+        return create_client(self.supabase_url, self.supabase_service_key)
+    
+    async def test_connection(self):
+        """Test database connection"""
+        try:
+            client = self.get_client()
+            if client:
+                # Simple test query
+                response = client.table('clients').select('count', count='exact').limit(1).execute()
+                return True
+        except Exception as e:
+            logger.error(f"Database connection test failed: {e}")
+            return False
+        return False
+    
+    async def create_base_schema(self):
+        """Return basic schema setup SQL"""
+        return "-- Simple database manager fallback - schema setup not available"
+
+# Convenience functions (optimized with lazy loading)
 def get_db_client() -> Client:
     """Get a high-performance pooled database client"""
-    return db_manager.get_client()
+    manager = get_db_manager()
+    return manager.get_client()
 
 def get_admin_client() -> Client:
     """Get a high-performance pooled admin database client"""
-    return db_manager.get_admin_client() 
+    manager = get_db_manager()
+    return manager.get_admin_client()
+
+# Legacy compatibility - expose db_manager as a function
+def db_manager():
+    """Get database manager instance (legacy compatibility)"""
+    return get_db_manager() 

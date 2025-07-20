@@ -14,7 +14,7 @@ import jwt
 
 # Import our custom modules
 from models import *
-from database import db_manager, get_db_client, get_admin_client
+from database import get_db_client, get_admin_client
 from ai_analyzer import ai_analyzer
 
 # Load environment variables
@@ -107,7 +107,9 @@ async def health_check():
     """Health check endpoint"""
     try:
         # Test database connection
-        db_healthy = await db_manager.test_connection() if db_manager.client else False
+        from database import db_manager
+        manager = db_manager()
+        db_healthy = await manager.test_connection() if hasattr(manager, 'client') and manager.client else False
         
         return {
             "status": "healthy",
@@ -206,7 +208,9 @@ async def superadmin_diagnostics(token: str = Depends(security)):
 async def setup_database_schema():
     """Setup base database schema (run once)"""
     try:
-        schema_sql = await db_manager.create_base_schema()
+        from database import db_manager
+        manager = db_manager()
+        schema_sql = await manager.create_base_schema()
         return {
             "message": "Database schema setup initiated",
             "sql_commands": schema_sql,
