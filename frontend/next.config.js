@@ -2,17 +2,18 @@
 const nextConfig = {
 	reactStrictMode: true,
 
-	// Enable experimental features from Next.js 15.3
-	experimental: {
-		// Enable Turbopack for faster builds (alpha feature)
-		turbo: {
-			rules: {
-				"*.svg": {
-					loaders: ["@svgr/webpack"],
-					as: "*.js",
-				},
+	// Enable Turbopack (now stable)
+	turbopack: {
+		rules: {
+			"*.svg": {
+				loaders: ["@svgr/webpack"],
+				as: "*.js",
 			},
 		},
+	},
+
+	// Enable experimental features from Next.js 15.3
+	experimental: {
 		// Enable optimized package imports
 		optimizePackageImports: ["lucide-react", "recharts"],
 	},

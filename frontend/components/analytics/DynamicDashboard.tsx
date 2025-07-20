@@ -231,10 +231,10 @@ export default function DynamicDashboard({
 			}
 
 			// Get real client data
-			const rawData = await clientDataService.fetchClientData();
+			const processedData = await clientDataService.fetchClientData();
 
 			setDashboardConfig(config);
-			setClientData(rawData);
+			setClientData(processedData.rawData); // Extract the array from ProcessedClientData
 			setLastUpdated(new Date());
 			setError(null);
 		} catch (err: any) {
