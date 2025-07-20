@@ -32,9 +32,20 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+# Get allowed origins from environment
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+allowed_origins = [
+    "http://localhost:3000", 
+    "http://localhost:3001",
+    FRONTEND_URL
+]
+
+# Remove any None values and duplicates
+allowed_origins = list(set([origin for origin in allowed_origins if origin]))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

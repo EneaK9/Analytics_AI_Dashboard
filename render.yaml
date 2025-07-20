@@ -1,0 +1,44 @@
+services:
+  # Backend API Service
+  - type: web
+    name: analytics-ai-backend
+    env: python
+    plan: starter
+    buildCommand: |
+      cd backend
+      pip install -r requirements.txt
+    startCommand: |
+      cd backend
+      python -m uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      # Note: Add these in Render dashboard as secret environment variables:
+      # SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, OPENAI_API_KEY, JWT_SECRET_KEY
+    healthCheckPath: /health
+
+  # Frontend Web Service
+  - type: web
+    name: analytics-ai-frontend
+    env: node
+    plan: starter
+    buildCommand: |
+      cd frontend
+      npm ci
+      npm run build
+    startCommand: |
+      cd frontend
+      npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.17.0
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: analytics-ai-backend
+          property: host
+    # Note: Render will automatically add https:// prefix to the service URL

@@ -273,4 +273,14 @@ Thumbs.db
 # Cache directories
 .cache/
 .tox/
-.pytest_cache/ 
+.pytest_cache/
+
+# Environment variables (contains secrets - DO NOT COMMIT)
+.env
+.env.local
+.env.production
+.env.development
+
+# Keep example templates
+!.env.example
+!.env.dist 
