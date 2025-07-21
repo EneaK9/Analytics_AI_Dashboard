@@ -36,8 +36,8 @@ const ShadcnInteractiveDonut: React.FC<ShadcnInteractiveDonutProps> = ({
 }) => {
 	// Process real data into shadcn format
 	const chartData =
-		data.length > 0
-			? data.slice(0, 5).map((item, index) => {
+		data && data.length > 0
+			? data.slice(0, 8).map((item, index) => {
 					const browsers = ["chrome", "safari", "firefox", "edge", "other"];
 					const colors = [
 						"var(--color-chrome)",
@@ -49,18 +49,21 @@ const ShadcnInteractiveDonut: React.FC<ShadcnInteractiveDonutProps> = ({
 
 					const browserName =
 						item[nameKey] ||
+						item["browser"] ||
+						item["name"] ||
 						item["symbol"] ||
 						item["category"] ||
 						item["type"] ||
-						item["name"] ||
 						browsers[index % browsers.length];
 
 					const visitors =
 						Number(item[dataKey]) ||
+						Number(item["visitors"]) ||
+						Number(item["value"]) ||
 						Number(item["price"]) ||
 						Number(item["quantity"]) ||
 						Number(item["total_value"]) ||
-						Math.floor(Math.random() * 300) + 50;
+						0;
 
 					return {
 						browser: String(browserName),

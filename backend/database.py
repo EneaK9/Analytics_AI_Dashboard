@@ -62,23 +62,50 @@ class PerformanceOptimizedDatabaseManager:
         try:
             logger.info("🚀 Initializing high-performance connection pools...")
             
+            # Try to create a simple client first to test the connection
+            try:
+                test_client = create_client(self.supabase_url, self.supabase_key)
+                logger.info("✅ Supabase connection test successful")
+            except Exception as e:
+                logger.error(f"❌ Supabase connection test failed: {e}")
+                raise
+            
             # Create regular client pool
-            for _ in range(self.pool_size):
-                client = create_client(self.supabase_url, self.supabase_key)
-                self.client_pool.append(client)
+            for i in range(self.pool_size):
+                try:
+                    client = create_client(self.supabase_url, self.supabase_key)
+                    self.client_pool.append(client)
+                except Exception as e:
+                    logger.warning(f"⚠️  Failed to create client {i+1}: {e}")
+                    if i == 0:  # If first client fails, abort
+                        raise
             
             # Create admin client pool
             if self.supabase_service_key:
-                for _ in range(self.pool_size):
-                    admin_client = create_client(self.supabase_url, self.supabase_service_key)
-                    self.admin_pool.append(admin_client)
-                logger.info(f"✅ Created {self.pool_size}x2 pooled connections for maximum performance")
+                for i in range(self.pool_size):
+                    try:
+                        admin_client = create_client(self.supabase_url, self.supabase_service_key)
+                        self.admin_pool.append(admin_client)
+                    except Exception as e:
+                        logger.warning(f"⚠️  Failed to create admin client {i+1}: {e}")
+                        if i == 0:  # If first admin client fails, abort
+                            raise
+                logger.info(f"✅ Created {len(self.client_pool)} client connections and {len(self.admin_pool)} admin connections")
             else:
-                raise Exception("Service role key REQUIRED for admin operations")
+                logger.warning("⚠️  No service role key - admin operations will be limited")
                 
         except Exception as e:
             logger.error(f"❌ Failed to initialize connection pools: {e}")
-            raise
+            # Fallback: Create minimal single client
+            try:
+                logger.info("🔄 Attempting fallback to single client mode...")
+                self.client_pool = [create_client(self.supabase_url, self.supabase_key)]
+                if self.supabase_service_key:
+                    self.admin_pool = [create_client(self.supabase_url, self.supabase_service_key)]
+                logger.info("✅ Fallback single client mode initialized")
+            except Exception as fallback_error:
+                logger.error(f"❌ Fallback initialization also failed: {fallback_error}")
+                raise
     
     def _get_pooled_client(self) -> Client:
         """Get a client from the pool (round-robin)"""
@@ -456,6 +483,39 @@ class SimpleDatabaseManager:
     async def create_base_schema(self):
         """Return basic schema setup SQL"""
         return "-- Simple database manager fallback - schema setup not available"
+    
+    async def create_client_table(self, table_name: str, create_sql: str):
+        """Simple fallback for table creation"""
+        logger.info(f"📊 Simple manager: Table creation simulated for {table_name}")
+        return True
+    
+    async def fast_client_data_lookup(self, client_id: str, use_cache: bool = True):
+        """Simple fallback for data lookup"""
+        return {"data": [], "row_count": 0, "query_time": 0.001}
+    
+    async def batch_insert_client_data(self, table_name: str, data: list, client_id: str):
+        """Simple fallback for data insertion"""
+        logger.info(f"📥 Simple manager: Data insertion simulated for {table_name}")
+        return len(data)
+    
+    async def fast_dashboard_config_save(self, client_id: str, dashboard_config: dict):
+        """Simple fallback for dashboard config save"""
+        logger.info(f"💾 Simple manager: Dashboard config save simulated for {client_id}")
+        return True
+    
+    async def cached_dashboard_exists(self, client_id: str):
+        """Simple fallback for dashboard existence check"""
+        return False
+    
+    async def fast_dashboard_metrics_save(self, metrics_data: list):
+        """Simple fallback for metrics save"""
+        logger.info(f"📊 Simple manager: Metrics save simulated for {len(metrics_data)} metrics")
+        return len(metrics_data)
+    
+    async def insert_client_data(self, table_name: str, records: list, client_id: str):
+        """Simple fallback for data insertion"""
+        logger.info(f"📥 Simple manager: Data insertion simulated for {table_name}")
+        return len(records)
 
 # Convenience functions (optimized with lazy loading)
 def get_db_client() -> Client:

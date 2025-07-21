@@ -61,29 +61,51 @@ class ClientDataService {
 					console.log(`📊 Loading data for client ${clientId}...`);
 					const dataResponse = await api.get(`/data/${clientId}`);
 
-					if (dataResponse.data && dataResponse.data.data) {
+					console.log("🔍 Raw API response:", dataResponse.data);
+
+					if (
+						dataResponse.data &&
+						dataResponse.data.data &&
+						dataResponse.data.data.length > 0
+					) {
 						console.log("✅ Client data loaded instantly!");
-						return {
-							totalRecords: dataResponse.data.row_count,
+						const rawData = dataResponse.data.data;
+
+						// Enhanced data processing for charts
+						const processedData = {
+							totalRecords: dataResponse.data.row_count || rawData.length,
 							dateRange: {
-								start: dataResponse.data.data[0]?.date || "",
+								start: rawData[0]?.date || rawData[0]?.created_at || "",
 								end:
-									dataResponse.data.data[dataResponse.data.data.length - 1]
-										?.date || "",
+									rawData[rawData.length - 1]?.date ||
+									rawData[rawData.length - 1]?.created_at ||
+									"",
 							},
-							dataTypes: [dataResponse.data.data_type],
-							businessMetrics: this.convertToBusinessMetrics(
-								dataResponse.data.data
-							),
-							rawData: dataResponse.data.data,
+							dataTypes: [dataResponse.data.data_type || "general"],
+							businessMetrics: this.convertToBusinessMetrics(rawData),
+							rawData: rawData,
 						};
+
+						console.log("📊 Processed client data:", {
+							totalRecords: processedData.totalRecords,
+							sampleData: processedData.rawData.slice(0, 2),
+							columns:
+								processedData.rawData.length > 0
+									? Object.keys(processedData.rawData[0])
+									: [],
+						});
+
+						return processedData;
+					} else {
+						console.log("⚠️ No data in API response, using sample data");
 					}
 				}
 			} catch (apiError) {
-				console.log("API call failed, using sample data");
+				console.log("API call failed, using sample data:", apiError);
 			}
 
 			// Fallback to sample data
+			console.log("🔄 Falling back to sample data");
 			return this.generateSampleClientData();
 		} catch (error: any) {
 			console.error("Error fetching client data:", error);
@@ -258,10 +280,83 @@ class ClientDataService {
 	 * Convert API data to business metrics format
 	 */
 	private convertToBusinessMetrics(data: any[]) {
-		const dates = data.map((item) => item.date);
-		const revenue = data.map((item) => item.revenue || 0);
-		const customers = data.map((item) => item.customers || 0);
-		const orders = data.map((item) => item.orders || 0);
+		if (!data || data.length === 0) {
+			return {
+				revenue: [],
+				customers: [],
+				orders: [],
+				dates: [],
+			};
+		}
+
+		console.log("🔧 Converting data to business metrics:", data.slice(0, 2));
+
+		// Smart field detection for different data formats
+		const firstRecord = data[0];
+		const fields = Object.keys(firstRecord);
+
+		// Try to find date field
+		const dateField =
+			fields.find(
+				(f) =>
+					f.toLowerCase().includes("date") ||
+					f.toLowerCase().includes("time") ||
+					f.toLowerCase().includes("created")
+			) || fields[0];
+
+		// Try to find numeric fields for different metrics
+		const revenueField = fields.find(
+			(f) =>
+				f.toLowerCase().includes("revenue") ||
+				f.toLowerCase().includes("sales") ||
+				f.toLowerCase().includes("total") ||
+				f.toLowerCase().includes("price")
+		);
+
+		const customerField = fields.find(
+			(f) =>
+				f.toLowerCase().includes("customer") ||
+				f.toLowerCase().includes("user") ||
+				f.toLowerCase().includes("quantity")
+		);
+
+		const orderField = fields.find(
+			(f) =>
+				f.toLowerCase().includes("order") ||
+				f.toLowerCase().includes("count") ||
+				f.toLowerCase().includes("volume")
+		);
+
+		const dates = data.map((item) => {
+			const dateValue = item[dateField];
+			if (typeof dateValue === "string" && dateValue.includes("T")) {
+				try {
+					return new Date(dateValue).toISOString().split("T")[0];
+				} catch (e) {
+					return dateValue;
+				}
+			}
+			return dateValue || "Unknown";
+		});
+
+		const revenue = data.map((item) =>
+			revenueField ? Number(item[revenueField]) || 0 : 0
+		);
+		const customers = data.map((item) =>
+			customerField ? Number(item[customerField]) || 0 : 0
+		);
+		const orders = data.map((item) =>
+			orderField ? Number(item[orderField]) || 0 : 0
+		);
+
+		console.log("📊 Business metrics conversion result:", {
+			dateField,
+			revenueField,
+			customerField,
+			orderField,
+			sampleDates: dates.slice(0, 3),
+			sampleRevenue: revenue.slice(0, 3),
+		});
 
 		return {
 			revenue,

@@ -69,9 +69,10 @@ export default function DynamicDashboard({
 	const [error, setError] = useState<string | null>(null);
 	const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-	// 🧠 AI-POWERED CHART COMPONENT SELECTOR
+	// 🧠 AI-POWERED CHART COMPONENT SELECTOR - COMPREHENSIVE MAPPING
 	const getShadcnComponent = (componentName: string) => {
 		const componentMap = {
+			// 🎯 PRIMARY CHART COMPONENTS (exactly matching backend)
 			ShadcnAreaChart,
 			ShadcnBarChart,
 			ShadcnLineChart,
@@ -79,69 +80,302 @@ export default function DynamicDashboard({
 			ShadcnInteractiveBar,
 			ShadcnInteractiveDonut,
 			ShadcnMultipleArea,
+			// 🔄 COMPONENT ALIASES & FALLBACKS
+			ShadcnAreaInteractive: ShadcnAreaChart,
+			ShadcnAreaLinear: ShadcnAreaChart,
+			ShadcnAreaStacked: ShadcnAreaChart,
+			ShadcnAreaStep: ShadcnAreaChart,
+			ShadcnBarHorizontal: ShadcnInteractiveBar, // Use interactive bar for horizontal
+			ShadcnBarLabel: ShadcnBarChart,
+			ShadcnBarCustomLabel: ShadcnBarChart,
+			ShadcnPieChartLabel: ShadcnPieChart,
+			ShadcnDonutInteractive: ShadcnInteractiveDonut, // Fixed mapping
+			ShadcnRadarChart: ShadcnBarChart,
 		};
 
-		return componentMap[componentName as keyof typeof componentMap];
+		const component = componentMap[componentName as keyof typeof componentMap];
+		if (!component) {
+			console.warn(
+				`⚠️ Unknown chart component: ${componentName}, using ShadcnBarChart as fallback`
+			);
+			return ShadcnBarChart;
+		}
+		return component;
 	};
 
-	// 📊 REAL DATA PROCESSOR: Transform client data for specific chart requirements
+	// 📊 REAL DATA PROCESSOR: Transform client data ensuring UNIQUE data per chart
 	const processDataForChart = (
 		chartConfig: AIChartConfig,
 		rawData: any[]
 	): any[] => {
 		try {
 			const { real_data_columns, component } = chartConfig.config;
+			const chartTitle = chartConfig.title || "Unknown Chart";
+
+			console.log(`🎯 Processing data for "${chartTitle}":`, {
+				component,
+				columns: real_data_columns,
+				dataSize: rawData?.length || 0,
+				sampleData: rawData?.slice(0, 2),
+			});
 
 			if (!rawData || rawData.length === 0) {
+				console.warn(`❌ No data available for chart: ${chartTitle}`);
 				return [];
 			}
 
-			// Process data based on chart component requirements
+			if (!real_data_columns || real_data_columns.length === 0) {
+				console.warn(`❌ No data columns specified for chart: ${chartTitle}`);
+				return [];
+			}
+
+			let processedData: any[] = [];
+
+			// 🚀 Process data for ALL chart types with VALIDATION
 			switch (component) {
+				// Area Charts
 				case "ShadcnAreaChart":
-				case "ShadcnLineChart":
-					return processTimeSeriesData(rawData, real_data_columns);
+				case "ShadcnAreaInteractive":
+				case "ShadcnAreaLinear":
+				case "ShadcnAreaStacked":
+				case "ShadcnAreaStep":
+					processedData = processTimeSeriesData(rawData, real_data_columns);
+					break;
 
+				// Bar Charts
 				case "ShadcnBarChart":
+				case "ShadcnBarHorizontal":
+				case "ShadcnBarLabel":
+				case "ShadcnBarCustomLabel":
 				case "ShadcnInteractiveBar":
-					return processCategoricalData(rawData, real_data_columns);
+					processedData = processCategoricalData(rawData, real_data_columns);
+					break;
 
+				// Line Charts
+				case "ShadcnLineChart":
+					processedData = processTimeSeriesData(rawData, real_data_columns);
+					break;
+
+				// Pie Charts & Donuts
 				case "ShadcnPieChart":
+				case "ShadcnPieChartLabel":
 				case "ShadcnInteractiveDonut":
-					return processPieChartData(rawData, real_data_columns);
+				case "ShadcnDonutInteractive":
+					processedData = processPieChartData(rawData, real_data_columns);
+					break;
 
+				// Radar Charts
+				case "ShadcnRadarChart":
+					processedData = processRadarData(rawData, real_data_columns);
+					break;
+
+				// Multi-series Charts
 				case "ShadcnMultipleArea":
-					return processMultiSeriesData(rawData, real_data_columns);
+					processedData = processMultiSeriesData(rawData, real_data_columns);
+					break;
 
 				default:
-					return rawData.slice(0, 20); // Fallback
+					console.warn(
+						`Unknown chart component: ${component}, using categorical fallback`
+					);
+					processedData = processCategoricalData(rawData, real_data_columns);
 			}
+
+			console.log(`✅ Processed data for "${chartTitle}":`, {
+				originalSize: rawData.length,
+				processedSize: processedData.length,
+				sampleProcessed: processedData.slice(0, 2),
+			});
+
+			// 🔍 VALIDATION: Ensure processed data is valid
+			if (!processedData || processedData.length === 0) {
+				console.error(
+					`❌ Chart "${chartTitle}" resulted in empty data after processing`
+				);
+				return [];
+			}
+
+			return processedData;
 		} catch (error) {
-			console.error("Error processing chart data:", error);
+			console.error(
+				`❌ Error processing data for chart "${chartConfig.title}":`,
+				error
+			);
 			return [];
 		}
 	};
 
-	// 📈 Time Series Data Processing
+	// 📈 Time Series Data Processing - ENHANCED for real Shopify dates
 	const processTimeSeriesData = (data: any[], columns: string[]): any[] => {
+		console.log("🔍 Processing time series data:", {
+			data: data.slice(0, 3),
+			columns,
+		});
+
 		const [dateCol, valueCol] = columns;
-		return data
-			.filter((item) => item[dateCol] && item[valueCol] !== null)
-			.slice(0, 50) // Limit for performance
-			.map((item) => ({
-				name: formatDateForChart(item[dateCol]),
-				value: Number(item[valueCol]) || 0,
-				[valueCol]: Number(item[valueCol]) || 0,
-				date: item[dateCol],
-			}))
-			.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+		const processedData = data
+			.filter(
+				(item) =>
+					item[dateCol] &&
+					item[valueCol] !== null &&
+					item[valueCol] !== undefined
+			)
+			.map((item) => {
+				// 🔧 BETTER DATE FORMATTING: Convert Shopify dates to readable format
+				let formattedDate = item[dateCol];
+				if (typeof formattedDate === "string") {
+					const date = new Date(formattedDate);
+					if (!isNaN(date.getTime())) {
+						formattedDate = date.toLocaleDateString("en-US", {
+							month: "short",
+							day: "numeric",
+							year:
+								date.getFullYear() !== new Date().getFullYear()
+									? "numeric"
+									: undefined,
+						});
+					}
+				}
+
+				return {
+					...item,
+					[dateCol]: formattedDate,
+					[valueCol]: Number(item[valueCol]) || 0,
+				};
+			})
+			.sort(
+				(a, b) =>
+					new Date(a[dateCol]).getTime() - new Date(b[dateCol]).getTime()
+			)
+			.slice(0, 30); // Limit for performance but show more data points
+
+		console.log("✅ Processed time series result:", processedData.slice(0, 3));
+		return processedData;
 	};
 
-	// 📊 Categorical Data Processing
+	// 📊 Categorical Data Processing - ENHANCED for real Shopify data
 	const processCategoricalData = (data: any[], columns: string[]): any[] => {
+		console.log("🔍 Processing categorical data:", {
+			data: data.slice(0, 3),
+			columns,
+		});
+
 		const [categoryCol, valueCol] = columns;
 
-		// Group by category and sum values
+		// Group by category and sum/count values
+		const groupedData: { [key: string]: number } = {};
+
+		data.forEach((item) => {
+			// 🔧 BETTER CATEGORY EXTRACTION: Handle product titles, vendors, tags properly
+			let category = String(item[categoryCol] || "Unknown");
+
+			// Truncate long product names for readability
+			if (categoryCol === "title" && category.length > 25) {
+				category = category.substring(0, 25) + "...";
+			}
+
+			// Handle empty vendors
+			if (
+				categoryCol === "vendor" &&
+				(!category || category === "null" || category === "")
+			) {
+				category = "No Brand";
+			}
+
+			// Handle product types
+			if (
+				categoryCol === "product_type" &&
+				(!category || category === "null" || category === "")
+			) {
+				category = "Uncategorized";
+			}
+
+			// Handle tags (might be arrays or comma-separated)
+			if (categoryCol === "tags") {
+				if (Array.isArray(item[categoryCol])) {
+					// If tags is an array, use the first tag
+					category = item[categoryCol][0] || "No Tags";
+				} else if (
+					typeof item[categoryCol] === "string" &&
+					item[categoryCol].includes(",")
+				) {
+					// If tags is comma-separated, use the first tag
+					category = item[categoryCol].split(",")[0].trim() || "No Tags";
+				}
+			}
+
+			const value = Number(item[valueCol]) || 0;
+			groupedData[category] = (groupedData[category] || 0) + value;
+		});
+
+		// Convert to chart format and limit to top 12 for better readability
+		const result = Object.entries(groupedData)
+			.map(([category, value]) => ({
+				name: category,
+				value: value,
+				[valueCol]: value,
+			}))
+			.sort((a, b) => b.value - a.value)
+			.slice(0, 12);
+
+		console.log("✅ Processed categorical result:", result);
+		return result;
+	};
+
+	// 🥧 Pie Chart Data Processing - FIXED to handle real Shopify data
+	const processPieChartData = (data: any[], columns: string[]): any[] => {
+		console.log("🔍 Processing pie chart data:", {
+			data: data.slice(0, 3),
+			columns,
+		});
+
+		const [categoryCol, valueCol] = columns;
+
+		// 🔧 SPECIAL HANDLING: If valueCol is "count", we need to count categories
+		if (valueCol === "count" || !valueCol) {
+			// Count occurrences of each category
+			const counts: { [key: string]: number } = {};
+
+			data.forEach((item) => {
+				const category = String(item[categoryCol] || "Unknown");
+				counts[category] = (counts[category] || 0) + 1;
+			});
+
+			// Convert to pie chart format
+			const pieData = Object.entries(counts)
+				.map(([category, count]) => ({
+					name: category,
+					value: count,
+					count: count,
+					percentage: 0, // Will be calculated below
+				}))
+				.sort((a, b) => b.value - a.value)
+				.slice(0, 8);
+
+			// Calculate percentages
+			const total = pieData.reduce((sum, item) => sum + item.value, 0);
+			return pieData.map((item) => ({
+				...item,
+				percentage: total > 0 ? Math.round((item.value / total) * 100) : 0,
+			}));
+		} else {
+			// Use existing logic for numeric values
+			const categoricalData = processCategoricalData(data, columns);
+			const total = categoricalData.reduce((sum, item) => sum + item.value, 0);
+
+			return categoricalData.slice(0, 8).map((item) => ({
+				...item,
+				percentage: total > 0 ? Math.round((item.value / total) * 100) : 0,
+			}));
+		}
+	};
+
+	// 🕸️ Radar Chart Data Processing
+	const processRadarData = (data: any[], columns: string[]): any[] => {
+		const [categoryCol, valueCol] = columns;
+
+		// Group and aggregate data for radar chart
 		const groupedData: { [key: string]: number } = {};
 
 		data.forEach((item) => {
@@ -150,50 +384,100 @@ export default function DynamicDashboard({
 			groupedData[category] = (groupedData[category] || 0) + value;
 		});
 
-		// Convert to chart format and limit to top 15
+		// Convert to radar format (limit to 6 categories for readability)
 		return Object.entries(groupedData)
 			.map(([category, value]) => ({
-				name: category,
-				value: value,
+				category,
+				value,
 				[valueCol]: value,
 			}))
 			.sort((a, b) => b.value - a.value)
-			.slice(0, 15);
+			.slice(0, 6);
 	};
 
-	// 🥧 Pie Chart Data Processing
-	const processPieChartData = (data: any[], columns: string[]): any[] => {
-		const categoricalData = processCategoricalData(data, columns);
-
-		// Calculate percentages
-		const total = categoricalData.reduce((sum, item) => sum + item.value, 0);
-
-		return categoricalData
-			.slice(0, 8) // Limit for readability
-			.map((item) => ({
-				...item,
-				percentage: total > 0 ? Math.round((item.value / total) * 100) : 0,
-			}));
-	};
-
-	// 📈 Multi-Series Data Processing
+	// 📈 Multi-Series Data Processing - ENHANCED for real Shopify data
 	const processMultiSeriesData = (data: any[], columns: string[]): any[] => {
-		const [dateCol, value1Col, value2Col] = columns;
+		console.log("🔍 Processing multi-series data:", {
+			data: data.slice(0, 3),
+			columns,
+		});
 
-		return data
-			.filter(
-				(item) =>
-					item[dateCol] &&
-					(item[value1Col] !== null || item[value2Col] !== null)
-			)
-			.slice(0, 30) // Limit for performance
-			.map((item) => ({
-				name: formatDateForChart(item[dateCol]),
-				[value1Col]: Number(item[value1Col]) || 0,
-				[value2Col]: Number(item[value2Col]) || 0,
-				date: item[dateCol],
-			}))
-			.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+		// Handle different column configurations
+		if (columns.length === 2) {
+			// Two columns: X-axis and category grouping
+			const [xCol, categoryCol] = columns;
+
+			// Group data by category and X value
+			const groupedData: { [key: string]: { [category: string]: number } } = {};
+
+			data.forEach((item) => {
+				const xValue = String(item[xCol] || "Unknown");
+				const category = String(item[categoryCol] || "Other");
+
+				if (!groupedData[xValue]) {
+					groupedData[xValue] = {};
+				}
+				groupedData[xValue][category] =
+					(groupedData[xValue][category] || 0) + 1;
+			});
+
+			// Convert to chart format
+			const result = Object.entries(groupedData)
+				.map(([xValue, categories]) => ({
+					[xCol]: xValue,
+					...categories,
+				}))
+				.sort(
+					(a, b) => new Date(a[xCol]).getTime() - new Date(b[xCol]).getTime()
+				)
+				.slice(0, 20);
+
+			console.log("✅ Processed multi-series result:", result.slice(0, 3));
+			return result;
+		} else if (columns.length >= 3) {
+			// Three+ columns: X-axis and multiple Y values
+			const [dateCol, value1Col, value2Col] = columns;
+
+			const processedData = data
+				.filter(
+					(item) =>
+						item[dateCol] &&
+						(item[value1Col] !== null || item[value2Col] !== null)
+				)
+				.map((item) => {
+					// Format date for better display
+					let formattedDate = item[dateCol];
+					if (typeof formattedDate === "string") {
+						const date = new Date(formattedDate);
+						if (!isNaN(date.getTime())) {
+							formattedDate = date.toLocaleDateString("en-US", {
+								month: "short",
+								day: "numeric",
+							});
+						}
+					}
+
+					return {
+						[dateCol]: formattedDate,
+						[value1Col]: Number(item[value1Col]) || 0,
+						[value2Col]: Number(item[value2Col]) || 0,
+					};
+				})
+				.sort(
+					(a, b) =>
+						new Date(a[dateCol]).getTime() - new Date(b[dateCol]).getTime()
+				)
+				.slice(0, 30);
+
+			console.log(
+				"✅ Processed multi-series result:",
+				processedData.slice(0, 3)
+			);
+			return processedData;
+		}
+
+		// Fallback
+		return data.slice(0, 20);
 	};
 
 	// 📅 Date Formatter for Charts
@@ -245,16 +529,19 @@ export default function DynamicDashboard({
 		}
 	};
 
-	// 🎨 Render AI-Selected Shadcn Chart
+	// 🎨 Render AI-Selected Shadcn Chart with Enhanced Layout
 	const renderAIChart = (chartConfig: AIChartConfig) => {
 		const ChartComponent = getShadcnComponent(chartConfig.config.component);
 
 		if (!ChartComponent) {
 			return (
-				<div className="p-4 border rounded-lg bg-red-50">
-					<p className="text-red-600">
-						Unknown chart type: {chartConfig.config.component}
-					</p>
+				<div className="p-6 border-2 border-dashed border-red-300 rounded-xl bg-red-50">
+					<div className="text-center">
+						<div className="text-red-600 font-medium mb-2">⚠️ Chart Error</div>
+						<p className="text-red-500 text-sm">
+							Unknown chart type: {chartConfig.config.component}
+						</p>
+					</div>
 				</div>
 			);
 		}
@@ -262,19 +549,76 @@ export default function DynamicDashboard({
 		// Process real data for this specific chart
 		const processedData = processDataForChart(chartConfig, clientData);
 
-		// Merge AI-generated props with processed data
+		// Check if we have data to display
+		if (!processedData || processedData.length === 0) {
+			return (
+				<div className="p-6 border-2 border-dashed border-yellow-300 rounded-xl bg-yellow-50">
+					<div className="text-center">
+						<div className="text-yellow-600 font-medium mb-2">
+							📊 No Data Available
+						</div>
+						<p className="text-yellow-600 text-sm">
+							{chartConfig.title} - Waiting for data
+						</p>
+					</div>
+				</div>
+			);
+		}
+
+		// Enhanced chart props with better styling
 		const chartProps = {
 			...chartConfig.config.props,
 			data: processedData,
 			title: chartConfig.title,
 			description: chartConfig.subtitle,
+			className: "w-full h-full",
+		};
+
+		// Responsive column spanning based on screen size
+		const getResponsiveClasses = () => {
+			const { width, height } = chartConfig.size;
+
+			// Mobile (sm): Most charts full width
+			// Tablet (md): Half width for smaller charts
+			// Desktop (lg): Use configured width
+			if (width >= 3) {
+				return `col-span-4 md:col-span-4 lg:col-span-${width} row-span-${height}`;
+			} else if (width === 2) {
+				return `col-span-4 md:col-span-2 lg:col-span-2 row-span-${height}`;
+			} else {
+				return `col-span-2 md:col-span-1 lg:col-span-1 row-span-${height}`;
+			}
 		};
 
 		return (
 			<div
-				className={`col-span-${chartConfig.size.width} row-span-${chartConfig.size.height}`}
+				className={`${getResponsiveClasses()} min-h-[300px]`}
 				key={chartConfig.id}>
-				<ChartComponent {...chartProps} />
+				<div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-300 h-full">
+					<div className="p-6 h-full flex flex-col">
+						{/* Chart Header */}
+						<div className="mb-4">
+							<h3 className="text-lg font-semibold text-gray-900 mb-1">
+								{chartConfig.title}
+							</h3>
+							{chartConfig.subtitle && (
+								<p className="text-sm text-gray-600">{chartConfig.subtitle}</p>
+							)}
+						</div>
+
+						{/* Chart Content */}
+						<div className="flex-1 min-h-0">
+							<ChartComponent {...chartProps} />
+						</div>
+
+						{/* Chart Footer with Data Count */}
+						<div className="mt-4 pt-3 border-t border-gray-100">
+							<p className="text-xs text-gray-500 text-center">
+								{processedData.length} data points • Real-time data
+							</p>
+						</div>
+					</div>
+				</div>
 			</div>
 		);
 	};
@@ -337,65 +681,121 @@ export default function DynamicDashboard({
 	}
 
 	return (
-		<div className="space-y-6">
-			{/* 📊 Dashboard Header */}
-			<div className="flex justify-between items-start">
-				<div>
-					<h1 className="text-3xl font-bold text-gray-900">
-						{dashboardConfig.title}
-					</h1>
-					{dashboardConfig.subtitle && (
-						<p className="text-lg text-gray-600 mt-1">
-							{dashboardConfig.subtitle}
-						</p>
-					)}
-					<p className="text-sm text-gray-500 mt-2">
-						AI-Generated Dashboard • Last updated:{" "}
-						{lastUpdated?.toLocaleTimeString()}
-					</p>
+		<div className="space-y-8">
+			{/* 📊 Dashboard Header - Enhanced */}
+			<div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+				<div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+					<div className="flex-1">
+						<h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+							{dashboardConfig.title}
+						</h1>
+						{dashboardConfig.subtitle && (
+							<p className="text-lg text-gray-700 mb-3">
+								{dashboardConfig.subtitle}
+							</p>
+						)}
+						<div className="flex flex-wrap gap-4 text-sm text-gray-600">
+							<span className="inline-flex items-center gap-1">
+								🤖 AI-Generated Dashboard
+							</span>
+							<span className="inline-flex items-center gap-1">
+								🕒 Last updated: {lastUpdated?.toLocaleTimeString()}
+							</span>
+							<span className="inline-flex items-center gap-1">
+								📊 {clientData.length} data points
+							</span>
+						</div>
+					</div>
+					<div className="flex gap-3">
+						<button
+							onClick={fetchDashboardData}
+							className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+							disabled={loading}>
+							{loading ? (
+								<span className="flex items-center gap-2">
+									<div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+									Refreshing...
+								</span>
+							) : (
+								<span className="flex items-center gap-2">🔄 Refresh Data</span>
+							)}
+						</button>
+					</div>
 				</div>
-				<button
-					onClick={fetchDashboardData}
-					className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-					disabled={loading}>
-					🔄 Refresh
-				</button>
 			</div>
 
-			{/* 📈 KPI Metrics Section */}
+			{/* 📈 KPI Metrics Section - Enhanced */}
 			{dashboardConfig.kpi_widgets &&
 				dashboardConfig.kpi_widgets.length > 0 && (
 					<div>
+						<div className="mb-6">
+							<h2 className="text-2xl font-semibold text-gray-900 mb-2">
+								Key Performance Indicators
+							</h2>
+							<p className="text-gray-600">
+								Real-time insights from your business data
+							</p>
+						</div>
 						<SmartEcommerceMetrics clientData={clientData} />
 					</div>
 				)}
 
-			{/* 🎨 AI-Selected Charts Grid */}
+			{/* 🎨 AI-Selected Charts Grid - Enhanced Responsive Layout */}
 			{dashboardConfig.chart_widgets &&
 			dashboardConfig.chart_widgets.length > 0 ? (
-				<div className="grid grid-cols-4 gap-6 auto-rows-min">
-					{dashboardConfig.chart_widgets.map((chartConfig) =>
-						renderAIChart(chartConfig)
-					)}
+				<div>
+					<div className="mb-6">
+						<h2 className="text-2xl font-semibold text-gray-900 mb-2">
+							Analytics Dashboard
+						</h2>
+						<p className="text-gray-600">
+							AI-generated visualizations based on your data patterns
+						</p>
+					</div>
+					<div className="grid grid-cols-4 gap-6 auto-rows-min">
+						{dashboardConfig.chart_widgets.map((chartConfig) =>
+							renderAIChart(chartConfig)
+						)}
+					</div>
 				</div>
 			) : (
-				<div className="text-center p-8 bg-gray-50 rounded-lg border border-gray-200">
-					<p className="text-gray-600">
-						No charts configured for this dashboard.
-					</p>
+				<div className="text-center p-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+					<div className="max-w-md mx-auto">
+						<div className="text-6xl mb-4">📊</div>
+						<h3 className="text-xl font-medium text-gray-900 mb-2">
+							No Charts Available
+						</h3>
+						<p className="text-gray-600 mb-6">
+							No charts configured for this dashboard. Try refreshing your data
+							or check if you have sufficient data for chart generation.
+						</p>
+						<button
+							onClick={fetchDashboardData}
+							className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+							🔄 Regenerate Dashboard
+						</button>
+					</div>
 				</div>
 			)}
 
-			{/* 📊 Dashboard Info */}
-			<div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
-				<div className="flex items-center justify-between text-sm text-blue-800">
-					<span>
-						Dashboard Version: {dashboardConfig.version} • Generated:{" "}
-						{new Date(dashboardConfig.last_generated).toLocaleString()} •
-						Charts: {dashboardConfig.chart_widgets?.length || 0} • Data Points:{" "}
-						{clientData.length}
-					</span>
-					<span className="font-medium">🤖 AI-Orchestrated Dashboard</span>
+			{/* 📊 Dashboard Info - Enhanced */}
+			<div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+				<div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-sm">
+					<div className="flex flex-wrap gap-4 text-blue-800">
+						<span className="font-medium">
+							Dashboard Version: {dashboardConfig.version}
+						</span>
+						<span>
+							Generated:{" "}
+							{new Date(dashboardConfig.last_generated).toLocaleString()}
+						</span>
+						<span>Charts: {dashboardConfig.chart_widgets?.length || 0}</span>
+						<span>Data Points: {clientData.length}</span>
+					</div>
+					<div className="flex items-center gap-2 text-blue-800 font-medium">
+						<span className="text-lg">🤖</span>
+						<span>AI-Orchestrated Dashboard</span>
+					</div>
 				</div>
 			</div>
 		</div>

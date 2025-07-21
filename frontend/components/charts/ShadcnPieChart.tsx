@@ -30,6 +30,7 @@ interface ShadcnPieChartProps {
 	colors?: string[];
 	innerRadius?: number;
 	outerRadius?: number;
+	minimal?: boolean;
 }
 
 const ShadcnPieChart: React.FC<ShadcnPieChartProps> = ({
@@ -42,6 +43,7 @@ const ShadcnPieChart: React.FC<ShadcnPieChartProps> = ({
 	colors = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"],
 	innerRadius = 0,
 	outerRadius = 80,
+	minimal = false,
 }) => {
 	// 🎯 REAL DATA PROCESSING - No more fake data!
 	const chartData =
@@ -83,6 +85,36 @@ const ShadcnPieChart: React.FC<ShadcnPieChartProps> = ({
 		return config;
 	}, {} as Record<string, { label: string; color: string }>);
 
+	const chartContent = (
+		<ChartContainer config={chartConfig} className="h-full w-full">
+			<ResponsiveContainer width="100%" height="100%">
+				<PieChart>
+					<Pie
+						data={chartData}
+						cx="50%"
+						cy="50%"
+						innerRadius={innerRadius}
+						outerRadius={outerRadius}
+						paddingAngle={5}
+						dataKey="value">
+						{chartData.map((entry, index) => (
+							<Cell
+								key={`cell-${index}`}
+								fill={colors[index % colors.length]}
+							/>
+						))}
+					</Pie>
+					<ChartTooltip content={<ChartTooltipContent />} />
+					<Legend />
+				</PieChart>
+			</ResponsiveContainer>
+		</ChartContainer>
+	);
+
+	if (minimal) {
+		return chartContent;
+	}
+
 	return (
 		<Card className="w-full">
 			<CardHeader>
@@ -90,29 +122,7 @@ const ShadcnPieChart: React.FC<ShadcnPieChartProps> = ({
 				<CardDescription>{description}</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<ChartContainer config={chartConfig} className="h-[160px] w-full">
-					<ResponsiveContainer width="100%" height={160}>
-						<PieChart>
-							<Pie
-								data={chartData}
-								cx="50%"
-								cy="50%"
-								innerRadius={innerRadius}
-								outerRadius={outerRadius}
-								paddingAngle={5}
-								dataKey="value">
-								{chartData.map((entry, index) => (
-									<Cell
-										key={`cell-${index}`}
-										fill={colors[index % colors.length]}
-									/>
-								))}
-							</Pie>
-							<ChartTooltip content={<ChartTooltipContent />} />
-							<Legend />
-						</PieChart>
-					</ResponsiveContainer>
-				</ChartContainer>
+				{chartContent}
 			</CardContent>
 		</Card>
 	);

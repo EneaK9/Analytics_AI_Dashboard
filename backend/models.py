@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from datetime import datetime
 from enum import Enum
 import uuid
@@ -15,6 +15,11 @@ class DataFormat(str, Enum):
     CSV = "csv"
     EXCEL = "excel"
     XML = "xml"
+    TSV = "tsv"
+    PARQUET = "parquet"
+    YAML = "yaml"
+    AVRO = "avro"
+    ORC = "orc"
 
 class UploadStatus(str, Enum):
     PROCESSING = "processing"
@@ -154,6 +159,68 @@ class SuperAdminResponse(BaseModel):
     email: str
     created_at: datetime
 
+# API Integration Models
+class PlatformType(str, Enum):
+    SHOPIFY = "shopify"
+    AMAZON = "amazon"
+    WOOCOMMERCE = "woocommerce"
+    BIGCOMMERCE = "bigcommerce"
+    ETSY = "etsy"
+    MANUAL = "manual"
+
+class APIConnectionStatus(str, Enum):
+    PENDING = "pending"
+    CONNECTED = "connected"
+    ERROR = "error"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+
+class ShopifyCredentials(BaseModel):
+    shop_domain: str = Field(..., description="Store domain (e.g., mystore.myshopify.com)")
+    access_token: str = Field(..., description="Admin API access token")
+    scopes: List[str] = Field(default=["read_orders", "read_products", "read_customers", "read_analytics"])
+    webhook_url: Optional[str] = None
+
+class AmazonCredentials(BaseModel):
+    seller_id: str = Field(..., description="Amazon Seller/Merchant ID")
+    marketplace_ids: List[str] = Field(..., description="Marketplace IDs (US: ATVPDKIKX0DER)")
+    access_key_id: str = Field(..., description="AWS Access Key ID for SP-API")
+    secret_access_key: str = Field(..., description="AWS Secret Access Key")
+    refresh_token: str = Field(..., description="SP-API Refresh Token")
+    region: str = Field(default="us-east-1", description="AWS Region")
+
+class WooCommerceCredentials(BaseModel):
+    site_url: str = Field(..., description="WordPress site URL")
+    consumer_key: str = Field(..., description="WooCommerce Consumer Key")
+    consumer_secret: str = Field(..., description="WooCommerce Consumer Secret")
+    version: str = Field(default="wc/v3", description="API Version")
+
+class APICredentials(BaseModel):
+    client_id: uuid.UUID
+    platform_type: PlatformType
+    connection_name: str = Field(..., description="User-friendly name for the connection")
+    credentials: Union[ShopifyCredentials, AmazonCredentials, WooCommerceCredentials, Dict[str, Any]]
+    status: APIConnectionStatus = APIConnectionStatus.PENDING
+    last_sync_at: Optional[datetime] = None
+    next_sync_at: Optional[datetime] = None
+    sync_frequency_hours: int = Field(default=24, description="How often to sync data (hours)")
+    error_message: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+class APIDataSyncResult(BaseModel):
+    client_id: uuid.UUID
+    platform_type: PlatformType
+    connection_name: str
+    records_fetched: int
+    records_processed: int
+    records_stored: int
+    sync_duration_seconds: float
+    success: bool
+    error_message: Optional[str] = None
+    data_types_synced: List[str] = Field(default=[], description="Types of data synced (orders, products, etc.)")
+    sync_timestamp: datetime = Field(default_factory=datetime.now)
+
 # Enhanced Client Management Models
 class ClientCreateAdmin(BaseModel):
     company_name: str = Field(..., min_length=1, max_length=255)
@@ -161,8 +228,14 @@ class ClientCreateAdmin(BaseModel):
     password: str = Field(..., min_length=8)
     # subscription_tier: SubscriptionTier = SubscriptionTier.BASIC
     data_type: Optional[str] = "json"
-    input_method: Optional[str] = "paste"
+    input_method: Optional[str] = "paste"  # paste, upload, api
     data_content: Optional[str] = ""
+    
+    # API Integration fields
+    platform_type: Optional[PlatformType] = None
+    api_credentials: Optional[Dict[str, Any]] = None
+    connection_name: Optional[str] = None
+    sync_frequency_hours: Optional[int] = 24
 
 class ClientListResponse(BaseModel):
     clients: List[ClientResponse]
@@ -188,14 +261,38 @@ class CreateSchemaResponse(BaseModel):
 # ==================== PERSONALIZED DASHBOARD MODELS ====================
 
 class ChartType(str, Enum):
-    LINE = "line"
-    BAR = "bar"
-    PIE = "pie"
-    DOUGHNUT = "doughnut"
-    AREA = "area"
-    SCATTER = "scatter"
-    HISTOGRAM = "histogram"
-    HEATMAP = "heatmap"
+    # Beautiful Shadcn Area Charts
+    SHADCN_AREA_INTERACTIVE = "ShadcnAreaInteractive"
+    SHADCN_AREA_LINEAR = "ShadcnAreaLinear"
+    SHADCN_AREA_STEP = "ShadcnAreaStep"
+    SHADCN_AREA_STACKED = "ShadcnAreaStacked"
+    SHADCN_AREA_STACKED_EXPANDED = "ShadcnAreaStackedExpanded"
+    
+    # Beautiful Shadcn Bar Charts
+    SHADCN_BAR_CHART = "ShadcnBarChart"
+    SHADCN_BAR_HORIZONTAL = "ShadcnBarHorizontal"
+    SHADCN_BAR_LABEL = "ShadcnBarLabel"
+    SHADCN_BAR_CUSTOM_LABEL = "ShadcnBarCustomLabel"
+    SHADCN_BAR_INTERACTIVE = "ShadcnInteractiveBar"
+    
+    # Beautiful Shadcn Pie Charts
+    SHADCN_PIE_CHART = "ShadcnPieChart"
+    SHADCN_PIE_CHART_LABEL = "ShadcnPieChartLabel"
+    SHADCN_DONUT_INTERACTIVE = "ShadcnInteractiveDonut"
+    
+    # Beautiful Specialty Charts
+    SHADCN_RADAR_CHART = "ShadcnRadarChart"
+    
+    # Other Shadcn Charts
+    SHADCN_LINE_CHART = "ShadcnLineChart" 
+    SHADCN_AREA_CHART = "ShadcnAreaChart"
+    SHADCN_MULTIPLE_AREA = "ShadcnMultipleArea"
+    
+    # Legacy Basic Charts
+    line = "line"
+    bar = "bar"
+    pie = "pie"
+    area = "area"
 
 class KPIWidget(BaseModel):
     """Configuration for a KPI widget"""
@@ -375,3 +472,111 @@ class GenerationStatusResponse(BaseModel):
     completed_at: Optional[datetime] = None
     next_retry_at: Optional[datetime] = None
     estimated_completion: Optional[datetime] = None 
+
+# ==================== API KEY AUTHENTICATION MODELS ====================
+
+class APIKeyScope(str, Enum):
+    READ = "read"
+    WRITE = "write"
+    ADMIN = "admin"
+    ANALYTICS = "analytics"
+    FULL_ACCESS = "full_access"
+
+class APIKeyStatus(str, Enum):
+    ACTIVE = "active"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
+    SUSPENDED = "suspended"
+
+class APIKeyCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, description="Human-readable name for the API key")
+    scopes: List[APIKeyScope] = Field(..., min_items=1, description="List of permissions for this API key")
+    expires_at: Optional[datetime] = Field(None, description="Optional expiration date")
+    rate_limit: Optional[int] = Field(100, ge=1, le=10000, description="Requests per hour limit")
+    description: Optional[str] = Field(None, max_length=500, description="Optional description")
+
+class APIKeyResponse(BaseModel):
+    key_id: uuid.UUID
+    client_id: uuid.UUID
+    name: str
+    key_preview: str  # Show only first 8 characters for security
+    scopes: List[APIKeyScope]
+    status: APIKeyStatus
+    rate_limit: int
+    requests_made: int
+    last_used: Optional[datetime]
+    expires_at: Optional[datetime]
+    created_at: datetime
+    description: Optional[str] = None
+
+class APIKeyUsage(BaseModel):
+    key_id: uuid.UUID
+    endpoint: str
+    timestamp: datetime
+    ip_address: Optional[str]
+    user_agent: Optional[str]
+    response_status: int
+    request_size: Optional[int]
+    response_size: Optional[int]
+
+# ==================== ENHANCED DATA UPLOAD MODELS ====================
+
+class FileValidationResult(BaseModel):
+    is_valid: bool
+    file_size: int
+    detected_format: Optional[DataFormat]
+    error_message: Optional[str]
+    warnings: List[str] = []
+    encoding: Optional[str] = None
+    rows_detected: Optional[int] = None
+    columns_detected: Optional[int] = None
+
+class EnhancedDataUpload(BaseModel):
+    client_id: uuid.UUID
+    raw_data: Optional[str] = None  # For pasted data
+    file_name: Optional[str] = None  # For uploaded files
+    data_format: DataFormat
+    description: str = ""
+    validation_result: Optional[FileValidationResult] = None
+    auto_detect_format: bool = True
+    encoding: str = "utf-8"
+    delimiter: Optional[str] = None  # For CSV/TSV
+    sheet_name: Optional[str] = None  # For Excel
+    max_rows: Optional[int] = Field(None, ge=1, le=1000000)  # Limit for large files
+
+class DataUploadConfig(BaseModel):
+    """Configuration for data upload processing"""
+    max_file_size_mb: int = 100
+    allowed_formats: List[DataFormat] = [
+        DataFormat.JSON, DataFormat.CSV, DataFormat.EXCEL, 
+        DataFormat.XML, DataFormat.TSV, DataFormat.PARQUET
+    ]
+    auto_detect_encoding: bool = True
+    validate_data_quality: bool = True
+    generate_preview: bool = True
+    chunk_size: int = 1000  # For large file processing
+
+# ==================== SECURITY AND VALIDATION MODELS ====================
+
+class SecurityValidation(BaseModel):
+    """Security validation results for uploaded files"""
+    passed_virus_scan: bool = True
+    file_type_valid: bool = True
+    content_safe: bool = True
+    size_within_limits: bool = True
+    security_warnings: List[str] = []
+    scan_timestamp: datetime
+    scan_engine: str = "internal"
+
+class DataQualityReport(BaseModel):
+    """Data quality assessment report"""
+    total_rows: int
+    total_columns: int
+    complete_rows: int
+    missing_values_count: int
+    duplicate_rows: int
+    data_types_detected: Dict[str, str]
+    quality_score: float  # 0.0 to 1.0
+    recommendations: List[str]
+    issues: List[str]
+    processing_time: float 

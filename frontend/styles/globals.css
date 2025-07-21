@@ -150,4 +150,46 @@
   body {
     @apply bg-background text-foreground;
   }
-} 
+}
+
+@layer utilities {
+  .animation-delay-150 {
+    animation-delay: 0.15s;
+  }
+  
+  .animation-delay-300 {
+    animation-delay: 0.3s;
+  }
+
+  .border-3 {
+    border-width: 3px;
+  }
+
+  .animate-pulse-fast {
+    animation: pulse-fast 1s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-fast {
+    0%, 100% {
+      opacity: 1;
+      transform: scaleX(0.3);
+    }
+    50% {
+      opacity: 0.8;
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}

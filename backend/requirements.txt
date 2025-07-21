@@ -11,13 +11,14 @@ PyJWT==2.8.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
 bcrypt==4.1.2
+cryptography==41.0.7
 
-# Database
-supabase==2.16.0
+# Database (WORKING COMPATIBLE VERSION)
+supabase==2.3.0
 SQLAlchemy==2.0.23
 psycopg2-binary==2.9.9
 
-# AI and OpenAI
+# AI and OpenAI (stable versions)  
 openai==1.6.1
 pandas==2.1.4
 numpy==1.26.2
@@ -30,6 +31,18 @@ python-dotenv==1.0.0
 scipy==1.11.4
 openpyxl==3.1.2
 xlrd==2.0.1
+pyarrow==14.0.2  # For Parquet files
+lxml==4.9.3  # For XML processing
+PyYAML==6.0.1  # For YAML files
+chardet==5.2.0  # For encoding detection
+fastavro==1.9.0  # For Avro files
+
+# File processing and validation (Windows compatible)
+filetype==1.2.0
+
+# Rate limiting and caching
+slowapi==0.1.9
+redis==5.0.1
 
 # Utilities
 requests==2.31.0
@@ -38,6 +51,12 @@ pytz==2023.3
 
 # Logging and monitoring
 python-json-logger==2.0.7
+
+# API Integration packages
+aiohttp==3.8.6
+httpx==0.23.0
+pycryptodome==3.19.0
+requests-oauthlib==1.3.1
 
 # Development tools (optional for production)
 pytest==7.4.3

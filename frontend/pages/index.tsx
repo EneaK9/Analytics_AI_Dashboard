@@ -1,114 +1,185 @@
-
-import {
-	AlertCircle,
-	Settings,
-	Users,
-	Database,
-	LogIn,
-	Shield,
-} from "lucide-react";
+import React, { useState } from "react";
 import { useRouter } from "next/router";
+import { Eye, EyeOff, Lock, Mail, Building, Shield } from "lucide-react";
+import api from "../lib/axios";
+
+interface LoginForm {
+	email: string;
+	password: string;
+}
 
 export default function Home() {
+	const [formData, setFormData] = useState<LoginForm>({
+		email: "",
+		password: "",
+	});
+	const [showPassword, setShowPassword] = useState(false);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState("");
 	const router = useRouter();
 
-	const handleLoginClick = () => {
-		router.push("/login");
+	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const { name, value } = e.target;
+		setFormData((prev) => ({
+			...prev,
+			[name]: value,
+		}));
+		// Clear error when user starts typing
+		if (error) setError("");
+	};
+
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
+		if (!formData.email || !formData.password) {
+			setError("Please fill in all fields");
+			return;
+		}
+
+		setLoading(true);
+		setError("");
+
+		try {
+			const response = await api.post("/auth/login", {
+				email: formData.email,
+				password: formData.password,
+			});
+
+			// Store the token in localStorage
+			localStorage.setItem("access_token", response.data.access_token);
+
+			// Redirect to dashboard
+			router.push("/ai-dashboard");
+		} catch (err: any) {
+			console.error("Login error:", err);
+			setError(err.response?.data?.detail || "Login failed. Please try again.");
+		} finally {
+			setLoading(false);
+		}
 	};
 
 	return (
-		<div className="min-h-screen bg-gray-2">
-			{/* Header */}
-			<header className="bg-white border-b border-stroke px-6 py-4">
-				<div className="mx-auto max-w-screen-2xl flex items-center justify-between">
-					<div>
-						<h1 className="text-2xl font-bold text-black dark:text-white">
-							Analytics AI Dashboard
-						</h1>
-						<p className="text-body mt-1">
-							Dynamic AI-powered analytics platform for custom data structures
-						</p>
+		<div className="min-h-screen bg-gray-2 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+			<div className="max-w-md w-full space-y-8">
+				{/* Header */}
+				<div className="text-center">
+					<div className="flex justify-center mb-6">
+						<div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+							<Building className="w-8 h-8 text-primary" />
+						</div>
 					</div>
+					<h2 className="text-3xl font-bold text-black">
+						Analytics AI Dashboard
+					</h2>
+					<p className="mt-2 text-sm text-body">
+						Sign in to your personalized analytics dashboard
+					</p>
+				</div>
 
-					<div className="flex items-center space-x-3">
+				{/* Login Form */}
+				<div className="bg-white rounded-lg shadow-default border border-stroke p-8">
+					<form onSubmit={handleSubmit} className="space-y-6">
+						{error && (
+							<div className="bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-lg text-sm">
+								{error}
+							</div>
+						)}
+
+						{/* Email Field */}
+						<div>
+							<label
+								htmlFor="email"
+								className="block text-sm font-medium text-black mb-2">
+								Email Address
+							</label>
+							<div className="relative">
+								<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+									<Mail className="h-5 w-5 text-body" />
+								</div>
+								<input
+									id="email"
+									name="email"
+									type="email"
+									required
+									value={formData.email}
+									onChange={handleChange}
+									className="block w-full pl-10 pr-3 py-3 border border-stroke rounded-lg bg-gray-1 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-colors"
+									placeholder="Enter your email"
+								/>
+							</div>
+						</div>
+
+						{/* Password Field */}
+						<div>
+							<label
+								htmlFor="password"
+								className="block text-sm font-medium text-black mb-2">
+								Password
+							</label>
+							<div className="relative">
+								<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+									<Lock className="h-5 w-5 text-body" />
+								</div>
+								<input
+									id="password"
+									name="password"
+									type={showPassword ? "text" : "password"}
+									required
+									value={formData.password}
+									onChange={handleChange}
+									className="block w-full pl-10 pr-10 py-3 border border-stroke rounded-lg bg-gray-1 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-colors"
+									placeholder="Enter your password"
+								/>
+								<button
+									type="button"
+									onClick={() => setShowPassword(!showPassword)}
+									className="absolute inset-y-0 right-0 pr-3 flex items-center">
+									{showPassword ? (
+										<EyeOff className="h-5 w-5 text-body hover:text-primary transition-colors" />
+									) : (
+										<Eye className="h-5 w-5 text-body hover:text-primary transition-colors" />
+									)}
+								</button>
+							</div>
+						</div>
+
+						{/* Submit Button */}
+						<button
+							type="submit"
+							disabled={loading}
+							className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white transition-colors ${
+								loading
+									? "bg-gray-400 cursor-not-allowed"
+									: "bg-primary hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:ring-offset-2"
+							}`}>
+							{loading ? (
+								<div className="flex items-center">
+									<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+									Signing in...
+								</div>
+							) : (
+								"Sign in"
+							)}
+						</button>
+					</form>
+
+					{/* Admin Link */}
+					<div className="mt-4 pt-4 border-t border-stroke">
 						<button
 							onClick={() => router.push("/superadmin/login")}
-							className="flex items-center space-x-2 px-4 py-2 bg-danger text-white rounded-lg hover:bg-danger/90 transition-colors">
+							className="w-full flex items-center justify-center space-x-2 text-sm text-body hover:text-primary transition-colors">
 							<Shield className="h-4 w-4" />
-							<span>Admin</span>
-						</button>
-						<button
-							onClick={handleLoginClick}
-							className="flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
-							<LogIn className="h-4 w-4" />
-							<span>Login</span>
+							<span>Admin Access</span>
 						</button>
 					</div>
 				</div>
-			</header>
 
-			{/* Main Content */}
-			<main className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
-				{/* Coming Soon Section */}
-				<div className="bg-white rounded-lg shadow-sm border border-stroke p-8 text-center">
-					<div className="flex justify-center mb-6">
-						<div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
-							<Database className="w-10 h-10 text-primary" />
-						</div>
-					</div>
-
-					<h2 className="text-2xl font-bold text-black mb-4">
-						System Under Development
-					</h2>
-
-					<p className="text-body mb-8 max-w-2xl mx-auto">
-						We are building a revolutionary AI-powered analytics platform where
-						each client gets a custom dashboard tailored to their unique data
-						structure. The system will automatically analyze your data and
-						create the perfect visualization interface.
+				{/* Footer */}
+				<div className="text-center">
+					<p className="text-xs text-body">
+						© 2024 Analytics AI Dashboard. All rights reserved.
 					</p>
-
-					{/* Feature Preview */}
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-						<div className="bg-gray-1 rounded-lg p-6">
-							<Users className="w-8 h-8 text-primary mx-auto mb-4" />
-							<h3 className="font-semibold text-black mb-2">
-								Super Admin Panel
-							</h3>
-							<p className="text-body text-sm">
-								Manage clients and upload their custom data structures
-							</p>
-						</div>
-
-						<div className="bg-gray-1 rounded-lg p-6">
-							<AlertCircle className="w-8 h-8 text-primary mx-auto mb-4" />
-							<h3 className="font-semibold text-black mb-2">
-								AI Data Analysis
-							</h3>
-							<p className="text-body text-sm">
-								Automatically detect data patterns and create optimal schemas
-							</p>
-						</div>
-
-						<div className="bg-gray-1 rounded-lg p-6">
-							<Settings className="w-8 h-8 text-primary mx-auto mb-4" />
-							<h3 className="font-semibold text-black mb-2">
-								Dynamic Dashboards
-							</h3>
-							<p className="text-body text-sm">
-								Custom interfaces generated for each client&apos;s unique data
-							</p>
-						</div>
-					</div>
-
-					{/* Status */}
-					<div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-						<p className="text-primary font-medium">
-							🚧 Phase 1: Setting up Supabase integration and AI analysis engine
-						</p>
-					</div>
 				</div>
-			</main>
+			</div>
 		</div>
 	);
 }

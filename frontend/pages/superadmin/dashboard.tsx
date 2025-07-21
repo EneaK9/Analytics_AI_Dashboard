@@ -13,6 +13,14 @@ import {
 	Calendar,
 	Eye,
 	EyeOff,
+	Store,
+	Cloud,
+	ShoppingCart,
+	Package,
+	Globe,
+	CheckCircle,
+	AlertTriangle,
+	X,
 } from "lucide-react";
 import api from "../../lib/axios";
 
@@ -41,8 +49,42 @@ interface CreateClientForm {
 	// subscription_tier: string;
 	data_type: string;
 	data_content: string;
-	input_method: "paste" | "upload";
+	input_method: "paste" | "upload" | "api";
 	uploaded_file: File | null;
+
+	// API Integration fields
+	platform_type: "manual" | "shopify" | "amazon" | "woocommerce";
+	connection_name: string;
+
+	// Shopify fields
+	shop_domain: string;
+	shopify_access_token: string;
+
+	// Amazon fields
+	amazon_seller_id: string;
+	amazon_marketplace_ids: string;
+	amazon_access_key_id: string;
+	amazon_secret_access_key: string;
+	amazon_refresh_token: string;
+	amazon_region: string;
+
+	// WooCommerce fields
+	woo_site_url: string;
+	woo_consumer_key: string;
+	woo_consumer_secret: string;
+	woo_version: string;
+
+	sync_frequency_hours: number;
+}
+
+interface PlatformConfig {
+	platform_type: string;
+	display_name: string;
+	description: string;
+	required_fields: Record<string, any>;
+	optional_fields: Record<string, any>;
+	setup_instructions: string;
+	documentation_url: string;
 }
 
 const SuperAdminDashboard: React.FC = () => {
@@ -50,6 +92,12 @@ const SuperAdminDashboard: React.FC = () => {
 	const [loading, setLoading] = useState(true);
 	const [showCreateForm, setShowCreateForm] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
+	const [platformConfigs, setPlatformConfigs] = useState<PlatformConfig[]>([]);
+	const [connectionTestResult, setConnectionTestResult] = useState<{
+		success: boolean;
+		message: string;
+		tested: boolean;
+	}>({ success: false, message: "", tested: false });
 	const [formData, setFormData] = useState<CreateClientForm>({
 		company_name: "",
 		email: "",
@@ -59,6 +107,30 @@ const SuperAdminDashboard: React.FC = () => {
 		data_content: "",
 		input_method: "paste",
 		uploaded_file: null,
+
+		// API Integration fields
+		platform_type: "manual",
+		connection_name: "",
+
+		// Shopify fields
+		shop_domain: "",
+		shopify_access_token: "",
+
+		// Amazon fields
+		amazon_seller_id: "",
+		amazon_marketplace_ids: "ATVPDKIKX0DER",
+		amazon_access_key_id: "",
+		amazon_secret_access_key: "",
+		amazon_refresh_token: "",
+		amazon_region: "us-east-1",
+
+		// WooCommerce fields
+		woo_site_url: "",
+		woo_consumer_key: "",
+		woo_consumer_secret: "",
+		woo_version: "wc/v3",
+
+		sync_frequency_hours: 24,
 	});
 	const [formLoading, setFormLoading] = useState(false);
 	const [error, setError] = useState("");
@@ -74,7 +146,7 @@ const SuperAdminDashboard: React.FC = () => {
 					return;
 				}
 
-				await loadClients();
+				await Promise.all([loadClients(), loadPlatformConfigs()]);
 			} catch (error) {
 				console.error("Auth check failed:", error);
 				localStorage.removeItem("superadmin_token");
@@ -97,6 +169,16 @@ const SuperAdminDashboard: React.FC = () => {
 			console.error("Failed to load clients:", error);
 			// Show error but don't break the UI
 			setClients([]);
+		}
+	};
+
+	const loadPlatformConfigs = async () => {
+		try {
+			const response = await api.get("/superadmin/api-platforms");
+			setPlatformConfigs(response.data.platforms || []);
+		} catch (error) {
+			console.error("Failed to load platform configs:", error);
+			setPlatformConfigs([]);
 		}
 	};
 
@@ -127,13 +209,95 @@ const SuperAdminDashboard: React.FC = () => {
 		if (error) setError("");
 	};
 
-	const handleInputMethodChange = (method: "paste" | "upload") => {
+	const handleInputMethodChange = (method: "paste" | "upload" | "api") => {
 		setFormData((prev) => ({
 			...prev,
 			input_method: method,
-			data_content: method === "upload" ? "" : prev.data_content,
-			uploaded_file: method === "paste" ? null : prev.uploaded_file,
+			data_content:
+				method === "upload" || method === "api" ? "" : prev.data_content,
+			uploaded_file:
+				method === "paste" || method === "api" ? null : prev.uploaded_file,
 		}));
+
+		// Reset connection test when changing input method
+		if (method !== "api") {
+			setConnectionTestResult({ success: false, message: "", tested: false });
+		}
+	};
+
+	const testAPIConnection = async () => {
+		if (
+			formData.input_method !== "api" ||
+			formData.platform_type === "manual"
+		) {
+			return;
+		}
+
+		setFormLoading(true);
+		setConnectionTestResult({
+			success: false,
+			message: "Testing connection...",
+			tested: false,
+		});
+
+		try {
+			let credentials: any = {};
+
+			if (formData.platform_type === "shopify") {
+				credentials = {
+					shop_domain: formData.shop_domain,
+					access_token: formData.shopify_access_token,
+					scopes: ["read_orders", "read_products", "read_customers"],
+				};
+			} else if (formData.platform_type === "amazon") {
+				credentials = {
+					seller_id: formData.amazon_seller_id,
+					marketplace_ids: formData.amazon_marketplace_ids
+						.split(",")
+						.map((id) => id.trim()),
+					access_key_id: formData.amazon_access_key_id,
+					secret_access_key: formData.amazon_secret_access_key,
+					refresh_token: formData.amazon_refresh_token,
+					region: formData.amazon_region,
+				};
+			} else if (formData.platform_type === "woocommerce") {
+				credentials = {
+					site_url: formData.woo_site_url,
+					consumer_key: formData.woo_consumer_key,
+					consumer_secret: formData.woo_consumer_secret,
+					version: formData.woo_version,
+				};
+			}
+
+			const testData = new FormData();
+			testData.append("platform_type", formData.platform_type);
+			testData.append("credentials_json", JSON.stringify(credentials));
+
+			const response = await api.post(
+				"/superadmin/test-api-connection",
+				testData,
+				{
+					headers: {
+						"Content-Type": "multipart/form-data",
+					},
+				}
+			);
+
+			setConnectionTestResult({
+				success: response.data.success,
+				message: response.data.message,
+				tested: true,
+			});
+		} catch (error: any) {
+			console.error("API connection test failed:", error);
+			setConnectionTestResult({
+				success: false,
+				message: error.response?.data?.message || "Connection test failed",
+				tested: true,
+			});
+		} finally {
+			setFormLoading(false);
+		}
 	};
 
 	const handleCreateClient = async (e: React.FormEvent) => {
@@ -147,33 +311,112 @@ const SuperAdminDashboard: React.FC = () => {
 			submitData.append("company_name", formData.company_name);
 			submitData.append("email", formData.email);
 			submitData.append("password", formData.password);
-			submitData.append("data_type", formData.data_type);
-			submitData.append("input_method", formData.input_method);
 
-			if (formData.input_method === "paste") {
-				submitData.append("data_content", formData.data_content);
-			} else if (formData.uploaded_file) {
-				submitData.append("uploaded_file", formData.uploaded_file);
+			// Handle different input methods
+			if (formData.input_method === "api") {
+				// API Integration
+				submitData.append("platform_type", formData.platform_type);
+				submitData.append("connection_name", formData.connection_name);
+				submitData.append(
+					"sync_frequency_hours",
+					formData.sync_frequency_hours.toString()
+				);
+
+				// Add platform-specific credentials
+				if (formData.platform_type === "shopify") {
+					submitData.append("shop_domain", formData.shop_domain);
+					submitData.append(
+						"shopify_access_token",
+						formData.shopify_access_token
+					);
+				} else if (formData.platform_type === "amazon") {
+					submitData.append("amazon_seller_id", formData.amazon_seller_id);
+					submitData.append(
+						"amazon_marketplace_ids",
+						formData.amazon_marketplace_ids
+					);
+					submitData.append(
+						"amazon_access_key_id",
+						formData.amazon_access_key_id
+					);
+					submitData.append(
+						"amazon_secret_access_key",
+						formData.amazon_secret_access_key
+					);
+					submitData.append(
+						"amazon_refresh_token",
+						formData.amazon_refresh_token
+					);
+					submitData.append("amazon_region", formData.amazon_region);
+				} else if (formData.platform_type === "woocommerce") {
+					submitData.append("woo_site_url", formData.woo_site_url);
+					submitData.append("woo_consumer_key", formData.woo_consumer_key);
+					submitData.append(
+						"woo_consumer_secret",
+						formData.woo_consumer_secret
+					);
+					submitData.append("woo_version", formData.woo_version);
+				}
+
+				await api.post("/superadmin/clients/api-integration", submitData, {
+					headers: {
+						"Content-Type": "multipart/form-data",
+					},
+				});
+			} else {
+				// Manual data upload (existing logic)
+				submitData.append("data_type", formData.data_type);
+				submitData.append("input_method", formData.input_method);
+
+				if (formData.input_method === "paste") {
+					submitData.append("data_content", formData.data_content);
+				} else if (formData.uploaded_file) {
+					submitData.append("uploaded_file", formData.uploaded_file);
+				}
+
+				await api.post("/superadmin/clients", submitData, {
+					headers: {
+						"Content-Type": "multipart/form-data",
+					},
+				});
 			}
-
-			await api.post("/superadmin/clients", submitData, {
-				headers: {
-					"Content-Type": "multipart/form-data",
-				},
-			});
 
 			// Reset form and reload clients
 			setFormData({
 				company_name: "",
 				email: "",
 				password: "",
-				// subscription_tier: "basic",
 				data_type: "json",
 				data_content: "",
 				input_method: "paste",
 				uploaded_file: null,
+
+				// API Integration fields
+				platform_type: "manual",
+				connection_name: "",
+
+				// Shopify fields
+				shop_domain: "",
+				shopify_access_token: "",
+
+				// Amazon fields
+				amazon_seller_id: "",
+				amazon_marketplace_ids: "ATVPDKIKX0DER",
+				amazon_access_key_id: "",
+				amazon_secret_access_key: "",
+				amazon_refresh_token: "",
+				amazon_region: "us-east-1",
+
+				// WooCommerce fields
+				woo_site_url: "",
+				woo_consumer_key: "",
+				woo_consumer_secret: "",
+				woo_version: "wc/v3",
+
+				sync_frequency_hours: 24,
 			});
 			setShowCreateForm(false);
+			setConnectionTestResult({ success: false, message: "", tested: false });
 			await loadClients();
 		} catch (err: any) {
 			setError(err.response?.data?.detail || "Failed to create client");
@@ -450,187 +693,551 @@ id,name,email,age,department
 
 				{/* Create Client Modal */}
 				{showCreateForm && (
-					<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-						<div className="bg-white rounded-lg shadow-default border border-stroke max-w-md w-full mx-4">
-							<div className="px-6 py-4 border-b border-stroke">
+					<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+						<div className="bg-white rounded-lg shadow-default border border-stroke max-w-2xl w-full max-h-[90vh] flex flex-col">
+							<div className="px-6 py-4 border-b border-stroke flex items-center justify-between flex-shrink-0">
 								<h3 className="text-xl font-bold text-black">
 									Create New Client
 								</h3>
+								<button
+									onClick={() => setShowCreateForm(false)}
+									className="text-gray-400 hover:text-gray-600">
+									<X className="h-6 w-6" />
+								</button>
 							</div>
 
-							<form onSubmit={handleCreateClient} className="p-6 space-y-4">
-								{error && (
-									<div className="bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-lg text-sm">
-										{error}
-									</div>
-								)}
-
-								{/* Company Name */}
-								<div>
-									<label className="block text-sm font-medium text-black mb-2">
-										Company Name
-									</label>
-									<div className="relative">
-										<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-											<Building className="h-5 w-5 text-body" />
+							{/* Scrollable Form Content */}
+							<div className="flex-1 overflow-y-auto">
+								<form
+									id="create-client-form"
+									onSubmit={handleCreateClient}
+									className="p-4 space-y-3">
+									{error && (
+										<div className="bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-lg text-sm">
+											{error}
 										</div>
-										<input
-											type="text"
-											name="company_name"
-											required
-											value={formData.company_name}
-											onChange={handleFormChange}
-											className="block w-full pl-10 pr-3 py-2 border border-stroke rounded-lg bg-gray-1 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-											placeholder="Enter company name"
-										/>
-									</div>
-								</div>
+									)}
 
-								{/* Email */}
-								<div>
-									<label className="block text-sm font-medium text-black mb-2">
-										Email
-									</label>
-									<div className="relative">
-										<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-											<Mail className="h-5 w-5 text-body" />
+									{/* Basic Information */}
+									<div className="grid grid-cols-1 gap-3">
+										{/* Company Name */}
+										<div>
+											<label className="block text-xs font-medium text-black mb-1">
+												Company Name
+											</label>
+											<div className="relative">
+												<div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+													<Building className="h-4 w-4 text-body" />
+												</div>
+												<input
+													type="text"
+													name="company_name"
+													required
+													value={formData.company_name}
+													onChange={handleFormChange}
+													className="block w-full pl-8 pr-2 py-1.5 text-sm border border-stroke rounded bg-gray-1 focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+													placeholder="Enter company name"
+												/>
+											</div>
 										</div>
-										<input
-											type="email"
-											name="email"
-											required
-											value={formData.email}
-											onChange={handleFormChange}
-											className="block w-full pl-10 pr-3 py-2 border border-stroke rounded-lg bg-gray-1 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-											placeholder="Enter email address"
-										/>
-									</div>
-								</div>
 
-								{/* Password */}
-								<div>
-									<label className="block text-sm font-medium text-black mb-2">
-										Password
-									</label>
-									<div className="relative">
-										<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-											<Key className="h-5 w-5 text-body" />
+										{/* Email & Password Row */}
+										<div className="grid grid-cols-2 gap-3">
+											<div>
+												<label className="block text-xs font-medium text-black mb-1">
+													Email
+												</label>
+												<div className="relative">
+													<div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+														<Mail className="h-4 w-4 text-body" />
+													</div>
+													<input
+														type="email"
+														name="email"
+														required
+														value={formData.email}
+														onChange={handleFormChange}
+														className="block w-full pl-8 pr-2 py-1.5 text-sm border border-stroke rounded bg-gray-1 focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+														placeholder="Email"
+													/>
+												</div>
+											</div>
+
+											<div>
+												<label className="block text-xs font-medium text-black mb-1">
+													Password
+												</label>
+												<div className="relative">
+													<div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+														<Key className="h-4 w-4 text-body" />
+													</div>
+													<input
+														type={showPassword ? "text" : "password"}
+														name="password"
+														required
+														value={formData.password}
+														onChange={handleFormChange}
+														className="block w-full pl-8 pr-8 py-1.5 text-sm border border-stroke rounded bg-gray-1 focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+														placeholder="Password"
+													/>
+													<button
+														type="button"
+														onClick={() => setShowPassword(!showPassword)}
+														className="absolute inset-y-0 right-0 pr-2 flex items-center">
+														{showPassword ? (
+															<EyeOff className="h-4 w-4 text-body" />
+														) : (
+															<Eye className="h-4 w-4 text-body" />
+														)}
+													</button>
+												</div>
+											</div>
 										</div>
-										<input
-											type={showPassword ? "text" : "password"}
-											name="password"
-											required
-											value={formData.password}
-											onChange={handleFormChange}
-											className="block w-full pl-10 pr-10 py-2 border border-stroke rounded-lg bg-gray-1 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-											placeholder="Enter password"
-										/>
-										<button
-											type="button"
-											onClick={() => setShowPassword(!showPassword)}
-											className="absolute inset-y-0 right-0 pr-3 flex items-center">
-											{showPassword ? (
-												<EyeOff className="h-5 w-5 text-body" />
-											) : (
-												<Eye className="h-5 w-5 text-body" />
+									</div>
+
+									{/* Data Type Selection */}
+									{formData.input_method !== "api" && (
+										<div>
+											<label className="block text-xs font-medium text-black mb-1">
+												Data Type
+											</label>
+											<select
+												name="data_type"
+												value={formData.data_type}
+												onChange={handleFormChange}
+												className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-gray-1 focus:ring-1 focus:ring-primary focus:border-transparent outline-none">
+												<option value="json">JSON</option>
+												<option value="csv">CSV</option>
+												<option value="xml">XML</option>
+											</select>
+										</div>
+									)}
+
+									{/* Input Method Toggle */}
+									<div>
+										<label className="block text-sm font-medium text-black mb-2">
+											Data Source
+										</label>
+										<div className="grid grid-cols-3 gap-2">
+											<button
+												type="button"
+												onClick={() => handleInputMethodChange("paste")}
+												className={`px-3 py-2 rounded-lg border transition-colors text-sm ${
+													formData.input_method === "paste"
+														? "bg-primary text-white border-primary"
+														: "bg-white text-body border-stroke hover:bg-gray-1"
+												}`}>
+												<div className="flex flex-col items-center space-y-1">
+													<Edit className="h-4 w-4" />
+													<span>Paste</span>
+												</div>
+											</button>
+											<button
+												type="button"
+												onClick={() => handleInputMethodChange("upload")}
+												className={`px-3 py-2 rounded-lg border transition-colors text-sm ${
+													formData.input_method === "upload"
+														? "bg-primary text-white border-primary"
+														: "bg-white text-body border-stroke hover:bg-gray-1"
+												}`}>
+												<div className="flex flex-col items-center space-y-1">
+													<Package className="h-4 w-4" />
+													<span>Upload</span>
+												</div>
+											</button>
+											<button
+												type="button"
+												onClick={() => handleInputMethodChange("api")}
+												className={`px-3 py-2 rounded-lg border transition-colors text-sm ${
+													formData.input_method === "api"
+														? "bg-primary text-white border-primary"
+														: "bg-white text-body border-stroke hover:bg-gray-1"
+												}`}>
+												<div className="flex flex-col items-center space-y-1">
+													<Cloud className="h-4 w-4" />
+													<span>API</span>
+												</div>
+											</button>
+										</div>
+									</div>
+
+									{/* Data Content */}
+									{formData.input_method === "paste" ? (
+										<div>
+											<label className="block text-xs font-medium text-black mb-1">
+												Data Content
+											</label>
+											<textarea
+												name="data_content"
+												value={formData.data_content}
+												onChange={handleFormChange}
+												rows={3}
+												className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-gray-1 focus:ring-1 focus:ring-primary focus:border-transparent outline-none resize-none"
+												placeholder={getPlaceholderText(formData.data_type)}
+												required
+											/>
+										</div>
+									) : formData.input_method === "upload" ? (
+										<div>
+											<label className="block text-xs font-medium text-black mb-1">
+												Upload File
+											</label>
+											<input
+												type="file"
+												onChange={handleFileChange}
+												accept={
+													formData.data_type === "csv"
+														? ".csv,.txt"
+														: formData.data_type === "json"
+														? ".json,.txt"
+														: formData.data_type === "xml"
+														? ".xml,.txt"
+														: ".txt,.json,.csv,.xml"
+												}
+												className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-gray-1 focus:ring-1 focus:ring-primary focus:border-transparent outline-none file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
+												required
+											/>
+											{formData.uploaded_file && (
+												<p className="mt-1 text-xs text-body">
+													{formData.uploaded_file.name} (
+													{(formData.uploaded_file.size / 1024).toFixed(1)} KB)
+												</p>
 											)}
-										</button>
-									</div>
-								</div>
+										</div>
+									) : (
+										/* API Integration Forms */
+										<div className="space-y-4">
+											{/* Platform Selection */}
+											<div>
+												<label className="block text-sm font-medium text-black mb-2">
+													Platform
+												</label>
+												<div className="grid grid-cols-3 gap-2">
+													<button
+														type="button"
+														onClick={() =>
+															setFormData({
+																...formData,
+																platform_type: "shopify",
+															})
+														}
+														className={`p-2 rounded-lg border transition-colors text-xs ${
+															formData.platform_type === "shopify"
+																? "bg-green-50 border-green-500 text-green-700"
+																: "bg-white border-stroke hover:bg-gray-1"
+														}`}>
+														<Store className="h-5 w-5 mx-auto mb-1" />
+														<div className="font-medium">Shopify</div>
+													</button>
+													<button
+														type="button"
+														onClick={() =>
+															setFormData({
+																...formData,
+																platform_type: "amazon",
+															})
+														}
+														className={`p-2 rounded-lg border transition-colors text-xs ${
+															formData.platform_type === "amazon"
+																? "bg-orange-50 border-orange-500 text-orange-700"
+																: "bg-white border-stroke hover:bg-gray-1"
+														}`}>
+														<ShoppingCart className="h-5 w-5 mx-auto mb-1" />
+														<div className="font-medium">Amazon</div>
+													</button>
+													<button
+														type="button"
+														onClick={() =>
+															setFormData({
+																...formData,
+																platform_type: "woocommerce",
+															})
+														}
+														className={`p-2 rounded-lg border transition-colors text-xs ${
+															formData.platform_type === "woocommerce"
+																? "bg-purple-50 border-purple-500 text-purple-700"
+																: "bg-white border-stroke hover:bg-gray-1"
+														}`}>
+														<Globe className="h-5 w-5 mx-auto mb-1" />
+														<div className="font-medium">WooCommerce</div>
+													</button>
+												</div>
+											</div>
 
-								{/* Data Upload Section */}
-								<div>
-									<label className="block text-sm font-medium text-black mb-2">
-										Data Type
-									</label>
-									<select
-										name="data_type"
-										value={formData.data_type}
-										onChange={handleFormChange}
-										className="block w-full px-3 py-2 border border-stroke rounded-lg bg-gray-1 focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
-										<option value="json">JSON</option>
-										<option value="csv">CSV</option>
-										<option value="xml">XML</option>
-										<option value="api">API</option>
-									</select>
-								</div>
+											{/* Connection Name */}
+											<div>
+												<label className="block text-xs font-medium text-black mb-1">
+													Connection Name
+												</label>
+												<input
+													type="text"
+													name="connection_name"
+													value={formData.connection_name}
+													onChange={handleFormChange}
+													placeholder="e.g., Main Store, Amazon US"
+													className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-gray-1 focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+													required
+												/>
+											</div>
 
-								{/* Input Method Toggle */}
-								<div>
-									<label className="block text-sm font-medium text-black mb-2">
-										Input Method
-									</label>
-									<div className="flex space-x-4">
-										<button
-											type="button"
-											onClick={() => handleInputMethodChange("paste")}
-											className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
-												formData.input_method === "paste"
-													? "bg-primary text-white border-primary"
-													: "bg-white text-body border-stroke hover:bg-gray-1"
-											}`}>
-											Paste Text
-										</button>
-										<button
-											type="button"
-											onClick={() => handleInputMethodChange("upload")}
-											className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
-												formData.input_method === "upload"
-													? "bg-primary text-white border-primary"
-													: "bg-white text-body border-stroke hover:bg-gray-1"
-											}`}>
-											Upload File
-										</button>
-									</div>
-								</div>
+											{/* Shopify Configuration */}
+											{formData.platform_type === "shopify" && (
+												<div className="bg-green-50 p-3 rounded-lg border border-green-200 space-y-3">
+													<div className="flex items-center space-x-2">
+														<Store className="h-4 w-4 text-green-600" />
+														<h4 className="text-sm font-medium text-green-800">
+															Shopify Setup
+														</h4>
+													</div>
+													<div className="grid grid-cols-1 gap-3">
+														<div>
+															<label className="block text-xs font-medium text-green-800 mb-1">
+																Shop Domain
+															</label>
+															<input
+																type="text"
+																name="shop_domain"
+																value={formData.shop_domain}
+																onChange={handleFormChange}
+																placeholder="mystore.myshopify.com"
+																className="block w-full px-2 py-1.5 text-sm border border-green-300 rounded bg-white focus:ring-1 focus:ring-green-500 focus:border-transparent outline-none"
+																required
+															/>
+														</div>
+														<div>
+															<label className="block text-xs font-medium text-green-800 mb-1">
+																Access Token
+															</label>
+															<input
+																type="password"
+																name="shopify_access_token"
+																value={formData.shopify_access_token}
+																onChange={handleFormChange}
+																placeholder="shpat_..."
+																className="block w-full px-2 py-1.5 text-sm border border-green-300 rounded bg-white focus:ring-1 focus:ring-green-500 focus:border-transparent outline-none"
+																required
+															/>
+														</div>
+													</div>
+												</div>
+											)}
 
-								{/* Data Content */}
-								{formData.input_method === "paste" ? (
-									<div>
-										<label className="block text-sm font-medium text-black mb-2">
-											Data Content
-										</label>
-										<textarea
-											name="data_content"
-											value={formData.data_content}
-											onChange={handleFormChange}
-											rows={4}
-											className="block w-full px-3 py-2 border border-stroke rounded-lg bg-gray-1 focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
-											placeholder={getPlaceholderText(formData.data_type)}
-											required
-										/>
-									</div>
-								) : (
-									<div>
-										<label className="block text-sm font-medium text-black mb-2">
-											Upload File
-										</label>
-										<input
-											type="file"
-											onChange={handleFileChange}
-											accept={
-												formData.data_type === "csv"
-													? ".csv,.txt"
-													: formData.data_type === "json"
-													? ".json,.txt"
-													: formData.data_type === "xml"
-													? ".xml,.txt"
-													: ".txt,.json,.csv,.xml"
-											}
-											className="block w-full px-3 py-2 border border-stroke rounded-lg bg-gray-1 focus:ring-2 focus:ring-primary focus:border-transparent outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
-											required
-										/>
-										{formData.uploaded_file && (
-											<p className="mt-2 text-sm text-body">
-												Selected: {formData.uploaded_file.name} (
-												{(formData.uploaded_file.size / 1024).toFixed(1)} KB)
-											</p>
-										)}
-									</div>
-								)}
+											{/* Amazon Configuration */}
+											{formData.platform_type === "amazon" && (
+												<div className="bg-orange-50 p-3 rounded-lg border border-orange-200 space-y-3">
+													<div className="flex items-center space-x-2">
+														<ShoppingCart className="h-4 w-4 text-orange-600" />
+														<h4 className="text-sm font-medium text-orange-800">
+															Amazon SP-API Setup
+														</h4>
+													</div>
+													<div className="grid grid-cols-2 gap-2">
+														<div>
+															<label className="block text-xs font-medium text-orange-800 mb-1">
+																Seller ID
+															</label>
+															<input
+																type="text"
+																name="amazon_seller_id"
+																value={formData.amazon_seller_id}
+																onChange={handleFormChange}
+																placeholder="A1B2C3D4E5F6G7"
+																className="block w-full px-2 py-1.5 text-sm border border-orange-300 rounded bg-white focus:ring-1 focus:ring-orange-500 focus:border-transparent outline-none"
+																required
+															/>
+														</div>
+														<div>
+															<label className="block text-xs font-medium text-orange-800 mb-1">
+																Marketplace IDs
+															</label>
+															<input
+																type="text"
+																name="amazon_marketplace_ids"
+																value={formData.amazon_marketplace_ids}
+																onChange={handleFormChange}
+																placeholder="ATVPDKIKX0DER"
+																className="block w-full px-2 py-1.5 text-sm border border-orange-300 rounded bg-white focus:ring-1 focus:ring-orange-500 focus:border-transparent outline-none"
+																required
+															/>
+														</div>
+														<div>
+															<label className="block text-xs font-medium text-orange-800 mb-1">
+																Access Key ID
+															</label>
+															<input
+																type="text"
+																name="amazon_access_key_id"
+																value={formData.amazon_access_key_id}
+																onChange={handleFormChange}
+																placeholder="AKIA..."
+																className="block w-full px-2 py-1.5 text-sm border border-orange-300 rounded bg-white focus:ring-1 focus:ring-orange-500 focus:border-transparent outline-none"
+																required
+															/>
+														</div>
+														<div>
+															<label className="block text-xs font-medium text-orange-800 mb-1">
+																Secret Key
+															</label>
+															<input
+																type="password"
+																name="amazon_secret_access_key"
+																value={formData.amazon_secret_access_key}
+																onChange={handleFormChange}
+																placeholder="Secret key"
+																className="block w-full px-2 py-1.5 text-sm border border-orange-300 rounded bg-white focus:ring-1 focus:ring-orange-500 focus:border-transparent outline-none"
+																required
+															/>
+														</div>
+													</div>
+													<div>
+														<label className="block text-xs font-medium text-orange-800 mb-1">
+															Refresh Token
+														</label>
+														<input
+															type="password"
+															name="amazon_refresh_token"
+															value={formData.amazon_refresh_token}
+															onChange={handleFormChange}
+															placeholder="Atzr|..."
+															className="block w-full px-2 py-1.5 text-sm border border-orange-300 rounded bg-white focus:ring-1 focus:ring-orange-500 focus:border-transparent outline-none"
+															required
+														/>
+													</div>
+												</div>
+											)}
 
-								{/* Form Actions */}
-								<div className="flex space-x-3 pt-4">
+											{/* WooCommerce Configuration */}
+											{formData.platform_type === "woocommerce" && (
+												<div className="bg-purple-50 p-3 rounded-lg border border-purple-200 space-y-3">
+													<div className="flex items-center space-x-2">
+														<Globe className="h-4 w-4 text-purple-600" />
+														<h4 className="text-sm font-medium text-purple-800">
+															WooCommerce Setup
+														</h4>
+													</div>
+													<div>
+														<label className="block text-xs font-medium text-purple-800 mb-1">
+															Site URL
+														</label>
+														<input
+															type="url"
+															name="woo_site_url"
+															value={formData.woo_site_url}
+															onChange={handleFormChange}
+															placeholder="https://mystore.com"
+															className="block w-full px-2 py-1.5 text-sm border border-purple-300 rounded bg-white focus:ring-1 focus:ring-purple-500 focus:border-transparent outline-none"
+															required
+														/>
+													</div>
+													<div className="grid grid-cols-2 gap-2">
+														<div>
+															<label className="block text-xs font-medium text-purple-800 mb-1">
+																Consumer Key
+															</label>
+															<input
+																type="text"
+																name="woo_consumer_key"
+																value={formData.woo_consumer_key}
+																onChange={handleFormChange}
+																placeholder="ck_..."
+																className="block w-full px-2 py-1.5 text-sm border border-purple-300 rounded bg-white focus:ring-1 focus:ring-purple-500 focus:border-transparent outline-none"
+																required
+															/>
+														</div>
+														<div>
+															<label className="block text-xs font-medium text-purple-800 mb-1">
+																Consumer Secret
+															</label>
+															<input
+																type="password"
+																name="woo_consumer_secret"
+																value={formData.woo_consumer_secret}
+																onChange={handleFormChange}
+																placeholder="cs_..."
+																className="block w-full px-2 py-1.5 text-sm border border-purple-300 rounded bg-white focus:ring-1 focus:ring-purple-500 focus:border-transparent outline-none"
+																required
+															/>
+														</div>
+													</div>
+												</div>
+											)}
+
+											{/* Connection Test */}
+											{formData.platform_type !== "manual" && (
+												<div>
+													<button
+														type="button"
+														onClick={testAPIConnection}
+														disabled={formLoading}
+														className="w-full px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2">
+														{formLoading ? (
+															<>
+																<div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+																<span>Testing...</span>
+															</>
+														) : (
+															<>
+																<CheckCircle className="h-3 w-3" />
+																<span>Test Connection</span>
+															</>
+														)}
+													</button>
+
+													{/* Connection Test Result */}
+													{connectionTestResult.tested && (
+														<div
+															className={`mt-2 p-2 rounded text-xs border ${
+																connectionTestResult.success
+																	? "bg-green-50 border-green-200 text-green-700"
+																	: "bg-red-50 border-red-200 text-red-700"
+															}`}>
+															<div className="flex items-center space-x-2">
+																{connectionTestResult.success ? (
+																	<CheckCircle className="h-3 w-3 text-green-600" />
+																) : (
+																	<AlertTriangle className="h-3 w-3 text-red-600" />
+																)}
+																<span className="font-medium">
+																	{connectionTestResult.success
+																		? "Success!"
+																		: "Failed"}
+																</span>
+															</div>
+															<p className="text-xs mt-1">
+																{connectionTestResult.message}
+															</p>
+														</div>
+													)}
+												</div>
+											)}
+
+											{/* Sync Frequency */}
+											<div>
+												<label className="block text-xs font-medium text-black mb-1">
+													Sync Frequency
+												</label>
+												<select
+													name="sync_frequency_hours"
+													value={formData.sync_frequency_hours}
+													onChange={handleFormChange}
+													className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-gray-1 focus:ring-1 focus:ring-primary focus:border-transparent outline-none">
+													<option value={1}>Every Hour</option>
+													<option value={6}>Every 6 Hours</option>
+													<option value={12}>Every 12 Hours</option>
+													<option value={24}>Daily</option>
+													<option value={168}>Weekly</option>
+												</select>
+											</div>
+										</div>
+									)}
+
+									{/* Form Actions */}
+								</form>
+							</div>
+
+							{/* Sticky Bottom Buttons */}
+							<div className="border-t border-stroke p-4 flex-shrink-0">
+								<div className="flex space-x-3">
 									<button
 										type="button"
 										onClick={() => setShowCreateForm(false)}
@@ -639,12 +1246,13 @@ id,name,email,age,department
 									</button>
 									<button
 										type="submit"
+										form="create-client-form"
 										disabled={formLoading}
 										className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
 										{formLoading ? "Creating..." : "Create Client"}
 									</button>
 								</div>
-							</form>
+							</div>
 						</div>
 					</div>
 				)}

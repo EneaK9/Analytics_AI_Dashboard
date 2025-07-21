@@ -152,18 +152,6 @@ const SuperAdminLogin: React.FC = () => {
 							)}
 						</button>
 					</form>
-
-					{/* Demo Credentials */}
-					<div className="mt-6 p-4 bg-gray-1 rounded-lg">
-						<h4 className="text-sm font-medium text-black mb-2">
-							Demo Credentials:
-						</h4>
-						<p className="text-xs text-body">
-							Username: admin
-							<br />
-							Password: admin123
-						</p>
-					</div>
 				</div>
 
 				{/* Footer */}

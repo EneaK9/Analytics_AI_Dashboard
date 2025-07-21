@@ -215,7 +215,7 @@ export default function SmartEcommerceMetrics({
 						<div
 							className={`flex h-11.5 w-11.5 items-center justify-center rounded-full bg-meta-2`}>
 							<IconComponent
-								className={`fill-primary h-6 w-6 ${metric.color}`}
+								// className={`fill-primary h-6 w-6 ${metric.color}`}
 							/>
 						</div>
 

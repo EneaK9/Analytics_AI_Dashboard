@@ -31,6 +31,7 @@ interface ShadcnAreaChartProps {
 	height?: number;
 	color?: string;
 	fillOpacity?: number;
+	minimal?: boolean;
 }
 
 const ShadcnAreaChart: React.FC<ShadcnAreaChartProps> = ({
@@ -42,6 +43,7 @@ const ShadcnAreaChart: React.FC<ShadcnAreaChartProps> = ({
 	height = 200,
 	color = "#8884d8",
 	fillOpacity = 0.6,
+	minimal = false,
 }) => {
 	// 🎯 REAL DATA PROCESSING - No more fake data!
 	const chartData =
@@ -84,37 +86,43 @@ const ShadcnAreaChart: React.FC<ShadcnAreaChartProps> = ({
 		},
 	};
 
+	const chartContent = (
+		<ChartContainer config={chartConfig} className="h-full w-full">
+			<ResponsiveContainer width="100%" height="100%">
+				<AreaChart data={chartData}>
+					<defs>
+						<linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+							<stop offset="5%" stopColor={color} stopOpacity={0.8} />
+							<stop offset="95%" stopColor={color} stopOpacity={0.1} />
+						</linearGradient>
+					</defs>
+					<CartesianGrid strokeDasharray="3 3" />
+					<XAxis dataKey="name" />
+					<YAxis />
+					<ChartTooltip content={<ChartTooltipContent />} />
+					<Area
+						type="monotone"
+						dataKey="value"
+						stroke={color}
+						fillOpacity={fillOpacity}
+						fill="url(#colorValue)"
+					/>
+				</AreaChart>
+			</ResponsiveContainer>
+		</ChartContainer>
+	);
+
+	if (minimal) {
+		return chartContent;
+	}
+
 	return (
 		<Card className="w-full">
 			<CardHeader>
 				<CardTitle>{title}</CardTitle>
 				<CardDescription>{description}</CardDescription>
 			</CardHeader>
-			<CardContent>
-				<ChartContainer config={chartConfig} className="h-[160px] w-full">
-					<ResponsiveContainer width="100%" height={160}>
-						<AreaChart data={chartData}>
-							<defs>
-								<linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-									<stop offset="5%" stopColor={color} stopOpacity={0.8} />
-									<stop offset="95%" stopColor={color} stopOpacity={0.1} />
-								</linearGradient>
-							</defs>
-							<CartesianGrid strokeDasharray="3 3" />
-							<XAxis dataKey="name" />
-							<YAxis />
-							<ChartTooltip content={<ChartTooltipContent />} />
-							<Area
-								type="monotone"
-								dataKey="value"
-								stroke={color}
-								fillOpacity={fillOpacity}
-								fill="url(#colorValue)"
-							/>
-						</AreaChart>
-					</ResponsiveContainer>
-				</ChartContainer>
-			</CardContent>
+			<CardContent>{chartContent}</CardContent>
 		</Card>
 	);
 };

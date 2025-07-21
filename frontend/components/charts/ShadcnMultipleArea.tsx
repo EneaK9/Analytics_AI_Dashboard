@@ -37,34 +37,32 @@ const ShadcnMultipleArea: React.FC<ShadcnMultipleAreaProps> = ({
 }) => {
 	// Process real data into shadcn format
 	const chartData =
-		data.length > 0
-			? data.slice(0, 6).map((item, index) => {
-					const monthNames = [
-						"January",
-						"February",
-						"March",
-						"April",
-						"May",
-						"June",
-					];
+		data && data.length > 0
+			? data.slice(0, 12).map((item, index) => {
+					// Use actual data fields when available
 					const monthValue =
 						item[xAxisKey] ||
+						item["month"] ||
 						item["date"] ||
-						item["symbol"] ||
 						item["name"] ||
-						monthNames[index % 6];
+						item["symbol"] ||
+						`Month ${index + 1}`;
 
 					const desktop =
 						Number(item[dataKey1]) ||
+						Number(item["desktop"]) ||
+						Number(item["value"]) ||
 						Number(item["price"]) ||
 						Number(item["quantity"]) ||
-						Math.floor(Math.random() * 300) + 100;
+						0;
 
 					const mobile =
 						Number(item[dataKey2]) ||
+						Number(item["mobile"]) ||
+						Number(item["value2"]) ||
 						Number(item["total_value"]) ||
 						Number(item["volume"]) ||
-						Math.floor(Math.random() * 200) + 80;
+						Math.floor(desktop * 0.7); // Calculate mobile as 70% of desktop if not available
 
 					return {
 						month: String(monthValue),

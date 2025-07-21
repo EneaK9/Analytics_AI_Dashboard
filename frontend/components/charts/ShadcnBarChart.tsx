@@ -24,6 +24,7 @@ interface ShadcnBarChartProps {
 	xAxisKey?: string;
 	height?: number;
 	color?: string;
+	minimal?: boolean;
 }
 
 const ShadcnBarChart: React.FC<ShadcnBarChartProps> = ({
@@ -34,31 +35,26 @@ const ShadcnBarChart: React.FC<ShadcnBarChartProps> = ({
 	xAxisKey = "name",
 	height = 160,
 	color = "#8884d8",
+	minimal = false,
 }) => {
 	// Process real data into shadcn format
 	const chartData =
-		data.length > 0
-			? data.slice(0, 6).map((item, index) => {
-					const monthNames = [
-						"January",
-						"February",
-						"March",
-						"April",
-						"May",
-						"June",
-					];
+		data && data.length > 0
+			? data.slice(0, 12).map((item, index) => {
 					const monthValue =
 						item[xAxisKey] ||
+						item["month"] ||
 						item["symbol"] ||
 						item["name"] ||
 						item["category"] ||
-						monthNames[index % 6];
+						`Month ${index + 1}`;
 
 					const desktop =
 						Number(item[dataKey]) ||
+						Number(item["value"]) ||
 						Number(item["price"]) ||
 						Number(item["quantity"]) ||
-						Math.floor(Math.random() * 400) + 100;
+						0;
 
 					return {
 						month: String(monthValue),
@@ -81,31 +77,37 @@ const ShadcnBarChart: React.FC<ShadcnBarChartProps> = ({
 		},
 	} satisfies ChartConfig;
 
+	const chartContent = (
+		<ChartContainer config={chartConfig} className="h-full w-full">
+			<BarChart accessibilityLayer data={chartData}>
+				<CartesianGrid vertical={false} />
+				<XAxis
+					dataKey="month"
+					tickLine={false}
+					tickMargin={10}
+					axisLine={false}
+					tickFormatter={(value) => value.slice(0, 3)}
+				/>
+				<ChartTooltip
+					cursor={false}
+					content={<ChartTooltipContent hideLabel />}
+				/>
+				<Bar dataKey="desktop" fill="var(--color-desktop)" radius={8} />
+			</BarChart>
+		</ChartContainer>
+	);
+
+	if (minimal) {
+		return chartContent;
+	}
+
 	return (
 		<Card>
 			<CardHeader>
 				<CardTitle>{title}</CardTitle>
 				<CardDescription>{description}</CardDescription>
 			</CardHeader>
-			<CardContent>
-				<ChartContainer config={chartConfig} className="h-[160px] w-full">
-					<BarChart accessibilityLayer data={chartData}>
-						<CartesianGrid vertical={false} />
-						<XAxis
-							dataKey="month"
-							tickLine={false}
-							tickMargin={10}
-							axisLine={false}
-							tickFormatter={(value) => value.slice(0, 3)}
-						/>
-						<ChartTooltip
-							cursor={false}
-							content={<ChartTooltipContent hideLabel />}
-						/>
-						<Bar dataKey="desktop" fill="var(--color-desktop)" radius={8} />
-					</BarChart>
-				</ChartContainer>
-			</CardContent>
+			<CardContent>{chartContent}</CardContent>
 		</Card>
 	);
 };

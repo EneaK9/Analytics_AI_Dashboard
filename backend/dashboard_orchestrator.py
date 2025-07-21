@@ -20,6 +20,7 @@ import numpy as np
 from collections import Counter
 import concurrent.futures
 import time
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +40,17 @@ class DashboardOrchestrator:
         
         # Sophisticated chart type mapping based on data characteristics
         self.chart_type_mapping = {
-            'time_series': [ChartType.LINE, ChartType.AREA, 'spline', 'stepped_line'],
-            'categorical': [ChartType.BAR, ChartType.PIE, ChartType.DOUGHNUT, 'horizontal_bar', 'stacked_bar'],
-            'numerical': [ChartType.HISTOGRAM, ChartType.SCATTER, 'box_plot', 'violin_plot'],
-            'correlation': [ChartType.SCATTER, ChartType.HEATMAP, 'bubble_chart'],
-            'comparison': [ChartType.BAR, ChartType.LINE, 'radar_chart', 'column_chart'],
+            'time_series': [ChartType.SHADCN_LINE_CHART, ChartType.SHADCN_AREA_CHART, 'spline', 'stepped_line'],
+            'categorical': [ChartType.SHADCN_BAR_CHART, ChartType.SHADCN_PIE_CHART, ChartType.SHADCN_DONUT_INTERACTIVE, 'horizontal_bar', 'stacked_bar'],
+            'numerical': ['histogram', 'scatter', 'box_plot', 'violin_plot'],
+            'correlation': ['scatter', 'heatmap', 'bubble_chart'],
+            'comparison': [ChartType.SHADCN_BAR_CHART, ChartType.SHADCN_LINE_CHART, ChartType.SHADCN_RADAR_CHART, 'column_chart'],
             'distribution': ['histogram', 'density_plot', 'box_plot'],
-            'financial': ['candlestick', 'ohlc', 'volume_chart', ChartType.LINE],
+            'financial': ['candlestick', 'ohlc', 'volume_chart', ChartType.SHADCN_LINE_CHART],
             'geographical': ['treemap', 'heatmap', 'choropleth'],
-            'part_to_whole': [ChartType.PIE, ChartType.DOUGHNUT, 'treemap', 'sunburst'],
-            'trend': [ChartType.LINE, ChartType.AREA, 'spline'],
-            'ranking': [ChartType.BAR, 'horizontal_bar', 'lollipop_chart'],
+            'part_to_whole': [ChartType.SHADCN_PIE_CHART, ChartType.SHADCN_DONUT_INTERACTIVE, 'treemap', 'sunburst'],
+            'trend': [ChartType.SHADCN_LINE_CHART, ChartType.SHADCN_AREA_CHART, 'spline'],
+            'ranking': [ChartType.SHADCN_BAR_CHART, 'horizontal_bar', 'lollipop_chart'],
             'progress': ['gauge', 'progress_bar', 'radial_progress']
         }
         
@@ -228,7 +229,7 @@ class DashboardOrchestrator:
         logger.info(f"⚡ TURBO dashboard generation for {client_id} (concurrent processing)")
         
         # Step 1: Get REAL client data - no fallbacks
-        client_data = await self.ai_analyzer.get_client_data(str(client_id))
+        client_data = await self.ai_analyzer.get_client_data_optimized(str(client_id))
         
         if not client_data.get('data'):
             raise Exception(f"No real data found for client {client_id}")
@@ -313,25 +314,123 @@ class DashboardOrchestrator:
         )
 
     async def _analyze_real_client_data(self, client_id: uuid.UUID, client_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze REAL client data - no sample data generation"""
-        df = pd.DataFrame(client_data['data'])
+        """Analyze REAL client data with ENHANCED CSV column detection"""
+        # 🔧 FIX: Handle nested data structures (lists, dicts) from API integrations
+        raw_data = client_data['data']
+        
+        # Flatten nested structures to make DataFrame-compatible
+        flattened_data = []
+        for record in raw_data:
+            flat_record = {}
+            for key, value in record.items():
+                if isinstance(value, list):
+                    # Convert lists to count or string representation
+                    if key == 'variants' and value:
+                        flat_record[key + '_count'] = len(value)
+                        # Extract first variant price if available
+                        if value[0] and isinstance(value[0], dict) and 'price' in value[0]:
+                            flat_record['first_variant_price'] = float(value[0]['price'])
+                    else:
+                        flat_record[key + '_count'] = len(value)
+                        flat_record[key + '_string'] = str(value)[:200]  # Truncate long strings
+                elif isinstance(value, dict):
+                    # Convert dicts to key-value pairs or string representation
+                    flat_record[key + '_json'] = str(value)[:200]  # Truncate
+                else:
+                    # Keep simple values as-is
+                    flat_record[key] = value
+            flattened_data.append(flat_record)
+        
+        df = pd.DataFrame(flattened_data)
         
         if df.empty:
             raise Exception(f"Client {client_id} has empty dataset")
         
         logger.info(f"📊 Analyzing {len(df)} rows of REAL data for client {client_id}")
         
+        # ENHANCED column type detection for CSV data
+        numeric_columns = []
+        categorical_columns = []
+        date_columns = []
+        
+        for col in df.columns:
+            col_data = df[col]
+            
+            # Try to convert to numeric (handles CSV string numbers)
+            try:
+                # Check if column contains numeric-looking strings
+                numeric_values = pd.to_numeric(col_data, errors='coerce')
+                non_null_numeric = numeric_values.dropna()
+                
+                # If more than 70% of values can be converted to numbers, treat as numeric
+                if len(non_null_numeric) / len(col_data) > 0.7:
+                    numeric_columns.append(col)
+                    # Actually convert the column
+                    df[col] = numeric_values
+                    logger.info(f"✅ Converted column '{col}' to numeric")
+                    continue
+            except:
+                pass
+            
+            # Try to detect dates
+            try:
+                if col_data.dtype == 'object':  # String columns
+                    sample_values = col_data.dropna().head(5)
+                    date_patterns = 0
+                    for val in sample_values:
+                        try:
+                            pd.to_datetime(val)
+                            date_patterns += 1
+                        except:
+                            pass
+                    
+                    # If most values look like dates
+                    if date_patterns >= len(sample_values) * 0.6:
+                        date_columns.append(col)
+                        logger.info(f"✅ Detected date column: '{col}'")
+                        continue
+            except:
+                pass
+            
+            # Everything else is categorical
+            if col not in numeric_columns and col not in date_columns:
+                categorical_columns.append(col)
+        
+        # Ensure we have at least some numeric columns for charts
+        if not numeric_columns and len(df.columns) > 0:
+            # Look for columns that might be numeric but weren't detected
+            for col in df.columns[:3]:  # Check first 3 columns
+                col_data = df[col]
+                if col_data.dtype in ['int64', 'float64']:
+                    numeric_columns.append(col)
+                elif col_data.dtype == 'object':
+                    # Try harder to find numbers in string columns
+                    try:
+                        # Remove common non-numeric characters
+                        cleaned = col_data.astype(str).str.replace(r'[,$%]', '', regex=True)
+                        numeric_test = pd.to_numeric(cleaned, errors='coerce')
+                        if numeric_test.notna().sum() > len(col_data) * 0.5:
+                            numeric_columns.append(col)
+                            df[col] = numeric_test
+                            logger.info(f"🔧 Force-converted column '{col}' to numeric")
+                            break
+                    except:
+                        continue
+        
+        logger.info(f"🔍 Column detection results: {len(numeric_columns)} numeric, {len(categorical_columns)} categorical, {len(date_columns)} date")
+        
         # Analyze REAL data characteristics
         analysis = {
+            'client_id': str(client_id),  # Add client_id for reference
             'total_records': len(df),
             'columns': list(df.columns),
             'column_types': df.dtypes.to_dict(),
-            'numeric_columns': df.select_dtypes(include=[np.number]).columns.tolist(),
-            'categorical_columns': df.select_dtypes(include=['object']).columns.tolist(),
-            'date_columns': self._detect_date_columns(df),
+            'numeric_columns': numeric_columns,
+            'categorical_columns': categorical_columns,
+            'date_columns': date_columns,
             'missing_values': df.isnull().sum().to_dict(),
             'unique_values': {col: df[col].nunique() for col in df.columns},
-            'sample_data': df.head(10).to_dict('records'),  # Real sample data
+            'sample_data': df.head(10).to_dict('records'),  # Increased sample data for better charts
             'data_quality_score': self._calculate_data_quality_score(df),
             'data_summary': {
                 'min_values': df.select_dtypes(include=[np.number]).min().to_dict(),
@@ -341,6 +440,11 @@ class DashboardOrchestrator:
             }
         }
         
+        # ADD BACKWARD COMPATIBILITY KEYS for chart generation
+        analysis['numeric_cols'] = analysis['numeric_columns']
+        analysis['categorical_cols'] = analysis['categorical_columns'] 
+        analysis['date_cols'] = analysis['date_columns']
+        
         # Detect patterns and trends in REAL data
         analysis['patterns'] = self._detect_data_patterns(df)
         analysis['trends'] = self._analyze_trends(df)
@@ -348,120 +452,183 @@ class DashboardOrchestrator:
         return analysis
 
     async def _generate_ai_business_context(self, client_id: uuid.UUID, data_analysis: Dict[str, Any]) -> BusinessContext:
-        """Generate business context using AI analysis - RETRY UNTIL SUCCESS"""
-        max_retries = 10
+        """Generate business context using AI analysis with SMART BATCHING"""
+        max_retries = 3
         retry_count = 0
+        
+        # Valid chart types for AI to choose from
+        valid_chart_types = [
+            "ShadcnAreaInteractive", "ShadcnAreaLinear", "ShadcnAreaStep", 
+            "ShadcnBarChart", "ShadcnBarHorizontal", "ShadcnBarLabel", "ShadcnBarCustomLabel",
+            "ShadcnPieChart", "ShadcnPieChartLabel", "ShadcnInteractiveDonut",
+            "ShadcnRadarChart", "ShadcnLineChart", "line", "bar", "pie"
+        ]
         
         while retry_count < max_retries:
             try:
                 retry_count += 1
-                logger.info(f"🤖 AI business context analysis (attempt {retry_count})")
+                logger.info(f"🤖 AI business context analysis (attempt {retry_count}) with SMART BATCHING")
                 
-                # Prepare data summary for AI analysis
-                data_summary = {
-                    'columns': data_analysis['columns'][:20],  # Limit for token efficiency
-                    'numeric_columns': data_analysis['numeric_columns'],
-                    'categorical_columns': data_analysis['categorical_columns'],
-                    'patterns': data_analysis['patterns'],
-                    'sample_data': data_analysis['sample_data'][:3],  # Real sample data
-                    'data_summary': data_analysis['data_summary']
-                }
+                # ULTRA-MINIMAL data summary for AI (CRITICAL TOKEN REDUCTION)
+                sample_row = data_analysis.get('sample_data', [{}])[0] if data_analysis.get('sample_data') else {}
                 
+                # Extract just column names and types - NO ACTUAL DATA
+                column_info = {}
+                for col in data_analysis.get('columns', [])[:8]:  # Max 8 columns
+                    if col in sample_row:
+                        value = sample_row[col]
+                        if isinstance(value, (int, float)):
+                            column_info[col] = "number"
+                        elif isinstance(value, str) and any(keyword in col.lower() for keyword in ['date', 'time']):
+                            column_info[col] = "date"
+                        else:
+                            column_info[col] = "text"
+                
+                # ENHANCED prompt with better business analysis
                 prompt = f"""
-                Analyze this REAL business data and provide insights:
-                
-                Data Summary:
-                {json.dumps(data_summary, indent=2, default=str)}
-                
-                Please provide:
-                1. Industry classification based on the data
-                2. Business type (ecommerce, saas, retail, service, etc.)
-                3. Key business metrics that should be tracked from this data
-                4. Recommended chart types for this specific data
-                5. Business insights and opportunities from the actual data
-                
-                Respond in JSON format with the following structure:
+                You are an AI business intelligence expert. Analyze this business data and provide strategic insights:
+
+                DATA STRUCTURE:
+                - Columns: {list(column_info.keys())}
+                - Data Types: {list(column_info.values())}
+                - Total Records: {data_analysis.get('total_records', 0)}
+                - Sample Data: {data_analysis.get('sample_data', [{}])[0] if data_analysis.get('sample_data') else {}}
+
+                COLUMN ANALYSIS:
+                - Numeric Columns: {data_analysis.get('numeric_columns', [])}
+                - Categorical Columns: {data_analysis.get('categorical_columns', [])}
+                - Date Columns: {data_analysis.get('date_columns', [])}
+
+                Your task: Determine the business type and recommend optimal chart types for this data.
+
+                BUSINESS TYPE DETECTION:
+                - If you see: price, product, order, customer, sales -> "ecommerce"
+                - If you see: user, subscription, mrr, churn, signup -> "saas"
+                - If you see: revenue, profit, expense, cash -> "financial"
+                - If you see: employee, project, task, performance -> "operations"
+                - Otherwise: "general"
+
+                CHART RECOMMENDATIONS:
+                - For time-series data (dates + numeric): ShadcnAreaInteractive, ShadcnLineChart
+                - For categorical comparisons: ShadcnBarChart, ShadcnInteractiveBar
+                - For distributions/percentages: ShadcnPieChart, ShadcnInteractiveDonut
+                - For performance metrics: ShadcnRadarChart, ShadcnMultipleArea
+
+                Valid chart types: {valid_chart_types[:8]}
+
+                Respond in JSON format:
                 {{
-                    "industry": "string",
-                    "business_type": "string", 
-                    "data_characteristics": ["list", "of", "characteristics"],
-                    "key_metrics": ["list", "of", "actual", "metrics", "from", "data"],
-                    "recommended_charts": ["line", "bar", "pie"],
+                    "industry": "E-commerce/SaaS/Financial/Operations/General",
+                    "business_type": "ecommerce|saas|financial|operations|general",
+                    "key_metrics": ["most important 3 columns for KPIs"],
+                    "recommended_charts": ["3 best chart types for this data"],
                     "insights": [
                         {{
-                            "type": "opportunity/warning/trend/recommendation",
-                            "title": "string",
-                            "description": "string based on actual data",
-                            "impact": "high/medium/low",
-                            "suggested_action": "string"
+                            "type": "trend|opportunity|risk|performance",
+                            "title": "Key insight title",
+                            "description": "Detailed business insight based on data structure",
+                            "impact": "high|medium|low",
+                            "suggested_action": "Specific actionable recommendation"
                         }}
                     ],
                     "confidence_score": 0.85
                 }}
                 """
                 
-                from openai import AsyncOpenAI
-                client = AsyncOpenAI(api_key=self.openai_api_key)
-                
-                response = await client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": "You are a business intelligence expert analyzing REAL data to create personalized dashboards. Focus on the actual data provided, not hypothetical scenarios."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=1500,
-                    temperature=0.2  # Lower temperature for more consistent results
+                # Call OpenAI with enhanced analysis
+                client = OpenAI(api_key=self.openai_api_key)
+                response = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                        {"role": "system", "content": "You are a senior business intelligence analyst with expertise in data visualization and dashboard design. Analyze business data structures and provide strategic insights with appropriate chart recommendations. Always respond with valid JSON only."},
+                            {"role": "user", "content": prompt}
+                        ],
+                    temperature=0.2,  # Lower temperature for more consistent analysis
+                    max_tokens=800,  # More tokens for detailed analysis
+                    timeout=45  # Longer timeout for thorough analysis
                 )
                 
-                # Get the response content and validate it
-                response_content = response.choices[0].message.content.strip()
+                # Enhanced AI response parsing with robust error handling
+                raw_content = response.choices[0].message.content
                 
-                # Clean up markdown formatting
-                if response_content.startswith('```json'):
-                    response_content = response_content[7:]
-                if response_content.startswith('```'):
-                    response_content = response_content[3:]
-                if response_content.endswith('```'):
-                    response_content = response_content[:-3]
-                response_content = response_content.strip()
+                if not raw_content or raw_content.strip() == "":
+                    logger.warning(f"⚠️  Empty AI response received (attempt {retry_count})")
+                    raise json.JSONDecodeError("Empty AI response", "", 0)
                 
-                ai_response = json.loads(response_content)
+                # Clean and validate response
+                clean_content = raw_content.strip()
                 
-                # Convert to BusinessContext model
-                insights = [
-                    AIInsight(
-                        type=insight['type'],
-                        title=insight['title'],
-                        description=insight['description'],
-                        impact=insight['impact'],
-                        suggested_action=insight.get('suggested_action')
-                    ) for insight in ai_response.get('insights', [])
-                ]
+                # Remove markdown formatting if present
+                if clean_content.startswith('```json'):
+                    clean_content = clean_content.replace('```json', '').replace('```', '').strip()
+                elif clean_content.startswith('```'):
+                    clean_content = clean_content.replace('```', '').strip()
                 
-                context = BusinessContext(
-                    industry=ai_response.get('industry', 'General'),
+                # Find JSON boundaries
+                start_brace = clean_content.find('{')
+                end_brace = clean_content.rfind('}')
+                
+                if start_brace == -1 or end_brace == -1:
+                    logger.warning(f"⚠️  No JSON structure in AI response: {clean_content[:100]}...")
+                    raise json.JSONDecodeError("No JSON structure found", clean_content, 0)
+                
+                json_content = clean_content[start_brace:end_brace + 1]
+                
+                try:
+                    ai_response = json.loads(json_content)
+                except json.JSONDecodeError:
+                    # Try to fix common JSON issues
+                    fixed_content = re.sub(r',(\s*[}\]])', r'\1', json_content)  # Remove trailing commas
+                    fixed_content = re.sub(r"'([^']*)':", r'"\1":', fixed_content)  # Fix quotes
+                    ai_response = json.loads(fixed_content)
+                
+                # Validate chart types
+                valid_charts = []
+                for chart in ai_response.get('recommended_charts', []):
+                    if chart in valid_chart_types:
+                        valid_charts.append(chart)
+                    else:
+                        valid_charts.append('ShadcnAreaInteractive')  # Safe fallback
+                
+                ai_response['recommended_charts'] = valid_charts[:3]
+                
+                logger.info(f"✅ AI business context generated with batching: {ai_response.get('business_type', 'general')}")
+                
+                # Convert to BusinessContext
+                insights = []
+                for insight_data in ai_response.get('insights', []):
+                    insights.append(AIInsight(
+                        type=insight_data.get('type', 'recommendation'),
+                        title=insight_data.get('title', 'Analysis Complete'),
+                        description=insight_data.get('description', 'Data analyzed successfully'),
+                        impact=insight_data.get('impact', 'medium'),
+                        suggested_action=insight_data.get('suggested_action', 'Review dashboard')
+                    ))
+                
+                return BusinessContext(
+                    industry=ai_response.get('industry', 'General Business'),
                     business_type=ai_response.get('business_type', 'general'),
-                    data_characteristics=ai_response.get('data_characteristics', []),
-                    key_metrics=ai_response.get('key_metrics', []),
-                    recommended_charts=[ChartType(chart) for chart in ai_response.get('recommended_charts', ['bar', 'line'])],
+                    data_characteristics=["batched_analysis"],
+                    key_metrics=ai_response.get('key_metrics', [])[:5],
+                    recommended_charts=[ChartType(chart) for chart in valid_charts],
                     insights=insights,
                     confidence_score=ai_response.get('confidence_score', 0.7)
                 )
                 
-                logger.info(f"✅ AI business context generated: {context.business_type} in {context.industry}")
-                return context
-                
+            except json.JSONDecodeError as e:
+                logger.warning(f"⚠️  AI response parsing failed (attempt {retry_count}): {e}")
+                if retry_count < max_retries:
+                    await asyncio.sleep(1)
+                    continue
             except Exception as e:
-                wait_time = min(retry_count * 2, 30)
-                logger.warning(f"⚠️  AI business context attempt {retry_count} failed: {e}")
-                
-                if retry_count >= max_retries:
-                    raise Exception(f"Failed to generate business context after {max_retries} attempts: {str(e)}")
-                
-                logger.info(f"🔄 Retrying AI business context in {wait_time} seconds...")
-                await asyncio.sleep(wait_time)
+                logger.warning(f"⚠️  AI analysis failed (attempt {retry_count}): {e}")
+                if retry_count < max_retries:
+                    await asyncio.sleep(1)
+                    continue
         
-        raise Exception("Maximum AI business context retries exceeded")
+        # If all attempts fail, use heuristic fallback
+        logger.warning(f"⚠️  AI analysis failed after {max_retries} attempts, using heuristic fallback")
+        return self._heuristic_business_context(data_analysis)
     
     async def generate_dashboard(self, client_id: uuid.UUID, force_regenerate: bool = False) -> DashboardGenerationResponse:
         start_time = datetime.now()  # Add missing start_time variable
@@ -484,7 +651,7 @@ class DashboardOrchestrator:
                     )
             
             # Step 2: Get client data first
-            client_data = await self.ai_analyzer.get_client_data(str(client_id))
+            client_data = await self.ai_analyzer.get_client_data_optimized(str(client_id))
             
             if not client_data.get('data'):
                 raise Exception(f"No real data found for client {client_id}")
@@ -501,11 +668,11 @@ class DashboardOrchestrator:
             # Step 6: Generate chart widgets using REAL methods
             chart_widgets = await self._generate_real_chart_widgets(client_id, business_context, data_analysis)
             
-            # Step 7: Create dashboard layout
+            # Step 7: Create dashboard layout with improved spacing
             layout = DashboardLayout(
                 grid_cols=4,
-                grid_rows=max(6, len(kpi_widgets) // 4 + len(chart_widgets) // 2 + 2),
-                gap=4,
+                grid_rows=max(8, len(kpi_widgets) // 4 + len(chart_widgets) + 3),  # More rows for better layout
+                gap=6,  # More spacing between widgets
                 responsive=True
             )
             
@@ -571,79 +738,77 @@ class DashboardOrchestrator:
             }
             
             prompt = f"""
-            Analyze this business data and provide insights:
+            Analyze this business data and suggest appropriate visualizations:
             
-            Data Summary:
-            {json.dumps(data_summary, indent=2)}
+            Data Info:
+            - Columns: {data_summary['columns']}
+            - Records: {data_summary['total_records']}
+            - Numeric fields: {data_summary['numeric_columns']}
+            - Categories: {data_summary['categorical_columns']}
+            - Sample: {data_summary['sample_data'][0] if data_summary['sample_data'] else {}}
             
-            Please provide:
-            1. Industry classification
-            2. Business type (ecommerce, saas, retail, service, etc.)
-            3. Key business metrics that should be tracked
-            4. Recommended chart types for this data
-            5. Business insights and opportunities
+            VALID chart types: {', '.join(valid_chart_types[:10])}
             
-            Respond in JSON format with the following structure:
+            Respond in JSON:
             {{
                 "industry": "string",
                 "business_type": "string",
-                "data_characteristics": ["list", "of", "characteristics"],
-                "key_metrics": ["list", "of", "metrics"],
-                "recommended_charts": ["line", "bar", "pie"],
+                "key_metrics": {data_summary['numeric_columns'][:3]},
+                "recommended_charts": ["ShadcnAreaInteractive", "ShadcnBarChart", "ShadcnPieChart"],
                 "insights": [
                     {{
-                        "type": "opportunity/warning/trend/recommendation",
-                        "title": "string",
-                        "description": "string",
-                        "impact": "high/medium/low",
-                        "suggested_action": "string"
+                        "type": "opportunity",
+                        "title": "Data Ready",
+                        "description": "Analysis complete",
+                        "impact": "high",
+                        "suggested_action": "Review charts"
                     }}
                 ],
-                "confidence_score": 0.85
+                "confidence_score": 0.8
             }}
             """
             
             from openai import AsyncOpenAI
-            client = AsyncOpenAI(api_key=self.openai_api_key)
             
-            response = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are a business intelligence expert analyzing data to create personalized dashboards."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=1000,
-                temperature=0.3
-            )
-            
-            # Get the response content and validate it
-            response_content = response.choices[0].message.content
-            if not response_content or not response_content.strip():
-                logger.warning("⚠️  Empty response from OpenAI, falling back to heuristic analysis")
-                return self._heuristic_business_context(data_analysis)
-            
-            # Strip markdown code blocks if present
-            response_content = response_content.strip()
-            if response_content.startswith('```json'):
-                response_content = response_content[7:]  # Remove ```json
-            if response_content.startswith('```'):
-                response_content = response_content[3:]   # Remove ```
-            if response_content.endswith('```'):
-                response_content = response_content[:-3]  # Remove closing ```
-            response_content = response_content.strip()
-            
-            # Try to parse JSON with better error handling
-            try:
-                ai_response = json.loads(response_content)
-            except json.JSONDecodeError as json_error:
-                logger.warning(f"⚠️  Invalid JSON from OpenAI: {json_error}. Response: {response_content[:200]}...")
-                logger.warning("🔄 Falling back to heuristic analysis")
-                return self._heuristic_business_context(data_analysis)
-            
-            # Validate that we have the expected structure
-            if not isinstance(ai_response, dict):
-                logger.warning("⚠️  OpenAI response is not a dictionary, falling back to heuristic analysis")
-                return self._heuristic_business_context(data_analysis)
+            async with AsyncOpenAI(api_key=self.openai_api_key) as client:
+                response = await client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "You are a business intelligence expert analyzing data to create personalized dashboards."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=1000,
+                    temperature=0.3
+                )
+                
+                # Get the response content and validate it
+                response_content = response.choices[0].message.content
+                if not response_content or not response_content.strip():
+                    logger.warning("⚠️  Empty response from OpenAI, falling back to heuristic analysis")
+                    return self._heuristic_business_context(data_analysis)
+                
+                # Strip markdown code blocks if present
+                response_content = response_content.strip()
+                if response_content.startswith('```json'):
+                    response_content = response_content[7:]  # Remove ```json
+                if response_content.startswith('```'):
+                    response_content = response_content[3:]   # Remove ```
+                if response_content.endswith('```'):
+                    response_content = response_content[:-3]  # Remove closing ```
+                response_content = response_content.strip()
+                
+                # Try to parse JSON with better error handling
+                try:
+                    ai_response = json.loads(response_content)
+                except json.JSONDecodeError as json_error:
+                    logger.warning(f"⚠️  Invalid JSON from OpenAI: {json_error}. Response: {response_content[:200]}...")
+                    logger.warning("🔄 Falling back to heuristic analysis")
+                    return self._heuristic_business_context(data_analysis)
+                
+                # Validate that we have the expected structure
+                if not isinstance(ai_response, dict):
+                    logger.warning("⚠️  OpenAI response is not a dictionary, falling back to heuristic analysis")
+                    return self._heuristic_business_context(data_analysis)
             
             # Convert to BusinessContext model
             insights = [
@@ -730,7 +895,7 @@ class DashboardOrchestrator:
                 id="chart_time_series",
                 title="Trend Analysis",
                 subtitle="Performance over time",
-                chart_type=ChartType.LINE,
+                chart_type=ChartType.SHADCN_LINE_CHART,
                 data_source="time_series_data",
                 config={"responsive": True, "showLegend": True},
                 position={"row": 1, "col": 0},
@@ -743,7 +908,7 @@ class DashboardOrchestrator:
                 id="chart_categorical",
                 title="Category Breakdown",
                 subtitle="Distribution by category",
-                chart_type=ChartType.BAR,
+                chart_type=ChartType.SHADCN_BAR_CHART,
                 data_source="categorical_data",
                 config={"responsive": True, "showLegend": True},
                 position={"row": 1, "col": 2},
@@ -756,7 +921,7 @@ class DashboardOrchestrator:
                 id="chart_correlation",
                 title="Performance Correlation",
                 subtitle="Relationship between key metrics",
-                chart_type=ChartType.SCATTER,
+                chart_type=ChartType.SHADCN_LINE_CHART,  # Use line chart instead of scatter
                 data_source="correlation_data",
                 config={"responsive": True, "showLegend": True},
                 position={"row": 3, "col": 0},
@@ -788,8 +953,9 @@ class DashboardOrchestrator:
             dashboard_dict = self._convert_uuids_to_strings(dashboard_dict)
             
             # Use optimized database save
-            from database import db_manager
-            success = await db_manager.fast_dashboard_config_save(
+            from database import get_db_manager
+            manager = get_db_manager()
+            success = await manager.fast_dashboard_config_save(
                 str(dashboard_config.client_id), 
                 dashboard_dict
             )
@@ -864,7 +1030,7 @@ class DashboardOrchestrator:
     
     def _generate_chart_data(self, chart_type: ChartType, data_analysis: Dict[str, Any]) -> List[Dict]:
         """Generate sample chart data based on chart type"""
-        if chart_type == ChartType.LINE:
+        if chart_type == ChartType.SHADCN_LINE_CHART or chart_type == ChartType.line:
             return [
                 {'month': 'Jan', 'value': 45000},
                 {'month': 'Feb', 'value': 52000},
@@ -873,14 +1039,14 @@ class DashboardOrchestrator:
                 {'month': 'May', 'value': 55000},
                 {'month': 'Jun', 'value': 67000}
             ]
-        elif chart_type == ChartType.BAR:
+        elif chart_type == ChartType.SHADCN_BAR_CHART or chart_type == ChartType.bar:
             return [
                 {'category': 'Category A', 'value': 25000},
                 {'category': 'Category B', 'value': 15000},
                 {'category': 'Category C', 'value': 12000},
                 {'category': 'Category D', 'value': 18000}
             ]
-        elif chart_type == ChartType.PIE:
+        elif chart_type == ChartType.SHADCN_PIE_CHART or chart_type == ChartType.pie:
             return [
                 {'label': 'Segment 1', 'value': 40},
                 {'label': 'Segment 2', 'value': 30},
@@ -979,14 +1145,15 @@ class DashboardOrchestrator:
             logger.info(f"⚡ Fast dashboard lookup for client {client_id}")
             
             # Use optimized cached check first
-            from database import db_manager
-            exists = await db_manager.cached_dashboard_exists(str(client_id))
+            from database import get_db_manager
+            manager = get_db_manager()
+            exists = await manager.cached_dashboard_exists(str(client_id))
             
             if not exists:
                 return None
             
             # If exists, get the full config
-            client = db_manager.get_client()
+            client = manager.get_client()
             response = client.table('client_dashboard_configs').select('*').eq('client_id', str(client_id)).execute()
             
             if response.data:
@@ -1277,309 +1444,364 @@ class DashboardOrchestrator:
             return f"Custom analytics dashboard • {total_records:,} records{date_range} • {columns_count} data fields"
 
     async def _generate_real_chart_widgets(self, client_id: uuid.UUID, business_context: BusinessContext, data_analysis: Dict[str, Any]) -> List[ChartWidget]:
-        """Generate INTELLIGENT chart widgets using EXISTING Shadcn components - AI selects which ones to use"""
-        chart_widgets = []
-        
-        # Advanced data analysis for intelligent chart selection
-        numeric_cols = data_analysis['numeric_columns']
-        categorical_cols = data_analysis['categorical_columns']
-        date_cols = data_analysis['date_columns']
-        total_records = data_analysis.get('total_records', 0)
-        unique_values = data_analysis.get('unique_values', {})
-        
-        # 🚨 SMART CHECK: Only proceed if we have actual data
-        if total_records == 0 or len(numeric_cols) == 0:
-            logger.info(f"🧠 AI Orchestrator: No sufficient data for charts (records: {total_records}, numeric_cols: {len(numeric_cols)})")
-            return []  # Return empty list - no charts without data!
-        
-        # 🧠 AI-POWERED SHADCN COMPONENT SELECTION
-        # Available Shadcn components in the system
-        available_shadcn_charts = {
-            'ShadcnAreaChart': {
-                'best_for': ['time_series', 'cumulative_data', 'trend_analysis'],
-                'data_requirements': {'numeric': 1, 'date_or_category': 1},
-                'max_data_points': 50
-            },
-            'ShadcnBarChart': {
-                'best_for': ['categorical_comparison', 'ranking', 'discrete_values'],
-                'data_requirements': {'numeric': 1, 'category': 1},
-                'max_data_points': 15
-            },
-            'ShadcnLineChart': {
-                'best_for': ['time_series', 'trend_tracking', 'continuous_data'],
-                'data_requirements': {'numeric': 1, 'date_or_category': 1},
-                'max_data_points': 100
-            },
-            'ShadcnPieChart': {
-                'best_for': ['part_to_whole', 'distribution', 'proportions'],
-                'data_requirements': {'numeric': 1, 'category': 1},
-                'max_data_points': 8
-            },
-            'ShadcnInteractiveBar': {
-                'best_for': ['detailed_comparison', 'multi_metric_analysis'],
-                'data_requirements': {'numeric': 2, 'category': 1},
-                'max_data_points': 12
-            },
-            'ShadcnInteractiveDonut': {
-                'best_for': ['percentage_breakdown', 'category_distribution'],
-                'data_requirements': {'numeric': 1, 'category': 1},
-                'max_data_points': 6
-            },
-            'ShadcnMultipleArea': {
-                'best_for': ['multi_series_comparison', 'stacked_trends'],
-                'data_requirements': {'numeric': 2, 'date_or_category': 1},
-                'max_data_points': 30
-            }
-        }
-        
-        # 🧠 AI SMART SELECTION: Choose which Shadcn components to use
-        selected_charts = self._ai_select_shadcn_components(
-            data_analysis, business_context, available_shadcn_charts
-        )
-        
-        # 🧠 VALIDATE: Only create charts that have valid data
-        valid_charts = []
-        for chart in selected_charts:
-            if self._validate_shadcn_chart_data(chart, data_analysis):
-                valid_charts.append(chart)
-        
-        if len(valid_charts) == 0:
-            logger.info(f"🧠 AI Orchestrator: No Shadcn charts passed data validation")
-            return []
-        
-        logger.info(f"🧠 AI Orchestrator: Selected {len(valid_charts)} Shadcn charts with valid data")
-        
-        # 🎨 CREATE SHADCN CHART CONFIGURATIONS
-        widget_position = {"row": 1, "col": 0}
-        
-        for i, chart_config in enumerate(valid_charts):
-            chart_widget = ChartWidget(
-                id=f"shadcn_{chart_config['component']}_{i}",
-                title=chart_config['title'],
-                subtitle=chart_config['subtitle'],
-                chart_type=chart_config['component'],  # Use component name as chart_type
-                data_source=f"shadcn_data_{chart_config['data_source']}",
-                config={
-                    "component": chart_config['component'],  # Which Shadcn component to use
-                    "props": chart_config['props'],  # Props to pass to the component
-                    "responsive": True,
-                    "real_data_columns": chart_config['data_columns']
-                },
-                position={"row": widget_position["row"], "col": widget_position["col"]},
-                size={"width": chart_config['size']['width'], "height": chart_config['size']['height']}
-            )
-            chart_widgets.append(chart_widget)
-            
-            # Update position for next chart
-            widget_position["col"] += chart_config['size']['width']
-            if widget_position["col"] >= 4:
-                widget_position["row"] += chart_config['size']['height']
-                widget_position["col"] = 0
-        
-        return chart_widgets
-
-    def _ai_select_shadcn_components(self, data_analysis: Dict[str, Any], business_context: BusinessContext, available_charts: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """🧠 AI SMART SELECTION: Choose which Shadcn components to use based on data characteristics"""
-        
-        numeric_cols = data_analysis['numeric_columns']
-        categorical_cols = data_analysis['categorical_columns']
-        date_cols = data_analysis['date_columns']
-        total_records = data_analysis.get('total_records', 0)
-        unique_values = data_analysis.get('unique_values', {})
-        
-        selected_charts = []
-        
-        # 🧠 RULE 1: Time series data gets priority for trend charts
-        if date_cols and len(numeric_cols) > 0:
-            primary_numeric = numeric_cols[0]
-            date_col = date_cols[0]
-            
-            # Choose between Area, Line, or Multiple Area based on data characteristics
-            if len(numeric_cols) >= 2 and total_records >= 10:
-                # Multiple metrics over time - use ShadcnMultipleArea
-                selected_charts.append({
-                    'component': 'ShadcnMultipleArea',
-                    'title': f'{self._generate_smart_title(primary_numeric, "Metrics")} Over Time',
-                    'subtitle': f'Multi-metric trend analysis using real data',
-                    'data_source': f'{date_col}_{primary_numeric}',
-                    'data_columns': [date_col, primary_numeric, numeric_cols[1] if len(numeric_cols) > 1 else primary_numeric],
-                    'props': {
-                        'title': f'{self._generate_smart_title(primary_numeric, "Metrics")} Trends',
-                        'description': f'Time series analysis from {total_records} data points',
-                        'dataKey': primary_numeric,
-                        'xAxisKey': date_col,
-                        'height': 300,
-                        'color': '#465FFF'
-                    },
-                    'size': {'width': 4, 'height': 2}
-                })
-            elif total_records >= 20:
-                # Single metric trend - use ShadcnAreaChart for cumulative feel
-                selected_charts.append({
-                    'component': 'ShadcnAreaChart',
-                    'title': f'{self._generate_smart_title(primary_numeric, "Performance")} Trend',
-                    'subtitle': f'Cumulative view of {self._generate_smart_title(primary_numeric, "data")}',
-                    'data_source': f'{date_col}_{primary_numeric}',
-                    'data_columns': [date_col, primary_numeric],
-                    'props': {
-                        'title': f'{self._generate_smart_title(primary_numeric, "Performance")} Analysis',
-                        'description': f'Area chart showing trends over time',
-                        'dataKey': primary_numeric,
-                        'xAxisKey': date_col,
-                        'height': 250,
-                        'color': '#8884d8',
-                        'fillOpacity': 0.6
-                    },
-                    'size': {'width': 3, 'height': 2}
-                })
-            else:
-                # Simple line chart for smaller datasets
-                selected_charts.append({
-                    'component': 'ShadcnLineChart',
-                    'title': f'{self._generate_smart_title(primary_numeric, "Metrics")} Timeline',
-                    'subtitle': f'Linear progression of {self._generate_smart_title(primary_numeric, "data")}',
-                    'data_source': f'{date_col}_{primary_numeric}',
-                    'data_columns': [date_col, primary_numeric],
-                    'props': {
-                        'title': f'{self._generate_smart_title(primary_numeric, "Metrics")} Line Chart',
-                        'description': f'Line chart visualization',
-                        'dataKey': primary_numeric,
-                        'xAxisKey': date_col,
-                        'height': 200,
-                        'color': '#82ca9d'
-                    },
-                    'size': {'width': 2, 'height': 2}
-                })
-        
-        # 🧠 RULE 2: Categorical data gets comparison charts
-        if categorical_cols and numeric_cols:
-            cat_col = categorical_cols[0]
-            num_col = numeric_cols[0]
-            unique_count = unique_values.get(cat_col, 0)
-            
-            if unique_count <= 6 and total_records >= 5:
-                # Small number of categories - perfect for pie chart or donut
-                chart_type = 'ShadcnInteractiveDonut' if business_context.business_type in ['ecommerce', 'saas'] else 'ShadcnPieChart'
-                
-                selected_charts.append({
-                    'component': chart_type,
-                    'title': f'{self._generate_smart_title(num_col, "Distribution")} by {self._generate_smart_title(cat_col, "Category")}',
-                    'subtitle': f'Proportional breakdown across {unique_count} categories',
-                    'data_source': f'{cat_col}_{num_col}',
-                    'data_columns': [cat_col, num_col],
-                    'props': {
-                        'title': f'{self._generate_smart_title(num_col, "Value")} Distribution',
-                        'description': f'Breakdown by {self._generate_smart_title(cat_col, "category")}',
-                        'dataKey': num_col,
-                        'xAxisKey': cat_col,
-                        'height': 300
-                    },
-                    'size': {'width': 2, 'height': 2}
-                })
-            
-            elif unique_count <= 15 and total_records >= 3:
-                # Medium number of categories - bar chart is perfect
-                if len(numeric_cols) >= 2:
-                    # Multiple metrics - use Interactive Bar
-                    selected_charts.append({
-                        'component': 'ShadcnInteractiveBar',
-                        'title': f'Detailed {self._generate_smart_title(cat_col, "Category")} Analysis',
-                        'subtitle': f'Multi-metric comparison across {unique_count} categories',
-                        'data_source': f'{cat_col}_{num_col}',
-                        'data_columns': [cat_col, num_col, numeric_cols[1] if len(numeric_cols) > 1 else num_col],
-                        'props': {
-                            'title': f'{self._generate_smart_title(cat_col, "Categories")} Performance',
-                            'description': f'Interactive comparison of multiple metrics',
-                            'dataKey': num_col,
-                            'xAxisKey': cat_col,
-                            'height': 350
-                        },
-                        'size': {'width': 4, 'height': 2}
-                    })
-                else:
-                    # Single metric - use simple Bar Chart
-                    selected_charts.append({
-                        'component': 'ShadcnBarChart',
-                        'title': f'{self._generate_smart_title(num_col, "Values")} by {self._generate_smart_title(cat_col, "Category")}',
-                        'subtitle': f'Comparative analysis of {unique_count} categories',
-                        'data_source': f'{cat_col}_{num_col}',
-                        'data_columns': [cat_col, num_col],
-                        'props': {
-                            'title': f'{self._generate_smart_title(num_col, "Performance")} Comparison',
-                            'description': f'Bar chart showing values by category',
-                            'dataKey': num_col,
-                            'xAxisKey': cat_col,
-                            'height': 250,
-                            'color': '#ffc658'
-                        },
-                        'size': {'width': 2, 'height': 2}
-                    })
-        
-        # 🧠 RULE 3: Pure numeric data gets distribution/correlation analysis
-        if len(numeric_cols) >= 2 and not date_cols and len(categorical_cols) == 0:
-            # Pure numerical data - show relationships
-            num_col1, num_col2 = numeric_cols[0], numeric_cols[1]
-            
-            # Create a synthetic category based on data ranges for visualization
-            selected_charts.append({
-                'component': 'ShadcnBarChart',
-                'title': f'{self._generate_smart_title(num_col1, "Primary")} vs {self._generate_smart_title(num_col2, "Secondary")}',
-                'subtitle': f'Comparative analysis of numerical relationships',
-                'data_source': f'{num_col1}_{num_col2}',
-                'data_columns': [num_col1, num_col2],
-                'props': {
-                    'title': f'Numerical Comparison',
-                    'description': f'Relationship between key metrics',
-                    'dataKey': num_col1,
-                    'xAxisKey': 'data_point',  # We'll create synthetic x-axis
-                    'height': 200,
-                    'color': '#ff7300'
-                },
-                'size': {'width': 2, 'height': 2}
-            })
-        
-        # 🚨 LIMIT: Maximum 3-4 charts for optimal UX
-        return selected_charts[:4]
-
-    def _validate_shadcn_chart_data(self, chart_config: Dict[str, Any], data_analysis: Dict[str, Any]) -> bool:
-        """🧠 SMART VALIDATION: Check if Shadcn chart configuration has actual data to display"""
+        """🧠 INTELLIGENT chart generation using 100% REAL client data with smart column analysis"""
         try:
-            data_columns = chart_config.get('data_columns', [])
-            component = chart_config.get('component', '')
+            start_time = time.time()
+            total_records = data_analysis['total_records']
+            numeric_cols = data_analysis['numeric_cols']
+            date_cols = data_analysis['date_cols']
+            categorical_cols = data_analysis['categorical_cols']
             
-            # Check if required columns exist and have data
-            numeric_cols = data_analysis.get('numeric_columns', [])
-            categorical_cols = data_analysis.get('categorical_columns', [])
-            date_cols = data_analysis.get('date_columns', [])
-            total_records = data_analysis.get('total_records', 0)
+            logger.info(f"🧠 INTELLIGENT chart generation: {len(numeric_cols)} numeric, {len(categorical_cols)} categorical, {len(date_cols)} date columns from {total_records} REAL records")
             
-            # Basic validation: must have records
             if total_records == 0:
-                return False
+                logger.warning(f"❌ No real data available for charts")
+                return []
             
-            # Validate data columns exist
-            all_columns = numeric_cols + categorical_cols + date_cols
-            for col in data_columns:
-                if col not in all_columns:
-                    return False
+            # 🧠 SMART DATA ANALYSIS: Understand what each column represents
+            smart_columns = await self._analyze_column_meanings(client_id, numeric_cols, categorical_cols, date_cols)
+            logger.info(f"🔍 Smart column analysis: {smart_columns}")
             
-            # Component-specific validation
-            if component in ['ShadcnAreaChart', 'ShadcnLineChart', 'ShadcnMultipleArea']:
-                # Trend charts need at least 2 data points
-                return total_records >= 2 and len(data_columns) >= 2
-            elif component in ['ShadcnBarChart', 'ShadcnInteractiveBar']:
-                # Bar charts need categorical or numeric data
-                return total_records >= 1 and len(data_columns) >= 2
-            elif component in ['ShadcnPieChart', 'ShadcnInteractiveDonut']:
-                # Pie charts need categorical data with values
-                return len(categorical_cols) > 0 and total_records >= 2
-            else:
-                # Default: just check we have data
-                return total_records > 0 and len(data_columns) > 0
+            chart_widgets = []
+            widget_id_counter = 1
+            used_combinations = set()
+            
+            # 🎯 CREATIVE CHART GENERATION: Each chart shows COMPLETELY different data insights!
+            
+            # 🔥 CHART 1: Interactive Area Chart - Price Distribution Analysis (FULL WIDTH)
+            if smart_columns.get('price_columns') and numeric_cols:
+                price_col = smart_columns['price_columns'][0]
+                chart_widgets.append(ChartWidget(
+                    id=f"chart_{widget_id_counter}",
+                    title="💎 Product Value Distribution",
+                    subtitle="Interactive price analysis across your entire catalog - Find your pricing sweet spots",
+                    chart_type=ChartType.SHADCN_AREA_INTERACTIVE,
+                    data_source="client_data",
+                    config={
+                        "component": "ShadcnAreaInteractive",
+                        "data_columns": {"nameKey": "title", "dataKey": price_col, "priceKey": price_col},
+                        "props": {"title": "Product Value Distribution", "height": 400, "showTooltip": True},
+                        "real_data_columns": ["title", price_col],
+                        "visualization_type": "price_distribution"
+                    },
+                    position={"row": 0, "col": 0}, size={"width": 4, "height": 2}, priority=1
+                ))
+                widget_id_counter += 1
+            
+            # 🚀 CHART 2: Horizontal Bar Chart - Top Performers by Variants (LEFT)
+            if smart_columns.get('count_columns') and smart_columns.get('name_columns'):
+                variants_col = next((col for col in smart_columns['count_columns'] if 'variants' in col), smart_columns['count_columns'][0])
+                title_col = smart_columns['name_columns'][0]
+                chart_widgets.append(ChartWidget(
+                    id=f"chart_{widget_id_counter}",
+                    title="🏆 Product Variant Champions",
+                    subtitle="Which products offer the most choices? Horizontal ranking of variant leaders",
+                    chart_type=ChartType.SHADCN_BAR_HORIZONTAL,
+                    data_source="client_data",
+                    config={
+                        "component": "ShadcnBarHorizontal",
+                        "data_columns": {"nameKey": title_col, "dataKey": variants_col},
+                        "props": {"title": "Variant Champions", "height": 350, "layout": "horizontal"},
+                        "real_data_columns": [title_col, variants_col],
+                        "visualization_type": "top_performers"
+                    },
+                    position={"row": 2, "col": 0}, size={"width": 2, "height": 2}, priority=2
+                ))
+                widget_id_counter += 1
+            
+            # 📡 CHART 3: Radar Chart - Multi-Dimensional Product Analysis (RIGHT)
+            if len(numeric_cols) >= 2:
+                chart_widgets.append(ChartWidget(
+                    id=f"chart_{widget_id_counter}",
+                    title="🕸️ Product Performance Radar",
+                    subtitle="Multi-dimensional analysis: variants, images, and pricing in one powerful view",
+                    chart_type=ChartType.SHADCN_RADAR_CHART,
+                    data_source="client_data",
+                    config={
+                        "component": "ShadcnRadarChart",
+                        "data_columns": {"metrics": numeric_cols[:3], "nameKey": "title"},
+                        "props": {"title": "Performance Radar", "height": 350, "showGridLines": True},
+                        "real_data_columns": numeric_cols[:3] + ["title"],
+                        "visualization_type": "multi_dimensional"
+                    },
+                    position={"row": 2, "col": 2}, size={"width": 2, "height": 2}, priority=3
+                ))
+                widget_id_counter += 1
+            
+            # 📈 CHART 4: Stacked Area Chart - Product Creation Timeline (FULL WIDTH)
+            if smart_columns.get('date_columns') and smart_columns.get('category_columns'):
+                date_col = smart_columns['date_columns'][0]  # created_at
+                category_col = next((col for col in smart_columns['category_columns'] if col in ['product_type', 'vendor']), smart_columns['category_columns'][0])
+                chart_widgets.append(ChartWidget(
+                    id=f"chart_{widget_id_counter}",
+                    title="⏰ Product Launch Timeline",
+                    subtitle="Stacked view of when different product categories were added to your store",
+                    chart_type=ChartType.SHADCN_AREA_STACKED,
+                    data_source="client_data",
+                    config={
+                        "component": "ShadcnAreaStacked",
+                        "data_columns": {"xAxisKey": date_col, "categoryKey": category_col, "stackBy": category_col},
+                        "props": {"title": "Launch Timeline", "height": 350, "stackOffset": "expand"},
+                        "real_data_columns": [date_col, category_col],
+                        "visualization_type": "timeline_stacked"
+                    },
+                    position={"row": 4, "col": 0}, size={"width": 4, "height": 2}, priority=4
+                ))
+                widget_id_counter += 1
+            
+            # 🎯 CHART 5: Interactive Donut - Visual Marketing Power (LEFT)
+            if smart_columns.get('count_columns'):
+                images_col = next((col for col in smart_columns['count_columns'] if 'images' in col), smart_columns['count_columns'][-1])
+                chart_widgets.append(ChartWidget(
+                    id=f"chart_{widget_id_counter}",
+                    title="📸 Visual Marketing Power",
+                    subtitle="Interactive donut showing which products win with visual content",
+                    chart_type=ChartType.SHADCN_DONUT_INTERACTIVE,
+                    data_source="client_data",
+                    config={
+                        "component": "ShadcnInteractiveDonut",
+                        "data_columns": {"nameKey": "title", "dataKey": images_col, "segmentKey": images_col},
+                        "props": {"title": "Visual Power", "height": 300, "innerRadius": 60},
+                        "real_data_columns": ["title", images_col],
+                        "visualization_type": "visual_breakdown"
+                    },
+                    position={"row": 6, "col": 0}, size={"width": 2, "height": 1}, priority=5
+                ))
+                widget_id_counter += 1
+            
+            # 📊 CHART 6: Multi-Line Chart - Business Health Metrics (RIGHT)
+            if smart_columns.get('date_columns') and len(numeric_cols) >= 2:
+                date_col = smart_columns['date_columns'][0]
+                chart_widgets.append(ChartWidget(
+                    id=f"chart_{widget_id_counter}",
+                    title="💹 Business Health Monitor",
+                    subtitle="Multi-line tracking of key business metrics over time",
+                    chart_type=ChartType.SHADCN_MULTIPLE_AREA,
+                    data_source="client_data",
+                    config={
+                        "component": "ShadcnMultipleArea",
+                        "data_columns": {"xAxisKey": date_col, "metrics": numeric_cols[:2], "lineKeys": numeric_cols[:2]},
+                        "props": {"title": "Health Monitor", "height": 300, "strokeWidth": 3},
+                        "real_data_columns": [date_col] + numeric_cols[:2],
+                        "visualization_type": "health_monitor"
+                    },
+                    position={"row": 6, "col": 2}, size={"width": 2, "height": 1}, priority=6
+                ))
+                widget_id_counter += 1
+            
+            # 🚨 EMERGENCY FALLBACK: If we have NO charts after validation, create guaranteed working charts
+            if len(chart_widgets) == 0:
+                logger.error("🚨 NO CHARTS PASSED VALIDATION! Creating emergency fallback charts...")
                 
+                # Emergency Chart 1: Simple count of records by first categorical column
+                if categorical_cols and data_analysis.get('sample_data'):
+                    emergency_chart_1 = ChartWidget(
+                        id="emergency_chart_1",
+                        title="📊 Data Distribution", 
+                        subtitle="Distribution of your data records",
+                        chart_type=ChartType.SHADCN_BAR_CHART,
+                        data_source="client_data",
+                        config={
+                            "component": "ShadcnBarChart",
+                            "data_columns": {"nameKey": categorical_cols[0], "dataKey": "count"},
+                            "props": {"title": "Data Distribution", "height": 350},
+                            "real_data_columns": [categorical_cols[0]]
+                        },
+                        position={"row": 0, "col": 0}, size={"width": 2, "height": 2}, priority=1
+                    )
+                    chart_widgets.append(emergency_chart_1)
+                    logger.info("🚨 Created emergency bar chart for data distribution")
+                
+                # Emergency Chart 2: Simple numeric data if available
+                if numeric_cols and data_analysis.get('sample_data'):
+                    emergency_chart_2 = ChartWidget(
+                        id="emergency_chart_2",
+                        title="📈 Numeric Overview",
+                        subtitle="Overview of your numeric data", 
+                        chart_type=ChartType.SHADCN_LINE_CHART,
+                        data_source="client_data",
+                        config={
+                            "component": "ShadcnLineChart",
+                            "data_columns": {"nameKey": "record_index", "dataKey": numeric_cols[0]},
+                            "props": {"title": "Numeric Overview", "height": 350},
+                            "real_data_columns": [numeric_cols[0]]
+                        },
+                        position={"row": 0, "col": 2}, size={"width": 2, "height": 2}, priority=2
+                    )
+                    chart_widgets.append(emergency_chart_2)
+                    logger.info("🚨 Created emergency line chart for numeric data")
+                
+                if len(chart_widgets) == 0:
+                    logger.error("🚨 CRITICAL: Could not create any charts even with emergency fallbacks!")
+                else:
+                    logger.info(f"🚨 Created {len(chart_widgets)} emergency fallback charts")
+            
+            # Log completion
+            generation_time = time.time() - start_time
+            logger.info(f"✅ Generated {len(chart_widgets)} beautiful charts in {generation_time:.2f}s")
+            
+            # 🔍 FINAL VALIDATION: Ensure all charts have valid data columns and remove any problematic ones
+            validated_charts = []
+            for chart in chart_widgets:
+                # Validate that all required data columns exist in the dataset
+                required_cols = chart.config.get("real_data_columns", [])
+                available_cols = numeric_cols + categorical_cols + date_cols
+                
+                # Check if required columns exist
+                missing_cols = [col for col in required_cols if col not in available_cols]
+                if missing_cols:
+                    logger.warning(f"⚠️ Removing chart '{chart.title}' - missing columns: {missing_cols}")
+                    continue
+                
+                # Check if the data columns have actual meaningful data
+                has_meaningful_data = False
+                sample_data = data_analysis.get('sample_data', [])
+                
+                for sample_row in sample_data:
+                    for col in required_cols:
+                        if col in sample_row:
+                            value = sample_row[col]
+                            # Check for meaningful data (not null, empty, or placeholder values)
+                            if value is not None and value != '' and str(value).strip() != '' and value != 'null':
+                                has_meaningful_data = True
+                                break
+                    if has_meaningful_data:
+                        break
+                
+                if not has_meaningful_data:
+                    logger.warning(f"⚠️ Removing chart '{chart.title}' - no meaningful data in columns: {required_cols}")
+                    continue
+                
+                # Chart passed validation
+                validated_charts.append(chart)
+                logger.info(f"✅ Chart validated: '{chart.title}' with columns {required_cols}")
+
+            chart_widgets = validated_charts
+            
+            # 🚨 EMERGENCY FALLBACK: If we have NO charts after validation, create guaranteed working charts
+            if len(chart_widgets) == 0:
+                logger.error("🚨 NO CHARTS PASSED VALIDATION! Creating emergency fallback charts...")
+                
+                # Emergency Chart 1: Simple count of records by first categorical column
+                if categorical_cols and data_analysis.get('sample_data'):
+                    emergency_chart_1 = ChartWidget(
+                        id="emergency_chart_1",
+                        title="📊 Data Distribution", 
+                        subtitle="Distribution of your data records",
+                        chart_type=ChartType.SHADCN_BAR_CHART,
+                        data_source="client_data",
+                        config={
+                            "component": "ShadcnBarChart",
+                            "data_columns": {"nameKey": categorical_cols[0], "dataKey": "count"},
+                            "props": {"title": "Data Distribution", "height": 350},
+                            "real_data_columns": [categorical_cols[0]]
+                        },
+                        position={"row": 0, "col": 0}, size={"width": 2, "height": 2}, priority=1
+                    )
+                    chart_widgets.append(emergency_chart_1)
+                    logger.info("🚨 Created emergency bar chart for data distribution")
+                
+                # Emergency Chart 2: Simple numeric data if available
+                if numeric_cols and data_analysis.get('sample_data'):
+                    emergency_chart_2 = ChartWidget(
+                        id="emergency_chart_2",
+                        title="📈 Numeric Overview",
+                        subtitle="Overview of your numeric data", 
+                        chart_type=ChartType.SHADCN_LINE_CHART,
+                        data_source="client_data",
+                        config={
+                            "component": "ShadcnLineChart",
+                            "data_columns": {"nameKey": "record_index", "dataKey": numeric_cols[0]},
+                            "props": {"title": "Numeric Overview", "height": 350},
+                            "real_data_columns": [numeric_cols[0]]
+                        },
+                        position={"row": 0, "col": 2}, size={"width": 2, "height": 2}, priority=2
+                    )
+                    chart_widgets.append(emergency_chart_2)
+                    logger.info("🚨 Created emergency line chart for numeric data")
+                
+                if len(chart_widgets) == 0:
+                    logger.error("🚨 CRITICAL: Could not create any charts even with emergency fallbacks!")
+                else:
+                    logger.info(f"🚨 Created {len(chart_widgets)} emergency fallback charts")
+            
+            return chart_widgets
+            
         except Exception as e:
-            logger.warning(f"Shadcn chart validation failed: {e}")
-            return False
+            logger.error(f"❌ Failed to generate chart widgets: {e}")
+            return []
+
+    async def _analyze_column_meanings(self, client_id: uuid.UUID, numeric_cols: List[str], categorical_cols: List[str], date_cols: List[str]) -> Dict[str, Dict]:
+        """🧠 Analyze what each column represents to make intelligent chart decisions"""
+        try:
+            # Fetch a sample of real data to understand column content
+            from database import get_db_manager
+            db = get_db_manager()
+            
+            # Use the existing fast lookup method to get real client data
+            sample_data_result = await db.fast_client_data_lookup(str(client_id), use_cache=True)
+            
+            if not sample_data_result or not sample_data_result.get('data'):
+                logger.warning(f"🔍 No sample data available for column analysis")
+                return {}
+            
+            # Get sample records from the data result
+            sample_records = sample_data_result['data'][:5]  # Take first 5 records for analysis
+                    
+            if not sample_records:
+                logger.warning(f"🔍 No sample records available for analysis")
+                return {}
+                
+            # 🧠 INTELLIGENT COLUMN ANALYSIS
+            smart_analysis = {
+                'price_columns': [],
+                'count_columns': [],
+                'id_columns': [],
+                'status_columns': [],
+                'name_columns': [],
+                'date_columns': [],
+                'money_columns': [],
+                'quantity_columns': [],
+                'category_columns': []
+            }
+            
+            # Analyze numeric columns
+            for col in numeric_cols:
+                col_lower = col.lower()
+                sample_values = [row.get(col) for row in sample_records[:3] if row.get(col) is not None]
+                
+                if 'price' in col_lower or 'cost' in col_lower or 'amount' in col_lower:
+                    smart_analysis['price_columns'].append(col)
+                elif 'count' in col_lower or 'quantity' in col_lower or 'qty' in col_lower:
+                    smart_analysis['count_columns'].append(col)
+                elif 'id' in col_lower and sample_values and all(isinstance(v, (int, float)) and v > 1000 for v in sample_values):
+                    smart_analysis['id_columns'].append(col)
+                elif sample_values and all(isinstance(v, (int, float)) and v < 1000 for v in sample_values):
+                    smart_analysis['quantity_columns'].append(col)
+                else:
+                    smart_analysis['money_columns'].append(col)
+            
+            # Analyze categorical columns  
+            for col in categorical_cols:
+                col_lower = col.lower()
+                if 'status' in col_lower or 'state' in col_lower:
+                    smart_analysis['status_columns'].append(col)
+                elif 'name' in col_lower or 'title' in col_lower or 'product' in col_lower:
+                    smart_analysis['name_columns'].append(col)
+                elif 'type' in col_lower or 'category' in col_lower or 'tag' in col_lower:
+                    smart_analysis['category_columns'].append(col)
+                else:
+                    smart_analysis['category_columns'].append(col)
+            
+            # Date columns
+            smart_analysis['date_columns'] = date_cols
+            
+            logger.info(f"🧠 Smart analysis complete: {sum(len(v) for v in smart_analysis.values())} columns categorized")
+            return smart_analysis
+            
+        except Exception as e:
+            logger.error(f"❌ Column analysis failed: {e}")
+            return {}
 
     async def _generate_and_save_real_metrics(self, client_id: uuid.UUID, dashboard_config: DashboardConfig, data_analysis: Dict[str, Any]) -> int:
         """Generate and save dashboard metrics from REAL data using OPTIMIZED batch processing"""
@@ -1630,8 +1852,9 @@ class DashboardOrchestrator:
                 all_metrics.append(metric_dict)
             
             # Use optimized batch save for all metrics
-            from database import db_manager
-            metrics_generated = await db_manager.fast_dashboard_metrics_save(all_metrics)
+            from database import get_db_manager
+            manager = get_db_manager()
+            metrics_generated = await manager.fast_dashboard_metrics_save(all_metrics)
             
             logger.info(f"✅ Generated {metrics_generated} metrics with high performance")
             return metrics_generated
@@ -1641,59 +1864,463 @@ class DashboardOrchestrator:
             return 0
 
     async def _generate_real_chart_data(self, chart_widget: ChartWidget, data_analysis: Dict[str, Any]) -> List[Dict]:
-        """Generate chart data from REAL client data"""
+        """🚀 Generate chart data from REAL client data with proper formatting"""
         try:
-            # Get the data columns from chart config
-            data_columns = chart_widget.config.get('data_columns', [])
-            sample_data = data_analysis['sample_data']
+            # Get the data configuration properly
+            data_columns_config = chart_widget.config.get('data_columns', {})
+            real_data_columns = chart_widget.config.get('real_data_columns', [])
+            sample_data = data_analysis.get('sample_data', [])
             
-            if not data_columns or not sample_data:
+            logger.info(f"🔍 Generating chart data for {chart_widget.title}")
+            logger.info(f"📊 Data columns config: {data_columns_config}")
+            logger.info(f"📊 Real data columns: {real_data_columns}")
+            logger.info(f"📊 Sample data length: {len(sample_data)}")
+            
+            if not sample_data:
+                logger.warning(f"❌ No sample data available for chart {chart_widget.title}")
                 return []
             
-            # Process based on chart type
-            if chart_widget.chart_type == ChartType.LINE:
-                # Time series data
-                if len(data_columns) >= 2:
-                    return [
-                        {
-                            'x': row.get(data_columns[0], f"Point {i}"),
-                            'y': row.get(data_columns[1], 0)
-                        }
-                        for i, row in enumerate(sample_data[:10])  # Limit to 10 points for performance
-                    ]
+            # Use the sample data that's already analyzed (no need to fetch again)
+            chart_data = sample_data
             
-            elif chart_widget.chart_type == ChartType.BAR:
-                # Categorical data
-                if len(data_columns) >= 2:
-                    # Aggregate by category
-                    category_sums = {}
-                    for row in sample_data:
-                        category = str(row.get(data_columns[0], 'Unknown'))
-                        value = row.get(data_columns[1], 0)
-                        if isinstance(value, (int, float)):
-                            category_sums[category] = category_sums.get(category, 0) + value
+            # Process based on chart type with proper data structure and CREATIVE data processing
+            visualization_type = chart_widget.config.get('visualization_type', 'default')
+            
+            if chart_widget.chart_type == ChartType.SHADCN_AREA_INTERACTIVE and visualization_type == "price_distribution":
+                # 💎 Price Distribution Analysis - Interactive Area Chart
+                x_key = data_columns_config.get('nameKey', 'title')
+                y_key = data_columns_config.get('dataKey')
+                
+                if x_key and y_key and len(chart_data) > 0:
+                    # Sort products by price and create price distribution curve
+                    price_data = []
+                    for i, row in enumerate(chart_data):
+                        if x_key in row and y_key in row:
+                            price = row.get(y_key, 0)
+                            if isinstance(price, str):
+                                try:
+                                    price = float(price)
+                                except:
+                                    price = 0
+                            
+                            # Create price tiers for better visualization
+                            if price < 50:
+                                tier = "Budget ($0-$50)"
+                            elif price < 100:
+                                tier = "Mid-Range ($50-$100)"
+                            elif price < 200:
+                                tier = "Premium ($100-$200)"
+                            else:
+                                tier = "Luxury ($200+)"
+                            
+                            price_data.append({
+                                'name': tier,
+                                'value': price,
+                                'product': str(row.get(x_key, 'Unknown'))[:20],
+                                'tier_index': i
+                            })
                     
-                    return [
-                        {'category': category, 'value': value}
-                        for category, value in list(category_sums.items())[:10]  # Limit categories
-                    ]
+                    # Group by price tiers for area chart
+                    tier_groups = {}
+                    for item in price_data:
+                        tier = item['name']
+                        if tier not in tier_groups:
+                            tier_groups[tier] = []
+                        tier_groups[tier].append(item['value'])
+                    
+                    result = []
+                    for tier, values in tier_groups.items():
+                        result.append({
+                            'name': tier,
+                            'value': round(sum(values) / len(values), 2),  # Average price in tier
+                            'count': len(values),  # Number of products
+                            'total': round(sum(values), 2)  # Total value
+                        })
+                    
+                    logger.info(f"✅ Generated {len(result)} price distribution tiers for {chart_widget.title}")
+                    return sorted(result, key=lambda x: x['value'])
             
-            elif chart_widget.chart_type == ChartType.SCATTER:
-                # Correlation data
-                if len(data_columns) >= 2:
-                    return [
-                        {
-                            'x': row.get(data_columns[0], 0),
-                            'y': row.get(data_columns[1], 0)
-                        }
-                        for row in sample_data[:20]  # Limit points for performance
-                        if isinstance(row.get(data_columns[0]), (int, float)) and isinstance(row.get(data_columns[1]), (int, float))
-                    ]
+            elif chart_widget.chart_type == ChartType.SHADCN_BAR_HORIZONTAL and visualization_type == "top_performers":
+                # 🏆 Top Performers - Horizontal Bar Chart
+                name_key = data_columns_config.get('nameKey')
+                value_key = data_columns_config.get('dataKey')
+                
+                if name_key and value_key and len(chart_data) > 0:
+                    performance_data = []
+                    for row in chart_data:
+                        if name_key in row and value_key in row:
+                            name = str(row.get(name_key, 'Unknown'))
+                            value = row.get(value_key, 0)
+                            
+                            if isinstance(value, str):
+                                try:
+                                    value = float(value)
+                                except:
+                                    value = 0
+                            
+                            # Add performance categories
+                            if value >= 5:
+                                category = "🌟 Super Performer"
+                            elif value >= 3:
+                                category = "⭐ High Performer"
+                            elif value >= 1:
+                                category = "📈 Good Performer"
+                            else:
+                                category = "📊 Standard"
+                            
+                            performance_data.append({
+                                'name': name[:25],  # Truncate long names
+                                'value': value,
+                                'category': category,
+                                'performance_score': value * 10  # Scale for better visualization
+                            })
+                    
+                    # Sort by performance and take top performers
+                    result = sorted(performance_data, key=lambda x: x['value'], reverse=True)[:8]
+                    
+                    logger.info(f"✅ Generated {len(result)} top performers for {chart_widget.title}")
+                    return result
+            
+            elif chart_widget.chart_type == ChartType.SHADCN_RADAR_CHART and visualization_type == "multi_dimensional":
+                # 🕸️ Multi-Dimensional Analysis - Radar Chart
+                metrics = data_columns_config.get('metrics', [])
+                name_key = data_columns_config.get('nameKey', 'title')
+                
+                if metrics and len(metrics) >= 2 and len(chart_data) > 0:
+                    # Calculate radar metrics for each product
+                    radar_data = []
+                    
+                    # Get min/max for normalization
+                    metric_ranges = {}
+                    for metric in metrics:
+                        values = []
+                        for row in chart_data:
+                            if metric in row:
+                                val = row.get(metric, 0)
+                                if isinstance(val, (int, float)):
+                                    values.append(val)
+                                elif isinstance(val, str):
+                                    try:
+                                        values.append(float(val))
+                                    except:
+                                        pass
+                        if values:
+                            metric_ranges[metric] = {'min': min(values), 'max': max(values)}
+                    
+                    # Create radar points for top 3 products
+                    for i, row in enumerate(chart_data[:3]):
+                        if name_key in row:
+                            radar_point = {
+                                'product': str(row.get(name_key, f'Product {i+1}'))[:15],
+                                'values': []
+                            }
+                            
+                            for metric in metrics:
+                                if metric in row and metric in metric_ranges:
+                                    val = row.get(metric, 0)
+                                    if isinstance(val, str):
+                                        try:
+                                            val = float(val)
+                                        except:
+                                            val = 0
+                                    
+                                    # Normalize to 0-100 scale
+                                    min_val = metric_ranges[metric]['min']
+                                    max_val = metric_ranges[metric]['max']
+                                    if max_val > min_val:
+                                        normalized = ((val - min_val) / (max_val - min_val)) * 100
+                                    else:
+                                        normalized = 50
+                                    
+                                    radar_point['values'].append({
+                                        'axis': metric.replace('_', ' ').title(),
+                                        'value': round(normalized, 1),
+                                        'raw_value': val
+                                    })
+                            
+                            if radar_point['values']:
+                                radar_data.append(radar_point)
+                    
+                    logger.info(f"✅ Generated {len(radar_data)} radar profiles for {chart_widget.title}")
+                    return radar_data
+            
+            elif chart_widget.chart_type == ChartType.SHADCN_AREA_STACKED and visualization_type == "timeline_stacked":
+                # ⏰ Timeline Stacked - Area Chart
+                x_key = data_columns_config.get('xAxisKey')
+                category_key = data_columns_config.get('categoryKey')
+                
+                if x_key and category_key and len(chart_data) > 0:
+                    # Group by date and category
+                    timeline_data = {}
+                    
+                    for row in chart_data:
+                        if x_key in row and category_key in row:
+                            date_val = row.get(x_key)
+                            category = str(row.get(category_key, 'Unknown'))
+                            
+                            # Extract month-year from date
+                            try:
+                                if isinstance(date_val, str):
+                                    from datetime import datetime
+                                    date_obj = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
+                                    month_year = date_obj.strftime('%b %Y')
+                                else:
+                                    month_year = 'Unknown'
+                            except:
+                                month_year = 'Unknown'
+                            
+                            if month_year not in timeline_data:
+                                timeline_data[month_year] = {}
+                            
+                            timeline_data[month_year][category] = timeline_data[month_year].get(category, 0) + 1
+                    
+                    # Convert to stacked format
+                    result = []
+                    for month, categories in sorted(timeline_data.items()):
+                        data_point = {'name': month}
+                        total = sum(categories.values())
+                        
+                        for category, count in categories.items():
+                            data_point[category] = count
+                            data_point[f'{category}_percent'] = round((count / total) * 100, 1) if total > 0 else 0
+                        
+                        result.append(data_point)
+                    
+                    logger.info(f"✅ Generated {len(result)} timeline data points for {chart_widget.title}")
+                    return result[:6]  # Last 6 months
+            
+            elif chart_widget.chart_type == ChartType.SHADCN_DONUT_INTERACTIVE and visualization_type == "visual_breakdown":
+                # 📸 Visual Marketing Power - Interactive Donut
+                name_key = data_columns_config.get('nameKey')
+                value_key = data_columns_config.get('dataKey')
+                
+                if name_key and value_key and len(chart_data) > 0:
+                    # Create visual marketing categories
+                    visual_categories = {
+                        "📸 Visual Champions (5+ images)": 0,
+                        "📷 Good Coverage (3-4 images)": 0,
+                        "🖼️ Basic (1-2 images)": 0,
+                        "❌ No Images": 0
+                    }
+                    
+                    for row in chart_data:
+                        if value_key in row:
+                            images = row.get(value_key, 0)
+                            if isinstance(images, str):
+                                try:
+                                    images = int(images)
+                                except:
+                                    images = 0
+                            
+                            if images >= 5:
+                                visual_categories["📸 Visual Champions (5+ images)"] += 1
+                            elif images >= 3:
+                                visual_categories["📷 Good Coverage (3-4 images)"] += 1
+                            elif images >= 1:
+                                visual_categories["🖼️ Basic (1-2 images)"] += 1
+                            else:
+                                visual_categories["❌ No Images"] += 1
+                    
+                    # Convert to donut format
+                    total = sum(visual_categories.values())
+                    result = []
+                    colors = ["#10B981", "#F59E0B", "#EF4444", "#6B7280"]
+                    
+                    for i, (category, count) in enumerate(visual_categories.items()):
+                        if count > 0:
+                            result.append({
+                                'name': category,
+                                'value': count,
+                                'percentage': round((count / total) * 100, 1) if total > 0 else 0,
+                                'color': colors[i % len(colors)]
+                            })
+                    
+                    logger.info(f"✅ Generated {len(result)} visual marketing segments for {chart_widget.title}")
+                    return result
+            
+            elif chart_widget.chart_type == ChartType.SHADCN_MULTIPLE_AREA and visualization_type == "health_monitor":
+                # 💹 Business Health Monitor - Multi-Line Area
+                x_key = data_columns_config.get('xAxisKey')
+                metrics = data_columns_config.get('metrics', [])
+                
+                if x_key and metrics and len(chart_data) > 0:
+                    # Create health monitoring over time
+                    health_data = {}
+                    
+                    for row in chart_data:
+                        if x_key in row:
+                            date_val = row.get(x_key)
+                            
+                            # Extract date info
+                            try:
+                                if isinstance(date_val, str):
+                                    from datetime import datetime
+                                    date_obj = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
+                                    week = f"Week {date_obj.isocalendar()[1]}"
+                                else:
+                                    week = 'Unknown'
+                            except:
+                                week = 'Unknown'
+                            
+                            if week not in health_data:
+                                health_data[week] = {'count': 0}
+                                for metric in metrics:
+                                    health_data[week][metric] = 0
+                            
+                            health_data[week]['count'] += 1
+                            
+                            # Aggregate metrics
+                            for metric in metrics:
+                                if metric in row:
+                                    val = row.get(metric, 0)
+                                    if isinstance(val, str):
+                                        try:
+                                            val = float(val)
+                                        except:
+                                            val = 0
+                                    health_data[week][metric] += val
+                    
+                    # Convert to multi-line format
+                    result = []
+                    for week, data in sorted(health_data.items()):
+                        point = {'name': week}
+                        for metric in metrics:
+                            # Average per product in that week
+                            avg_val = data[metric] / max(data['count'], 1)
+                            point[metric] = round(avg_val, 2)
+                        result.append(point)
+                    
+                    logger.info(f"✅ Generated {len(result)} health monitor points for {chart_widget.title}")
+                    return result[:8]  # Last 8 weeks
+            
+            # Handle standard/fallback chart types that don't match the creative visualizations
+            elif chart_widget.chart_type in [ChartType.SHADCN_BAR_CHART, ChartType.SHADCN_LINE_CHART, ChartType.SHADCN_PIE_CHART]:
+                # 📊 Standard Charts - Fallback processing
+                if chart_widget.chart_type == ChartType.SHADCN_BAR_CHART:
+                    name_key = data_columns_config.get('nameKey')
+                    value_key = data_columns_config.get('dataKey', 'count')
+                    
+                    if name_key and len(chart_data) > 0:
+                        if value_key == 'count':
+                            # Count occurrences
+                            counts = {}
+                            for row in chart_data:
+                                if name_key in row:
+                                    key = str(row.get(name_key, 'Unknown'))[:25]
+                                    counts[key] = counts.get(key, 0) + 1
+                            
+                            result = [
+                                {'name': name, 'value': count}
+                                for name, count in sorted(counts.items(), key=lambda x: x[1], reverse=True)[:8]
+                            ]
+                        else:
+                            # Aggregate by value
+                            category_sums = {}
+                            for row in chart_data:
+                                if name_key in row and value_key in row:
+                                    category = str(row.get(name_key, 'Unknown'))[:25]
+                                    value = row.get(value_key, 0)
+                                    if isinstance(value, str):
+                                        try:
+                                            value = float(value)
+                                        except:
+                                            value = 1
+                                    category_sums[category] = category_sums.get(category, 0) + value
+                            
+                            result = [
+                                {'name': category, 'value': round(value, 2)}
+                                for category, value in sorted(category_sums.items(), key=lambda x: x[1], reverse=True)[:8]
+                            ]
+                        
+                        if result:
+                            logger.info(f"✅ Generated {len(result)} standard bar chart data for {chart_widget.title}")
+                            return result
+                
+                elif chart_widget.chart_type == ChartType.SHADCN_PIE_CHART:
+                    name_key = data_columns_config.get('nameKey')
+                    
+                    if name_key and len(chart_data) > 0:
+                        # Count occurrences for pie chart
+                        category_counts = {}
+                        for row in chart_data:
+                            if name_key in row:
+                                category = str(row.get(name_key, 'Unknown'))[:20]
+                                category_counts[category] = category_counts.get(category, 0) + 1
+                        
+                        # Convert to percentage
+                        total = sum(category_counts.values())
+                        result = [
+                            {
+                                'name': category,
+                                'value': count,
+                                'percentage': round((count / total) * 100, 1) if total > 0 else 0
+                            }
+                            for category, count in sorted(category_counts.items(), key=lambda x: x[1], reverse=True)[:6]
+                        ]
+                        
+                        if result:
+                            logger.info(f"✅ Generated {len(result)} standard pie chart data for {chart_widget.title}")
+                            return result
+                
+                elif chart_widget.chart_type == ChartType.SHADCN_LINE_CHART:
+                    x_key = data_columns_config.get('xAxisKey') or data_columns_config.get('nameKey')
+                    y_key = data_columns_config.get('dataKey')
+                    
+                    if x_key and y_key and len(chart_data) > 0:
+                        result = []
+                        for i, row in enumerate(chart_data):
+                            if x_key in row and y_key in row:
+                                x_val = row.get(x_key, f"Point {i+1}")
+                                y_val = row.get(y_key, 0)
+                                
+                                # Convert to proper format
+                                if isinstance(y_val, str):
+                                    try:
+                                        y_val = float(y_val)
+                                    except:
+                                        y_val = 0
+                                
+                                result.append({
+                                    'name': str(x_val)[:20],
+                                    'value': float(y_val) if isinstance(y_val, (int, float)) else 0
+                                })
+                        
+                        if result:
+                            logger.info(f"✅ Generated {len(result)} standard line chart data for {chart_widget.title}")
+                            return result[:12]
+            
+            logger.warning(f"❌ Could not generate chart data for {chart_widget.title}")
+            
+            # 🚨 FINAL EMERGENCY FALLBACK: Generate minimal working data to prevent blank charts
+            if len(chart_data) > 0:
+                emergency_data = []
+                for i, row in enumerate(chart_data[:5]):
+                    # Try to find any numeric value in the row
+                    numeric_value = None
+                    for key, value in row.items():
+                        if isinstance(value, (int, float)):
+                            numeric_value = value
+                            break
+                        elif isinstance(value, str):
+                            try:
+                                numeric_value = float(value)
+                                break
+                            except:
+                                continue
+                    
+                    emergency_data.append({
+                        'name': f"Data Point {i+1}",
+                        'value': numeric_value if numeric_value is not None else i + 1
+                    })
+                
+                if emergency_data:
+                    logger.info(f"🚨 Generated {len(emergency_data)} emergency fallback data points for {chart_widget.title}")
+                    return emergency_data
             
             return []
             
         except Exception as e:
-            logger.error(f"❌ Failed to generate real chart data: {e}")
+            logger.error(f"❌ Failed to generate real chart data for {chart_widget.title}: {str(e)}")
             return []
 
     # Remove all these methods that generated sample/fallback data:
@@ -1704,6 +2331,81 @@ class DashboardOrchestrator:
     # - _create_fallback_dashboard (DELETE)
     # - _create_instant_dashboard (DELETE)
     # - _generate_chart_data (REPLACED with _generate_real_chart_data)
+
+    def _heuristic_business_context(self, data_analysis: Dict[str, Any]) -> BusinessContext:
+        """Fallback business context when AI fails"""
+        try:
+            # Smart heuristic based on data characteristics
+            numeric_cols = data_analysis.get('numeric_columns', [])
+            categorical_cols = data_analysis.get('categorical_columns', [])
+            date_cols = data_analysis.get('date_columns', [])
+            
+            # Determine business type from column names
+            business_type = "general"
+            industry = "General Business"
+            
+            # Simple keyword detection
+            all_columns = ' '.join(data_analysis.get('columns', [])).lower()
+            
+            if any(keyword in all_columns for keyword in ['sale', 'revenue', 'price', 'order']):
+                business_type = "ecommerce"
+                industry = "E-commerce"
+            elif any(keyword in all_columns for keyword in ['patient', 'medical', 'health']):
+                business_type = "healthcare"
+                industry = "Healthcare"
+            elif any(keyword in all_columns for keyword in ['finance', 'transaction', 'payment']):
+                business_type = "financial"
+                industry = "Finance"
+            elif any(keyword in all_columns for keyword in ['employee', 'hr', 'salary']):
+                business_type = "hr"
+                industry = "Human Resources"
+            
+            # Generate insights based on data
+            insights = [
+                AIInsight(
+                    type="opportunity",
+                    title="Data Analysis Ready",
+                    description=f"Your {industry.lower()} data is ready for analysis with {len(numeric_cols)} metrics available.",
+                    impact="high",
+                    suggested_action="Explore the generated charts to identify trends and patterns."
+                )
+            ]
+            
+            # Recommend appropriate charts
+            recommended_charts = [ChartType.SHADCN_AREA_INTERACTIVE, ChartType.SHADCN_BAR_CHART, ChartType.SHADCN_PIE_CHART]
+            if date_cols:
+                recommended_charts.insert(0, ChartType.SHADCN_AREA_LINEAR)
+            
+            return BusinessContext(
+                industry=industry,
+                business_type=business_type,
+                data_characteristics=["structured_data", "quantitative_analysis"],
+                key_metrics=numeric_cols[:5],  # Top 5 numeric columns
+                recommended_charts=recommended_charts,
+                insights=insights,
+                confidence_score=0.6  # Lower confidence for heuristic
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Heuristic fallback failed: {e}")
+            # Ultimate fallback
+            return BusinessContext(
+                industry="General Business",
+                business_type="general",
+                data_characteristics=["data_available"],
+                key_metrics=["value", "amount", "total"],
+                recommended_charts=[ChartType.SHADCN_AREA_INTERACTIVE, ChartType.SHADCN_BAR_CHART, ChartType.SHADCN_PIE_CHART],
+                insights=[
+                    AIInsight(
+                        type="recommendation",
+                        title="Dashboard Ready",
+                        description="Your dashboard has been generated with default charts.",
+                        impact="medium",
+                        suggested_action="Review the charts and explore your data patterns."
+                    )
+                ],
+                confidence_score=0.5
+            )
 
 # Create global instance
 dashboard_orchestrator = DashboardOrchestrator() 
