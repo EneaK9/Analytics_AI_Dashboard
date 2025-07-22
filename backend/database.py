@@ -18,6 +18,46 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def _create_supabase_client_safe(url: str, key: str) -> Client:
+    """
+    Create a Supabase client with safe proxy handling
+    """
+    try:
+        # Try normal creation first
+        return create_client(url, key)
+    except TypeError as e:
+        if "proxy" in str(e):
+            logger.warning(f"⚠️ Proxy-related error: {e}. Attempting workaround...")
+            try:
+                # Try to disable proxy-related environment variables temporarily
+                import os
+                proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy']
+                old_proxy_values = {}
+                
+                for var in proxy_vars:
+                    if var in os.environ:
+                        old_proxy_values[var] = os.environ[var]
+                        del os.environ[var]
+                
+                # Try creating client without proxy settings
+                client = create_client(url, key)
+                
+                # Restore proxy settings
+                for var, value in old_proxy_values.items():
+                    os.environ[var] = value
+                
+                logger.info("✅ Successfully created Supabase client with proxy workaround")
+                return client
+                
+            except Exception as workaround_error:
+                logger.error(f"❌ Proxy workaround failed: {workaround_error}")
+                # Restore proxy settings even if workaround failed
+                for var, value in old_proxy_values.items():
+                    os.environ[var] = value
+                raise
+        else:
+            raise
+
 class PerformanceOptimizedDatabaseManager:
     """High-performance database manager with caching, pooling, and batch operations"""
     
@@ -64,7 +104,7 @@ class PerformanceOptimizedDatabaseManager:
             
             # Try to create a simple client first to test the connection
             try:
-                test_client = create_client(self.supabase_url, self.supabase_key)
+                test_client = _create_supabase_client_safe(self.supabase_url, self.supabase_key)
                 logger.info("✅ Supabase connection test successful")
             except Exception as e:
                 logger.error(f"❌ Supabase connection test failed: {e}")
@@ -73,7 +113,7 @@ class PerformanceOptimizedDatabaseManager:
             # Create regular client pool
             for i in range(self.pool_size):
                 try:
-                    client = create_client(self.supabase_url, self.supabase_key)
+                    client = _create_supabase_client_safe(self.supabase_url, self.supabase_key)
                     self.client_pool.append(client)
                 except Exception as e:
                     logger.warning(f"⚠️  Failed to create client {i+1}: {e}")
@@ -84,7 +124,7 @@ class PerformanceOptimizedDatabaseManager:
             if self.supabase_service_key:
                 for i in range(self.pool_size):
                     try:
-                        admin_client = create_client(self.supabase_url, self.supabase_service_key)
+                        admin_client = _create_supabase_client_safe(self.supabase_url, self.supabase_service_key)
                         self.admin_pool.append(admin_client)
                     except Exception as e:
                         logger.warning(f"⚠️  Failed to create admin client {i+1}: {e}")
@@ -99,9 +139,9 @@ class PerformanceOptimizedDatabaseManager:
             # Fallback: Create minimal single client
             try:
                 logger.info("🔄 Attempting fallback to single client mode...")
-                self.client_pool = [create_client(self.supabase_url, self.supabase_key)]
+                self.client_pool = [_create_supabase_client_safe(self.supabase_url, self.supabase_key)]
                 if self.supabase_service_key:
-                    self.admin_pool = [create_client(self.supabase_url, self.supabase_service_key)]
+                    self.admin_pool = [_create_supabase_client_safe(self.supabase_url, self.supabase_service_key)]
                 logger.info("✅ Fallback single client mode initialized")
             except Exception as fallback_error:
                 logger.error(f"❌ Fallback initialization also failed: {fallback_error}")
@@ -457,15 +497,13 @@ class SimpleDatabaseManager:
         """Get simple client without pooling"""
         if not self.supabase_url or not self.supabase_key:
             return None
-        from supabase import create_client
-        return create_client(self.supabase_url, self.supabase_key)
+        return _create_supabase_client_safe(self.supabase_url, self.supabase_key)
     
     def get_admin_client(self):
         """Get simple admin client without pooling"""
         if not self.supabase_url or not self.supabase_service_key:
             return None
-        from supabase import create_client
-        return create_client(self.supabase_url, self.supabase_service_key)
+        return _create_supabase_client_safe(self.supabase_url, self.supabase_service_key)
     
     async def test_connection(self):
         """Test database connection"""
