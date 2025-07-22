@@ -13,29 +13,29 @@ python-multipart==0.0.16
 bcrypt==4.2.1
 cryptography==44.0.0
 
-# Database - LATEST SUPABASE VERSION (JULY 2025)
+# Database - LATEST SUPABASE WITH STABLE DEPENDENCIES
 supabase==2.17.0
-SQLAlchemy==2.0.36
-psycopg2-binary==2.9.10
+SQLAlchemy==2.0.23
+psycopg2-binary==2.9.9
 
-# AI and OpenAI - LATEST VERSIONS
-openai==1.58.1
-pandas==2.2.3
-numpy==2.2.1
-scikit-learn==1.6.0
+# AI and OpenAI - STABLE VERSIONS
+openai==1.35.0
+pandas==2.1.4
+numpy==1.26.2
+scikit-learn==1.3.2
 
 # Environment and configuration
 python-dotenv==1.0.1
 
-# Data analysis and processing - LATEST VERSIONS
-scipy==1.15.0
-openpyxl==3.1.5
+# Data analysis and processing - COMPATIBLE VERSIONS
+scipy==1.11.4
+openpyxl==3.1.2
 xlrd==2.0.1
-pyarrow==18.1.0
-lxml==5.3.0
-PyYAML==6.0.2
+pyarrow==14.0.2
+lxml==4.9.3
+PyYAML==6.0.1
 chardet==5.2.0
-fastavro==1.9.8
+fastavro==1.11.1
 
 # File processing and validation
 filetype==1.2.0
@@ -44,19 +44,19 @@ filetype==1.2.0
 slowapi==0.1.9
 redis==5.2.1
 
-# Utilities - LATEST VERSIONS
-requests==2.32.3
-python-dateutil==2.9.0
-pytz==2024.2
+# Utilities - STABLE VERSIONS
+requests==2.31.0
+python-dateutil==2.8.2
+pytz==2023.3
 
 # Logging and monitoring
 python-json-logger==2.0.7
 
-# API Integration packages - LATEST COMPATIBLE
-aiohttp==3.11.10
-httpx==0.28.1
-pycryptodome==3.21.0
-requests-oauthlib==2.0.0
+# API Integration packages - STABLE COMPATIBLE
+aiohttp==3.9.1
+httpx==0.27.0
+pycryptodome==3.19.0
+requests-oauthlib==1.3.1
 
 # Development tools - LATEST VERSIONS
 pytest==8.3.4
