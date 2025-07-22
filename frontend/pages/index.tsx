@@ -48,7 +48,7 @@ export default function Home() {
 			localStorage.setItem("access_token", response.data.access_token);
 
 			// Redirect to dashboard
-			router.push("/ai-dashboard");
+			router.push("/dashboard");
 		} catch (err: any) {
 			console.error("Login error:", err);
 			setError(err.response?.data?.detail || "Login failed. Please try again.");
