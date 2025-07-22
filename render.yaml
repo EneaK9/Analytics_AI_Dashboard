@@ -17,6 +17,8 @@ services:
         value: production
       - key: DEBUG
         value: false
+      - key: FRONTEND_URL
+        value: https://analytics-ai-frontend.onrender.com
       # Note: Add these in Render dashboard as secret environment variables:
       # SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, OPENAI_API_KEY, JWT_SECRET_KEY
     healthCheckPath: /health
@@ -37,8 +39,5 @@ services:
       - key: NODE_VERSION
         value: 20.11.0
       - key: NEXT_PUBLIC_API_URL
-        fromService:
-          type: web
-          name: analytics-ai-backend
-          property: host
+        value: https://analytics-ai-backend.onrender.com
     # Note: Render will automatically add https:// prefix to the service URL
