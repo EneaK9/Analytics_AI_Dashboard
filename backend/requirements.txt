@@ -1,64 +1,64 @@
-# FastAPI and server - PROVEN WORKING COMBINATION
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
+# FastAPI and server - LATEST COMPATIBLE VERSIONS 2024/2025
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
 pydantic[email]==2.11.7
-pydantic-settings==2.2.0
+pydantic-settings==2.7.1
 email-validator==2.1.2
 
-# Authentication and security
+# Authentication and security - LATEST VERSIONS
 python-jose[cryptography]==3.3.0
 PyJWT==2.10.1
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
-bcrypt==4.1.2
-cryptography==41.0.7
+python-multipart==0.0.16
+bcrypt==4.2.1
+cryptography==44.0.0
 
-# Database - WORKING VERSION WITH PROXY FIX
-supabase==2.8.1
-SQLAlchemy==2.0.23
-psycopg2-binary==2.9.9
+# Database - LATEST SUPABASE VERSION (JULY 2025)
+supabase==2.17.0
+SQLAlchemy==2.0.36
+psycopg2-binary==2.9.10
 
-# AI and OpenAI
-openai==1.6.1
-pandas==2.1.4
-numpy==1.26.2
-scikit-learn==1.3.2
+# AI and OpenAI - LATEST VERSIONS
+openai==1.58.1
+pandas==2.2.3
+numpy==2.2.1
+scikit-learn==1.6.0
 
 # Environment and configuration
-python-dotenv==1.0.0
+python-dotenv==1.0.1
 
-# Data analysis and processing
-scipy==1.11.4
-openpyxl==3.1.2
+# Data analysis and processing - LATEST VERSIONS
+scipy==1.15.0
+openpyxl==3.1.5
 xlrd==2.0.1
-pyarrow==14.0.2
-lxml==4.9.3
-PyYAML==6.0.1
+pyarrow==18.1.0
+lxml==5.3.0
+PyYAML==6.0.2
 chardet==5.2.0
-fastavro==1.9.0
+fastavro==1.9.8
 
 # File processing and validation
 filetype==1.2.0
 
 # Rate limiting and caching
 slowapi==0.1.9
-redis==5.0.1
+redis==5.2.1
 
-# Utilities
-requests==2.31.0
-python-dateutil==2.8.2
-pytz==2023.3
+# Utilities - LATEST VERSIONS
+requests==2.32.3
+python-dateutil==2.9.0
+pytz==2024.2
 
 # Logging and monitoring
 python-json-logger==2.0.7
 
-# API Integration packages
-aiohttp==3.9.1
-httpx==0.24.1
-pycryptodome==3.19.0
-requests-oauthlib==1.3.1
+# API Integration packages - LATEST COMPATIBLE
+aiohttp==3.11.10
+httpx==0.28.1
+pycryptodome==3.21.0
+requests-oauthlib==2.0.0
 
-# Development tools
-pytest==7.4.3
-black==23.11.0
-flake8==6.1.0 
+# Development tools - LATEST VERSIONS
+pytest==8.3.4
+black==24.12.0
+flake8==7.1.1 
