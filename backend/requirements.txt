@@ -13,8 +13,8 @@ python-multipart==0.0.6
 bcrypt==4.1.2
 cryptography==41.0.7
 
-# Database (WORKING COMPATIBLE VERSION)
-supabase==2.3.0
+# Database (UPDATED COMPATIBLE VERSION)
+supabase==2.8.3
 SQLAlchemy==2.0.23
 psycopg2-binary==2.9.9
 

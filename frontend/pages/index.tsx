@@ -161,16 +161,6 @@ export default function Home() {
 							)}
 						</button>
 					</form>
-
-					{/* Admin Link */}
-					<div className="mt-4 pt-4 border-t border-stroke">
-						<button
-							onClick={() => router.push("/superadmin/login")}
-							className="w-full flex items-center justify-center space-x-2 text-sm text-body hover:text-primary transition-colors">
-							<Shield className="h-4 w-4" />
-							<span>Admin Access</span>
-						</button>
-					</div>
 				</div>
 
 				{/* Footer */}
