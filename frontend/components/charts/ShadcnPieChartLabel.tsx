@@ -117,25 +117,7 @@ const ShadcnPieChartLabel: React.FC<ShadcnPieChartLabelProps> = ({
 				</div>
 
 				{/* Beautiful trending indicator */}
-				<div className="flex items-center pt-4 text-xs text-muted-foreground">
-					<span className="inline-flex items-center gap-1">
-						Trending up by 5.2% this month
-						<svg
-							width="12"
-							height="12"
-							viewBox="0 0 12 12"
-							className="text-green-600">
-							<path
-								d="M2.5 7.5L5.5 4.5L8.5 7.5"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.5"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-							/>
-						</svg>
-					</span>
-				</div>
+				
 			</CardContent>
 		</Card>
 	);

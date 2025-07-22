@@ -63,9 +63,17 @@ const ShadcnRadarChart: React.FC<ShadcnRadarChartProps> = ({
 						Number(item["total_value"]) ||
 						Math.floor(Math.random() * 150) + 20;
 
+					console.log(`🔧 RadarChart processing item ${index + 1}:`, {
+						original: item,
+						nameValue,
+						desktop,
+						dataKey,
+						nameKey,
+					});
+
 					return {
 						month: String(nameValue).slice(0, 8),
-						desktop: Math.min(desktop, 150), // Cap at 150 for better radar visualization
+						desktop: desktop, // Remove the artificial cap to show real values
 					};
 			  })
 			: [
@@ -76,6 +84,8 @@ const ShadcnRadarChart: React.FC<ShadcnRadarChartProps> = ({
 					{ month: "May", desktop: 85 },
 					{ month: "June", desktop: 65 },
 			  ];
+
+	console.log("📊 RadarChart FINAL chartData:", chartData);
 
 	return (
 		<Card className="w-full">
@@ -123,26 +133,6 @@ const ShadcnRadarChart: React.FC<ShadcnRadarChartProps> = ({
 				</div>
 
 				{/* Trending indicator */}
-				<div className="flex items-center pt-4 text-xs text-muted-foreground">
-					<span className="inline-flex items-center gap-1">
-						Trending up by 5.2% this month
-						<svg
-							width="12"
-							height="12"
-							viewBox="0 0 12 12"
-							className="text-green-600">
-							<path
-								d="M2.5 7.5L5.5 4.5L8.5 7.5"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.5"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-							/>
-						</svg>
-					</span>
-					<span className="ml-2">January - June 2024</span>
-				</div>
 			</CardContent>
 		</Card>
 	);

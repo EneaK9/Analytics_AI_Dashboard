@@ -56,6 +56,14 @@ const ShadcnBarChart: React.FC<ShadcnBarChartProps> = ({
 						Number(item["quantity"]) ||
 						0;
 
+					console.log(`🔧 BarChart processing item ${index + 1}:`, {
+						original: item,
+						monthValue,
+						desktop,
+						dataKey,
+						xAxisKey,
+					});
+
 					return {
 						month: String(monthValue),
 						desktop,
@@ -69,6 +77,8 @@ const ShadcnBarChart: React.FC<ShadcnBarChartProps> = ({
 					{ month: "May", desktop: 209 },
 					{ month: "June", desktop: 214 },
 			  ];
+
+	console.log("📊 BarChart FINAL chartData:", chartData);
 
 	const chartConfig = {
 		desktop: {
