@@ -11,17 +11,15 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartContainer } from "@/components/ui/chart";
+
+// Import data processing utilities
 import { dashboardService } from "../../lib/dashboardService";
 import { clientDataService } from "../../lib/clientDataService";
 
-// Import all available Shadcn chart components
-import ShadcnAreaChart from "../charts/ShadcnAreaChart";
-import ShadcnBarChart from "../charts/ShadcnBarChart";
-import ShadcnLineChart from "../charts/ShadcnLineChart";
-import ShadcnPieChart from "../charts/ShadcnPieChart";
-import ShadcnInteractiveBar from "../charts/ShadcnInteractiveBar";
-import ShadcnInteractiveDonut from "../charts/ShadcnInteractiveDonut";
-import ShadcnMultipleArea from "../charts/ShadcnMultipleArea";
+// Import ALL CHART COMPONENTS from the charts index - Clean and reliable
+import * as Charts from "../charts";
 
 // Import KPI components
 import SmartEcommerceMetrics from "./SmartEcommerceMetrics";
@@ -69,36 +67,64 @@ export default function DynamicDashboard({
 	const [error, setError] = useState<string | null>(null);
 	const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-	// 🧠 AI-POWERED CHART COMPONENT SELECTOR - COMPREHENSIVE MAPPING
+	// 🧠 AI-POWERED CHART COMPONENT SELECTOR - ALL CHARTS AS PRIMARY OPTIONS
 	const getShadcnComponent = (componentName: string) => {
 		const componentMap = {
-			// 🎯 PRIMARY CHART COMPONENTS (exactly matching backend)
-			ShadcnAreaChart,
-			ShadcnBarChart,
-			ShadcnLineChart,
-			ShadcnPieChart,
-			ShadcnInteractiveBar,
-			ShadcnInteractiveDonut,
-			ShadcnMultipleArea,
-			// 🔄 COMPONENT ALIASES & FALLBACKS
-			ShadcnAreaInteractive: ShadcnAreaChart,
-			ShadcnAreaLinear: ShadcnAreaChart,
-			ShadcnAreaStacked: ShadcnAreaChart,
-			ShadcnAreaStep: ShadcnAreaChart,
-			ShadcnBarHorizontal: ShadcnInteractiveBar, // Use interactive bar for horizontal
-			ShadcnBarLabel: ShadcnBarChart,
-			ShadcnBarCustomLabel: ShadcnBarChart,
-			ShadcnPieChartLabel: ShadcnPieChart,
-			ShadcnDonutInteractive: ShadcnInteractiveDonut, // Fixed mapping
-			ShadcnRadarChart: ShadcnBarChart,
+			// Area Charts (5)
+			ShadcnAreaChart: Charts.ShadcnAreaChart,
+			ShadcnAreaInteractive: Charts.ShadcnAreaInteractive,
+			ShadcnAreaLinear: Charts.ShadcnAreaLinear,
+			ShadcnAreaStacked: Charts.ShadcnAreaStacked,
+			ShadcnAreaStep: Charts.ShadcnAreaStep,
+
+			// Bar Charts (11)
+			ShadcnBarChart: Charts.ShadcnBarChart,
+			ShadcnBarDefault: Charts.ShadcnBarDefault,
+			ShadcnBarLabel: Charts.ShadcnBarLabel,
+			ShadcnBarLabelCustom: Charts.ShadcnBarLabelCustom,
+			ShadcnBarHorizontal: Charts.ShadcnBarHorizontal,
+			ShadcnBarMultiple: Charts.ShadcnBarMultiple,
+			ShadcnBarStacked: Charts.ShadcnBarStacked,
+			ShadcnBarMixed: Charts.ShadcnBarMixed,
+			ShadcnBarActive: Charts.ShadcnBarActive,
+			ShadcnBarNegative: Charts.ShadcnBarNegative,
+			ShadcnBarCustom: Charts.ShadcnBarCustom,
+
+			// Pie Charts (7)
+			ShadcnPieChart: Charts.ShadcnPieChart,
+			ShadcnPieChartLabel: Charts.ShadcnPieChartLabel,
+			ShadcnPieDonutText: Charts.ShadcnPieDonutText,
+			ShadcnPieInteractive: Charts.ShadcnPieInteractive,
+			ShadcnPieLegend: Charts.ShadcnPieLegend,
+			ShadcnPieSimple: Charts.ShadcnPieSimple,
+			ShadcnPieStacked: Charts.ShadcnPieStacked,
+
+			// Radar Charts (9)
+			ShadcnRadarDefault: Charts.ShadcnRadarDefault,
+			ShadcnRadarGridFill: Charts.ShadcnRadarGridFill,
+			ShadcnRadarLegend: Charts.ShadcnRadarLegend,
+			ShadcnRadarLinesOnly: Charts.ShadcnRadarLinesOnly,
+			ShadcnRadarMultiple: Charts.ShadcnRadarMultiple,
+			ShadcnRadarCustom: Charts.ShadcnRadarCustom,
+			ShadcnRadarFilled: Charts.ShadcnRadarFilled,
+			ShadcnRadarLines: Charts.ShadcnRadarLines,
+			ShadcnRadarGrid: Charts.ShadcnRadarGrid,
+
+			// Radial Charts (6)
+			ShadcnRadialChart: Charts.ShadcnRadialChart,
+			ShadcnRadialLabel: Charts.ShadcnRadialLabel,
+			ShadcnRadialGrid: Charts.ShadcnRadialGrid,
+			ShadcnRadialText: Charts.ShadcnRadialText,
+			ShadcnRadialShape: Charts.ShadcnRadialShape,
+			ShadcnRadialStacked: Charts.ShadcnRadialStacked,
 		};
 
 		const component = componentMap[componentName as keyof typeof componentMap];
 		if (!component) {
 			console.warn(
-				`⚠️ Unknown chart component: ${componentName}, using ShadcnBarChart as fallback`
+				`⚠️ Unknown chart component: ${componentName}, using ShadcnAreaChart as fallback`
 			);
-			return ShadcnBarChart;
+			return Charts.ShadcnAreaChart; // Fallback to a reliable default component
 		}
 		return component;
 	};
@@ -131,9 +157,9 @@ export default function DynamicDashboard({
 
 			let processedData: any[] = [];
 
-			// 🚀 Process data for ALL chart types with VALIDATION
+			// 🚀 Process data for ALL chart types with VALIDATION - ALL SHADCN CHARTS SUPPORTED
 			switch (component) {
-				// Area Charts
+				// Area Charts - Time Series Data
 				case "ShadcnAreaChart":
 				case "ShadcnAreaInteractive":
 				case "ShadcnAreaLinear":
@@ -142,43 +168,61 @@ export default function DynamicDashboard({
 					processedData = processTimeSeriesData(rawData, real_data_columns);
 					break;
 
-				// Bar Charts
+				// Bar Charts - Categorical Data - ALL BAR CHART TYPES
 				case "ShadcnBarChart":
-				case "ShadcnBarHorizontal":
+				case "ShadcnBarDefault":
 				case "ShadcnBarLabel":
-				case "ShadcnBarCustomLabel":
-				case "ShadcnInteractiveBar":
+				case "ShadcnBarLabelCustom":
+				case "ShadcnBarHorizontal":
+				case "ShadcnBarMultiple":
+				case "ShadcnBarStacked":
+				case "ShadcnBarMixed":
+				case "ShadcnBarActive":
+				case "ShadcnBarNegative":
+				case "ShadcnBarCustom":
 					processedData = processCategoricalData(rawData, real_data_columns);
 					break;
 
-				// Line Charts
-				case "ShadcnLineChart":
-					processedData = processTimeSeriesData(rawData, real_data_columns);
-					break;
-
-				// Pie Charts & Donuts
+				// Pie Charts - Part-to-Whole Data - ALL PIE CHART TYPES
 				case "ShadcnPieChart":
 				case "ShadcnPieChartLabel":
-				case "ShadcnInteractiveDonut":
-				case "ShadcnDonutInteractive":
+				case "ShadcnPieDonutText":
+				case "ShadcnPieInteractive":
+				case "ShadcnPieLegend":
+				case "ShadcnPieSimple":
+				case "ShadcnPieStacked":
 					processedData = processPieChartData(rawData, real_data_columns);
 					break;
 
-				// Radar Charts
-				case "ShadcnRadarChart":
+				// Radar Charts - Multi-dimensional Data - ALL RADAR CHART TYPES
+				case "ShadcnRadarDefault":
+				case "ShadcnRadarGridFill":
+				case "ShadcnRadarLegend":
+				case "ShadcnRadarLinesOnly":
+				case "ShadcnRadarMultiple":
+				case "ShadcnRadarCustom":
+				case "ShadcnRadarFilled":
+				case "ShadcnRadarLines":
+				case "ShadcnRadarGrid":
 					processedData = processRadarData(rawData, real_data_columns);
 					break;
 
-				// Multi-series Charts
-				case "ShadcnMultipleArea":
-					processedData = processMultiSeriesData(rawData, real_data_columns);
+				// Radial Charts - Progress/Percentage Data - ALL RADIAL CHART TYPES
+				case "ShadcnRadialChart":
+				case "ShadcnRadialLabel":
+				case "ShadcnRadialGrid":
+				case "ShadcnRadialText":
+				case "ShadcnRadialShape":
+				case "ShadcnRadialStacked":
+					processedData = processRadialData(rawData, real_data_columns);
 					break;
 
 				default:
 					console.warn(
-						`Unknown chart component: ${component}, using categorical fallback`
+						`Unknown chart type: ${component}, using default time series processing`
 					);
-					processedData = processCategoricalData(rawData, real_data_columns);
+					processedData = processTimeSeriesData(rawData, real_data_columns);
+					break;
 			}
 
 			console.log(`✅ Processed data for "${chartTitle}":`, {
@@ -393,6 +437,40 @@ export default function DynamicDashboard({
 			}))
 			.sort((a, b) => b.value - a.value)
 			.slice(0, 6);
+	};
+
+	// 📊 Radial Chart Data Processing - NEW FOR RADIAL CHARTS
+	const processRadialData = (data: any[], columns: string[]): any[] => {
+		console.log("🔍 Processing radial data:", {
+			data: data.slice(0, 3),
+			columns,
+		});
+
+		const [categoryCol, valueCol] = columns;
+
+		// Calculate progress/percentage values for radial charts
+		const groupedData: { [key: string]: number } = {};
+
+		data.forEach((item) => {
+			const category = String(item[categoryCol] || "Unknown");
+			const value = Number(item[valueCol]) || 0;
+			groupedData[category] = (groupedData[category] || 0) + value;
+		});
+
+		const maxValue = Math.max(...Object.values(groupedData));
+
+		// Convert to radial format with percentage calculations
+		return Object.entries(groupedData)
+			.map(([category, value]) => ({
+				name: category,
+				value: value,
+				percentage: Math.round((value / maxValue) * 100),
+				fill: `hsl(var(--chart-${
+					(Object.keys(groupedData).indexOf(category) % 5) + 1
+				}))`,
+			}))
+			.sort((a, b) => b.value - a.value)
+			.slice(0, 5); // Limit to 5 for radial charts
 	};
 
 	// 📈 Multi-Series Data Processing - ENHANCED for real Shopify data

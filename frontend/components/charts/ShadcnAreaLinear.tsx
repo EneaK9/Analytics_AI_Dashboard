@@ -40,36 +40,36 @@ const ShadcnAreaLinear: React.FC<ShadcnAreaLinearProps> = ({
 	height = 300,
 	color = "#3b82f6",
 }) => {
-	// Process real data with linear interpolation feel
-	const chartData =
-		data.length > 0
-			? data.slice(0, 12).map((item, index) => {
-					const xValue =
-						item[xAxisKey] ||
-						item["date"] ||
-						item["month"] ||
-						item["time"] ||
-						`${["Jan", "Feb", "Mar", "Apr", "May", "Jun"][index % 6]}`;
+	// Process real data with linear interpolation feel - NO RANDOM DATA
+	const chartData = React.useMemo(() => {
+		if (!data || data.length === 0) {
+			return []; // Return empty array instead of fallback data
+		}
 
-					const value =
-						Number(item[dataKey]) ||
-						Number(item["visitors"]) ||
-						Number(item["value"]) ||
-						150 + index * 20 + Math.random() * 40;
+		return data.slice(0, 12).map((item, index) => {
+			const xValue =
+				item[xAxisKey] ||
+				item["date"] ||
+				item["month"] ||
+				item["time"] ||
+				item["name"] ||
+				item["category"] ||
+				`Item ${index + 1}`;
 
-					return {
-						[xAxisKey]: String(xValue),
-						[dataKey]: Math.round(value),
-					};
-			  })
-			: [
-					{ month: "Jan", visitors: 186 },
-					{ month: "Feb", visitors: 205 },
-					{ month: "Mar", visitors: 237 },
-					{ month: "Apr", visitors: 273 },
-					{ month: "May", visitors: 209 },
-					{ month: "Jun", visitors: 214 },
-			  ];
+			const value =
+				Number(item[dataKey]) ||
+				Number(item["visitors"]) ||
+				Number(item["value"]) ||
+				Number(item["amount"]) ||
+				Number(item["total"]) ||
+				0; // Remove random fallback
+
+			return {
+				[xAxisKey]: String(xValue),
+				[dataKey]: Math.round(value),
+			};
+		});
+	}, [data, dataKey, xAxisKey]);
 
 	const chartConfig = {
 		[dataKey]: {
@@ -77,6 +77,25 @@ const ShadcnAreaLinear: React.FC<ShadcnAreaLinearProps> = ({
 			color: color,
 		},
 	};
+
+	// Don't render if no data
+	if (chartData.length === 0) {
+		return (
+			<Card className="bg-card">
+				<CardHeader>
+					<CardTitle className="text-lg font-semibold">{title}</CardTitle>
+					<CardDescription className="text-sm text-muted-foreground">
+						{description}
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<div className="flex items-center justify-center h-[300px] text-muted-foreground">
+						No data available for area chart
+					</div>
+				</CardContent>
+			</Card>
+		);
+	}
 
 	return (
 		<Card className="bg-card">
@@ -119,12 +138,6 @@ const ShadcnAreaLinear: React.FC<ShadcnAreaLinearProps> = ({
 						/>
 					</AreaChart>
 				</ChartContainer>
-				
-				<div className="leading-none text-muted-foreground text-sm">
-					{description.includes("January")
-						? "January - June 2024"
-						: "Recent period analysis"}
-				</div>
 			</CardContent>
 		</Card>
 	);

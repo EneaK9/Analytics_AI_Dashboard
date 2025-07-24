@@ -23,6 +23,7 @@ import {
 	X,
 } from "lucide-react";
 import api from "../../lib/axios";
+import { useAuth } from "../../lib/useAuth";
 
 interface Client {
 	client_id: string;
@@ -182,9 +183,10 @@ const SuperAdminDashboard: React.FC = () => {
 		}
 	};
 
+	const { logout } = useAuth();
+
 	const handleLogout = () => {
-		localStorage.removeItem("superadmin_token");
-		router.push("/superadmin/login");
+		logout();
 	};
 
 	const handleFormChange = (

@@ -120,11 +120,7 @@ const ShadcnAreaStep: React.FC<ShadcnAreaStepProps> = ({
 					</AreaChart>
 				</ChartContainer>
 				
-				<div className="leading-none text-muted-foreground text-sm">
-					{description.includes("January")
-						? "January - June 2024"
-						: "Recent period analysis"}
-				</div>
+				
 			</CardContent>
 		</Card>
 	);

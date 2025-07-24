@@ -1,125 +1,79 @@
 import React from "react";
-import { Pie, PieChart, Cell, ResponsiveContainer } from "recharts";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Pie, PieChart } from "recharts";
 import {
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
+	type ChartConfig,
 } from "@/components/ui/chart";
 
 interface ShadcnPieChartLabelProps {
+	data: any[];
 	title?: string;
 	description?: string;
-	data?: Array<Record<string, unknown>>;
-	dataKey?: string;
-	nameKey?: string;
-	height?: number;
+	minimal?: boolean;
 }
 
+const chartConfig = {
+	visitors: {
+		label: "Visitors",
+	},
+	chrome: {
+		label: "Chrome",
+		color: "hsl(var(--chart-1))",
+	},
+	safari: {
+		label: "Safari",
+		color: "hsl(var(--chart-2))",
+	},
+	firefox: {
+		label: "Firefox",
+		color: "hsl(var(--chart-3))",
+	},
+	edge: {
+		label: "Edge",
+		color: "hsl(var(--chart-4))",
+	},
+	other: {
+		label: "Other",
+		color: "hsl(var(--chart-5))",
+	},
+} satisfies ChartConfig;
+
 const ShadcnPieChartLabel: React.FC<ShadcnPieChartLabelProps> = ({
+	data,
 	title = "Pie Chart - Label",
-	description = "January - June 2024",
-	data = [],
-	dataKey = "value",
-	nameKey = "name",
-	height = 300,
+	description = "A pie chart with labels",
+	minimal = false,
 }) => {
-	// Beautiful colors matching the design
-	const COLORS = [
-		"#3b82f6",
-		"#6366f1",
-		"#8b5cf6",
-		"#a855f7",
-		"#ec4899",
-		"#06b6d4",
-	];
-
-	// Process real data into beautiful format
-	const chartData =
-		data.length > 0
-			? data.slice(0, 6).map((item, index) => {
-					const nameValue =
-						item[nameKey] ||
-						item["symbol"] ||
-						item["name"] ||
-						item["category"] ||
-						item["type"] ||
-						item["exchange"] ||
-						`Item ${index + 1}`;
-
-					const dataValue =
-						Number(item[dataKey]) ||
-						Number(item["price"]) ||
-						Number(item["quantity"]) ||
-						Number(item["total_value"]) ||
-						Number(item["value"]) ||
-						Math.floor(Math.random() * 300) + 50;
-
-					return {
-						name: String(nameValue),
-						value: dataValue,
-					};
-			  })
-			: [
-					{ name: "AAPL", value: 275 },
-					{ name: "MSFT", value: 200 },
-					{ name: "GOOGL", value: 187 },
-					{ name: "TSLA", value: 173 },
-					{ name: "NVDA", value: 90 },
-			  ];
-
-	// Custom label rendering function
-	const renderLabel = (entry: any) => {
-		return `${entry.value}`;
-	};
+	// Transform data to match Shadcn format with proper colors
+	const browsers = ["chrome", "safari", "firefox", "edge", "other"];
+	const chartData = data.slice(0, 5).map((item, index) => {
+		const browser = browsers[index];
+		return {
+			browser,
+			visitors: item.value || item.visitors || 0,
+			fill: `hsl(var(--chart-${index + 1}))`,
+		};
+	});
 
 	return (
-		<Card className="w-full">
-			<CardHeader className="pb-4">
-				<CardTitle className="text-lg font-semibold">{title}</CardTitle>
-				<CardDescription className="text-sm text-muted-foreground">
-					{description}
-				</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<div className="h-[300px] w-full">
-					<ResponsiveContainer width="100%" height="100%">
-						<PieChart>
-							<Pie
-								data={chartData}
-								cx="50%"
-								cy="50%"
-								labelLine={false}
-								label={renderLabel}
-								outerRadius={100}
-								fill="#8884d8"
-								dataKey="value"
-								className="text-xs font-medium">
-								{chartData.map((entry, index) => (
-									<Cell
-										key={`cell-${index}`}
-										fill={COLORS[index % COLORS.length]}
-									/>
-								))}
-							</Pie>
-							<ChartTooltip
-								content={<ChartTooltipContent />}
-								formatter={(value: any, name: any) => [value, name]}
-							/>
-						</PieChart>
-					</ResponsiveContainer>
+		<div className="w-full h-full">
+			{!minimal && (
+				<div className="mb-4">
+					<h3 className="text-lg font-semibold">{title}</h3>
+					<p className="text-sm text-muted-foreground">{description}</p>
 				</div>
-
-				{/* Beautiful trending indicator */}
-				
-			</CardContent>
-		</Card>
+			)}
+			<ChartContainer
+				config={chartConfig}
+				className="[&_.recharts-pie-label-text]:fill-foreground mx-auto aspect-square max-h-[250px] h-full w-full">
+				<PieChart>
+					<ChartTooltip content={<ChartTooltipContent hideLabel />} />
+					<Pie data={chartData} dataKey="visitors" label nameKey="browser" />
+				</PieChart>
+			</ChartContainer>
+		</div>
 	);
 };
 

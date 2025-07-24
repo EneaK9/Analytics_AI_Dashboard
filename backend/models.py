@@ -260,39 +260,67 @@ class CreateSchemaResponse(BaseModel):
 
 # ==================== PERSONALIZED DASHBOARD MODELS ====================
 
+from enum import Enum
+
+# Chart Type Constants - ALL AVAILABLE COMPONENTS
 class ChartType(str, Enum):
-    # Beautiful Shadcn Area Charts
-    SHADCN_AREA_INTERACTIVE = "ShadcnAreaInteractive"
-    SHADCN_AREA_LINEAR = "ShadcnAreaLinear"
-    SHADCN_AREA_STEP = "ShadcnAreaStep"
-    SHADCN_AREA_STACKED = "ShadcnAreaStacked"
-    SHADCN_AREA_STACKED_EXPANDED = "ShadcnAreaStackedExpanded"
-    
-    # Beautiful Shadcn Bar Charts
-    SHADCN_BAR_CHART = "ShadcnBarChart"
-    SHADCN_BAR_HORIZONTAL = "ShadcnBarHorizontal"
-    SHADCN_BAR_LABEL = "ShadcnBarLabel"
-    SHADCN_BAR_CUSTOM_LABEL = "ShadcnBarCustomLabel"
-    SHADCN_BAR_INTERACTIVE = "ShadcnInteractiveBar"
-    
-    # Beautiful Shadcn Pie Charts
-    SHADCN_PIE_CHART = "ShadcnPieChart"
-    SHADCN_PIE_CHART_LABEL = "ShadcnPieChartLabel"
-    SHADCN_DONUT_INTERACTIVE = "ShadcnInteractiveDonut"
-    
-    # Beautiful Specialty Charts
-    SHADCN_RADAR_CHART = "ShadcnRadarChart"
-    
-    # Other Shadcn Charts
-    SHADCN_LINE_CHART = "ShadcnLineChart" 
-    SHADCN_AREA_CHART = "ShadcnAreaChart"
-    SHADCN_MULTIPLE_AREA = "ShadcnMultipleArea"
-    
-    # Legacy Basic Charts
-    line = "line"
-    bar = "bar"
-    pie = "pie"
-    area = "area"
+	# Area Charts (5 available)
+	SHADCN_AREA_CHART = "ShadcnAreaChart"
+	SHADCN_AREA_INTERACTIVE = "ShadcnAreaInteractive"
+	SHADCN_AREA_LINEAR = "ShadcnAreaLinear"
+	SHADCN_AREA_STEP = "ShadcnAreaStep"
+	SHADCN_AREA_STACKED = "ShadcnAreaStacked"
+	
+	# Bar Charts (11 available)
+	SHADCN_BAR_CHART = "ShadcnBarChart"
+	SHADCN_BAR_DEFAULT = "ShadcnBarDefault"
+	SHADCN_BAR_HORIZONTAL = "ShadcnBarHorizontal"
+	SHADCN_BAR_LABEL = "ShadcnBarLabel"
+	SHADCN_BAR_LABEL_CUSTOM = "ShadcnBarLabelCustom"
+	SHADCN_BAR_MIXED = "ShadcnBarMixed"
+	SHADCN_BAR_MULTIPLE = "ShadcnBarMultiple"
+	SHADCN_BAR_NEGATIVE = "ShadcnBarNegative"
+	SHADCN_BAR_STACKED = "ShadcnBarStacked"
+	SHADCN_BAR_ACTIVE = "ShadcnBarActive"
+	SHADCN_BAR_CUSTOM = "ShadcnBarCustom"
+	
+	# Pie Charts (7 available)
+	SHADCN_PIE_CHART = "ShadcnPieChart"
+	SHADCN_PIE_CHART_LABEL = "ShadcnPieChartLabel"
+	SHADCN_PIE_DONUT_TEXT = "ShadcnPieDonutText"
+	SHADCN_PIE_INTERACTIVE = "ShadcnPieInteractive"
+	SHADCN_PIE_LEGEND = "ShadcnPieLegend"
+	SHADCN_PIE_SIMPLE = "ShadcnPieSimple"
+	SHADCN_PIE_STACKED = "ShadcnPieStacked"
+	
+	# Radar Charts (9 available)
+	SHADCN_RADAR_DEFAULT = "ShadcnRadarDefault"
+	SHADCN_RADAR_GRID_FILL = "ShadcnRadarGridFill"
+	SHADCN_RADAR_LEGEND = "ShadcnRadarLegend"
+	SHADCN_RADAR_LINES_ONLY = "ShadcnRadarLinesOnly"
+	SHADCN_RADAR_MULTIPLE = "ShadcnRadarMultiple"
+	SHADCN_RADAR_CUSTOM = "ShadcnRadarCustom"
+	SHADCN_RADAR_FILLED = "ShadcnRadarFilled"
+	SHADCN_RADAR_LINES = "ShadcnRadarLines"
+	SHADCN_RADAR_GRID = "ShadcnRadarGrid"
+	
+	# Radial Charts (6 available)
+	SHADCN_RADIAL_CHART = "ShadcnRadialChart"
+	SHADCN_RADIAL_LABEL = "ShadcnRadialLabel"
+	SHADCN_RADIAL_GRID = "ShadcnRadialGrid"
+	SHADCN_RADIAL_TEXT = "ShadcnRadialText"
+	SHADCN_RADIAL_SHAPE = "ShadcnRadialShape"
+	SHADCN_RADIAL_STACKED = "ShadcnRadialStacked"
+	
+	# Legacy/alias chart types for compatibility
+	SHADCN_LINE_CHART = "ShadcnAreaChart"  # Use area chart as line equivalent
+	SHADCN_DONUT_INTERACTIVE = "ShadcnPieInteractive"  # Use interactive pie as donut
+	SHADCN_MULTIPLE_AREA = "ShadcnAreaStacked"  # Use stacked area as multiple
+	
+	# Simple aliases
+	line = "ShadcnAreaChart"
+	bar = "ShadcnBarChart"
+	pie = "ShadcnPieChart"
 
 class KPIWidget(BaseModel):
     """Configuration for a KPI widget"""

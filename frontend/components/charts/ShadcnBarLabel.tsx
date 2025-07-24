@@ -89,12 +89,7 @@ const ShadcnBarLabel: React.FC<ShadcnBarLabelProps> = ({
 
 	return (
 		<Card className="w-full">
-			<CardHeader className="pb-4">
-				<CardTitle className="text-lg font-semibold">{title}</CardTitle>
-				<CardDescription className="text-sm text-muted-foreground">
-					{description}
-				</CardDescription>
-			</CardHeader>
+			
 			<CardContent>
 				<div className="h-[300px] w-full">
 					<ResponsiveContainer width="100%" height="100%">

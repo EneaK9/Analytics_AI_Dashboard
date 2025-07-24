@@ -1,5 +1,5 @@
 import React from "react";
-import { Pie, PieChart } from "recharts";
+import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import {
 	ChartContainer,
 	ChartTooltip,
@@ -7,7 +7,7 @@ import {
 	type ChartConfig,
 } from "@/components/ui/chart";
 
-interface ShadcnPieChartProps {
+interface ShadcnBarMixedProps {
 	data: any[];
 	title?: string;
 	description?: string;
@@ -40,15 +40,15 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
-const ShadcnPieChart: React.FC<ShadcnPieChartProps> = ({
+const ShadcnBarMixed: React.FC<ShadcnBarMixedProps> = ({
 	data,
-	title = "Pie Chart",
-	description = "A simple pie chart",
+	title = "Bar Chart - Mixed",
+	description = "Mixed orientation bar chart",
 	minimal = false,
 }) => {
-	// Transform data to match Shadcn format with proper colors
-	const browsers = ["chrome", "safari", "firefox", "edge", "other"];
+	// Transform data to match Shadcn format with fill colors
 	const chartData = data.slice(0, 5).map((item, index) => {
+		const browsers = ["chrome", "safari", "firefox", "edge", "other"];
 		const browser = browsers[index];
 		return {
 			browser,
@@ -65,19 +65,34 @@ const ShadcnPieChart: React.FC<ShadcnPieChartProps> = ({
 					<p className="text-sm text-muted-foreground">{description}</p>
 				</div>
 			)}
-			<ChartContainer
-				config={chartConfig}
-				className="mx-auto aspect-square max-h-[250px] h-full w-full">
-				<PieChart>
+			<ChartContainer config={chartConfig} className="h-full w-full">
+				<BarChart
+					accessibilityLayer
+					data={chartData}
+					layout="vertical"
+					margin={{
+						left: 0,
+					}}>
+					<YAxis
+						dataKey="browser"
+						type="category"
+						tickLine={false}
+						tickMargin={10}
+						axisLine={false}
+						tickFormatter={(value) =>
+							chartConfig[value as keyof typeof chartConfig]?.label
+						}
+					/>
+					<XAxis dataKey="visitors" type="number" hide />
 					<ChartTooltip
 						cursor={false}
 						content={<ChartTooltipContent hideLabel />}
 					/>
-					<Pie data={chartData} dataKey="visitors" nameKey="browser" />
-				</PieChart>
+					<Bar dataKey="visitors" layout="vertical" radius={5} />
+				</BarChart>
 			</ChartContainer>
 		</div>
 	);
 };
 
-export default ShadcnPieChart;
+export default ShadcnBarMixed;

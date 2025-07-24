@@ -104,12 +104,13 @@ class ClientDataService {
 				console.log("API call failed, using sample data:", apiError);
 			}
 
-			// Fallback to sample data
-			console.log("🔄 Falling back to sample data");
-			return this.generateSampleClientData();
+			// 🚫 NO FALLBACK DATA - Only real data allowed
+			console.log("❌ No real data available - returning empty result");
+			return { rawData: [], totalRecords: 0 };
 		} catch (error: any) {
 			console.error("Error fetching client data:", error);
-			return this.generateSampleClientData();
+			// 🚫 NO FALLBACK DATA - Only real data allowed
+			return { rawData: [], totalRecords: 0 };
 		}
 	}
 

@@ -665,7 +665,7 @@ class AIDataAnalyzer:
                 
                 # Enhanced OpenAI call with better model
                 response = self.openai_client.chat.completions.create(
-                    model="gpt-4o-mini",  # Use GPT-4o-mini for cost-effective analysis
+                    model="gpt-4.1",  # Use GPT-4o-mini for cost-effective analysis
                     messages=[
                         {"role": "system", "content": "You are an expert data analyst and business intelligence consultant."},
                         {"role": "user", "content": prompt}

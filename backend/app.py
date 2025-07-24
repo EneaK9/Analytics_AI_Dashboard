@@ -69,7 +69,7 @@ security = HTTPBearer()
 # JWT Configuration
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-this-in-production")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_TIME = 24  # hours
+JWT_EXPIRATION_TIME = 1  # hours - tokens expire after 1 hour
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token"""
@@ -2602,7 +2602,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_bar_horizontal",
                     "title": "Horizontal Bar Chart",
                     "subtitle": "Horizontal bar visualization", 
-                    "chart_type": "ShadcnBarHorizontal",
+                    "chart_type": "ShadcnBarLabel",
                     "data_source": "real_data_horizontal",
                     "config": {
                         "responsive": True,
@@ -2634,7 +2634,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_donut_interactive",
                     "title": "Interactive Donut Chart", 
                     "subtitle": "Interactive donut visualization",
-                    "chart_type": "ShadcnInteractiveDonut",
+                    "chart_type": "ShadcnPieChartLabel",
                     "data_source": "real_data_donut",
                     "config": {
                         "responsive": True,
@@ -2683,7 +2683,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_bar_custom",
                     "title": "Custom Bar Chart",
                     "subtitle": "Bar chart with custom styling",
-                    "chart_type": "ShadcnBarCustomLabel",
+                    "chart_type": "ShadcnBarLabel",
                     "data_source": "real_data_custom",
                     "config": {
                         "responsive": True,
@@ -2698,7 +2698,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_multiple_area",
                     "title": "Multiple Area Chart",
                     "subtitle": "Multiple series area chart",
-                    "chart_type": "ShadcnMultipleArea",
+                    "chart_type": "ShadcnAreaStacked",
                     "data_source": "real_data_multiple",
                     "config": {
                         "responsive": True,

@@ -3,18 +3,26 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import {
+	ChevronDown,
+	Database,
+	FileText,
+	AlertCircle,
 	TrendingUp,
 	DollarSign,
-	Users,
-	LogOut,
-	Database,
-	BarChart3,
-	Activity,
 	Target,
-	Package,
+	Users,
 	ShoppingCart,
+	Package,
+	CreditCard,
+	Calendar,
+	ArrowUpRight,
+	ArrowDownRight,
+	Activity,
+	BarChart3,
+	LogOut,
 } from "lucide-react";
 import api from "../lib/axios";
+import { useAuth } from "../lib/useAuth";
 
 // Import AI-powered analytics components
 
@@ -24,280 +32,242 @@ import {
 	MonthlyTarget,
 	RecentOrders,
 } from "../components/analytics";
+import { ChartContainer } from "@/components/ui/chart";
+
+// Import all chart components
 import {
+	// Area Charts (5)
 	ShadcnAreaChart,
 	ShadcnAreaInteractive,
 	ShadcnAreaLinear,
 	ShadcnAreaStep,
 	ShadcnAreaStacked,
+	// Bar Charts (9)
 	ShadcnBarChart,
+	ShadcnBarDefault,
 	ShadcnBarHorizontal,
 	ShadcnBarLabel,
-	ShadcnBarCustomLabel,
-	ShadcnInteractiveBar,
+	ShadcnBarLabelCustom,
+	ShadcnBarMixed,
+	ShadcnBarMultiple,
+	ShadcnBarNegative,
+	ShadcnBarStacked,
+	// Pie Charts (6) - FIXED: Removed non-existent components
 	ShadcnPieChart,
 	ShadcnPieChartLabel,
-	ShadcnInteractiveDonut,
-	ShadcnRadarChart,
-	ShadcnLineChart,
-	ShadcnMultipleArea,
-} from "@/components/charts";
-
-// Import ChartContainer for Shadcn charts
-import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
+	ShadcnPieDonutText,
+	ShadcnPieInteractive,
+	ShadcnPieLegend,
+	ShadcnPieSimple,
+	// Radar Charts (5) - FIXED: Removed non-existent ShadcnRadarChart
+	ShadcnRadarDefault,
+	ShadcnRadarGridFill,
+	ShadcnRadarLegend,
+	ShadcnRadarLinesOnly,
+	ShadcnRadarMultiple,
+	// Radial Charts (6)
+	ShadcnRadialChart,
+	ShadcnRadialLabel,
+	ShadcnRadialGrid,
+	ShadcnRadialText,
+	ShadcnRadialShape,
+	ShadcnRadialStacked,
+} from "../components/charts";
 
 import { clientDataService } from "../lib/clientDataService";
 import { dashboardService, DashboardConfig } from "../lib/dashboardService";
 
-// Dynamic Chart Renderer Component with REAL DATA processing
-interface ChartRendererProps {
-	chart: any; // Use any for now to handle the config structure
-	clientData: Record<string, unknown>[];
+// Simple Error Boundary for Charts
+class ChartErrorBoundary extends React.Component<
+	{ children: React.ReactNode },
+	{ hasError: boolean }
+> {
+	constructor(props: { children: React.ReactNode }) {
+		super(props);
+		this.state = { hasError: false };
+	}
+
+	static getDerivedStateFromError(error: Error) {
+		return { hasError: true };
+	}
+
+	componentDidCatch(error: Error, errorInfo: any) {
+		console.error("Chart rendering error:", error, errorInfo);
+	}
+
+	render() {
+		if (this.state.hasError) {
+			return null; // Don't render anything if there's an error
+		}
+
+		return this.props.children;
+	}
 }
 
-// 🔥 REAL DATA ONLY RENDERER - NO FALLBACKS!
+// Dynamic Chart Renderer Component with BACKEND PROCESSED DATA
+interface ChartRendererProps {
+	chart: any; // Chart configuration from backend
+	chartMetrics: any[]; // Pre-processed chart data from backend metrics
+}
+
+// 💎 BACKEND DATA RENDERER - Uses pre-processed financial data from backend
 const RealDataOnlyRenderer: React.FC<ChartRendererProps> = ({
 	chart,
-	clientData,
+	chartMetrics,
 }) => {
-	console.log(
-		"🎯 REAL DATA ONLY:",
-		chart.chart_type,
-		"Data available:",
-		clientData?.length
-	);
+	console.log("💎 BACKEND DATA RENDERER:", chart.chart_type);
+	console.log("📊 Chart metrics available:", chartMetrics?.length);
 
-	// 🚫 NO FALLBACKS - ONLY REAL DATA OR RETRY
-	if (!clientData || clientData.length === 0) {
-		console.error("❌ NO REAL DATA - TRIGGERING RETRY");
-
-		// Auto-retry to get real data
-		setTimeout(() => {
-			console.log("🔄 AUTO-RETRYING for real data...");
-			window.location.reload();
-		}, 2000);
-
-		return (
-			<div className="flex items-center justify-center h-full">
-				<div className="text-center">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-					<p className="text-gray-600">Loading real data...</p>
-					<p className="text-sm text-gray-500">Retrying in 2 seconds...</p>
-				</div>
-			</div>
-		);
+	// 🛡️ VALIDATE CHART CONFIGURATION
+	if (!chart || !chart.chart_type) {
+		console.error("❌ INVALID CHART CONFIG - HIDING CHART");
+		return null; // Don't render invalid charts
 	}
 
-	// ✅ USE ONLY REAL DATA
-	console.log("✅ Using REAL client data:", clientData.slice(0, 2));
-	console.log("🔍 DETAILED DATA INSPECTION:");
-	console.log("- Total records:", clientData.length);
-	console.log("- First record keys:", Object.keys(clientData[0] || {}));
-	console.log("- First record values:", Object.values(clientData[0] || {}));
-	console.log("- Sample records:", clientData.slice(0, 3));
+	// 🔍 FIND THE RIGHT CHART DATA FROM BACKEND METRICS
+	const chartMetric = chartMetrics?.find(
+		(metric) =>
+			metric.metric_type === "chart_data" &&
+			(metric.metric_value?.title === chart.title ||
+				metric.metric_value?.chart_type === chart.chart_type)
+	);
 
-	// Process real data for the specific chart type
-	const processRealData = (data: any[]) => {
-		if (!data || data.length === 0) return [];
+	const chartData = chartMetric?.metric_value?.data || null;
+	const dropdownOptions = chartMetric?.metric_value?.dropdown_options || [];
 
-		console.log("🔧 Processing real data:", data.length, "records");
-		const limitedData = data.slice(0, 50); // Use more data
-		const firstRecord = limitedData[0];
-		const availableColumns = Object.keys(firstRecord);
-
-		console.log("📊 Available columns:", availableColumns);
+	if (chartData) {
 		console.log(
-			"📊 Sample values:",
-			availableColumns.map((col) => `${col}: ${firstRecord[col]}`)
+			"✅ Found BACKEND chart data:",
+			chartData.slice(0, 2),
+			"with dropdown options:",
+			dropdownOptions.length
 		);
-
-		// 🎯 SMART DATA PROCESSING based on your real data structure
-		return limitedData.map((item, index) => {
-			const result: any = {};
-
-			console.log(`🔧 Processing record ${index + 1}:`, item);
-
-			// 🎯 SHOPIFY PRODUCT DATA SPECIFIC PROCESSING
-			let numericValue = 0;
-			let categoryName = `Product ${index + 1}`;
-
-			// Extract meaningful numeric values from Shopify data
-			if (item.variants_count && typeof item.variants_count === "number") {
-				numericValue += item.variants_count * 50; // MUCH LARGER multiplier for visibility
-			}
-			if (item.images_count && typeof item.images_count === "number") {
-				numericValue += item.images_count * 30;
-			}
-
-			// Create synthetic meaningful values for better charts
-			const baseValue = 200 + index * 100; // MUCH LARGER base values
-			numericValue = Math.max(numericValue, baseValue);
-
-			// Add some variation based on product characteristics
-			if (item.status === "active") numericValue += 150;
-			if (item.published_at) numericValue += 100;
-			if (item.vendor && item.vendor !== "Unknown") numericValue += 75;
-
-			// Extract meaningful category names
-			if (item.title && typeof item.title === "string") {
-				categoryName = item.title.slice(0, 15);
-			} else if (item.handle && typeof item.handle === "string") {
-				categoryName = item.handle.slice(0, 15);
-			} else if (item.vendor && typeof item.vendor === "string") {
-				categoryName = item.vendor.slice(0, 15);
-			} else if (item.product_type && typeof item.product_type === "string") {
-				categoryName = item.product_type.slice(0, 15);
-			}
-
-			// Build chart-ready data with meaningful values
-			result.name = categoryName;
-			result.value = numericValue;
-			result.desktop = numericValue;
-			result.visitors = numericValue;
-			result.browser = categoryName;
-			result.month = item.created_at
-				? String(item.created_at).slice(5, 10)
-				: categoryName.slice(0, 8);
-			result.mobile = Math.floor(numericValue * 0.8);
-			result.fill = `hsl(var(--chart-${(index % 5) + 1}))`;
-
-			// 🔧 ENSURE COMPATIBILITY WITH ALL CHART TYPES
-			// Add additional field mappings for different chart components
-			result.category = categoryName;
-			result.dataKey = numericValue;
-			result.count = numericValue;
-			result.percentage = Math.round(
-				(numericValue / (numericValue + 100)) * 100
-			);
-
-			console.log(`✅ Enhanced record ${index + 1}:`, {
-				original: {
-					variants: item.variants_count,
-					images: item.images_count,
-					title: item.title,
-				},
-				processed: {
-					name: result.name,
-					value: result.value,
-					desktop: result.desktop,
-					month: result.month,
-					visitors: result.visitors,
-					browser: result.browser,
-				},
-			});
-
-			return result;
-		});
-	};
-
-	const chartData = processRealData(clientData);
-
-	console.log(
-		"🎯 FINAL CHART DATA:",
-		chartData.length,
-		"items with enhanced values:",
-		chartData.map((item) => ({ name: item.name, value: item.value }))
-	);
-
-	// 🚫 NO DATA = NO CHART (retry instead)
-	if (!chartData || chartData.length === 0) {
-		console.error("❌ FAILED TO PROCESS REAL DATA - RETRYING");
-		setTimeout(() => window.location.reload(), 1000);
-
-		return (
-			<div className="flex items-center justify-center h-full">
-				<div className="text-center">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto mb-4"></div>
-					<p className="text-red-600">Failed to process real data</p>
-					<p className="text-sm text-gray-500">Retrying...</p>
-				</div>
-			</div>
-		);
+	} else {
+		console.error("❌ No backend chart data found for:", chart.title);
 	}
 
+	// 🚫 NO BACKEND DATA = HIDE CHART
+	if (!chartData || chartData.length === 0) {
+		console.error("❌ NO BACKEND CHART DATA - HIDING CHART");
+		return null; // Don't render anything - hide the chart completely
+	}
+
+	// ✅ USE BACKEND PROCESSED DATA
+	console.log("✅ Using BACKEND processed data:", chartData.slice(0, 2));
+	console.log("🔍 BACKEND DATA INSPECTION:");
+	console.log("- Chart data points:", chartData.length);
+	console.log("- Data structure:", Object.keys(chartData[0] || {}));
+	console.log("- Sample values:", chartData.slice(0, 3));
+
+	// 💎 BACKEND DATA IS ALREADY PROCESSED - No need for frontend processing!
+
+	// Enhanced chart props with meaningful business context including dropdown options
 	const chartProps = {
 		data: chartData,
-		title: chart.title || "Real Data Chart",
-		description: chart.subtitle || "Live business data",
+		dropdown_options: dropdownOptions,
+		title: chart.title || "Business Analytics",
+		description:
+			chart.subtitle || `Live data from ${chartData.length} data points`,
 		minimal: true,
 	};
 
 	console.log(
-		"🎯 RENDERING REAL DATA:",
+		"🎯 RENDERING DIVERSE DATA:",
 		chartProps.data?.length,
-		"items from real source"
+		"items for",
+		chart.chart_type
 	);
-	console.log("📊 CHART PROPS BEING PASSED:", {
-		title: chartProps.title,
+	console.log("📊 CHART SAMPLE DATA:", {
+		chartType: chart.chart_type,
 		dataLength: chartProps.data?.length,
 		sampleData: chartProps.data?.slice(0, 3),
-		chartType: chart.chart_type,
+		dataStructure: chartProps.data?.[0] ? Object.keys(chartProps.data[0]) : [],
 	});
 
-	// 🔧 ENSURE DATA MATCHES SHADCN COMPONENT EXPECTATIONS
-	if (chartProps.data && chartProps.data.length > 0) {
-		console.log("✅ Chart data validation:", {
-			hasName: chartProps.data.every((item) => item.name),
-			hasValue: chartProps.data.every((item) => item.value || item.desktop),
-			sampleStructure: {
-				name: chartProps.data[0].name,
-				value: chartProps.data[0].value,
-				desktop: chartProps.data[0].desktop,
-				visitors: chartProps.data[0].visitors,
-			},
-		});
+	// Get the chart component
+	const ChartComponent = (() => {
+		switch (chart.chart_type) {
+			case "ShadcnAreaChart":
+				return ShadcnAreaChart;
+			case "ShadcnAreaInteractive":
+				return ShadcnAreaInteractive;
+			case "ShadcnAreaLinear":
+				return ShadcnAreaLinear;
+			case "ShadcnAreaStep":
+				return ShadcnAreaStep;
+			case "ShadcnAreaStacked":
+				return ShadcnAreaStacked;
+			case "ShadcnBarChart":
+				return ShadcnBarChart;
+			case "ShadcnBarDefault":
+				return ShadcnBarDefault;
+			case "ShadcnBarHorizontal":
+				return ShadcnBarHorizontal;
+			case "ShadcnBarLabel":
+				return ShadcnBarLabel;
+			case "ShadcnBarLabelCustom":
+				return ShadcnBarLabelCustom;
+			case "ShadcnBarMixed":
+				return ShadcnBarMixed;
+			case "ShadcnBarMultiple":
+				return ShadcnBarMultiple;
+			case "ShadcnBarNegative":
+				return ShadcnBarNegative;
+			case "ShadcnBarStacked":
+				return ShadcnBarStacked;
+			case "ShadcnPieChart":
+				return ShadcnPieChart;
+			case "ShadcnPieChartLabel":
+				return ShadcnPieChartLabel;
+			case "ShadcnPieDonutText":
+				return ShadcnPieDonutText;
+			case "ShadcnPieInteractive":
+				return ShadcnPieInteractive;
+			case "ShadcnPieLegend":
+				return ShadcnPieLegend;
+			case "ShadcnPieSimple":
+				return ShadcnPieSimple;
+			case "ShadcnRadarDefault":
+				return ShadcnRadarDefault;
+			case "ShadcnRadarGridFill":
+				return ShadcnRadarGridFill;
+			case "ShadcnRadarLegend":
+				return ShadcnRadarLegend;
+			case "ShadcnRadarLinesOnly":
+				return ShadcnRadarLinesOnly;
+			case "ShadcnRadarMultiple":
+				return ShadcnRadarMultiple;
+			case "ShadcnRadialChart":
+				return ShadcnRadialChart;
+			case "ShadcnRadialLabel":
+				return ShadcnRadialLabel;
+			case "ShadcnRadialGrid":
+				return ShadcnRadialGrid;
+			case "ShadcnRadialText":
+				return ShadcnRadialText;
+			case "ShadcnRadialShape":
+				return ShadcnRadialShape;
+			case "ShadcnRadialStacked":
+				return ShadcnRadialStacked;
+			default:
+				return null;
+		}
+	})();
 
-		// 🎯 LOG EXACT VALUES FOR DEBUGGING
-		console.log("💯 EXACT VALUES being passed to chart:", {
-			allDesktopValues: chartProps.data.map((item) => item.desktop),
-			allVisitorValues: chartProps.data.map((item) => item.visitors),
-			allValueValues: chartProps.data.map((item) => item.value),
-			minValue: Math.min(
-				...chartProps.data.map((item) => item.desktop || item.value || 0)
-			),
-			maxValue: Math.max(
-				...chartProps.data.map((item) => item.desktop || item.value || 0)
-			),
-			chartType: chart.chart_type,
-		});
+	if (!ChartComponent) {
+		return (
+			<div className="flex items-center justify-center h-full">
+				<div className="text-center">
+					<div className="text-red-600 font-medium mb-2">⚠️ Chart Error</div>
+					<p className="text-red-500 text-sm">
+						Unknown chart type: {chart.chart_type}
+					</p>
+				</div>
+			</div>
+		);
 	}
 
-	// Render with ONLY real data
-	switch (chart.chart_type) {
-		case "ShadcnAreaInteractive":
-			return <ShadcnAreaInteractive {...chartProps} />;
-		case "ShadcnAreaLinear":
-			return <ShadcnAreaLinear {...chartProps} />;
-		case "ShadcnAreaStep":
-			return <ShadcnAreaStep {...chartProps} />;
-		case "ShadcnAreaStacked":
-			return <ShadcnAreaStacked {...chartProps} />;
-		case "ShadcnBarChart":
-			return <ShadcnBarChart {...chartProps} />;
-		case "ShadcnBarLabel":
-			return <ShadcnBarLabel {...chartProps} />;
-		case "ShadcnBarHorizontal":
-			return <ShadcnBarHorizontal {...chartProps} />;
-		case "ShadcnBarCustomLabel":
-			return <ShadcnBarCustomLabel {...chartProps} />;
-		case "ShadcnInteractiveBar":
-			return <ShadcnInteractiveBar {...chartProps} />;
-		case "ShadcnPieChart":
-			return <ShadcnPieChart {...chartProps} />;
-		case "ShadcnPieChartLabel":
-			return <ShadcnPieChartLabel {...chartProps} />;
-		case "ShadcnInteractiveDonut":
-			return <ShadcnInteractiveDonut {...chartProps} />;
-		case "ShadcnRadarChart":
-			return <ShadcnRadarChart {...chartProps} />;
-		case "ShadcnLineChart":
-			return <ShadcnLineChart {...chartProps} />;
-		case "ShadcnMultipleArea":
-			return <ShadcnMultipleArea {...chartProps} />;
-		default:
-			console.warn("Unknown chart type:", chart.chart_type);
-			return <ShadcnBarChart {...chartProps} />;
-	}
+	return <ChartComponent {...chartProps} />;
 };
 
 interface User {
@@ -312,6 +282,7 @@ interface AIOrchestrationState {
 	isAnalyzing: boolean;
 	lastAnalysis: Date | null;
 	clientData: Record<string, unknown>[];
+	dashboardMetrics: any[];
 	insights: string[];
 	dashboardConfig: DashboardConfig | null;
 	error: string | null;
@@ -329,6 +300,7 @@ const Dashboard: React.FC = () => {
 		isAnalyzing: false,
 		lastAnalysis: null,
 		clientData: [],
+		dashboardMetrics: [],
 		insights: [],
 		dashboardConfig: null,
 		error: null,
@@ -385,15 +357,15 @@ const Dashboard: React.FC = () => {
 		let retryCount = 0;
 
 		const attemptDataFetch = async (): Promise<void> => {
-		try {
-			setAiState((prev) => ({ ...prev, isAnalyzing: true, error: null }));
+			try {
+				setAiState((prev) => ({ ...prev, isAnalyzing: true, error: null }));
 
 				console.log(
 					`🔥 AGGRESSIVE DATA FETCH ATTEMPT ${retryCount + 1}/${maxRetries}`
 				);
 
 				// Get REAL client data with aggressive fetching
-			const clientData = await clientDataService.fetchClientData();
+				const clientData = await clientDataService.fetchClientData();
 				console.log("📊 Client data result:", {
 					totalRecords: clientData.totalRecords,
 					rawDataLength: clientData.rawData?.length,
@@ -422,10 +394,10 @@ const Dashboard: React.FC = () => {
 				console.log("✅ REAL DATA CONFIRMED - Proceeding with dashboard");
 
 				// Get dashboard configuration only if we have real data
-			const [dashboardConfig, orchestratedMetrics] = await Promise.all([
-				dashboardService.getDashboardConfig(),
-				dashboardService.getDashboardMetrics(),
-			]);
+				const [dashboardConfig, orchestratedMetrics] = await Promise.all([
+					dashboardService.getDashboardConfig(),
+					dashboardService.getDashboardMetrics(),
+				]);
 
 				console.log("🎯 Dashboard config with REAL DATA:", {
 					hasKPIs: dashboardConfig?.kpi_widgets?.length || 0,
@@ -442,7 +414,7 @@ const Dashboard: React.FC = () => {
 						);
 						if (!widget.config) {
 							widget.config = {
-								component: widget.chart_type || "ShadcnBarChart",
+								component: widget.chart_type || "ShadcnAreaChart",
 								props: {},
 								responsive: true,
 								real_data_columns: [],
@@ -452,7 +424,7 @@ const Dashboard: React.FC = () => {
 					});
 				}
 
-			const insights =
+				const insights =
 					orchestratedMetrics?.length > 0
 						? orchestratedMetrics
 								.map((m) => m.metric_value || m.metric_name)
@@ -460,22 +432,23 @@ const Dashboard: React.FC = () => {
 						: ["📊 Real data dashboard active", "💼 Business analytics ready"];
 
 				// Set ONLY real data state
-			setAiState((prev) => ({
-				...prev,
-				isAnalyzing: false,
-				lastAnalysis: new Date(),
-				clientData: clientData.rawData,
-				insights,
-				dashboardConfig,
-				error: null,
-			}));
+				setAiState((prev) => ({
+					...prev,
+					isAnalyzing: false,
+					lastAnalysis: new Date(),
+					clientData: clientData.rawData,
+					dashboardMetrics: orchestratedMetrics || [],
+					insights,
+					dashboardConfig,
+					error: null,
+				}));
 
 				console.log(
 					"🎯 SUCCESS: Real data dashboard loaded with",
 					clientData.rawData.length,
 					"records"
 				);
-		} catch (error: unknown) {
+			} catch (error: unknown) {
 				console.error("❌ Dashboard loading failed:", error);
 				retryCount++;
 
@@ -485,18 +458,19 @@ const Dashboard: React.FC = () => {
 					);
 					setTimeout(() => attemptDataFetch(), 3000);
 				} else {
-			const errorMessage =
-				error instanceof Error ? error.message : "Unknown error";
-			setAiState((prev) => ({
-				...prev,
-				isAnalyzing: false,
-				clientData: [],
+					const errorMessage =
+						error instanceof Error ? error.message : "Unknown error";
+					setAiState((prev) => ({
+						...prev,
+						isAnalyzing: false,
+						clientData: [],
+						dashboardMetrics: [],
 						insights: ["Failed to load real data after maximum retries"],
 						error: `Real data unavailable: ${errorMessage}`,
-				dashboardConfig: null,
-			}));
+						dashboardConfig: null,
+					}));
 				}
-		}
+			}
 		};
 
 		await attemptDataFetch();
@@ -582,9 +556,10 @@ const Dashboard: React.FC = () => {
 		};
 	}, []);
 
+	const { logout } = useAuth();
+
 	const handleLogout = () => {
-		localStorage.removeItem("access_token");
-		router.push("/login");
+		logout();
 	};
 
 	const toggleDropdown = () => {
@@ -683,26 +658,74 @@ const Dashboard: React.FC = () => {
 			config.chart_widgets && config.chart_widgets.length > 0;
 
 		return (
-			<div className="space-y-12">
-				{/* KPI Metrics - Render ACTUAL KPIs from AI orchestrator config */}
+			<div className="space-y-8">
+				{/* Enhanced Professional Header Section */}
+				<div className="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-2xl p-8">
+					<div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+						<div className="flex-1">
+							<div className="flex items-center gap-3 mb-3">
+								<div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+								<span className="text-sm font-medium text-green-700 bg-green-100 px-3 py-1 rounded-full">
+									Live Data
+								</span>
+								<span className="text-sm text-slate-600">
+									{aiState.clientData?.length || 0} records
+								</span>
+							</div>
+							<h1 className="text-4xl font-bold text-slate-900 mb-2">
+								Business Analytics Dashboard
+							</h1>
+							<p className="text-xl text-slate-600 leading-relaxed">
+								Real-time insights from your business data • AI-powered
+								analytics • {new Date().toLocaleDateString()}
+							</p>
+						</div>
+						<div className="flex flex-col sm:flex-row gap-3">
+							<button
+								onClick={performAIAnalysis}
+								disabled={aiState.isAnalyzing}
+								className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+								{aiState.isAnalyzing ? (
+									<>
+										<div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+										Refreshing...
+									</>
+								) : (
+									<>
+										<ArrowUpRight className="w-4 h-4" />
+										Refresh Data
+									</>
+								)}
+							</button>
+							<button
+								onClick={() => router.push("/charts-showcase")}
+								className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors duration-200 flex items-center gap-2">
+								<BarChart3 className="w-4 h-4" />
+								All Charts
+							</button>
+						</div>
+					</div>
+				</div>
+
+				{/* Professional KPI Metrics Grid */}
 				{hasKPIWidgets && (
 					<div>
-						<div className="mb-6">
-							<h2 className="text-2xl font-bold text-gray-900 mb-2">
+						<div className="mb-8">
+							<h2 className="text-3xl font-bold text-slate-900 mb-3">
 								Key Performance Indicators
 							</h2>
-							<p className="text-gray-600">
+							<p className="text-lg text-slate-600">
 								Monitor your business performance at a glance
 							</p>
 						</div>
-						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+						<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
 							{config.kpi_widgets.map((kpi, index) => (
 								<div
 									key={kpi.id}
-									className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-200">
-									<div className="flex items-center justify-between mb-4">
+									className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:border-slate-300 transition-all duration-300 transform hover:-translate-y-1">
+									<div className="flex items-center justify-between mb-6">
 										<div
-											className={`flex h-12 w-12 items-center justify-center rounded-lg`}
+											className="flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg"
 											style={{
 												backgroundColor: kpi.icon_bg_color || "#EBF4FF",
 											}}>
@@ -710,7 +733,7 @@ const Dashboard: React.FC = () => {
 												// 🎯 CUSTOM ICONS FOR EACH KPI BASED ON TITLE
 												const title = kpi.title.toLowerCase();
 												const iconProps = {
-													className: `h-6 w-6`,
+													className: "h-7 w-7",
 													style: { color: kpi.icon_color || "#2563EB" },
 												};
 
@@ -773,33 +796,15 @@ const Dashboard: React.FC = () => {
 
 										{kpi.trend && (
 											<span
-												className={`flex items-center gap-1 text-sm font-semibold px-2 py-1 rounded-full ${
+												className={`flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-xl ${
 													kpi.trend.isPositive
-														? "text-green-700 bg-green-100"
-														: "text-red-700 bg-red-100"
+														? "text-green-700 bg-green-100 border border-green-200"
+														: "text-red-700 bg-red-100 border border-red-200"
 												}`}>
 												{kpi.trend.isPositive ? (
-													<svg
-														className="h-4 w-4"
-														fill="currentColor"
-														viewBox="0 0 20 20">
-														<path
-															fillRule="evenodd"
-															d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L10 4.414 4.707 9.707a1 1 0 01-1.414 0z"
-															clipRule="evenodd"
-														/>
-													</svg>
+													<ArrowUpRight className="h-4 w-4" />
 												) : (
-													<svg
-														className="h-4 w-4"
-														fill="currentColor"
-														viewBox="0 0 20 20">
-														<path
-															fillRule="evenodd"
-															d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L10 15.586l5.293-5.293a1 1 0 011.414 0z"
-															clipRule="evenodd"
-														/>
-													</svg>
+													<ArrowDownRight className="h-4 w-4" />
 												)}
 												{kpi.trend.value}
 											</span>
@@ -807,10 +812,10 @@ const Dashboard: React.FC = () => {
 									</div>
 
 									<div>
-										<h3 className="text-3xl font-bold text-gray-900 mb-1">
+										<h3 className="text-4xl font-bold text-slate-900 mb-2 group-hover:text-blue-600 transition-colors">
 											{kpi.value}
 										</h3>
-										<p className="text-sm font-medium text-gray-600">
+										<p className="text-base font-semibold text-slate-600">
 											{kpi.title}
 										</p>
 									</div>
@@ -820,7 +825,7 @@ const Dashboard: React.FC = () => {
 					</div>
 				)}
 
-				{/* Charts - Only show charts with actual data (SMART AI ORCHESTRATOR) */}
+				{/* Professional Charts Section with Enhanced Layout */}
 				{(() => {
 					const validCharts = hasChartWidgets
 						? config.chart_widgets.filter((widget, index) => {
@@ -829,31 +834,16 @@ const Dashboard: React.FC = () => {
 									widget.title && widget.title.trim() !== "";
 								const hasComponent =
 									widget.chart_type || widget.config?.component;
+								const hasRealData =
+									aiState.dashboardMetrics &&
+									aiState.dashboardMetrics.length > 0;
 
-								if (!hasValidTitle || !hasComponent) {
+								if (!hasValidTitle || !hasComponent || !hasRealData) {
 									console.log("Filtering out chart:", widget.title, {
 										hasValidTitle,
 										hasComponent,
+										hasRealData,
 									});
-									return false;
-								}
-
-								// 🚫 PREVENT DUPLICATES: Check if we already have this chart type
-								const isDuplicate = config.chart_widgets
-									.slice(0, index)
-									.some(
-										(prevWidget) =>
-											prevWidget.chart_type === widget.chart_type ||
-											prevWidget.title === widget.title ||
-											prevWidget.config?.component === widget.config?.component
-									);
-
-								if (isDuplicate) {
-									console.log(
-										"🚫 Removing duplicate chart:",
-										widget.title,
-										widget.chart_type
-									);
 									return false;
 								}
 
@@ -861,37 +851,8 @@ const Dashboard: React.FC = () => {
 						  })
 						: [];
 
-					// 🔥 FORCE UNIQUE CHART TYPES: Ensure each chart type appears only once
-					const uniqueCharts = [];
-					const usedTypes = new Set<string>();
-					const usedTitles = new Set<string>();
-
-					for (const chart of validCharts) {
-						const chartType =
-							chart.chart_type || chart.config?.component || "unknown";
-						const chartTitle = chart.title?.toLowerCase() || "";
-
-						// Skip if we've seen this type or very similar title
-						if (
-							usedTypes.has(chartType) ||
-							Array.from(usedTitles).some(
-								(title) =>
-									title.includes(chartTitle.split(" ")[0]) ||
-									chartTitle.includes(title.split(" ")[0])
-							)
-						) {
-							console.log(
-								"🚫 Skipping duplicate/similar chart:",
-								chart.title,
-								chartType
-							);
-							continue;
-						}
-
-						usedTypes.add(chartType);
-						usedTitles.add(chartTitle);
-						uniqueCharts.push(chart);
-					}
+					// ✅ SHOW ALL VALID CHARTS - No aggressive filtering
+					const uniqueCharts = validCharts;
 
 					console.log("Chart filtering results:", {
 						totalCharts: config.chart_widgets?.length || 0,
@@ -904,72 +865,146 @@ const Dashboard: React.FC = () => {
 						clientDataLength: aiState.clientData?.length || 0,
 					});
 
-					// 🎯 FINAL RESULT: Only show truly unique charts
+					// 🎯 FINAL RESULT: Professional Analytics Charts Layout
 					return uniqueCharts.length > 0 ? (
 						<div>
-							<div className="mb-6 flex justify-between items-start">
-								<div>
-								<h2 className="text-2xl font-bold text-gray-900 mb-2">
-									Analytics Dashboard
-								</h2>
-								<p className="text-gray-600">
-									Comprehensive data visualization and insights (
-										{uniqueCharts.length} charts)
-								</p>
+							<div className="mb-8">
+								<div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+									<div>
+										<h2 className="text-3xl font-bold text-slate-900 mb-3">
+											Analytics Dashboard
+										</h2>
+										<p className="text-lg text-slate-600">
+											Comprehensive data visualization and insights •{" "}
+											{uniqueCharts.length} interactive charts
+										</p>
+									</div>
+									<div className="flex items-center gap-2 text-sm text-slate-500">
+										<div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+										<span>
+											Live Data • Last updated {new Date().toLocaleTimeString()}
+										</span>
+									</div>
 								</div>
 							</div>
-							{/* FIXED: Spacious 2-column layout for better chart visibility */}
-							<div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
-								{uniqueCharts.map((widget, index) => (
-									<div
-										key={`${widget.id}-${index}`}
-										className={`
-											${widget.size?.width === 4 ? "lg:col-span-2" : ""}
-											${widget.size?.width === 3 ? "lg:col-span-2" : ""}
-											${widget.size?.width === 2 ? "lg:col-span-1" : ""}
-											${widget.size?.width === 1 ? "lg:col-span-1" : ""}
-											${!widget.size?.width ? "lg:col-span-1" : ""}
-										`.trim()}>
-										<div className="h-96 w-full mb-8">
-											<ChartContainer
-												config={{
-													data: {
-														label: "Data",
-														color: "hsl(var(--chart-1))",
-													},
-												}}
-												className="h-full w-full bg-transparent border-none shadow-none [&>*]:bg-transparent [&>*]:border-none [&>*]:shadow-none">
-												<RealDataOnlyRenderer
-													chart={widget}
-													clientData={aiState.clientData || []}
-												/>
-											</ChartContainer>
+
+							{/* Professional Grid Layout - Masonry Style */}
+							<div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+								{uniqueCharts.map((widget, index) => {
+									// Determine chart size based on type and position
+									const isWideChart =
+										widget.chart_type?.includes("Area") ||
+										widget.chart_type?.includes("Bar") ||
+										index === 0;
+									const isTallChart =
+										widget.chart_type?.includes("Radar") ||
+										widget.chart_type?.includes("Radial");
+
+									return (
+										<div
+											key={`${widget.id}-${index}`}
+											className={`
+												${isWideChart ? "xl:col-span-2" : "xl:col-span-1"}
+												${isTallChart ? "row-span-2" : ""}
+											`.trim()}>
+											<div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-slate-300 transition-all duration-300 h-full">
+												<div className="p-6 h-full flex flex-col">
+													{/* Enhanced Chart Header */}
+													<div className="mb-6 pb-4 border-b border-slate-100">
+														<div className="flex items-start justify-between">
+															<div className="flex-1">
+																<h3 className="text-xl font-bold text-slate-900 mb-2">
+																	{widget.title}
+																</h3>
+																{widget.subtitle && (
+																	<p className="text-sm text-slate-600">
+																		{widget.subtitle}
+																	</p>
+																)}
+															</div>
+															<div className="flex items-center gap-2">
+																<span className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded-full">
+																	{widget.chart_type
+																		?.replace("Shadcn", "")
+																		.replace(/([A-Z])/g, " $1")
+																		.trim()}
+																</span>
+															</div>
+														</div>
+													</div>
+
+													{/* Chart Content with Better Sizing */}
+													<div
+														className={`flex-1 min-h-0 ${
+															isTallChart ? "min-h-[400px]" : "min-h-[300px]"
+														}`}>
+														<ChartErrorBoundary>
+															<ChartContainer
+																config={{
+																	data: {
+																		label: "Business Data",
+																		color: "hsl(var(--chart-1))",
+																	},
+																}}
+																className="h-full w-full bg-transparent border-none shadow-none [&>*]:bg-transparent [&>*]:border-none [&>*]:shadow-none">
+																<RealDataOnlyRenderer
+																	chart={widget}
+																	chartMetrics={aiState.dashboardMetrics || []}
+																/>
+															</ChartContainer>
+														</ChartErrorBoundary>
+													</div>
+
+													{/* Enhanced Chart Footer */}
+													<div className="mt-6 pt-4 border-t border-slate-100">
+														<div className="flex items-center justify-between text-xs text-slate-500">
+															<div className="flex items-center gap-2">
+																<Activity className="w-3 h-3" />
+																<span>
+																	{aiState.clientData?.length || 0} data points
+																</span>
+															</div>
+															<div className="flex items-center gap-2">
+																<Calendar className="w-3 h-3" />
+																<span>Real-time data</span>
+															</div>
+														</div>
+													</div>
+												</div>
+											</div>
 										</div>
-									</div>
-								))}
+									);
+								})}
 							</div>
 						</div>
 					) : (
-						<div className="text-center p-16 bg-white rounded-xl border border-gray-200 shadow-sm col-span-2">
+						<div className="text-center p-16 bg-white rounded-2xl border border-slate-200 shadow-sm">
 							<div className="max-w-lg mx-auto">
-								<div className="text-8xl mb-6">📊</div>
-								<h3 className="text-2xl font-bold text-gray-900 mb-4">
+								<div className="text-8xl mb-8">📊</div>
+								<h3 className="text-3xl font-bold text-slate-900 mb-4">
 									No Charts Available
 								</h3>
-								<p className="text-gray-600 text-lg mb-8">
+								<p className="text-lg text-slate-600 mb-8 leading-relaxed">
 									{config.chart_widgets?.length > 0
 										? `${config.chart_widgets.length} charts found but filtered out. Check console for details.`
-										: "No charts configured for this dashboard."}
+										: "No charts configured for this dashboard. Upload data to generate charts."}
 								</p>
-								{config.chart_widgets?.length > 0 && (
+								<div className="flex flex-col sm:flex-row gap-4 justify-center">
 									<button
-										onClick={() =>
-											console.log("All chart widgets:", config.chart_widgets)
-										}
-										className="px-6 py-3 text-blue-600 hover:text-blue-800 font-medium transition-colors border border-blue-200 rounded-lg hover:bg-blue-50">
-										Debug: Log all charts
+										onClick={performAIAnalysis}
+										className="px-8 py-4 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl">
+										🔄 Generate Charts
 									</button>
-								)}
+									{config.chart_widgets?.length > 0 && (
+										<button
+											onClick={() =>
+												console.log("All chart widgets:", config.chart_widgets)
+											}
+											className="px-8 py-4 text-slate-600 hover:text-slate-800 font-medium transition-colors border border-slate-200 rounded-xl hover:bg-slate-50">
+											🔧 Debug Charts
+										</button>
+									)}
+								</div>
 							</div>
 						</div>
 					);
@@ -1164,46 +1199,62 @@ const Dashboard: React.FC = () => {
 	};
 
 	return (
-		<div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-			{/* Header */}
-			<header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 px-6 py-5 sticky top-0 z-40">
+		<div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
+			{/* Enhanced Professional Header */}
+			<header className="bg-white/95 backdrop-blur-sm border-b border-slate-200 px-6 py-6 sticky top-0 z-40 shadow-sm">
 				<div className="mx-auto max-w-7xl flex items-center justify-between">
-					<div>
-						<h1 className="text-3xl font-bold text-gray-900">
-							{aiState.dashboardConfig?.title || "Analytics Dashboard"}
-						</h1>
-						<p className="text-gray-600 mt-1 text-lg">
-							Welcome back, {user.company_name}
-						</p>
+					<div className="flex items-center space-x-4">
+						<div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center shadow-lg">
+							<BarChart3 className="w-6 h-6 text-white" />
+						</div>
+						<div>
+							<h1 className="text-2xl font-bold text-slate-900">
+								{aiState.dashboardConfig?.title || "Analytics AI Dashboard"}
+							</h1>
+							<p className="text-slate-600 text-sm">
+								Welcome back, {user.company_name} • Real-time business insights
+							</p>
+						</div>
 					</div>
 
-					<div className="relative" ref={dropdownRef}>
-						<button
-							onClick={toggleDropdown}
-							className="flex items-center justify-center w-11 h-11 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-lg hover:shadow-xl">
-							{getInitials(user.company_name)}
-						</button>
+					<div className="flex items-center space-x-3">
+						{/* Status Indicator */}
+						<div className="flex items-center space-x-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+							<div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+							<span className="text-sm font-medium text-green-700">
+								Live Data
+							</span>
+						</div>
 
-						{showDropdown && (
-							<div className="absolute right-0 mt-3 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
-								<div className="px-5 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
-									<p className="text-sm font-semibold text-gray-900">
-										{user.company_name}
-									</p>
-									<p className="text-xs text-gray-600 capitalize mt-1">
-										Free plan
-									</p>
+						{/* User Menu */}
+						<div className="relative" ref={dropdownRef}>
+							<button
+								onClick={toggleDropdown}
+								className="flex items-center justify-center w-10 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+								{getInitials(user.company_name)}
+							</button>
+
+							{showDropdown && (
+								<div className="absolute right-0 mt-3 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden">
+									<div className="px-5 py-4 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-200">
+										<p className="text-sm font-semibold text-slate-900">
+											{user.company_name}
+										</p>
+										<p className="text-xs text-slate-600 capitalize mt-1">
+											Free plan • Analytics Dashboard
+										</p>
+									</div>
+									<div className="py-2">
+										<button
+											onClick={handleLogout}
+											className="flex items-center w-full px-5 py-3 text-sm text-red-600 hover:bg-red-50 transition-all duration-200">
+											<LogOut className="h-4 w-4 mr-3" />
+											<span>Logout</span>
+										</button>
+									</div>
 								</div>
-								<div className="py-2">
-									<button
-										onClick={handleLogout}
-										className="flex items-center w-full px-5 py-3 text-sm text-red-600 hover:bg-red-50 transition-all duration-200">
-										<LogOut className="h-4 w-4 mr-3" />
-										<span>Logout</span>
-									</button>
-								</div>
-							</div>
-						)}
+							)}
+						</div>
 					</div>
 				</div>
 			</header>

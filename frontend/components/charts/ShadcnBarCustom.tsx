@@ -1,18 +1,25 @@
 import React from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, ResponsiveContainer } from "recharts";
+import {
+	Bar,
+	BarChart,
+	CartesianGrid,
+	XAxis,
+	ResponsiveContainer,
+	LabelList,
+} from "recharts";
 import { ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-interface ShadcnBarChartProps {
+interface ShadcnBarCustomProps {
 	data: any[];
 	title?: string;
 	description?: string;
 	minimal?: boolean;
 }
 
-const ShadcnBarChart: React.FC<ShadcnBarChartProps> = ({
+const ShadcnBarCustom: React.FC<ShadcnBarCustomProps> = ({
 	data,
-	title = "Bar Chart",
-	description = "A collection of bar charts",
+	title = "Custom Bar Chart",
+	description = "Custom styled bar chart with labels",
 	minimal = false,
 }) => {
 	return (
@@ -24,7 +31,11 @@ const ShadcnBarChart: React.FC<ShadcnBarChartProps> = ({
 				</div>
 			)}
 			<ResponsiveContainer width="100%" height="100%">
-				<BarChart data={data}>
+				<BarChart
+					data={data}
+					margin={{
+						top: 20,
+					}}>
 					<CartesianGrid vertical={false} />
 					<XAxis
 						dataKey="name"
@@ -37,11 +48,18 @@ const ShadcnBarChart: React.FC<ShadcnBarChartProps> = ({
 						cursor={false}
 						content={<ChartTooltipContent hideLabel />}
 					/>
-					<Bar dataKey="value" fill="hsl(var(--chart-1))" radius={8} />
+					<Bar dataKey="value" fill="var(--color-data)" radius={8}>
+						<LabelList
+							position="top"
+							offset={12}
+							className="fill-foreground"
+							fontSize={12}
+						/>
+					</Bar>
 				</BarChart>
 			</ResponsiveContainer>
 		</div>
 	);
 };
 
-export default ShadcnBarChart; 
+export default ShadcnBarCustom;

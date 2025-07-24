@@ -33,6 +33,12 @@ interface ShadcnAreaInteractiveProps {
 	title?: string;
 	description?: string;
 	data?: Array<Record<string, unknown>>;
+	dropdown_options?: Array<{ value: string; label: string }>;
+	ai_labels?: {
+		xAxis?: string;
+		yAxis?: string;
+		legend?: string[];
+	};
 	dataKey1?: string;
 	dataKey2?: string;
 	xAxisKey?: string;
@@ -44,13 +50,27 @@ const ShadcnAreaInteractive: React.FC<ShadcnAreaInteractiveProps> = ({
 	title = "Area Chart - Interactive",
 	description = "Showing total visitors for the last 3 months",
 	data = [],
+	dropdown_options = [],
+	ai_labels = {},
 	dataKey1 = "mobile",
 	dataKey2 = "desktop",
 	xAxisKey = "month",
 	height = 300,
 	showSelector = true,
 }) => {
-	const [timeRange, setTimeRange] = useState("3months");
+	// Use backend dropdown options or fallback to default options
+	const availableOptions =
+		dropdown_options.length > 0
+			? dropdown_options
+			: [
+					{ value: "3months", label: "Last 3 months" },
+					{ value: "6months", label: "Last 6 months" },
+					{ value: "1year", label: "Last year" },
+			  ];
+
+	const [timeRange, setTimeRange] = useState(
+		availableOptions[0]?.value || "3months"
+	);
 
 	// Process real data
 	const chartData =
@@ -89,11 +109,15 @@ const ShadcnAreaInteractive: React.FC<ShadcnAreaInteractiveProps> = ({
 
 	const chartConfig = {
 		[dataKey1]: {
-			label: dataKey1.charAt(0).toUpperCase() + dataKey1.slice(1),
+			label:
+				ai_labels.legend?.[0] ||
+				dataKey1.charAt(0).toUpperCase() + dataKey1.slice(1),
 			color: "#2563eb",
 		},
 		[dataKey2]: {
-			label: dataKey2.charAt(0).toUpperCase() + dataKey2.slice(1),
+			label:
+				ai_labels.legend?.[1] ||
+				dataKey2.charAt(0).toUpperCase() + dataKey2.slice(1),
 			color: "#60a5fa",
 		},
 	};
@@ -107,23 +131,24 @@ const ShadcnAreaInteractive: React.FC<ShadcnAreaInteractiveProps> = ({
 						{description}
 					</CardDescription>
 				</div>
-				{showSelector && (
+				{showSelector && availableOptions.length > 1 && (
 					<Select value={timeRange} onValueChange={setTimeRange}>
 						<SelectTrigger
 							className="w-[160px] rounded-lg sm:ml-auto"
-							aria-label="Select time range">
-							<SelectValue placeholder="Last 3 months" />
+							aria-label="Select view option">
+							<SelectValue
+								placeholder={availableOptions[0]?.label || "Select option"}
+							/>
 						</SelectTrigger>
 						<SelectContent className="rounded-xl">
-							<SelectItem value="3months" className="rounded-lg">
-								Last 3 months
-							</SelectItem>
-							<SelectItem value="6months" className="rounded-lg">
-								Last 6 months
-							</SelectItem>
-							<SelectItem value="1year" className="rounded-lg">
-								Last year
-							</SelectItem>
+							{availableOptions.map((option) => (
+								<SelectItem
+									key={option.value}
+									value={option.value}
+									className="rounded-lg">
+									{option.label}
+								</SelectItem>
+							))}
 						</SelectContent>
 					</Select>
 				)}

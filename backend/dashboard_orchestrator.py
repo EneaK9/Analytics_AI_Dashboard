@@ -38,20 +38,55 @@ class DashboardOrchestrator:
         # Performance optimization
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
         
-        # Sophisticated chart type mapping based on data characteristics
+        # Sophisticated chart type mapping based on data characteristics - ALL SHADCN CHARTS
         self.chart_type_mapping = {
-            'time_series': [ChartType.SHADCN_LINE_CHART, ChartType.SHADCN_AREA_CHART, 'spline', 'stepped_line'],
-            'categorical': [ChartType.SHADCN_BAR_CHART, ChartType.SHADCN_PIE_CHART, ChartType.SHADCN_DONUT_INTERACTIVE, 'horizontal_bar', 'stacked_bar'],
-            'numerical': ['histogram', 'scatter', 'box_plot', 'violin_plot'],
-            'correlation': ['scatter', 'heatmap', 'bubble_chart'],
-            'comparison': [ChartType.SHADCN_BAR_CHART, ChartType.SHADCN_LINE_CHART, ChartType.SHADCN_RADAR_CHART, 'column_chart'],
-            'distribution': ['histogram', 'density_plot', 'box_plot'],
-            'financial': ['candlestick', 'ohlc', 'volume_chart', ChartType.SHADCN_LINE_CHART],
-            'geographical': ['treemap', 'heatmap', 'choropleth'],
-            'part_to_whole': [ChartType.SHADCN_PIE_CHART, ChartType.SHADCN_DONUT_INTERACTIVE, 'treemap', 'sunburst'],
-            'trend': [ChartType.SHADCN_LINE_CHART, ChartType.SHADCN_AREA_CHART, 'spline'],
-            'ranking': [ChartType.SHADCN_BAR_CHART, 'horizontal_bar', 'lollipop_chart'],
-            'progress': ['gauge', 'progress_bar', 'radial_progress']
+            'time_series': [
+                'ShadcnAreaChart', 'ShadcnAreaInteractive', 'ShadcnAreaLinear', 'ShadcnAreaStep', 'ShadcnAreaStacked'
+            ],
+            'categorical': [
+                'ShadcnBarChart', 'ShadcnBarDefault', 'ShadcnBarLabel', 'ShadcnBarLabelCustom', 'ShadcnBarHorizontal', 
+                'ShadcnBarMultiple', 'ShadcnBarStacked', 'ShadcnBarMixed', 'ShadcnBarActive', 'ShadcnBarNegative', 'ShadcnBarCustom',
+                'ShadcnPieChart', 'ShadcnPieChartLabel', 'ShadcnPieDonutText', 'ShadcnPieInteractive', 
+                'ShadcnPieLegend', 'ShadcnPieSimple', 'ShadcnPieStacked'
+            ],
+            'numerical': [
+                'ShadcnBarChart', 'ShadcnBarLabel', 'ShadcnBarHorizontal', 'ShadcnBarMultiple', 'ShadcnBarStacked',
+                'ShadcnAreaChart', 'ShadcnAreaStacked', 'ShadcnRadialChart', 'ShadcnRadialText', 'ShadcnRadialShape',
+                'ShadcnRadialLabel', 'ShadcnRadialGrid', 'ShadcnRadialStacked'
+            ],
+            'correlation': [
+                'ShadcnRadarDefault', 'ShadcnRadarGridFill', 'ShadcnRadarLegend', 'ShadcnRadarLinesOnly', 'ShadcnRadarMultiple',
+                'ShadcnRadarCustom', 'ShadcnRadarFilled', 'ShadcnRadarLines', 'ShadcnRadarGrid',
+                'ShadcnAreaStacked'
+            ],
+            'comparison': [
+                'ShadcnBarChart', 'ShadcnBarHorizontal', 'ShadcnBarMultiple', 'ShadcnBarStacked', 'ShadcnBarActive',
+                'ShadcnRadarDefault', 'ShadcnRadarGridFill', 'ShadcnRadarMultiple', 'ShadcnRadarCustom', 'ShadcnRadarFilled'
+            ],
+            'distribution': [
+                'ShadcnPieChart', 'ShadcnPieChartLabel', 'ShadcnPieInteractive', 'ShadcnPieDonut', 'ShadcnPieStacked',
+                'ShadcnBarChart', 'ShadcnBarLabel'
+            ],
+            'financial': [
+                'ShadcnAreaChart', 'ShadcnAreaInteractive', 'ShadcnAreaStacked', 'ShadcnBarNegative'
+            ],
+            'geographical': [
+                'ShadcnPieChart', 'ShadcnPieChartLabel', 'ShadcnPieInteractive', 'ShadcnBarChart', 'ShadcnBarLabel'
+            ],
+            'part_to_whole': [
+                'ShadcnPieChart', 'ShadcnPieChartLabel', 'ShadcnPieInteractive', 'ShadcnPieDonut', 'ShadcnPieStacked',
+                'ShadcnAreaStacked', 'ShadcnRadialChart', 'ShadcnRadialText', 'ShadcnRadialStacked'
+            ],
+            'trend': [
+                'ShadcnAreaChart', 'ShadcnAreaInteractive', 'ShadcnAreaLinear', 'ShadcnAreaStep'
+            ],
+            'ranking': [
+                'ShadcnBarChart', 'ShadcnBarLabel', 'ShadcnBarHorizontal', 'ShadcnBarCustom'
+            ],
+            'progress': [
+                'ShadcnRadarChart', 'ShadcnRadarFilled', 'ShadcnRadialChart', 'ShadcnRadialText', 'ShadcnRadialShape', 'ShadcnRadialStacked',
+                'ShadcnBarChart', 'ShadcnAreaChart'
+            ]
         }
         
         # Icon mapping for common business metrics
@@ -452,17 +487,37 @@ class DashboardOrchestrator:
         return analysis
 
     async def _generate_ai_business_context(self, client_id: uuid.UUID, data_analysis: Dict[str, Any]) -> BusinessContext:
-        """Generate business context using AI analysis with SMART BATCHING"""
+        """Generate business context using AI analysis with SMART BATCHING and DIVERSITY"""
         max_retries = 3
         retry_count = 0
         
-        # Valid chart types for AI to choose from
+        # Valid chart types for AI to choose from - ALL SHADCN CHARTS AS PRIMARY OPTIONS
         valid_chart_types = [
-            "ShadcnAreaInteractive", "ShadcnAreaLinear", "ShadcnAreaStep", 
-            "ShadcnBarChart", "ShadcnBarHorizontal", "ShadcnBarLabel", "ShadcnBarCustomLabel",
-            "ShadcnPieChart", "ShadcnPieChartLabel", "ShadcnInteractiveDonut",
-            "ShadcnRadarChart", "ShadcnLineChart", "line", "bar", "pie"
+            # Area Charts (5)
+            "ShadcnAreaChart", "ShadcnAreaInteractive", "ShadcnAreaLinear", "ShadcnAreaStacked", "ShadcnAreaStep",
+            # Bar Charts (11) - All available bar chart types
+            "ShadcnBarChart", "ShadcnBarDefault", "ShadcnBarLabel", "ShadcnBarLabelCustom", "ShadcnBarHorizontal", 
+            "ShadcnBarMultiple", "ShadcnBarStacked", "ShadcnBarMixed", "ShadcnBarActive", "ShadcnBarNegative", "ShadcnBarCustom",
+            # Pie Charts (7)
+            "ShadcnPieChart", "ShadcnPieChartLabel", "ShadcnPieDonutText", "ShadcnPieInteractive", 
+            "ShadcnPieLegend", "ShadcnPieSimple", "ShadcnPieStacked",
+            # Radar Charts (9) - All available radar chart types
+            "ShadcnRadarDefault", "ShadcnRadarGridFill", "ShadcnRadarLegend", "ShadcnRadarLinesOnly", "ShadcnRadarMultiple",
+            "ShadcnRadarCustom", "ShadcnRadarFilled", "ShadcnRadarLines", "ShadcnRadarGrid",
+            # Radial Charts (6)
+            "ShadcnRadialChart", "ShadcnRadialLabel", "ShadcnRadialGrid", "ShadcnRadialText", 
+            "ShadcnRadialShape", "ShadcnRadialStacked"
         ]
+        
+        # 🎲 Add randomization factor to ensure diversity even with same data
+        import random
+        import hashlib
+        client_seed = int(hashlib.md5(str(client_id).encode()).hexdigest()[:8], 16)
+        random.seed(client_seed)  # Consistent randomization per client
+        
+        # Shuffle chart types to encourage variety
+        shuffled_charts = valid_chart_types.copy()
+        random.shuffle(shuffled_charts)
         
         while retry_count < max_retries:
             try:
@@ -499,7 +554,7 @@ class DashboardOrchestrator:
                 - Categorical Columns: {data_analysis.get('categorical_columns', [])}
                 - Date Columns: {data_analysis.get('date_columns', [])}
 
-                Your task: Determine the business type and recommend optimal chart types for this data.
+                Your task: Analyze the actual data to determine business type, generate specific insights, and recommend optimal chart types.
 
                 BUSINESS TYPE DETECTION:
                 - If you see: price, product, order, customer, sales -> "ecommerce"
@@ -508,20 +563,43 @@ class DashboardOrchestrator:
                 - If you see: employee, project, task, performance -> "operations"
                 - Otherwise: "general"
 
-                CHART RECOMMENDATIONS:
-                - For time-series data (dates + numeric): ShadcnAreaInteractive, ShadcnLineChart
-                - For categorical comparisons: ShadcnBarChart, ShadcnInteractiveBar
-                - For distributions/percentages: ShadcnPieChart, ShadcnInteractiveDonut
-                - For performance metrics: ShadcnRadarChart, ShadcnMultipleArea
+                INSIGHTS GENERATION - ANALYZE THE ACTUAL DATA:
+                - Look at the data columns and sample values to identify real patterns
+                - Generate 4-7 specific insights based on what you see in the data
+                - Focus on opportunities, risks, or trends visible in the actual column names and data
+                - Make insights actionable and specific to this business data
+                - NO generic insights - be specific about what the data shows
 
-                Valid chart types: {valid_chart_types[:8]}
+                CHART RECOMMENDATIONS - CHOOSE DIVERSE TYPES:
+                📊 AREA CHARTS: ShadcnAreaChart, ShadcnAreaInteractive, ShadcnAreaLinear, ShadcnAreaStacked, ShadcnAreaStep
+                📈 BAR CHARTS: ShadcnBarChart, ShadcnBarDefault, ShadcnBarLabel, ShadcnBarLabelCustom, ShadcnBarHorizontal, ShadcnBarMultiple, ShadcnBarStacked, ShadcnBarMixed, ShadcnBarActive, ShadcnBarNegative, ShadcnBarCustom
+                🥧 PIE CHARTS: ShadcnPieChart, ShadcnPieChartLabel, ShadcnPieDonutText, ShadcnPieInteractive, ShadcnPieLegend, ShadcnPieSimple, ShadcnPieStacked
+                🎯 RADAR CHARTS: ShadcnRadarDefault, ShadcnRadarGridFill, ShadcnRadarLegend, ShadcnRadarLinesOnly, ShadcnRadarMultiple, ShadcnRadarCustom, ShadcnRadarFilled, ShadcnRadarLines, ShadcnRadarGrid
+                📉 RADIAL CHARTS: ShadcnRadialChart, ShadcnRadialLabel, ShadcnRadialGrid, ShadcnRadialText, ShadcnRadialShape, ShadcnRadialStacked
+                
+                CREATIVITY & DIVERSITY RULES:
+                - Pick 12-15 charts total - BE BOLD AND CREATIVE!
+                - FORCE MAXIMUM VARIETY: Use ALL chart categories: Area (5), Bar (11), Pie (7), Radar (9), Radial (6)
+                - NO REPETITION: Every chart should be a different type - avoid duplicates
+                - INTERACTIVE FOCUS: Include multiple interactive charts (ShadcnAreaInteractive, ShadcnPieInteractive, ShadcnBarActive)
+                - WILD COMBINATIONS: Use radical variety within categories - different bar styles, pie variations, radar types
+                - SURPRISE FACTOR: Each chart type category must have at least 2-3 different variants
+                - CREATIVE MANDATE: Be adventurous with chart selection - choose unusual combinations!
 
-                Respond in JSON format:
+                            Available charts: {shuffled_charts}
+            
+            TITLE EXAMPLES - CONCISE & IMPACTFUL:
+            ✅ GOOD: "Sales", "Growth", "Performance", "Analytics", "Insights", "Trends", "Distribution"
+            ❌ BAD: "Sales Performance Dashboard", "Monthly Revenue Analysis Chart", "Customer Data Visualization"
+            
+            RANDOMIZATION NOTE: Charts are presented in randomized order to encourage variety.
+
+            Respond in JSON format:
                 {{
                     "industry": "E-commerce/SaaS/Financial/Operations/General",
                     "business_type": "ecommerce|saas|financial|operations|general",
                     "key_metrics": ["most important 3 columns for KPIs"],
-                    "recommended_charts": ["3 best chart types for this data"],
+                    "recommended_charts": ["Choose 4-8 DIVERSE chart types from the list - mix different categories"],
                     "insights": [
                         {{
                             "type": "trend|opportunity|risk|performance",
@@ -538,12 +616,12 @@ class DashboardOrchestrator:
                 # Call OpenAI with enhanced analysis
                 client = OpenAI(api_key=self.openai_api_key)
                 response = client.chat.completions.create(
-                        model="gpt-4o-mini",
+                        model="gpt-4.1",
                         messages=[
                         {"role": "system", "content": "You are a senior business intelligence analyst with expertise in data visualization and dashboard design. Analyze business data structures and provide strategic insights with appropriate chart recommendations. Always respond with valid JSON only."},
                             {"role": "user", "content": prompt}
                         ],
-                    temperature=0.2,  # Lower temperature for more consistent analysis
+                    temperature=0.7,  # Higher temperature for more creative and varied chart selection
                     max_tokens=800,  # More tokens for detailed analysis
                     timeout=45  # Longer timeout for thorough analysis
                 )
@@ -590,7 +668,7 @@ class DashboardOrchestrator:
                     else:
                         valid_charts.append('ShadcnAreaInteractive')  # Safe fallback
                 
-                ai_response['recommended_charts'] = valid_charts[:3]
+                ai_response['recommended_charts'] = valid_charts[:15]  # Ensure we get 12-15 charts for creative dashboards
                 
                 logger.info(f"✅ AI business context generated with batching: {ai_response.get('business_type', 'general')}")
                 
@@ -754,14 +832,14 @@ class DashboardOrchestrator:
                 "industry": "string",
                 "business_type": "string",
                 "key_metrics": {data_summary['numeric_columns'][:3]},
-                "recommended_charts": ["ShadcnAreaInteractive", "ShadcnBarChart", "ShadcnPieChart"],
+                "recommended_charts": ["ShadcnAreaInteractive", "ShadcnBarLabel", "ShadcnPieChartLabel"],
                 "insights": [
                     {{
-                        "type": "opportunity",
-                        "title": "Data Ready",
-                        "description": "Analysis complete",
-                        "impact": "high",
-                        "suggested_action": "Review charts"
+                        "type": "trend|opportunity|risk|performance",
+                        "title": "Meaningful insight based on actual data patterns",
+                        "description": "Specific business insight derived from analyzing the actual data columns and values",
+                        "impact": "high|medium|low",
+                        "suggested_action": "Specific actionable recommendation based on the data"
                     }}
                 ],
                 "confidence_score": 0.8
@@ -772,7 +850,7 @@ class DashboardOrchestrator:
             
             async with AsyncOpenAI(api_key=self.openai_api_key) as client:
                 response = await client.chat.completions.create(
-                    model="gpt-4o-mini",
+                    model="gpt-4.1",
                     messages=[
                         {"role": "system", "content": "You are a business intelligence expert analyzing data to create personalized dashboards."},
                         {"role": "user", "content": prompt}
@@ -999,8 +1077,8 @@ class DashboardOrchestrator:
             
             # Generate metrics for charts
             for chart in dashboard_config.chart_widgets:
-                # Generate sample chart data (in real implementation, this would calculate from actual data)
-                chart_data = self._generate_chart_data(chart.chart_type, data_analysis)
+                # Generate REAL chart data from actual client data
+                chart_data = await self._generate_real_chart_data(chart, data_analysis)
                 
                 metric = DashboardMetric(
                     metric_id=uuid.uuid4(),  # Generate UUID for metric_id
@@ -1028,33 +1106,7 @@ class DashboardOrchestrator:
             logger.error(f"❌ Failed to generate and save metrics: {e}")
             return 0
     
-    def _generate_chart_data(self, chart_type: ChartType, data_analysis: Dict[str, Any]) -> List[Dict]:
-        """Generate sample chart data based on chart type"""
-        if chart_type == ChartType.SHADCN_LINE_CHART or chart_type == ChartType.line:
-            return [
-                {'month': 'Jan', 'value': 45000},
-                {'month': 'Feb', 'value': 52000},
-                {'month': 'Mar', 'value': 48000},
-                {'month': 'Apr', 'value': 61000},
-                {'month': 'May', 'value': 55000},
-                {'month': 'Jun', 'value': 67000}
-            ]
-        elif chart_type == ChartType.SHADCN_BAR_CHART or chart_type == ChartType.bar:
-            return [
-                {'category': 'Category A', 'value': 25000},
-                {'category': 'Category B', 'value': 15000},
-                {'category': 'Category C', 'value': 12000},
-                {'category': 'Category D', 'value': 18000}
-            ]
-        elif chart_type == ChartType.SHADCN_PIE_CHART or chart_type == ChartType.pie:
-            return [
-                {'label': 'Segment 1', 'value': 40},
-                {'label': 'Segment 2', 'value': 30},
-                {'label': 'Segment 3', 'value': 20},
-                {'label': 'Segment 4', 'value': 10}
-            ]
-        else:
-            return []
+    # Removed old _generate_chart_data method - replaced with AI-powered _generate_real_chart_data
     
     # Helper methods
     def _find_column(self, columns: List[str], search_terms: List[str]) -> Optional[str]:
@@ -1464,130 +1516,168 @@ class DashboardOrchestrator:
             
             chart_widgets = []
             widget_id_counter = 1
-            used_combinations = set()
             
-            # 🎯 CREATIVE CHART GENERATION: Each chart shows COMPLETELY different data insights!
+            # 🎯 USE AI RECOMMENDATIONS: Generate charts based on AI's diverse selections!
+            ai_recommended_charts = business_context.recommended_charts
+            logger.info(f"🤖 AI recommended {len(ai_recommended_charts)} chart types: {[str(chart) for chart in ai_recommended_charts]}")
             
-            # 🔥 CHART 1: Interactive Area Chart - Price Distribution Analysis (FULL WIDTH)
-            if smart_columns.get('price_columns') and numeric_cols:
-                price_col = smart_columns['price_columns'][0]
+            # 🎲 CREATIVE & RANDOMIZED CHART GENERATION - Each client gets unique dashboard
+            import random
+            import hashlib
+            
+            # Create client-specific seed for consistent but unique randomization
+            client_seed = int(hashlib.md5(str(client_id).encode()).hexdigest()[:8], 16)
+            random.seed(client_seed)
+            
+            # 🎲 FORCE MINIMUM 12 CHARTS - Be creative even with limited data!
+            min_charts = 12
+            max_charts = 15
+            
+            # 🔥 CREATIVE CHART TYPE SELECTION - Mix AI recommendations with forced variety
+            selected_chart_types = []
+            
+            # Start with AI recommendations but ensure variety
+            if ai_recommended_charts and len(ai_recommended_charts) > 0:
+                selected_chart_types.extend(ai_recommended_charts[:8])  # Take up to 8 AI picks
+            
+            # 🎨 FORCE VARIETY: Add different chart types if we don't have enough
+            all_available_charts = [
+                # Area Charts
+                "ShadcnAreaChart", "ShadcnAreaInteractive", "ShadcnAreaLinear", "ShadcnAreaStacked", "ShadcnAreaStep",
+                # Bar Charts  
+                "ShadcnBarChart", "ShadcnBarDefault", "ShadcnBarLabel", "ShadcnBarLabelCustom", "ShadcnBarHorizontal", 
+                "ShadcnBarMultiple", "ShadcnBarStacked", "ShadcnBarMixed", "ShadcnBarActive", "ShadcnBarNegative", "ShadcnBarCustom",
+                # Pie Charts
+                "ShadcnPieChart", "ShadcnPieChartLabel", "ShadcnPieDonutText", "ShadcnPieInteractive", 
+                "ShadcnPieLegend", "ShadcnPieSimple", "ShadcnPieStacked",
+                # Radar Charts
+                "ShadcnRadarDefault", "ShadcnRadarGridFill", "ShadcnRadarLegend", "ShadcnRadarLinesOnly", "ShadcnRadarMultiple",
+                "ShadcnRadarCustom", "ShadcnRadarFilled", "ShadcnRadarLines", "ShadcnRadarGrid",
+                # Radial Charts
+                "ShadcnRadialChart", "ShadcnRadialLabel", "ShadcnRadialGrid", "ShadcnRadialText", 
+                "ShadcnRadialShape", "ShadcnRadialStacked"
+            ]
+            
+            # 🎲 Add more random charts to reach minimum
+            random.shuffle(all_available_charts)
+            for chart_type in all_available_charts:
+                if len(selected_chart_types) >= max_charts:
+                    break
+                if chart_type not in selected_chart_types:
+                    selected_chart_types.append(chart_type)
+            
+            # Ensure we have at least min_charts
+            while len(selected_chart_types) < min_charts:
+                random_chart = random.choice(all_available_charts)
+                selected_chart_types.append(random_chart)
+            
+            logger.info(f"🎨 CREATIVE DASHBOARD: Generating {len(selected_chart_types)} diverse charts for client {client_id}")
+            
+            # 🤖 AI-GENERATED CHART TITLES - Smart, contextual, and data-driven
+            chart_titles = await self._generate_ai_chart_titles(client_id, business_context, selected_chart_types, smart_columns)
+            
+            # Create charts with CREATIVE DATA COMBINATIONS
+            for i, recommended_chart in enumerate(selected_chart_types):
+                if i >= len(chart_titles):
+                    # Generate more concise AI-style titles if needed
+                    extra_titles = [
+                        ("Analytics", "Comprehensive data insights", {"xAxis": "Category", "yAxis": "Value", "legend": ["Metric"]}),
+                        ("Intelligence", "Smart business analysis", {"xAxis": "Period", "yAxis": "Score", "legend": ["Performance"]}),
+                        ("Growth", "Business expansion metrics", {"xAxis": "Time", "yAxis": "Growth", "legend": ["Trend"]}),
+                        ("Efficiency", "Operational performance data", {"xAxis": "Process", "yAxis": "Efficiency", "legend": ["Rating"]}),
+                        ("Strategy", "Strategic business overview", {"xAxis": "Factor", "yAxis": "Impact", "legend": ["Analysis"]})
+                    ]
+                    title_idx = (i - len(chart_titles)) % len(extra_titles)
+                    chart_titles.append(extra_titles[title_idx])
+                    
+                title, subtitle, ai_labels = chart_titles[i]
+                
+                # 🎨 CREATIVE DATA COLUMN SELECTION - Each chart gets unique data perspective!
+                data_cols = []
+                
+                # Ensure we have real columns available
+                if not (categorical_cols or numeric_cols):
+                    logger.warning(f"❌ No real data columns available for chart {i+1}")
+                    continue  # Skip this chart if no real data
+                
+                # 🎲 CREATIVE DATA COMBINATIONS - Different approaches for each chart
+                creative_combinations = []
+                
+                # Build multiple creative data combinations
+                if categorical_cols and numeric_cols:
+                    # Standard combinations
+                    for j, cat_col in enumerate(categorical_cols):
+                        for k, num_col in enumerate(numeric_cols):
+                            creative_combinations.append([cat_col, num_col])
+                    
+                    # Reverse combinations for variety
+                    if len(numeric_cols) > 1:
+                        for cat_col in categorical_cols:
+                            creative_combinations.append([cat_col, numeric_cols[-1]])  # Use last numeric
+                    
+                    # Creative groupings
+                    if len(categorical_cols) > 1:
+                        creative_combinations.append([categorical_cols[-1], numeric_cols[0]])  # Use last categorical
+                
+                # Add count-based combinations for variety
+                if categorical_cols:
+                    for cat_col in categorical_cols:
+                        creative_combinations.append([cat_col, "count"])
+                
+                # 🎯 SELECT UNIQUE COMBINATION for this chart
+                if creative_combinations:
+                    # Use chart index + some randomization to pick different combinations
+                    combination_index = (i * 3 + random.randint(0, 2)) % len(creative_combinations)
+                    data_cols = creative_combinations[combination_index]
+                else:
+                    # Fallback: create REAL financial data combinations
+                    if categorical_cols and numeric_cols:
+                        # Use real trading data combinations
+                        data_cols = [categorical_cols[0], numeric_cols[0]]
+                    elif categorical_cols and len(categorical_cols) > 1:
+                        # Use two categorical columns for count-based charts
+                        data_cols = [categorical_cols[0], "count"]  # Special case for counting
+                    elif numeric_cols and len(numeric_cols) > 1:
+                        # Use two numeric columns
+                        data_cols = [categorical_cols[0] if categorical_cols else "category", numeric_cols[0]]
+                    else:
+                        continue  # Skip if no real data combinations possible
+                
+                logger.info(f"🎨 Chart {i+1} ({recommended_chart}): Using creative data combo [{data_cols[0]} x {data_cols[1]}]")
+                
+                # Final validation - ensure we have real data columns
+                if not data_cols or len(data_cols) < 2:
+                    logger.warning(f"❌ Could not determine real data columns for chart {i+1}")
+                    continue  # Skip this chart
+                
                 chart_widgets.append(ChartWidget(
                     id=f"chart_{widget_id_counter}",
-                    title="💎 Product Value Distribution",
-                    subtitle="Interactive price analysis across your entire catalog - Find your pricing sweet spots",
-                    chart_type=ChartType.SHADCN_AREA_INTERACTIVE,
+                    title=title,
+                    subtitle=subtitle,
+                    chart_type=recommended_chart,  # Use AI recommendation!
                     data_source="client_data",
                     config={
-                        "component": "ShadcnAreaInteractive",
-                        "data_columns": {"nameKey": "title", "dataKey": price_col, "priceKey": price_col},
-                        "props": {"title": "Product Value Distribution", "height": 400, "showTooltip": True},
-                        "real_data_columns": ["title", price_col],
-                        "visualization_type": "price_distribution"
+                        "component": str(recommended_chart),
+                        "data_columns": {"nameKey": data_cols[0], "dataKey": data_cols[1]},
+                        "props": {
+                            "title": title, 
+                            "height": 350, 
+                            "showTooltip": True,
+                            "ai_labels": ai_labels  # AI-generated labels and legends
+                        },
+                        "real_data_columns": data_cols,
+                        "ai_labels": ai_labels,  # Store AI labels at config level too
+                        "visualization_type": f"ai_recommended_{i+1}"
                     },
-                    position={"row": 0, "col": 0}, size={"width": 4, "height": 2}, priority=1
+                    position={"row": i // 4, "col": i % 4},  # 4-column layout for 12+ charts
+                    size={"width": 1, "height": 1},  # Compact charts for creative dashboard
+                    priority=i + 1
                 ))
                 widget_id_counter += 1
             
-            # 🚀 CHART 2: Horizontal Bar Chart - Top Performers by Variants (LEFT)
-            if smart_columns.get('count_columns') and smart_columns.get('name_columns'):
-                variants_col = next((col for col in smart_columns['count_columns'] if 'variants' in col), smart_columns['count_columns'][0])
-                title_col = smart_columns['name_columns'][0]
-                chart_widgets.append(ChartWidget(
-                    id=f"chart_{widget_id_counter}",
-                    title="🏆 Product Variant Champions",
-                    subtitle="Which products offer the most choices? Horizontal ranking of variant leaders",
-                    chart_type=ChartType.SHADCN_BAR_HORIZONTAL,
-                    data_source="client_data",
-                    config={
-                        "component": "ShadcnBarHorizontal",
-                        "data_columns": {"nameKey": title_col, "dataKey": variants_col},
-                        "props": {"title": "Variant Champions", "height": 350, "layout": "horizontal"},
-                        "real_data_columns": [title_col, variants_col],
-                        "visualization_type": "top_performers"
-                    },
-                    position={"row": 2, "col": 0}, size={"width": 2, "height": 2}, priority=2
-                ))
-                widget_id_counter += 1
+            # ✅ All charts generated using AI recommendations above
             
-            # 📡 CHART 3: Radar Chart - Multi-Dimensional Product Analysis (RIGHT)
-            if len(numeric_cols) >= 2:
-                chart_widgets.append(ChartWidget(
-                    id=f"chart_{widget_id_counter}",
-                    title="🕸️ Product Performance Radar",
-                    subtitle="Multi-dimensional analysis: variants, images, and pricing in one powerful view",
-                    chart_type=ChartType.SHADCN_RADAR_CHART,
-                    data_source="client_data",
-                    config={
-                        "component": "ShadcnRadarChart",
-                        "data_columns": {"metrics": numeric_cols[:3], "nameKey": "title"},
-                        "props": {"title": "Performance Radar", "height": 350, "showGridLines": True},
-                        "real_data_columns": numeric_cols[:3] + ["title"],
-                        "visualization_type": "multi_dimensional"
-                    },
-                    position={"row": 2, "col": 2}, size={"width": 2, "height": 2}, priority=3
-                ))
-                widget_id_counter += 1
-            
-            # 📈 CHART 4: Stacked Area Chart - Product Creation Timeline (FULL WIDTH)
-            if smart_columns.get('date_columns') and smart_columns.get('category_columns'):
-                date_col = smart_columns['date_columns'][0]  # created_at
-                category_col = next((col for col in smart_columns['category_columns'] if col in ['product_type', 'vendor']), smart_columns['category_columns'][0])
-                chart_widgets.append(ChartWidget(
-                    id=f"chart_{widget_id_counter}",
-                    title="⏰ Product Launch Timeline",
-                    subtitle="Stacked view of when different product categories were added to your store",
-                    chart_type=ChartType.SHADCN_AREA_STACKED,
-                    data_source="client_data",
-                    config={
-                        "component": "ShadcnAreaStacked",
-                        "data_columns": {"xAxisKey": date_col, "categoryKey": category_col, "stackBy": category_col},
-                        "props": {"title": "Launch Timeline", "height": 350, "stackOffset": "expand"},
-                        "real_data_columns": [date_col, category_col],
-                        "visualization_type": "timeline_stacked"
-                    },
-                    position={"row": 4, "col": 0}, size={"width": 4, "height": 2}, priority=4
-                ))
-                widget_id_counter += 1
-            
-            # 🎯 CHART 5: Interactive Donut - Visual Marketing Power (LEFT)
-            if smart_columns.get('count_columns'):
-                images_col = next((col for col in smart_columns['count_columns'] if 'images' in col), smart_columns['count_columns'][-1])
-                chart_widgets.append(ChartWidget(
-                    id=f"chart_{widget_id_counter}",
-                    title="📸 Visual Marketing Power",
-                    subtitle="Interactive donut showing which products win with visual content",
-                    chart_type=ChartType.SHADCN_DONUT_INTERACTIVE,
-                    data_source="client_data",
-                    config={
-                        "component": "ShadcnInteractiveDonut",
-                        "data_columns": {"nameKey": "title", "dataKey": images_col, "segmentKey": images_col},
-                        "props": {"title": "Visual Power", "height": 300, "innerRadius": 60},
-                        "real_data_columns": ["title", images_col],
-                        "visualization_type": "visual_breakdown"
-                    },
-                    position={"row": 6, "col": 0}, size={"width": 2, "height": 1}, priority=5
-                ))
-                widget_id_counter += 1
-            
-            # 📊 CHART 6: Multi-Line Chart - Business Health Metrics (RIGHT)
-            if smart_columns.get('date_columns') and len(numeric_cols) >= 2:
-                date_col = smart_columns['date_columns'][0]
-                chart_widgets.append(ChartWidget(
-                    id=f"chart_{widget_id_counter}",
-                    title="💹 Business Health Monitor",
-                    subtitle="Multi-line tracking of key business metrics over time",
-                    chart_type=ChartType.SHADCN_MULTIPLE_AREA,
-                    data_source="client_data",
-                    config={
-                        "component": "ShadcnMultipleArea",
-                        "data_columns": {"xAxisKey": date_col, "metrics": numeric_cols[:2], "lineKeys": numeric_cols[:2]},
-                        "props": {"title": "Health Monitor", "height": 300, "strokeWidth": 3},
-                        "real_data_columns": [date_col] + numeric_cols[:2],
-                        "visualization_type": "health_monitor"
-                    },
-                    position={"row": 6, "col": 2}, size={"width": 2, "height": 1}, priority=6
-                ))
-                widget_id_counter += 1
+            logger.info(f"🎨 Generated {len(chart_widgets)} AI-recommended charts")
             
             # 🚨 EMERGENCY FALLBACK: If we have NO charts after validation, create guaranteed working charts
             if len(chart_widgets) == 0:
@@ -1595,17 +1685,23 @@ class DashboardOrchestrator:
                 
                 # Emergency Chart 1: Simple count of records by first categorical column
                 if categorical_cols and data_analysis.get('sample_data'):
+                    emergency_labels = {"xAxis": "Category", "yAxis": "Count", "legend": ["Frequency"]}
                     emergency_chart_1 = ChartWidget(
                         id="emergency_chart_1",
-                        title="📊 Data Distribution", 
-                        subtitle="Distribution of your data records",
+                        title="Distribution", 
+                        subtitle="Data category breakdown",
                         chart_type=ChartType.SHADCN_BAR_CHART,
                         data_source="client_data",
                         config={
                             "component": "ShadcnBarChart",
                             "data_columns": {"nameKey": categorical_cols[0], "dataKey": "count"},
-                            "props": {"title": "Data Distribution", "height": 350},
-                            "real_data_columns": [categorical_cols[0]]
+                            "props": {
+                                "title": "Distribution", 
+                                "height": 350,
+                                "ai_labels": emergency_labels
+                            },
+                            "real_data_columns": [categorical_cols[0]],
+                            "ai_labels": emergency_labels
                         },
                         position={"row": 0, "col": 0}, size={"width": 2, "height": 2}, priority=1
                     )
@@ -1647,8 +1743,12 @@ class DashboardOrchestrator:
                 required_cols = chart.config.get("real_data_columns", [])
                 available_cols = numeric_cols + categorical_cols + date_cols
                 
-                # Check if required columns exist
-                missing_cols = [col for col in required_cols if col not in available_cols]
+                # Check if required columns exist (excluding computed columns like 'count')
+                missing_cols = []
+                for col in required_cols:
+                    if col not in available_cols and col not in ['count', 'index', 'category']:
+                        missing_cols.append(col)
+                
                 if missing_cols:
                     logger.warning(f"⚠️ Removing chart '{chart.title}' - missing columns: {missing_cols}")
                     continue
@@ -1668,7 +1768,8 @@ class DashboardOrchestrator:
                     if has_meaningful_data:
                         break
                 
-                if not has_meaningful_data:
+                # For 'count' columns, we don't need to check sample data since it's computed
+                if 'count' not in required_cols and not has_meaningful_data:
                     logger.warning(f"⚠️ Removing chart '{chart.title}' - no meaningful data in columns: {required_cols}")
                     continue
                 
@@ -1730,6 +1831,179 @@ class DashboardOrchestrator:
         except Exception as e:
             logger.error(f"❌ Failed to generate chart widgets: {e}")
             return []
+
+    async def _generate_ai_chart_titles(self, client_id: uuid.UUID, business_context: BusinessContext, chart_types: List[str], smart_columns: Dict[str, List[str]]) -> List[tuple]:
+        """🤖 Generate AI-powered, contextual chart titles based on actual data and business context"""
+        try:
+            logger.info(f"🤖 Generating AI-powered chart titles for {len(chart_types)} charts")
+            
+            # Prepare context for AI
+            data_context = {
+                'business_type': business_context.business_type,
+                'industry': business_context.industry,
+                'chart_types': chart_types,
+                'available_columns': {
+                    'price_columns': smart_columns.get('price_columns', []),
+                    'count_columns': smart_columns.get('count_columns', []),
+                    'status_columns': smart_columns.get('status_columns', []),
+                    'name_columns': smart_columns.get('name_columns', []),
+                    'category_columns': smart_columns.get('category_columns', []),
+                    'date_columns': smart_columns.get('date_columns', [])
+                }
+            }
+            
+            prompt = f"""
+            Generate professional, data-driven chart titles for a {business_context.business_type} business dashboard.
+            
+            Business Context:
+            - Industry: {business_context.industry}
+            - Business Type: {business_context.business_type}
+            
+            Available Data Columns:
+            - Price/Revenue: {data_context['available_columns']['price_columns']}
+            - Counts/Quantities: {data_context['available_columns']['count_columns']}
+            - Categories: {data_context['available_columns']['category_columns']}
+            - Status Fields: {data_context['available_columns']['status_columns']}
+            - Names/Titles: {data_context['available_columns']['name_columns']}
+            - Dates: {data_context['available_columns']['date_columns']}
+            
+            Chart Types to Generate Titles For:
+            {chart_types}
+            
+            Rules:
+            1. Create CONCISE, impactful titles (1-3 words maximum)
+            2. Make titles actionable and business-focused
+            3. Match title to chart type (Area = "Trends", Bar = "Comparison", Pie = "Distribution", etc.)
+            4. Use powerful business terms like "Performance", "Growth", "Analysis", "Insights"
+            5. Keep titles SHORT and memorable
+            6. Include detailed context in subtitles
+            7. Generate AI-powered labels and legends for each chart
+            8. NO emojis in titles - professional business style
+            
+            Return JSON array of exactly {len(chart_types)} chart titles with labels:
+            [
+                {{
+                    "title": "Revenue Trends", 
+                    "subtitle": "Monthly revenue performance analysis",
+                    "labels": {{
+                        "xAxis": "Period",
+                        "yAxis": "Revenue ($)",
+                        "legend": ["Primary", "Secondary"]
+                    }}
+                }},
+                {{
+                    "title": "Sales Distribution", 
+                    "subtitle": "Product category breakdown",
+                    "labels": {{
+                        "dataKey": "Sales Volume",
+                        "nameKey": "Product Category",
+                        "legend": ["Electronics", "Clothing", "Home"]
+                    }}
+                }},
+                ...
+            ]
+            """
+            
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=self.openai_api_key)
+            
+            response = await client.chat.completions.create(
+                model="gpt-4.1",
+                messages=[
+                    {"role": "system", "content": "You are a business intelligence expert. Always respond with valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            )
+            
+            import json
+            response_content = response.choices[0].message.content.strip()
+            
+            # Handle potential markdown code blocks
+            if response_content.startswith('```json'):
+                response_content = response_content[7:]
+            if response_content.startswith('```'):
+                response_content = response_content[3:]
+            if response_content.endswith('```'):
+                response_content = response_content[:-3]
+            response_content = response_content.strip()
+            
+            logger.info(f"🤖 AI response preview: {response_content[:100]}...")
+            ai_titles = json.loads(response_content)
+            
+            # Convert to enhanced tuple format with AI-generated labels
+            chart_titles = [
+                (
+                    item['title'], 
+                    item['subtitle'],
+                    item.get('labels', {})  # AI-generated labels for axes, legends, etc.
+                ) 
+                for item in ai_titles
+            ]
+            
+            # Ensure we have enough titles by padding if necessary
+            while len(chart_titles) < len(chart_types):
+                chart_titles.append((
+                    "Insights", 
+                    "Business intelligence insights",
+                    {"xAxis": "Category", "yAxis": "Value", "legend": ["Data"]}
+                ))
+            
+            logger.info(f"✅ Generated {len(chart_titles)} AI-powered chart titles")
+            return chart_titles[:len(chart_types)]  # Ensure exact match
+            
+        except Exception as e:
+            logger.error(f"❌ AI title generation failed: {e}")
+            # Fallback to concise, AI-style titles based on chart type
+            fallback_titles = []
+            bar_count = area_count = pie_count = radar_count = radial_count = other_count = 0
+            
+            for i, chart_type in enumerate(chart_types):
+                if 'Bar' in chart_type:
+                    bar_count += 1
+                    fallback_titles.append((
+                        "Comparison", 
+                        "Comparative data analysis",
+                        {"xAxis": "Category", "yAxis": "Value", "legend": ["Metric"]}
+                    ))
+                elif 'Area' in chart_type:
+                    area_count += 1
+                    fallback_titles.append((
+                        "Trends", 
+                        "Performance over time",
+                        {"xAxis": "Time", "yAxis": "Value", "legend": ["Primary", "Secondary"]}
+                    ))
+                elif 'Pie' in chart_type:
+                    pie_count += 1
+                    fallback_titles.append((
+                        "Distribution", 
+                        "Data composition breakdown",
+                        {"dataKey": "Value", "nameKey": "Category", "legend": ["Segment A", "Segment B"]}
+                    ))
+                elif 'Radar' in chart_type:
+                    radar_count += 1
+                    fallback_titles.append((
+                        "Performance", 
+                        "Multi-dimensional analysis",
+                        {"angleKey": "Metric", "radiusKey": "Score", "legend": ["Rating"]}
+                    ))
+                elif 'Radial' in chart_type:
+                    radial_count += 1
+                    fallback_titles.append((
+                        "Progress", 
+                        "Circular progress visualization",
+                        {"dataKey": "Progress", "legend": ["Completion"]}
+                    ))
+                else:
+                    other_count += 1
+                    fallback_titles.append((
+                        "Insights", 
+                        "Business intelligence data",
+                        {"xAxis": "Category", "yAxis": "Value", "legend": ["Data"]}
+                    ))
+            
+            return fallback_titles[:len(chart_types)]
 
     async def _analyze_column_meanings(self, client_id: uuid.UUID, numeric_cols: List[str], categorical_cols: List[str], date_cols: List[str]) -> Dict[str, Dict]:
         """🧠 Analyze what each column represents to make intelligent chart decisions"""
@@ -1832,19 +2106,22 @@ class DashboardOrchestrator:
             
             # Generate metrics for charts using real data
             for chart in dashboard_config.chart_widgets:
-                # Generate real chart data from the actual client data
-                chart_data = await self._generate_real_chart_data(chart, data_analysis)
+                # Generate real chart data from the actual client data (now includes dropdown options)
+                chart_data_result = await self._generate_real_chart_data(chart, data_analysis)
                 
                 metric_dict = self._convert_uuids_to_strings({
                     'metric_id': str(uuid.uuid4()),
                     'client_id': str(client_id),
                     'metric_name': chart.data_source,
                     'metric_value': {
-                        'data': chart_data,
-                        'chart_type': chart.chart_type.value,
+                        'data': chart_data_result.get('data', []),
+                        'dropdown_options': chart_data_result.get('dropdown_options', []),
+                        'chart_type': chart.chart_type.value if hasattr(chart.chart_type, 'value') else str(chart.chart_type),
                         'title': chart.title,
+                        'subtitle': chart.subtitle,
                         'source': 'real_data',
-                        'timestamp': datetime.now().isoformat()
+                        'timestamp': datetime.now().isoformat(),
+                        'has_dropdown': len(chart_data_result.get('dropdown_options', [])) > 0
                     },
                     'metric_type': 'chart_data',
                     'calculated_at': datetime.now().isoformat()
@@ -1863,465 +2140,198 @@ class DashboardOrchestrator:
             logger.error(f"❌ Failed to generate and save real metrics: {e}")
             return 0
 
-    async def _generate_real_chart_data(self, chart_widget: ChartWidget, data_analysis: Dict[str, Any]) -> List[Dict]:
-        """🚀 Generate chart data from REAL client data with proper formatting"""
+    async def _generate_real_chart_data(self, chart_widget: ChartWidget, data_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """💎 Generate PERFECT chart data from REAL financial trading data with DROPDOWN OPTIONS"""
         try:
             # Get the data configuration properly
-            data_columns_config = chart_widget.config.get('data_columns', {})
             real_data_columns = chart_widget.config.get('real_data_columns', [])
             sample_data = data_analysis.get('sample_data', [])
             
-            logger.info(f"🔍 Generating chart data for {chart_widget.title}")
-            logger.info(f"📊 Data columns config: {data_columns_config}")
+            logger.info(f"🔍 Generating FINANCIAL chart data for {chart_widget.title}")
             logger.info(f"📊 Real data columns: {real_data_columns}")
             logger.info(f"📊 Sample data length: {len(sample_data)}")
             
+            # Validate we have everything we need
+            if not real_data_columns or len(real_data_columns) < 2:
+                logger.warning(f"❌ No real data columns available for {chart_widget.title}")
+                return {'data': [], 'dropdown_options': []}
+            
             if not sample_data:
-                logger.warning(f"❌ No sample data available for chart {chart_widget.title}")
-                return []
+                logger.warning(f"❌ No sample data available for {chart_widget.title}")
+                return {'data': [], 'dropdown_options': []}
             
-            # Use the sample data that's already analyzed (no need to fetch again)
-            chart_data = sample_data
+            # 💰 FINANCIAL DATA PROCESSING - Smart handling for trading data
+            name_key = real_data_columns[0]  # Categorical column (symbol, exchange, broker_name, etc.)
+            data_key = real_data_columns[1]  # Numeric column (price, quantity, total_value)
             
-            # Process based on chart type with proper data structure and CREATIVE data processing
-            visualization_type = chart_widget.config.get('visualization_type', 'default')
+            logger.info(f"💼 Processing FINANCIAL data: {name_key} x {data_key}")
             
-            if chart_widget.chart_type == ChartType.SHADCN_AREA_INTERACTIVE and visualization_type == "price_distribution":
-                # 💎 Price Distribution Analysis - Interactive Area Chart
-                x_key = data_columns_config.get('nameKey', 'title')
-                y_key = data_columns_config.get('dataKey')
+            result = []
+            dropdown_options = []
+            
+            # 🎯 GENERATE DROPDOWN OPTIONS FROM REAL DATA
+            # For interactive charts, generate dropdown options based on data categories
+            unique_categories = set()
+            date_periods = set()
+            
+            for row in sample_data:
+                # Collect unique categories for dropdowns
+                if name_key in row and row[name_key]:
+                    unique_categories.add(str(row[name_key]).strip())
                 
-                if x_key and y_key and len(chart_data) > 0:
-                    # Sort products by price and create price distribution curve
-                    price_data = []
-                    for i, row in enumerate(chart_data):
-                        if x_key in row and y_key in row:
-                            price = row.get(y_key, 0)
-                            if isinstance(price, str):
-                                try:
-                                    price = float(price)
-                                except:
-                                    price = 0
-                            
-                            # Create price tiers for better visualization
-                            if price < 50:
-                                tier = "Budget ($0-$50)"
-                            elif price < 100:
-                                tier = "Mid-Range ($50-$100)"
-                            elif price < 200:
-                                tier = "Premium ($100-$200)"
-                            else:
-                                tier = "Luxury ($200+)"
-                            
-                            price_data.append({
-                                'name': tier,
-                                'value': price,
-                                'product': str(row.get(x_key, 'Unknown'))[:20],
-                                'tier_index': i
-                            })
-                    
-                    # Group by price tiers for area chart
-                    tier_groups = {}
-                    for item in price_data:
-                        tier = item['name']
-                        if tier not in tier_groups:
-                            tier_groups[tier] = []
-                        tier_groups[tier].append(item['value'])
-                    
-                    result = []
-                    for tier, values in tier_groups.items():
-                        result.append({
-                            'name': tier,
-                            'value': round(sum(values) / len(values), 2),  # Average price in tier
-                            'count': len(values),  # Number of products
-                            'total': round(sum(values), 2)  # Total value
-                        })
-                    
-                    logger.info(f"✅ Generated {len(result)} price distribution tiers for {chart_widget.title}")
-                    return sorted(result, key=lambda x: x['value'])
+                # Collect time periods if available
+                date_fields = ['date', 'created_at', 'updated_at', 'time', 'period']
+                for date_field in date_fields:
+                    if date_field in row and row[date_field]:
+                        try:
+                            from datetime import datetime
+                            date_obj = datetime.fromisoformat(str(row[date_field]).replace('Z', '+00:00'))
+                            period = date_obj.strftime('%Y-%m')  # Year-Month format
+                            date_periods.add(period)
+                        except:
+                            pass
             
-            elif chart_widget.chart_type == ChartType.SHADCN_BAR_HORIZONTAL and visualization_type == "top_performers":
-                # 🏆 Top Performers - Horizontal Bar Chart
-                name_key = data_columns_config.get('nameKey')
-                value_key = data_columns_config.get('dataKey')
-                
-                if name_key and value_key and len(chart_data) > 0:
-                    performance_data = []
-                    for row in chart_data:
-                        if name_key in row and value_key in row:
-                            name = str(row.get(name_key, 'Unknown'))
-                            value = row.get(value_key, 0)
-                            
-                            if isinstance(value, str):
-                                try:
-                                    value = float(value)
-                                except:
-                                    value = 0
-                            
-                            # Add performance categories
-                            if value >= 5:
-                                category = "🌟 Super Performer"
-                            elif value >= 3:
-                                category = "⭐ High Performer"
-                            elif value >= 1:
-                                category = "📈 Good Performer"
-                            else:
-                                category = "📊 Standard"
-                            
-                            performance_data.append({
-                                'name': name[:25],  # Truncate long names
-                                'value': value,
-                                'category': category,
-                                'performance_score': value * 10  # Scale for better visualization
-                            })
-                    
-                    # Sort by performance and take top performers
-                    result = sorted(performance_data, key=lambda x: x['value'], reverse=True)[:8]
-                    
-                    logger.info(f"✅ Generated {len(result)} top performers for {chart_widget.title}")
-                    return result
-            
-            elif chart_widget.chart_type == ChartType.SHADCN_RADAR_CHART and visualization_type == "multi_dimensional":
-                # 🕸️ Multi-Dimensional Analysis - Radar Chart
-                metrics = data_columns_config.get('metrics', [])
-                name_key = data_columns_config.get('nameKey', 'title')
-                
-                if metrics and len(metrics) >= 2 and len(chart_data) > 0:
-                    # Calculate radar metrics for each product
-                    radar_data = []
-                    
-                    # Get min/max for normalization
-                    metric_ranges = {}
-                    for metric in metrics:
-                        values = []
-                        for row in chart_data:
-                            if metric in row:
-                                val = row.get(metric, 0)
-                                if isinstance(val, (int, float)):
-                                    values.append(val)
-                                elif isinstance(val, str):
-                                    try:
-                                        values.append(float(val))
-                                    except:
-                                        pass
-                        if values:
-                            metric_ranges[metric] = {'min': min(values), 'max': max(values)}
-                    
-                    # Create radar points for top 3 products
-                    for i, row in enumerate(chart_data[:3]):
-                        if name_key in row:
-                            radar_point = {
-                                'product': str(row.get(name_key, f'Product {i+1}'))[:15],
-                                'values': []
-                            }
-                            
-                            for metric in metrics:
-                                if metric in row and metric in metric_ranges:
-                                    val = row.get(metric, 0)
-                                    if isinstance(val, str):
-                                        try:
-                                            val = float(val)
-                                        except:
-                                            val = 0
-                                    
-                                    # Normalize to 0-100 scale
-                                    min_val = metric_ranges[metric]['min']
-                                    max_val = metric_ranges[metric]['max']
-                                    if max_val > min_val:
-                                        normalized = ((val - min_val) / (max_val - min_val)) * 100
-                                    else:
-                                        normalized = 50
-                                    
-                                    radar_point['values'].append({
-                                        'axis': metric.replace('_', ' ').title(),
-                                        'value': round(normalized, 1),
-                                        'raw_value': val
-                                    })
-                            
-                            if radar_point['values']:
-                                radar_data.append(radar_point)
-                    
-                    logger.info(f"✅ Generated {len(radar_data)} radar profiles for {chart_widget.title}")
-                    return radar_data
-            
-            elif chart_widget.chart_type == ChartType.SHADCN_AREA_STACKED and visualization_type == "timeline_stacked":
-                # ⏰ Timeline Stacked - Area Chart
-                x_key = data_columns_config.get('xAxisKey')
-                category_key = data_columns_config.get('categoryKey')
-                
-                if x_key and category_key and len(chart_data) > 0:
-                    # Group by date and category
-                    timeline_data = {}
-                    
-                    for row in chart_data:
-                        if x_key in row and category_key in row:
-                            date_val = row.get(x_key)
-                            category = str(row.get(category_key, 'Unknown'))
-                            
-                            # Extract month-year from date
-                            try:
-                                if isinstance(date_val, str):
-                                    from datetime import datetime
-                                    date_obj = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
-                                    month_year = date_obj.strftime('%b %Y')
-                                else:
-                                    month_year = 'Unknown'
-                            except:
-                                month_year = 'Unknown'
-                            
-                            if month_year not in timeline_data:
-                                timeline_data[month_year] = {}
-                            
-                            timeline_data[month_year][category] = timeline_data[month_year].get(category, 0) + 1
-                    
-                    # Convert to stacked format
-                    result = []
-                    for month, categories in sorted(timeline_data.items()):
-                        data_point = {'name': month}
-                        total = sum(categories.values())
-                        
-                        for category, count in categories.items():
-                            data_point[category] = count
-                            data_point[f'{category}_percent'] = round((count / total) * 100, 1) if total > 0 else 0
-                        
-                        result.append(data_point)
-                    
-                    logger.info(f"✅ Generated {len(result)} timeline data points for {chart_widget.title}")
-                    return result[:6]  # Last 6 months
-            
-            elif chart_widget.chart_type == ChartType.SHADCN_DONUT_INTERACTIVE and visualization_type == "visual_breakdown":
-                # 📸 Visual Marketing Power - Interactive Donut
-                name_key = data_columns_config.get('nameKey')
-                value_key = data_columns_config.get('dataKey')
-                
-                if name_key and value_key and len(chart_data) > 0:
-                    # Create visual marketing categories
-                    visual_categories = {
-                        "📸 Visual Champions (5+ images)": 0,
-                        "📷 Good Coverage (3-4 images)": 0,
-                        "🖼️ Basic (1-2 images)": 0,
-                        "❌ No Images": 0
-                    }
-                    
-                    for row in chart_data:
-                        if value_key in row:
-                            images = row.get(value_key, 0)
-                            if isinstance(images, str):
-                                try:
-                                    images = int(images)
-                                except:
-                                    images = 0
-                            
-                            if images >= 5:
-                                visual_categories["📸 Visual Champions (5+ images)"] += 1
-                            elif images >= 3:
-                                visual_categories["📷 Good Coverage (3-4 images)"] += 1
-                            elif images >= 1:
-                                visual_categories["🖼️ Basic (1-2 images)"] += 1
-                            else:
-                                visual_categories["❌ No Images"] += 1
-                    
-                    # Convert to donut format
-                    total = sum(visual_categories.values())
-                    result = []
-                    colors = ["#10B981", "#F59E0B", "#EF4444", "#6B7280"]
-                    
-                    for i, (category, count) in enumerate(visual_categories.items()):
-                        if count > 0:
-                            result.append({
-                                'name': category,
-                                'value': count,
-                                'percentage': round((count / total) * 100, 1) if total > 0 else 0,
-                                'color': colors[i % len(colors)]
-                            })
-                    
-                    logger.info(f"✅ Generated {len(result)} visual marketing segments for {chart_widget.title}")
-                    return result
-            
-            elif chart_widget.chart_type == ChartType.SHADCN_MULTIPLE_AREA and visualization_type == "health_monitor":
-                # 💹 Business Health Monitor - Multi-Line Area
-                x_key = data_columns_config.get('xAxisKey')
-                metrics = data_columns_config.get('metrics', [])
-                
-                if x_key and metrics and len(chart_data) > 0:
-                    # Create health monitoring over time
-                    health_data = {}
-                    
-                    for row in chart_data:
-                        if x_key in row:
-                            date_val = row.get(x_key)
-                            
-                            # Extract date info
-                            try:
-                                if isinstance(date_val, str):
-                                    from datetime import datetime
-                                    date_obj = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
-                                    week = f"Week {date_obj.isocalendar()[1]}"
-                                else:
-                                    week = 'Unknown'
-                            except:
-                                week = 'Unknown'
-                            
-                            if week not in health_data:
-                                health_data[week] = {'count': 0}
-                                for metric in metrics:
-                                    health_data[week][metric] = 0
-                            
-                            health_data[week]['count'] += 1
-                            
-                            # Aggregate metrics
-                            for metric in metrics:
-                                if metric in row:
-                                    val = row.get(metric, 0)
-                                    if isinstance(val, str):
-                                        try:
-                                            val = float(val)
-                                        except:
-                                            val = 0
-                                    health_data[week][metric] += val
-                    
-                    # Convert to multi-line format
-                    result = []
-                    for week, data in sorted(health_data.items()):
-                        point = {'name': week}
-                        for metric in metrics:
-                            # Average per product in that week
-                            avg_val = data[metric] / max(data['count'], 1)
-                            point[metric] = round(avg_val, 2)
-                        result.append(point)
-                    
-                    logger.info(f"✅ Generated {len(result)} health monitor points for {chart_widget.title}")
-                    return result[:8]  # Last 8 weeks
-            
-            # Handle standard/fallback chart types that don't match the creative visualizations
-            elif chart_widget.chart_type in [ChartType.SHADCN_BAR_CHART, ChartType.SHADCN_LINE_CHART, ChartType.SHADCN_PIE_CHART]:
-                # 📊 Standard Charts - Fallback processing
-                if chart_widget.chart_type == ChartType.SHADCN_BAR_CHART:
-                    name_key = data_columns_config.get('nameKey')
-                    value_key = data_columns_config.get('dataKey', 'count')
-                    
-                    if name_key and len(chart_data) > 0:
-                        if value_key == 'count':
-                            # Count occurrences
-                            counts = {}
-                            for row in chart_data:
-                                if name_key in row:
-                                    key = str(row.get(name_key, 'Unknown'))[:25]
-                                    counts[key] = counts.get(key, 0) + 1
-                            
-                            result = [
-                                {'name': name, 'value': count}
-                                for name, count in sorted(counts.items(), key=lambda x: x[1], reverse=True)[:8]
-                            ]
-                        else:
-                            # Aggregate by value
-                            category_sums = {}
-                            for row in chart_data:
-                                if name_key in row and value_key in row:
-                                    category = str(row.get(name_key, 'Unknown'))[:25]
-                                    value = row.get(value_key, 0)
-                                    if isinstance(value, str):
-                                        try:
-                                            value = float(value)
-                                        except:
-                                            value = 1
-                                    category_sums[category] = category_sums.get(category, 0) + value
-                            
-                            result = [
-                                {'name': category, 'value': round(value, 2)}
-                                for category, value in sorted(category_sums.items(), key=lambda x: x[1], reverse=True)[:8]
-                            ]
-                        
-                        if result:
-                            logger.info(f"✅ Generated {len(result)} standard bar chart data for {chart_widget.title}")
-                            return result
-                
-                elif chart_widget.chart_type == ChartType.SHADCN_PIE_CHART:
-                    name_key = data_columns_config.get('nameKey')
-                    
-                    if name_key and len(chart_data) > 0:
-                        # Count occurrences for pie chart
-                        category_counts = {}
-                        for row in chart_data:
-                            if name_key in row:
-                                category = str(row.get(name_key, 'Unknown'))[:20]
-                                category_counts[category] = category_counts.get(category, 0) + 1
-                        
-                        # Convert to percentage
-                        total = sum(category_counts.values())
-                        result = [
-                            {
-                                'name': category,
-                                'value': count,
-                                'percentage': round((count / total) * 100, 1) if total > 0 else 0
-                            }
-                            for category, count in sorted(category_counts.items(), key=lambda x: x[1], reverse=True)[:6]
-                        ]
-                        
-                        if result:
-                            logger.info(f"✅ Generated {len(result)} standard pie chart data for {chart_widget.title}")
-                            return result
-                
-                elif chart_widget.chart_type == ChartType.SHADCN_LINE_CHART:
-                    x_key = data_columns_config.get('xAxisKey') or data_columns_config.get('nameKey')
-                    y_key = data_columns_config.get('dataKey')
-                    
-                    if x_key and y_key and len(chart_data) > 0:
-                        result = []
-                        for i, row in enumerate(chart_data):
-                            if x_key in row and y_key in row:
-                                x_val = row.get(x_key, f"Point {i+1}")
-                                y_val = row.get(y_key, 0)
-                                
-                                # Convert to proper format
-                                if isinstance(y_val, str):
-                                    try:
-                                        y_val = float(y_val)
-                                    except:
-                                        y_val = 0
-                                
-                                result.append({
-                                    'name': str(x_val)[:20],
-                                    'value': float(y_val) if isinstance(y_val, (int, float)) else 0
-                                })
-                        
-                        if result:
-                            logger.info(f"✅ Generated {len(result)} standard line chart data for {chart_widget.title}")
-                            return result[:12]
-            
-            logger.warning(f"❌ Could not generate chart data for {chart_widget.title}")
-            
-            # 🚨 FINAL EMERGENCY FALLBACK: Generate minimal working data to prevent blank charts
-            if len(chart_data) > 0:
-                emergency_data = []
-                for i, row in enumerate(chart_data[:5]):
-                    # Try to find any numeric value in the row
-                    numeric_value = None
-                    for key, value in row.items():
-                        if isinstance(value, (int, float)):
-                            numeric_value = value
-                            break
-                        elif isinstance(value, str):
-                            try:
-                                numeric_value = float(value)
-                                break
-                            except:
-                                continue
-                    
-                    emergency_data.append({
-                        'name': f"Data Point {i+1}",
-                        'value': numeric_value if numeric_value is not None else i + 1
+            # Create dropdown options based on data type and content
+            if len(date_periods) > 1:
+                # Time-based dropdown options
+                sorted_periods = sorted(list(date_periods))
+                dropdown_options = [
+                    {'value': 'all', 'label': 'All Time Periods'},
+                    {'value': 'recent', 'label': 'Recent Data'},
+                    {'value': 'custom', 'label': 'Custom Range'}
+                ]
+                # Add specific time periods
+                for period in sorted_periods[-6:]:  # Last 6 periods
+                    dropdown_options.append({
+                        'value': period, 
+                        'label': datetime.strptime(period, '%Y-%m').strftime('%B %Y')
                     })
+            elif len(unique_categories) > 1:
+                # Category-based dropdown options
+                sorted_categories = sorted(list(unique_categories))[:10]  # Top 10 categories
+                dropdown_options = [
+                    {'value': 'all', 'label': 'All Categories'},
+                    {'value': 'top5', 'label': 'Top 5 Categories'},
+                    {'value': 'comparison', 'label': 'Category Comparison'}
+                ]
+                # Add specific categories
+                for category in sorted_categories:
+                    dropdown_options.append({
+                        'value': category.lower().replace(' ', '_'), 
+                        'label': category
+                    })
+            else:
+                # Default dropdown options for any interactive chart
+                dropdown_options = [
+                    {'value': 'overview', 'label': 'Overview'},
+                    {'value': 'detailed', 'label': 'Detailed View'},
+                    {'value': 'summary', 'label': 'Summary'}
+                ]
+            
+            logger.info(f"🎛️ Generated {len(dropdown_options)} dropdown options for {chart_widget.title}")
+            
+            if data_key == "count":
+                # Count-based charts (pie, bar, etc.) - Group by category
+                category_counts = {}
+                for row in sample_data:
+                    if name_key in row and row[name_key]:
+                        # Use REAL financial labels
+                        category = str(row[name_key]).strip()
+                        if category and category != 'null' and category != 'None':
+                            category_counts[category] = category_counts.get(category, 0) + 1
                 
-                if emergency_data:
-                    logger.info(f"🚨 Generated {len(emergency_data)} emergency fallback data points for {chart_widget.title}")
-                    return emergency_data
+                # Convert to chart format with REAL data
+                color_index = 0
+                for category, count in sorted(category_counts.items(), key=lambda x: x[1], reverse=True)[:12]:
+                    result.append({
+                        'name': category,  # REAL trading symbol/exchange/broker name
+                        'value': count,
+                        'count': count,
+                        'desktop': count,
+                        'mobile': max(1, int(count * 0.85)),  # Realistic mobile data
+                        'visitors': count,
+                        'browser': category,
+                        'month': category,
+                        'fill': f"hsl(var(--chart-{(color_index % 5) + 1}))"
+                    })
+                    color_index += 1
+            else:
+                # Value-based charts using REAL financial values
+                # Group data by name_key and aggregate values
+                grouped_data = {}
+                for row in sample_data:
+                    if name_key in row and data_key in row and row[name_key] and row[data_key] is not None:
+                        category = str(row[name_key]).strip()
+                        if category and category != 'null' and category != 'None':
+                            data_val = row[data_key]
+                            
+                            # Convert to proper numeric value
+                            if isinstance(data_val, str):
+                                try:
+                                    data_val = float(data_val.replace('$', '').replace(',', ''))
+                                except:
+                                    continue  # Skip invalid data
+                            elif data_val is None:
+                                continue  # Skip null data
+                            
+                            # Aggregate values for the same category
+                            if category in grouped_data:
+                                grouped_data[category].append(float(data_val))
+                            else:
+                                grouped_data[category] = [float(data_val)]
+                
+                # Convert to chart format using aggregated REAL data
+                color_index = 0
+                for category, values in sorted(grouped_data.items(), key=lambda x: sum(x[1]), reverse=True)[:15]:
+                    # Use different aggregation based on data type
+                    if 'price' in data_key.lower():
+                        agg_value = sum(values) / len(values)  # Average price
+                    elif 'total_value' in data_key.lower() or 'amount' in data_key.lower():
+                        agg_value = sum(values)  # Total value
+                    else:
+                        agg_value = sum(values)  # Default to sum
+                    
+                    # Format the data properly for different chart types
+                    result.append({
+                        'name': category,  # REAL symbol/exchange/broker
+                        'value': round(agg_value, 2),
+                        'count': len(values),  # Number of trades
+                        'desktop': round(agg_value, 2),
+                        'mobile': round(agg_value * 0.8, 2),  # Realistic variation
+                        'visitors': round(agg_value, 2),
+                        'browser': category,
+                        'month': category,
+                        'total': round(agg_value, 2),
+                        'amount': round(agg_value, 2),
+                        'fill': f"hsl(var(--chart-{(color_index % 5) + 1}))"
+                    })
+                    color_index += 1
             
-            return []
+            # Validate result has meaningful data
+            if result and len(result) > 0:
+                # Remove any entries with zero or invalid values
+                valid_result = []
+                for item in result:
+                    if item.get('value', 0) > 0 and item.get('name', '').strip():
+                        valid_result.append(item)
+                
+                if valid_result:
+                    logger.info(f"✅ Generated {len(valid_result)} REAL financial data points for {chart_widget.title}")
+                    logger.info(f"📈 Sample data: {valid_result[0] if valid_result else 'None'}")
+                    return {
+                        'data': valid_result,
+                        'dropdown_options': dropdown_options,
+                        'chart_type': chart_widget.chart_type.value if hasattr(chart_widget.chart_type, 'value') else str(chart_widget.chart_type),
+                        'title': chart_widget.title,
+                        'subtitle': chart_widget.subtitle
+                    }
             
+            logger.warning(f"❌ No valid financial data generated for {chart_widget.title}")
+            return {'data': [], 'dropdown_options': dropdown_options}
+                
         except Exception as e:
-            logger.error(f"❌ Failed to generate real chart data for {chart_widget.title}: {str(e)}")
-            return []
+            logger.error(f"❌ Failed to generate financial chart data for {chart_widget.title}: {str(e)}")
+            return {'data': [], 'dropdown_options': []}
 
     # Remove all these methods that generated sample/fallback data:
     # - _create_sample_analysis (DELETE)

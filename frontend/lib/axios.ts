@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getCurrentToken, logout, isSuperadminRoute } from "./auth";
 
 const api = axios.create({
 	baseURL: process.env.NEXT_PUBLIC_API_URL
@@ -13,15 +14,7 @@ const api = axios.create({
 // Add request interceptor to add auth token if available
 api.interceptors.request.use(
 	(config) => {
-		// Check if we're on a superadmin page
-		const isSuperadminPage =
-			typeof window !== "undefined" &&
-			window.location.pathname.startsWith("/superadmin");
-
-		// Get appropriate token
-		const token = isSuperadminPage
-			? localStorage.getItem("superadmin_token")
-			: localStorage.getItem("access_token");
+		const token = getCurrentToken();
 
 		if (token) {
 			config.headers.Authorization = `Bearer ${token}`;
@@ -33,24 +26,32 @@ api.interceptors.request.use(
 	}
 );
 
-// Add response interceptor for better error handling
+// Add response interceptor for better error handling and session management
 api.interceptors.response.use(
 	(response) => {
 		return response;
 	},
 	(error) => {
-		// Handle network errors and timeouts gracefully
-		if (error.code === "ECONNABORTED") {
-			console.warn(
-				"Request timeout - server may be processing, will use fallback data"
-			);
-		} else if (error.code === "ERR_NETWORK") {
-			console.warn(
-				"Network error - server may be down, will use fallback data"
-			);
+		// Handle session expiration (401 Unauthorized)
+		if (error.response?.status === 401) {
+			// Only handle automatic logout if we're in the browser
+			if (typeof window !== "undefined") {
+				console.warn("Session expired - redirecting to login");
+				logout();
+				return Promise.reject(new Error("Session expired"));
+			}
 		}
 
-		// Don't reject the promise for certain errors, let components handle fallbacks
+		// Handle network errors and timeouts gracefully - NO FALLBACK DATA
+		if (error.code === "ECONNABORTED") {
+			console.warn(
+				"Request timeout - server may be processing, real data unavailable"
+			);
+		} else if (error.code === "ERR_NETWORK") {
+			console.warn("Network error - server may be down, real data unavailable");
+		}
+
+		// Reject the promise - components will handle empty data states
 		return Promise.reject(error);
 	}
 );
