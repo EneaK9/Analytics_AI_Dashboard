@@ -14,6 +14,7 @@ export type StatCardProps = {
   value: string;
   interval: string;
   trend: 'up' | 'down' | 'neutral';
+  trendValue?: string; // Optional: actual percentage like "-34.6%" or "+5.2%"
   data: number[];
 };
 
@@ -48,8 +49,18 @@ export default function StatCard({
   value,
   interval,
   trend,
+  trendValue,
   data,
 }: StatCardProps) {
+  
+  // DEBUG: Log what StatCard is receiving
+  console.log(`📊 StatCard "${title}" received:`, {
+    value,
+    trend,
+    trendValue: trendValue,
+    trendValueType: typeof trendValue,
+    interval
+  });
   const theme = useTheme();
   const daysInWeek = getDaysInMonth(4, 2024);
 
@@ -76,7 +87,12 @@ export default function StatCard({
 
   const color = labelColors[trend];
   const chartColor = trendColors[trend];
-  const trendValues = { up: '+25%', down: '-25%', neutral: '+5%' };
+  
+  // Use real trend value from backend if provided, otherwise fallback to defaults
+  const defaultTrendValues = { up: '+25%', down: '-25%', neutral: '+5%' };
+  const displayTrendValue = trendValue || defaultTrendValues[trend];
+  
+  console.log(`🎯 "${title}" - trendValue: "${trendValue}", displayTrendValue: "${displayTrendValue}"`);
 
   return (
     <Card variant="outlined" sx={{ height: '100%', flexGrow: 1 }}>
@@ -96,7 +112,7 @@ export default function StatCard({
               <Typography variant="h4" component="p">
                 {value}
               </Typography>
-              <Chip size="small" color={color} label={trendValues[trend]} />
+                              <Chip size="small" color={color} label={displayTrendValue} />
             </Stack>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               {interval}
