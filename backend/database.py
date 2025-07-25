@@ -243,10 +243,10 @@ class PerformanceOptimizedDatabaseManager:
             raise Exception(f"Database lookup failed: {str(e)}")
     
     async def batch_insert_client_data(self, table_name: str, data: List[Dict[str, Any]], client_id: str) -> int:
-        """High-performance batch insert with immediate processing for critical data"""
+        """High-performance batch insert with retry logic and exponential backoff for large datasets"""
         try:
             start_time = time.time()
-            logger.info(f"⚡ Fast batch insert: {len(data)} records to {table_name}")
+            logger.info(f"⚡ ENHANCED batch insert: {len(data)} records to {table_name}")
             
             # Prepare records with metadata
             records_to_insert = []
@@ -262,17 +262,70 @@ class PerformanceOptimizedDatabaseManager:
             # Use pooled admin client for faster processing
             client = self._get_pooled_admin_client()
             
-            # Split into smaller batches for optimal performance
-            batch_size = 100  # Optimal batch size for Supabase
+            # ENHANCED SETTINGS for large datasets
+            batch_size = 75  # Slightly smaller for better reliability
+            max_retries = 3
+            base_delay = 0.3
             total_inserted = 0
+            failed_batches = []
             
             for i in range(0, len(records_to_insert), batch_size):
                 batch = records_to_insert[i:i + batch_size]
-                response = client.table("client_data").insert(batch).execute()
+                batch_num = i // batch_size + 1
+                retry_count = 0
+                batch_inserted = False
                 
-                if response.data:
-                    total_inserted += len(response.data)
-                    logger.debug(f"📦 Batch {i//batch_size + 1}: {len(response.data)} records inserted")
+                while retry_count <= max_retries and not batch_inserted:
+                    try:
+                        # Add delay between batches to prevent overwhelming Supabase
+                        if i > 0:
+                            await asyncio.sleep(0.15)  # 150ms delay
+                        
+                        response = client.table("client_data").insert(batch).execute()
+                        
+                        if response.data:
+                            total_inserted += len(response.data)
+                            logger.debug(f"📦 Batch {batch_num}: {len(response.data)} records inserted")
+                            batch_inserted = True
+                        else:
+                            raise Exception("No data returned from insert")
+                            
+                    except Exception as batch_error:
+                        retry_count += 1
+                        error_msg = str(batch_error)
+                        
+                        if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                            if retry_count <= max_retries:
+                                delay = base_delay * (2 ** retry_count)
+                                logger.warning(f"⏱️ Batch {batch_num} timeout (attempt {retry_count}/{max_retries + 1}). Retrying in {delay}s...")
+                                await asyncio.sleep(delay)
+                            else:
+                                logger.error(f"❌ Batch {batch_num} failed after {max_retries + 1} attempts")
+                                failed_batches.append(batch)
+                                break
+                        else:
+                            logger.error(f"❌ Batch {batch_num} failed with error: {batch_error}")
+                            failed_batches.append(batch)
+                            break
+            
+            # Handle failed batches with smaller chunks
+            if failed_batches:
+                logger.info(f"🔄 Retrying {len(failed_batches)} failed batches with smaller chunks...")
+                small_batch_size = 25
+                
+                for failed_batch in failed_batches:
+                    for j in range(0, len(failed_batch), small_batch_size):
+                        small_batch = failed_batch[j:j + small_batch_size]
+                        try:
+                            await asyncio.sleep(0.4)  # Extra delay for problem batches
+                            response = client.table("client_data").insert(small_batch).execute()
+                            if response.data:
+                                total_inserted += len(response.data)
+                                logger.info(f"🔧 Recovered {len(response.data)} records")
+                        except Exception as final_error:
+                            logger.error(f"💥 Final batch attempt failed: {final_error}")
+                            # Skip this problematic batch rather than individual inserts
+                            continue
             
             # Invalidate cache for this client
             cache_key = self._cache_key("client_data", client_id)
@@ -283,7 +336,8 @@ class PerformanceOptimizedDatabaseManager:
                     del self.cache_ttl[cache_key]
             
             insert_time = time.time() - start_time
-            logger.info(f"⚡ Batch insert completed in {insert_time:.3f}s - {total_inserted}/{len(data)} records")
+            success_rate = (total_inserted / len(data)) * 100
+            logger.info(f"⚡ Enhanced batch insert completed in {insert_time:.3f}s - {total_inserted}/{len(data)} records ({success_rate:.1f}% success)")
             
             return total_inserted
             

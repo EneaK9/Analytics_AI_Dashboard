@@ -32,28 +32,7 @@ interface ShadcnBarLabelCustomProps {
 	minimal?: boolean;
 }
 
-const chartData = [
-	{ month: "January", desktop: 186, mobile: 80 },
-	{ month: "February", desktop: 305, mobile: 200 },
-	{ month: "March", desktop: 237, mobile: 120 },
-	{ month: "April", desktop: 73, mobile: 190 },
-	{ month: "May", desktop: 209, mobile: 130 },
-	{ month: "June", desktop: 214, mobile: 140 },
-];
-
-const chartConfig = {
-	desktop: {
-		label: "Desktop",
-		color: "var(--chart-2)",
-	},
-	mobile: {
-		label: "Mobile",
-		color: "var(--chart-2)",
-	},
-	label: {
-		color: "var(--background)",
-	},
-} satisfies ChartConfig;
+// NO HARDCODED DATA - All data comes from props
 
 const ShadcnBarLabelCustom: React.FC<ShadcnBarLabelCustomProps> = ({
 	data,
@@ -70,15 +49,28 @@ const ShadcnBarLabelCustom: React.FC<ShadcnBarLabelCustomProps> = ({
 		return data.slice(0, 6).map((item, index) => {
 			const month =
 				item.name || item.month || item.category || `Item ${index + 1}`;
-			const desktop =
+			const value =
 				item.value || item.desktop || item.amount || item.total || 0;
 
 			return {
 				month: month.toString().slice(0, 10), // Limit length
-				desktop: Number(desktop) || 0,
+				value: Number(value) || 0,
 			};
 		});
 	}, [data]);
+
+	// Generate dynamic chart config from real data
+	const chartConfig = React.useMemo(() => {
+		return {
+			value: {
+				label: "Value",
+				color: "var(--chart-2)",
+			},
+			label: {
+				color: "var(--background)",
+			},
+		};
+	}, []);
 
 	// Don't render if no data
 	if (processedData.length === 0) {
@@ -130,15 +122,15 @@ const ShadcnBarLabelCustom: React.FC<ShadcnBarLabelCustomProps> = ({
 							tickFormatter={(value) => value.slice(0, 3)}
 							hide
 						/>
-						<XAxis dataKey="desktop" type="number" hide />
+						<XAxis dataKey="value" type="number" hide />
 						<ChartTooltip
 							cursor={false}
 							content={<ChartTooltipContent indicator="line" />}
 						/>
 						<Bar
-							dataKey="desktop"
+							dataKey="value"
 							layout="vertical"
-							fill="var(--color-desktop)"
+							fill="var(--chart-2)"
 							radius={4}>
 							<LabelList
 								dataKey="month"
@@ -148,7 +140,7 @@ const ShadcnBarLabelCustom: React.FC<ShadcnBarLabelCustomProps> = ({
 								fontSize={12}
 							/>
 							<LabelList
-								dataKey="desktop"
+								dataKey="value"
 								position="right"
 								offset={8}
 								className="fill-foreground"

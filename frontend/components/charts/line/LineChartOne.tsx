@@ -1,12 +1,91 @@
 "use client";
 
+import React from "react";
 import dynamic from "next/dynamic";
 import { ApexOptions } from "apexcharts";
 
 // Dynamic import to prevent SSR issues
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
-export default function LineChartOne() {
+interface LineChartOneProps {
+	data?: any[];
+	title?: string;
+	description?: string;
+	minimal?: boolean;
+}
+
+export default function LineChartOne({
+	data = [],
+	title = "Line Chart",
+	description = "ApexCharts line chart with real data",
+	minimal = false,
+}: LineChartOneProps) {
+	// Process real data for ApexCharts format
+	const { categories, seriesData } = React.useMemo(() => {
+		if (!data || data.length === 0) {
+			// Use original fallback data if no real data
+			const fallbackCategories = [
+				"Jan",
+				"Feb",
+				"Mar",
+				"Apr",
+				"May",
+				"Jun",
+				"Jul",
+				"Aug",
+				"Sep",
+				"Oct",
+				"Nov",
+				"Dec",
+			];
+			const fallbackSalesData = [
+				180, 190, 170, 160, 175, 165, 170, 205, 230, 210, 240, 235,
+			];
+			const fallbackRevenueData = [
+				40, 30, 50, 40, 55, 40, 70, 100, 110, 120, 150, 140,
+			];
+			return {
+				categories: fallbackCategories,
+				seriesData: [
+					{ name: "Sales", data: fallbackSalesData },
+					{ name: "Revenue", data: fallbackRevenueData },
+				],
+			};
+		}
+
+		// Transform real data for ApexCharts
+		const processedCategories = data
+			.slice(0, 12)
+			.map(
+				(item, index) =>
+					item.name ||
+					item.category ||
+					item.symbol ||
+					item.month ||
+					`Item ${index + 1}`
+			);
+
+		const salesData = data
+			.slice(0, 12)
+			.map((item) => item.value || item.sales || item.count || item.total || 0);
+
+		const revenueData = data
+			.slice(0, 12)
+			.map((item) =>
+				Math.round(
+					(item.value || item.sales || item.count || item.total || 0) * 0.6
+				)
+			);
+
+		return {
+			categories: processedCategories,
+			seriesData: [
+				{ name: "Primary", data: salesData },
+				{ name: "Secondary", data: revenueData },
+			],
+		};
+	}, [data]);
+
 	const options: ApexOptions = {
 		legend: {
 			show: false, // Hide legend
@@ -26,7 +105,6 @@ export default function LineChartOne() {
 			curve: "straight", // Define the line style (straight, smooth, or step)
 			width: [2, 2], // Line width for each dataset
 		},
-
 		fill: {
 			type: "gradient",
 			gradient: {
@@ -65,20 +143,7 @@ export default function LineChartOne() {
 		},
 		xaxis: {
 			type: "category", // Category-based x-axis
-			categories: [
-				"Jan",
-				"Feb",
-				"Mar",
-				"Apr",
-				"May",
-				"Jun",
-				"Jul",
-				"Aug",
-				"Sep",
-				"Oct",
-				"Nov",
-				"Dec",
-			],
+			categories: categories,
 			axisBorder: {
 				show: false, // Hide x-axis border
 			},
@@ -105,21 +170,23 @@ export default function LineChartOne() {
 		},
 	};
 
-	const series = [
-		{
-			name: "Sales",
-			data: [180, 190, 170, 160, 175, 165, 170, 205, 230, 210, 240, 235],
-		},
-		{
-			name: "Revenue",
-			data: [40, 30, 50, 40, 55, 40, 70, 100, 110, 120, 150, 140],
-		},
-	];
-
 	return (
-		<div className="max-w-full overflow-x-auto">
-			<div id="chartEight" className="min-w-[1000px]">
-				<Chart options={options} series={series} type="area" height={310} />
+		<div className="w-full h-full">
+			{!minimal && (
+				<div className="mb-4">
+					<h3 className="text-lg font-semibold">{title}</h3>
+					<p className="text-sm text-muted-foreground">{description}</p>
+				</div>
+			)}
+			<div className="max-w-full overflow-x-auto">
+				<div id="chartEight" className="min-w-[1000px]">
+					<Chart
+						options={options}
+						series={seriesData}
+						type="area"
+						height={310}
+					/>
+				</div>
 			</div>
 		</div>
 	);

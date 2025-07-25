@@ -22,6 +22,26 @@ const ShadcnRadarFilled: React.FC<ShadcnRadarFilledProps> = ({
 	description = "Filled radar chart with grid",
 	minimal = false,
 }) => {
+	// Transform real data to match original structure EXACTLY
+	const chartData = React.useMemo(() => {
+		if (!data || data.length === 0) {
+			// Use original fallback data with EXACT same structure if no real data
+			return [
+				{ month: "January", desktop: 186 },
+				{ month: "February", desktop: 305 },
+				{ month: "March", desktop: 237 },
+				{ month: "April", desktop: 73 },
+				{ month: "May", desktop: 209 },
+				{ month: "June", desktop: 214 },
+			];
+		}
+		// Transform real data to match original structure
+		return data.slice(0, 6).map((item, index) => ({
+			month: item.name || item.category || item.symbol || `Month ${index + 1}`,
+			desktop: item.value || item.desktop || item.count || item.total || 0,
+		}));
+	}, [data]);
+
 	return (
 		<div className="w-full h-full">
 			{!minimal && (
@@ -31,7 +51,7 @@ const ShadcnRadarFilled: React.FC<ShadcnRadarFilledProps> = ({
 				</div>
 			)}
 			<ResponsiveContainer width="100%" height="100%">
-				<RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+				<RadarChart cx="50%" cy="50%" outerRadius="80%" data={chartData}>
 					<PolarGrid gridType="polygon" />
 					<PolarAngleAxis dataKey="month" />
 					<PolarRadiusAxis angle={0} domain={[0, "dataMax"]} />

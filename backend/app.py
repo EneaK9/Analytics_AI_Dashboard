@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, Form, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 import os
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import logging
 import json
 import asyncio
@@ -12,6 +12,9 @@ import uuid
 import bcrypt
 import jwt
 import pandas as pd
+from contextlib import asynccontextmanager
+import time
+import traceback
 
 # Import our custom modules
 from models import *
@@ -484,29 +487,36 @@ async def create_client_superadmin(
                                     "data": clean_record  # Store as JSON object
                                 })
                             
-                            # UNIVERSAL BATCH INSERT for ALL formats
+                            # OPTIMIZED BATCH INSERT for ALL formats with retry logic
                             if batch_rows:
-                                logger.info(f"🚀 BATCH inserting {len(batch_rows)} {data_type.upper()} rows as JSON")
-                                chunk_size = 1000
-                                total_inserted = 0
-                                
-                                for i in range(0, len(batch_rows), chunk_size):
-                                    chunk = batch_rows[i:i + chunk_size]
-                                    try:
-                                        db_client.table("client_data").insert(chunk).execute()
-                                        total_inserted += len(chunk)
-                                        logger.info(f"⚡ {data_type.upper()} CHUNK {i//chunk_size + 1}: {len(chunk)} rows inserted!")
-                                    except Exception as chunk_error:
-                                        logger.warning(f"{data_type.upper()} chunk failed: {chunk_error}")
-                                        # Fallback to individual inserts
-                                        for row in chunk:
-                                            try:
-                                                db_client.table("client_data").insert(row).execute()
-                                                total_inserted += 1
-                                            except:
-                                                pass
-                                
+                                total_inserted = await improved_batch_insert(db_client, batch_rows, data_type)
                                 logger.info(f"🚀 TOTAL {data_type.upper()}: {total_inserted} rows inserted successfully!")
+                                
+                                # 📊 PERFORMANCE MONITORING for large datasets
+                                if len(parsed_records) > 10000:  # Track performance for large uploads
+                                    success_rate = (total_inserted/len(parsed_records)*100)
+                                    logger.info(f"📊 LARGE DATASET PERFORMANCE REPORT:")
+                                    logger.info(f"   📋 Dataset: {len(parsed_records)} total records")
+                                    logger.info(f"   ✅ Inserted: {total_inserted} records")
+                                    logger.info(f"   📈 Success Rate: {success_rate:.1f}%")
+                                    logger.info(f"   ⏱️  Processing: Optimized chunking with retry logic")
+                                    logger.info(f"   🎯 Client: {email}")
+                                    
+                                    # Record performance metrics for monitoring
+                                    try:
+                                        db_client.table("performance_metrics").insert({
+                                            "client_id": client_id,
+                                            "operation_type": "large_csv_upload",
+                                            "total_records": len(parsed_records),
+                                            "records_inserted": total_inserted,
+                                            "success_rate": round(success_rate, 2),
+                                            "data_type": data_type,
+                                            "timestamp": datetime.utcnow().isoformat()
+                                        }).execute()
+                                        logger.info(f"📊 Performance metrics recorded for {email}")
+                                    except Exception as metrics_error:
+                                        logger.warning(f"⚠️ Could not record performance metrics: {metrics_error}")
+                                
                         else:
                             raise ValueError(f"{data_type.upper()} parsing returned no records")
                             
@@ -867,24 +877,10 @@ async def create_client_with_api_integration(
                             "data": record
                         })
                     
-                    # Batch insert data
+                    # Optimized batch insert data with retry logic
                     if batch_rows:
-                        chunk_size = 1000
-                        for i in range(0, len(batch_rows), chunk_size):
-                            chunk = batch_rows[i:i + chunk_size]
-                            try:
-                                db_client.table("client_data").insert(chunk).execute()
-                                total_records += len(chunk)
-                                logger.info(f"⚡ {platform_type.upper()} {data_type}: {len(chunk)} records inserted!")
-                            except Exception as chunk_error:
-                                logger.warning(f"⚠️ Chunk insert failed: {chunk_error}")
-                                # Try individual inserts as fallback
-                                for row in chunk:
-                                    try:
-                                        db_client.table("client_data").insert(row).execute()
-                                        total_records += 1
-                                    except:
-                                        pass
+                        inserted_count = await improved_batch_insert(db_client, batch_rows, f"{platform_type}_{data_type}")
+                        total_records += inserted_count
             
             # Update API credentials status to connected
             from datetime import datetime, timedelta
@@ -1284,6 +1280,120 @@ async def generate_dashboard(request: DashboardGenerationRequest, token: str = D
     except Exception as e:
         logger.error(f"❌ Dashboard generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Dashboard generation failed: {str(e)}")
+
+@app.post("/api/dashboard/generate-template")
+async def generate_template_dashboard(
+    template_type: str,
+    force_regenerate: bool = False,
+    token: str = Depends(security)
+):
+    """Generate a simple template-based dashboard - just return client data"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        client_id = str(token_data.client_id)
+        
+        logger.info(f"🎨 Getting data for {template_type} dashboard for client {client_id}")
+        
+        # Get client data from database
+        db_client = get_admin_client()
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        # Get client data
+        data_response = db_client.table("client_data").select("data").eq("client_id", client_id).limit(100).execute()
+        
+        client_data = []
+        if data_response.data:
+            for record in data_response.data:
+                try:
+                    if isinstance(record['data'], dict):
+                        client_data.append(record['data'])
+                    elif isinstance(record['data'], str):
+                        import json
+                        client_data.append(json.loads(record['data']))
+                except:
+                    continue
+        
+        # Get data columns for analysis
+        data_columns = []
+        if client_data:
+            data_columns = list(client_data[0].keys())
+        
+        logger.info(f"✅ Found {len(client_data)} records with {len(data_columns)} columns for {template_type}")
+        
+        return {
+            "success": True,
+            "template_type": template_type,
+            "client_data": client_data,
+            "data_columns": data_columns,
+            "total_records": len(client_data),
+            "message": f"Data retrieved for {template_type} template"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Template data retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Template data retrieval failed: {str(e)}")
+
+@app.get("/api/dashboard/templates")
+async def get_available_templates(token: str = Depends(security)):
+    """Get available dashboard templates for the authenticated client"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        client_id = str(token_data.client_id)
+        
+        logger.info(f"📋 Getting available templates for client {client_id}")
+        
+        # Get client data to determine best templates
+        db_client = get_admin_client()
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        # Get client data columns
+        data_response = db_client.table("client_data").select("data").eq("client_id", client_id).limit(1).execute()
+        
+        data_columns = []
+        if data_response.data:
+            try:
+                sample_data = data_response.data[0]['data']
+                if isinstance(sample_data, dict):
+                    data_columns = list(sample_data.keys())
+                elif isinstance(sample_data, str):
+                    import json
+                    parsed_data = json.loads(sample_data)
+                    data_columns = list(parsed_data.keys())
+            except:
+                pass
+        
+        # Import dashboard orchestrator to get templates
+        from dashboard_orchestrator import dashboard_orchestrator
+        
+        # Get available templates
+        available_templates = dashboard_orchestrator.get_available_templates()
+        
+        # Get recommended template
+        recommended_template = dashboard_orchestrator.detect_recommended_template(
+            data_columns, 
+            business_context=None
+        )
+        
+        logger.info(f"✅ Found {len(available_templates)} templates, recommended: {recommended_template}")
+        
+        return {
+            "available_templates": available_templates,
+            "recommended_template": recommended_template,
+            "client_data_columns": data_columns,
+            "total_templates": len(available_templates)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get available templates: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get available templates: {str(e)}")
 
 @app.get("/api/dashboard/config")
 async def get_dashboard_config(token: str = Depends(security)):
@@ -2984,6 +3094,95 @@ async def debug_auth(token: str = Depends(security)):
         }
 
 # ==================== DASHBOARD CONFIG ENDPOINTS ====================
+
+# Add improved batch processing function
+async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: str = "DATA") -> int:
+    """
+    Improved batch insert with smaller chunks, retry logic, and exponential backoff
+    Specifically optimized for Supabase and large datasets
+    """
+    if not batch_rows:
+        return 0
+    
+    logger.info(f"🚀 OPTIMIZED BATCH inserting {len(batch_rows)} {data_type.upper()} rows")
+    
+    # OPTIMIZED SETTINGS for Supabase
+    chunk_size = 100  # Reduced from 1000 - optimal for Supabase
+    max_retries = 3
+    base_delay = 0.5  # Start with 500ms delay
+    total_inserted = 0
+    failed_chunks = []
+    
+    for i in range(0, len(batch_rows), chunk_size):
+        chunk = batch_rows[i:i + chunk_size]
+        chunk_num = i // chunk_size + 1
+        retry_count = 0
+        chunk_inserted = False
+        
+        while retry_count <= max_retries and not chunk_inserted:
+            try:
+                # Add small delay between chunks to avoid overwhelming Supabase
+                if i > 0:  # Skip delay for first chunk
+                    await asyncio.sleep(0.2)  # 200ms delay between chunks
+                
+                response = db_client.table("client_data").insert(chunk).execute()
+                
+                if response.data:
+                    total_inserted += len(response.data)
+                    logger.info(f"⚡ {data_type.upper()} CHUNK {chunk_num}: {len(response.data)} rows inserted!")
+                    chunk_inserted = True
+                else:
+                    raise Exception("No data returned from insert")
+                    
+            except Exception as chunk_error:
+                retry_count += 1
+                error_msg = str(chunk_error)
+                
+                if "timed out" in error_msg.lower() or "timeout" in error_msg.lower():
+                    if retry_count <= max_retries:
+                        # Exponential backoff for timeouts
+                        delay = base_delay * (2 ** retry_count)
+                        logger.warning(f"⏱️ {data_type.upper()} chunk {chunk_num} timeout (attempt {retry_count}/{max_retries + 1}). Retrying in {delay}s...")
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(f"❌ {data_type.upper()} chunk {chunk_num} failed after {max_retries + 1} attempts: {chunk_error}")
+                        failed_chunks.append(chunk)
+                        break
+                else:
+                    # Non-timeout error - don't retry
+                    logger.error(f"❌ {data_type.upper()} chunk {chunk_num} failed with non-timeout error: {chunk_error}")
+                    failed_chunks.append(chunk)
+                    break
+    
+    # Handle failed chunks with smaller batch sizes
+    if failed_chunks:
+        logger.info(f"🔄 Retrying {len(failed_chunks)} failed chunks with smaller batches...")
+        small_chunk_size = 20  # Even smaller for problem chunks
+        
+        for failed_chunk in failed_chunks:
+            for j in range(0, len(failed_chunk), small_chunk_size):
+                small_chunk = failed_chunk[j:j + small_chunk_size]
+                try:
+                    await asyncio.sleep(0.5)  # Extra delay for problem data
+                    response = db_client.table("client_data").insert(small_chunk).execute()
+                    if response.data:
+                        total_inserted += len(response.data)
+                        logger.info(f"🔧 Recovered {len(response.data)} rows with smaller batch")
+                except Exception as final_error:
+                    logger.error(f"💥 Final attempt failed for {len(small_chunk)} rows: {final_error}")
+                    # Last resort: individual inserts with delays
+                    for row in small_chunk:
+                        try:
+                            await asyncio.sleep(0.1)  # 100ms between individual inserts
+                            db_client.table("client_data").insert(row).execute()
+                            total_inserted += 1
+                        except:
+                            continue  # Skip problematic individual rows
+    
+    success_rate = (total_inserted / len(batch_rows)) * 100
+    logger.info(f"🎯 BATCH COMPLETE: {total_inserted}/{len(batch_rows)} rows inserted ({success_rate:.1f}% success)")
+    
+    return total_inserted
 
 
 if __name__ == "__main__":

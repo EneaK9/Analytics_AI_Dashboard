@@ -1,5 +1,5 @@
 "use client";
-
+import React from "react";
 import { TrendingUp } from "lucide-react";
 import { Pie, PieChart } from "recharts";
 
@@ -25,39 +25,7 @@ interface ShadcnPieSimpleProps {
 	minimal?: boolean;
 }
 
-const chartData = [
-	{ browser: "chrome", visitors: 275, fill: "var(--color-chrome)" },
-	{ browser: "safari", visitors: 200, fill: "var(--color-safari)" },
-	{ browser: "firefox", visitors: 187, fill: "var(--color-firefox)" },
-	{ browser: "edge", visitors: 173, fill: "var(--color-edge)" },
-	{ browser: "other", visitors: 90, fill: "var(--color-other)" },
-];
-
-const chartConfig = {
-	visitors: {
-		label: "Visitors",
-	},
-	chrome: {
-		label: "Chrome",
-		color: "var(--chart-1)",
-	},
-	safari: {
-		label: "Safari",
-		color: "var(--chart-2)",
-	},
-	firefox: {
-		label: "Firefox",
-		color: "var(--chart-3)",
-	},
-	edge: {
-		label: "Edge",
-		color: "var(--chart-4)",
-	},
-	other: {
-		label: "Other",
-		color: "var(--chart-5)",
-	},
-} satisfies ChartConfig;
+// NO HARDCODED DATA - All data comes from props
 
 const ShadcnPieSimple: React.FC<ShadcnPieSimpleProps> = ({
 	data,
@@ -65,22 +33,50 @@ const ShadcnPieSimple: React.FC<ShadcnPieSimpleProps> = ({
 	description = "January - June 2024",
 	minimal = false,
 }) => {
-	// Use real data instead of hardcoded chartData
+	// Process REAL data only
 	const processedData = React.useMemo(() => {
 		if (!data || data.length === 0) {
 			return [];
 		}
 
-		const browsers = ["chrome", "safari", "firefox", "edge", "other"];
-		return data.slice(0, 5).map((item, index) => {
-			const browser = browsers[index] || `browser${index}`;
-			return {
-				browser,
-				visitors: item.value || item.visitors || item.desktop || 0,
-				fill: `var(--chart-${(index % 5) + 1})`,
+		return data
+			.slice(0, 5)
+			.map((item: any, index: number) => {
+				const nameValue =
+					item.name || item.category || item.symbol || `Item ${index + 1}`;
+				const dataValue =
+					Number(item.value) ||
+					Number(item.visitors) ||
+					Number(item.count) ||
+					Number(item.total) ||
+					0;
+
+				return {
+					name: nameValue,
+					value: dataValue,
+					fill: item.fill || `var(--chart-${(index % 5) + 1})`,
+				};
+			})
+			.filter((item) => item.value > 0);
+	}, [data]);
+
+	// Generate dynamic chart config from real data
+	const chartConfig = React.useMemo(() => {
+		const config: any = {
+			value: {
+				label: "Value",
+			},
+		};
+
+		processedData.forEach((item: any, index: number) => {
+			config[item.name] = {
+				label: item.name,
+				color: `var(--chart-${(index % 5) + 1})`,
 			};
 		});
-	}, [data]);
+
+		return config;
+	}, [processedData]);
 
 	// Don't render if no data
 	if (processedData.length === 0) {
@@ -118,7 +114,7 @@ const ShadcnPieSimple: React.FC<ShadcnPieSimpleProps> = ({
 							cursor={false}
 							content={<ChartTooltipContent hideLabel />}
 						/>
-						<Pie data={processedData} dataKey="visitors" nameKey="browser" />
+						<Pie data={processedData} dataKey="value" nameKey="name" />
 					</PieChart>
 				</ChartContainer>
 			</CardContent>

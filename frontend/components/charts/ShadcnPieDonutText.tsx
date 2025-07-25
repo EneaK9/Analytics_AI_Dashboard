@@ -26,39 +26,7 @@ interface ShadcnPieDonutTextProps {
 	minimal?: boolean;
 }
 
-const chartData = [
-	{ browser: "chrome", visitors: 275, fill: "var(--color-chrome)" },
-	{ browser: "safari", visitors: 200, fill: "var(--color-safari)" },
-	{ browser: "firefox", visitors: 287, fill: "var(--color-firefox)" },
-	{ browser: "edge", visitors: 173, fill: "var(--color-edge)" },
-	{ browser: "other", visitors: 190, fill: "var(--color-other)" },
-];
-
-const chartConfig = {
-	visitors: {
-		label: "Visitors",
-	},
-	chrome: {
-		label: "Chrome",
-		color: "var(--chart-1)",
-	},
-	safari: {
-		label: "Safari",
-		color: "var(--chart-2)",
-	},
-	firefox: {
-		label: "Firefox",
-		color: "var(--chart-3)",
-	},
-	edge: {
-		label: "Edge",
-		color: "var(--chart-4)",
-	},
-	other: {
-		label: "Other",
-		color: "var(--chart-5)",
-	},
-} satisfies ChartConfig;
+// NO HARDCODED DATA - All data comes from props
 
 const ShadcnPieDonutText: React.FC<ShadcnPieDonutTextProps> = ({
 	data,
@@ -66,13 +34,69 @@ const ShadcnPieDonutText: React.FC<ShadcnPieDonutTextProps> = ({
 	description = "January - June 2024",
 	minimal = false,
 }) => {
-	const totalVisitors = React.useMemo(() => {
-		return chartData.reduce((acc, curr) => acc + curr.visitors, 0);
-	}, []);
+	// Process REAL data only
+	const chartData = React.useMemo(() => {
+		if (!data || data.length === 0) {
+			return [];
+		}
+
+		return data
+			.slice(0, 5)
+			.map((item: any, index: number) => {
+				const nameValue =
+					item.name || item.category || item.symbol || `Item ${index + 1}`;
+				const dataValue =
+					Number(item.value) ||
+					Number(item.visitors) ||
+					Number(item.count) ||
+					Number(item.total) ||
+					0;
+
+				return {
+					name: nameValue,
+					value: dataValue,
+					fill: item.fill || `var(--chart-${(index % 5) + 1})`,
+				};
+			})
+			.filter((item) => item.value > 0);
+	}, [data]);
+
+	// Generate dynamic chart config from real data
+	const chartConfig = React.useMemo(() => {
+		const config: any = {
+			value: {
+				label: "Value",
+			},
+		};
+
+		chartData.forEach((item: any, index: number) => {
+			config[item.name] = {
+				label: item.name,
+				color: `var(--chart-${(index % 5) + 1})`,
+			};
+		});
+
+		return config;
+	}, [chartData]);
+
+	const totalValue = React.useMemo(() => {
+		return chartData.reduce((acc, curr) => acc + curr.value, 0);
+	}, [chartData]);
+
+	if (chartData.length === 0) {
+		return (
+			<Card className="flex flex-col">
+				<CardContent className="flex-1 pb-0">
+					<div className="flex items-center justify-center h-[250px] text-muted-foreground">
+						No data available
+					</div>
+				</CardContent>
+			</Card>
+		);
+	}
 
 	return (
 		<Card className="flex flex-col">
-			
 			<CardContent className="flex-1 pb-0">
 				<ChartContainer
 					config={chartConfig}
@@ -84,8 +108,8 @@ const ShadcnPieDonutText: React.FC<ShadcnPieDonutTextProps> = ({
 						/>
 						<Pie
 							data={chartData}
-							dataKey="visitors"
-							nameKey="browser"
+							dataKey="value"
+							nameKey="name"
 							innerRadius={60}
 							strokeWidth={5}>
 							<Label
@@ -101,13 +125,13 @@ const ShadcnPieDonutText: React.FC<ShadcnPieDonutTextProps> = ({
 													x={viewBox.cx}
 													y={viewBox.cy}
 													className="fill-foreground text-3xl font-bold">
-													{totalVisitors.toLocaleString()}
+													{totalValue.toLocaleString()}
 												</tspan>
 												<tspan
 													x={viewBox.cx}
 													y={(viewBox.cy || 0) + 24}
 													className="fill-muted-foreground">
-													Visitors
+													Total
 												</tspan>
 											</text>
 										);

@@ -14,31 +14,7 @@ interface ShadcnBarMixedProps {
 	minimal?: boolean;
 }
 
-const chartConfig = {
-	visitors: {
-		label: "Visitors",
-	},
-	chrome: {
-		label: "Chrome",
-		color: "hsl(var(--chart-1))",
-	},
-	safari: {
-		label: "Safari",
-		color: "hsl(var(--chart-2))",
-	},
-	firefox: {
-		label: "Firefox",
-		color: "hsl(var(--chart-3))",
-	},
-	edge: {
-		label: "Edge",
-		color: "hsl(var(--chart-4))",
-	},
-	other: {
-		label: "Other",
-		color: "hsl(var(--chart-5))",
-	},
-} satisfies ChartConfig;
+// NO HARDCODED DATA - All data comes from props
 
 const ShadcnBarMixed: React.FC<ShadcnBarMixedProps> = ({
 	data,
@@ -46,16 +22,70 @@ const ShadcnBarMixed: React.FC<ShadcnBarMixedProps> = ({
 	description = "Mixed orientation bar chart",
 	minimal = false,
 }) => {
-	// Transform data to match Shadcn format with fill colors
-	const chartData = data.slice(0, 5).map((item, index) => {
-		const browsers = ["chrome", "safari", "firefox", "edge", "other"];
-		const browser = browsers[index];
-		return {
-			browser,
-			visitors: item.value || item.visitors || 0,
-			fill: `hsl(var(--chart-${index + 1}))`,
+	// Process REAL data only
+	const chartData = React.useMemo(() => {
+		if (!data || data.length === 0) {
+			return []; // Return empty array if no real data
+		}
+
+		return data
+			.slice(0, 5)
+			.map((item: any, index: number) => {
+				const nameValue =
+					item.name ||
+					item.category ||
+					item.symbol ||
+					item.browser ||
+					`Item ${index + 1}`;
+				const dataValue =
+					Number(item.value) ||
+					Number(item.visitors) ||
+					Number(item.count) ||
+					Number(item.total) ||
+					0;
+
+				return {
+					name: nameValue,
+					value: dataValue,
+					fill: item.fill || `hsl(var(--chart-${(index % 5) + 1}))`,
+				};
+			})
+			.filter((item) => item.value > 0);
+	}, [data]);
+
+	// Generate dynamic chart config from real data
+	const chartConfig = React.useMemo(() => {
+		const config: any = {
+			value: {
+				label: "Value",
+			},
 		};
-	});
+
+		chartData.forEach((item: any, index: number) => {
+			config[item.name] = {
+				label: item.name,
+				color: `hsl(var(--chart-${(index % 5) + 1}))`,
+			};
+		});
+
+		return config;
+	}, [chartData]);
+
+	if (chartData.length === 0) {
+		return (
+			<div className="w-full h-full">
+				{!minimal && (
+					<div className="mb-4">
+						<h3 className="text-lg font-semibold">{title}</h3>
+						<p className="text-sm text-muted-foreground">{description}</p>
+					</div>
+				)}
+				<div className="flex items-center justify-center h-[300px] text-muted-foreground">
+					No data available
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="w-full h-full">
@@ -74,21 +104,21 @@ const ShadcnBarMixed: React.FC<ShadcnBarMixedProps> = ({
 						left: 0,
 					}}>
 					<YAxis
-						dataKey="browser"
+						dataKey="name"
 						type="category"
 						tickLine={false}
 						tickMargin={10}
 						axisLine={false}
 						tickFormatter={(value) =>
-							chartConfig[value as keyof typeof chartConfig]?.label
+							chartConfig[value as keyof typeof chartConfig]?.label || value
 						}
 					/>
-					<XAxis dataKey="visitors" type="number" hide />
+					<XAxis dataKey="value" type="number" hide />
 					<ChartTooltip
 						cursor={false}
 						content={<ChartTooltipContent hideLabel />}
 					/>
-					<Bar dataKey="visitors" layout="vertical" radius={5} />
+					<Bar dataKey="value" layout="vertical" radius={5} />
 				</BarChart>
 			</ChartContainer>
 		</div>

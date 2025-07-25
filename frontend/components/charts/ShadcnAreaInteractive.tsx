@@ -58,69 +58,125 @@ const ShadcnAreaInteractive: React.FC<ShadcnAreaInteractiveProps> = ({
 	height = 300,
 	showSelector = true,
 }) => {
-	// Use backend dropdown options or fallback to default options
-	const availableOptions =
-		dropdown_options.length > 0
-			? dropdown_options
-			: [
-					{ value: "3months", label: "Last 3 months" },
-					{ value: "6months", label: "Last 6 months" },
-					{ value: "1year", label: "Last year" },
-			  ];
+	// REAL DATA ONLY - Use backend dropdown options
+	const availableOptions = dropdown_options.length > 0 ? dropdown_options : [];
 
 	const [timeRange, setTimeRange] = useState(
-		availableOptions[0]?.value || "3months"
+		availableOptions[0]?.value || "all"
 	);
 
-	// Process real data
-	const chartData =
-		data.length > 0
-			? data.slice(0, 20).map((item, index) => {
-					const xValue =
-						item[xAxisKey] ||
-						item["date"] ||
-						item["month"] ||
-						item["time"] ||
-						`Point ${index + 1}`;
+	// Process and filter REAL DATA based on dropdown selection
+	const chartData = React.useMemo(() => {
+		if (!data || data.length === 0) {
+			return []; // NO FALLBACK DATA - Return empty if no real data
+		}
 
-					const value1 =
-						Number(item[dataKey1]) ||
-						Number(item["mobile"]) ||
-						Number(item["value1"]) ||
-						Math.random() * 100 + 50;
+		let filteredData = [...data];
 
-					const value2 =
-						Number(item[dataKey2]) ||
-						Number(item["desktop"]) ||
-						Number(item["value2"]) ||
-						Math.random() * 80 + 30;
+		// Apply dropdown filter if available
+		if (timeRange && timeRange !== "all" && timeRange !== "overview") {
+			// Filter data based on dropdown selection
+			if (timeRange === "recent") {
+				// Show last 30% of data
+				const recentCount = Math.floor(data.length * 0.3);
+				filteredData = data.slice(-recentCount);
+			} else if (timeRange === "top5") {
+				// Show top 5 by value
+				filteredData = data
+					.sort(
+						(a: any, b: any) =>
+							(Number(b[dataKey1]) || 0) - (Number(a[dataKey1]) || 0)
+					)
+					.slice(0, 5);
+			} else if (timeRange === "comparison") {
+				// Show comparison view
+				filteredData = data
+					.sort(
+						(a: any, b: any) =>
+							(Number(b[dataKey1]) || 0) - (Number(a[dataKey1]) || 0)
+					)
+					.slice(0, 8);
+			} else {
+				// Filter by specific category/symbol (like AAPL, GOOGL, etc.)
+				filteredData = data.filter((item: any) => {
+					const itemName = String(
+						item[xAxisKey] || item.name || item.category || item.symbol || ""
+					).toLowerCase();
+					const filterValue = timeRange.toLowerCase();
 
-					return {
-						[xAxisKey]: String(xValue),
-						[dataKey1]: value1,
-						[dataKey2]: value2,
-					};
-			  })
-			: Array.from({ length: 12 }, (_, i) => ({
-					[xAxisKey]: `Point ${i + 1}`,
-					[dataKey1]: Math.random() * 100 + 50,
-					[dataKey2]: Math.random() * 80 + 30,
-			  }));
+					// Exact match or contains match
+					return itemName === filterValue || itemName.includes(filterValue);
+				});
 
-	const chartConfig = {
-		[dataKey1]: {
-			label:
-				ai_labels.legend?.[0] ||
-				dataKey1.charAt(0).toUpperCase() + dataKey1.slice(1),
-			color: "#2563eb",
-		},
-		[dataKey2]: {
-			label:
-				ai_labels.legend?.[1] ||
-				dataKey2.charAt(0).toUpperCase() + dataKey2.slice(1),
-			color: "#60a5fa",
-		},
-	};
+				// If no exact matches, show all data for that time period
+				if (filteredData.length === 0) {
+					// Check if it's a time period (YYYY-MM format)
+					if (/^\d{4}-\d{2}$/.test(timeRange)) {
+						filteredData = data.filter((item: any) => {
+							const itemDate = item.date || item.created_at || item.time || "";
+							return String(itemDate).includes(timeRange);
+						});
+					}
+				}
+			}
+		}
+
+		// Process filtered data - REAL VALUES ONLY
+		return filteredData
+			.slice(0, 20)
+			.map((item, index) => {
+				// Get real X-axis value
+				const xValue =
+					item[xAxisKey] ||
+					item["name"] ||
+					item["category"] ||
+					item["symbol"] ||
+					item["date"] ||
+					item["month"] ||
+					`Item ${index + 1}`;
+
+				// Get real Y-axis values - NO FALLBACKS to desktop/mobile
+				const value1 = Number(item[dataKey1]) || 0;
+				const value2 = Number(item[dataKey2]) || 0;
+
+				return {
+					[xAxisKey]: String(xValue),
+					[dataKey1]: value1,
+					[dataKey2]: value2,
+				};
+			})
+			.filter((item) => item[dataKey1] > 0 || item[dataKey2] > 0); // Only show items with real values
+	}, [data, timeRange, dataKey1, dataKey2, xAxisKey]);
+
+	// Generate REAL chart config from AI labels and actual data
+	const chartConfig = React.useMemo(() => {
+		// Use AI-generated labels if available, otherwise use actual column names
+		const label1 =
+			ai_labels.legend?.[0] ||
+			dataKey1
+				?.replace(/_/g, " ")
+				.replace(/([A-Z])/g, " $1")
+				.trim() ||
+			"Primary";
+		const label2 =
+			ai_labels.legend?.[1] ||
+			dataKey2
+				?.replace(/_/g, " ")
+				.replace(/([A-Z])/g, " $1")
+				.trim() ||
+			"Secondary";
+
+		return {
+			[dataKey1]: {
+				label: label1,
+				color: "#2563eb",
+			},
+			[dataKey2]: {
+				label: label2,
+				color: "#60a5fa",
+			},
+		};
+	}, [dataKey1, dataKey2, ai_labels]);
 
 	return (
 		<Card className="bg-card">

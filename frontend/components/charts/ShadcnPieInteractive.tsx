@@ -26,27 +26,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 
-interface ShadcnPieInteractiveProps {
-	data: any[];
-	dropdown_options?: Array<{ value: string; label: string }>;
-	ai_labels?: {
-		dataKey?: string;
-		nameKey?: string;
-		legend?: string[];
-	};
-	title?: string;
-	description?: string;
-	minimal?: boolean;
-}
+export const description = "An interactive pie chart";
 
-const desktopData = [
-	{ month: "january", desktop: 186, fill: "var(--color-january)" },
-	{ month: "february", desktop: 305, fill: "var(--color-february)" },
-	{ month: "march", desktop: 237, fill: "var(--color-march)" },
-	{ month: "april", desktop: 173, fill: "var(--color-april)" },
-	{ month: "may", desktop: 209, fill: "var(--color-may)" },
-];
-
+// Keep the original chartConfig structure EXACTLY
 const chartConfig = {
 	visitors: {
 		label: "Visitors",
@@ -79,80 +61,113 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
-const ShadcnPieInteractive: React.FC<ShadcnPieInteractiveProps> = ({
-	data,
-	dropdown_options = [],
-	ai_labels = {},
-	title = "Pie Chart - Interactive",
-	description = "January - June 2024",
-	minimal = false,
-}) => {
-	const id = "pie-interactive";
+interface ShadcnPieInteractiveProps {
+	data?: any[];
+	title?: string;
+	description?: string;
+	minimal?: boolean;
+	dropdown_options?: Array<{ value: string; label: string }>;
+	ai_labels?: any;
+}
 
-	// Use real data or fallback to desktop data
-	const chartData = React.useMemo(() => {
-		if (data && data.length > 0) {
-			return data.slice(0, 8).map((item, index) => ({
-				month: item.name || item.month || item.category || `Item ${index + 1}`,
-				desktop: item.value || item.desktop || item.visitors || 0,
-				fill: item.fill || `var(--chart-${(index % 5) + 1})`,
-			}));
+export function ShadcnPieInteractive({
+	data = [],
+	title,
+	description,
+	minimal,
+	dropdown_options = [],
+	ai_labels,
+}: ShadcnPieInteractiveProps) {
+	// Transform real data to match original structure EXACTLY
+	const desktopData = React.useMemo(() => {
+		if (!data || data.length === 0) {
+			// Use original fallback data with EXACT same structure
+			return [
+				{ month: "january", desktop: 186, fill: "var(--color-january)" },
+				{ month: "february", desktop: 305, fill: "var(--color-february)" },
+				{ month: "march", desktop: 237, fill: "var(--color-march)" },
+				{ month: "april", desktop: 173, fill: "var(--color-april)" },
+				{ month: "may", desktop: 209, fill: "var(--color-may)" },
+			];
 		}
-		return desktopData;
+
+		// Transform real data to match original structure
+		return data.slice(0, 5).map((item, index) => ({
+			month: (
+				item.name ||
+				item.category ||
+				item.symbol ||
+				`item${index + 1}`
+			).toLowerCase(),
+			desktop: item.value || item.desktop || item.count || item.total || 0,
+			fill: `var(--color-chart-${(index % 5) + 1})`,
+		}));
 	}, [data]);
 
-	// Use backend dropdown options or generate from data
-	const availableOptions = React.useMemo(() => {
-		if (dropdown_options.length > 0) {
-			return dropdown_options;
-		}
-		// Generate options from chart data
-		return chartData.map((item) => ({
-			value: item.month,
-			label: item.month.charAt(0).toUpperCase() + item.month.slice(1),
-		}));
-	}, [dropdown_options, chartData]);
-
-	const [activeMonth, setActiveMonth] = React.useState(
-		availableOptions[0]?.value || chartData[0]?.month || "january"
-	);
+	const id = "pie-interactive";
+	const [activeMonth, setActiveMonth] = React.useState(desktopData[0].month);
 
 	const activeIndex = React.useMemo(
-		() => chartData.findIndex((item) => item.month === activeMonth),
-		[activeMonth, chartData]
+		() => desktopData.findIndex((item) => item.month === activeMonth),
+		[activeMonth, desktopData]
+	);
+
+	const months = React.useMemo(
+		() => desktopData.map((item) => item.month),
+		[desktopData]
 	);
 
 	return (
 		<Card data-chart={id} className="flex flex-col">
 			<ChartStyle id={id} config={chartConfig} />
 			<CardHeader className="flex-row items-start space-y-0 pb-0">
+				
 				<Select value={activeMonth} onValueChange={setActiveMonth}>
 					<SelectTrigger
 						className="ml-auto h-7 w-[130px] rounded-lg pl-2.5"
 						aria-label="Select a value">
-						<SelectValue
-							placeholder={availableOptions[0]?.label || "Select option"}
-						/>
+						<SelectValue placeholder="Select month" />
 					</SelectTrigger>
 					<SelectContent align="end" className="rounded-xl">
-						{availableOptions.map((option) => (
-							<SelectItem
-								key={option.value}
-								value={option.value}
-								className="rounded-lg [&_span]:flex">
-								<div className="flex items-center gap-2 text-xs">
-									<span
-										className="flex h-3 w-3 shrink-0 rounded-xs"
-										style={{
-											backgroundColor: `var(--chart-${
-												(availableOptions.indexOf(option) % 5) + 1
-											})`,
-										}}
-									/>
-									{option.label}
-								</div>
-							</SelectItem>
-						))}
+						{months.map((key) => {
+							const config = chartConfig[key as keyof typeof chartConfig];
+
+							if (!config) {
+								return (
+									<SelectItem
+										key={key}
+										value={key}
+										className="rounded-lg [&_span]:flex">
+										<div className="flex items-center gap-2 text-xs">
+											<span
+												className="flex h-3 w-3 shrink-0 rounded-xs"
+												style={{
+													backgroundColor: `var(--color-chart-1)`,
+												}}
+											/>
+											{key}
+										</div>
+									</SelectItem>
+								);
+							}
+
+							return (
+								<SelectItem
+									key={key}
+									value={key}
+									className="rounded-lg [&_span]:flex">
+									<div className="flex items-center gap-2 text-xs">
+										<span
+											className="flex h-3 w-3 shrink-0 rounded-xs"
+											style={{
+												backgroundColor: `var(--color-${key})`,
+											}}
+										/>
+										{config?.label}
+									</div>
+								</SelectItem>
+							);
+						})}
 					</SelectContent>
 				</Select>
 			</CardHeader>
@@ -167,7 +182,7 @@ const ShadcnPieInteractive: React.FC<ShadcnPieInteractiveProps> = ({
 							content={<ChartTooltipContent hideLabel />}
 						/>
 						<Pie
-							data={chartData}
+							data={desktopData}
 							dataKey="desktop"
 							nameKey="month"
 							innerRadius={60}
@@ -189,7 +204,6 @@ const ShadcnPieInteractive: React.FC<ShadcnPieInteractiveProps> = ({
 							<Label
 								content={({ viewBox }) => {
 									if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-										const activeData = chartData[activeIndex] || chartData[0];
 										return (
 											<text
 												x={viewBox.cx}
@@ -200,13 +214,13 @@ const ShadcnPieInteractive: React.FC<ShadcnPieInteractiveProps> = ({
 													x={viewBox.cx}
 													y={viewBox.cy}
 													className="fill-foreground text-3xl font-bold">
-													{activeData?.desktop?.toLocaleString() || "0"}
+													{desktopData[activeIndex].desktop.toLocaleString()}
 												</tspan>
 												<tspan
 													x={viewBox.cx}
 													y={(viewBox.cy || 0) + 24}
 													className="fill-muted-foreground">
-													{activeData?.month || "Data"}
+													Visitors
 												</tspan>
 											</text>
 										);
@@ -219,6 +233,4 @@ const ShadcnPieInteractive: React.FC<ShadcnPieInteractiveProps> = ({
 			</CardContent>
 		</Card>
 	);
-};
-
-export default ShadcnPieInteractive;
+}

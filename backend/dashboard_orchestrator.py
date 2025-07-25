@@ -21,6 +21,7 @@ from collections import Counter
 import concurrent.futures
 import time
 from openai import OpenAI
+from dashboard_templates import DashboardTemplateManager, DashboardTemplateType
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class DashboardOrchestrator:
             raise Exception("❌ OpenAI API key REQUIRED - no fallbacks allowed")
         
         self.ai_analyzer = AIDataAnalyzer()
+        self.template_manager = DashboardTemplateManager()  # Add template manager
         logger.info("✅ OpenAI API key configured for Dashboard Orchestrator")
         
         # Performance optimization
@@ -577,6 +579,13 @@ class DashboardOrchestrator:
                 🎯 RADAR CHARTS: ShadcnRadarDefault, ShadcnRadarGridFill, ShadcnRadarLegend, ShadcnRadarLinesOnly, ShadcnRadarMultiple, ShadcnRadarCustom, ShadcnRadarFilled, ShadcnRadarLines, ShadcnRadarGrid
                 📉 RADIAL CHARTS: ShadcnRadialChart, ShadcnRadialLabel, ShadcnRadialGrid, ShadcnRadialText, ShadcnRadialShape, ShadcnRadialStacked
                 
+                            CHART LABELING REQUIREMENTS:
+            - Generate SPECIFIC tooltip labels based on the actual data columns
+            - Replace generic "desktop/mobile" with real data field names
+            - Create meaningful hover text using actual business context
+            - Ensure legends reflect real data categories, not browsers/devices
+            - Generate precise axis labels that match the data being visualized
+            
                 CREATIVITY & DIVERSITY RULES:
                 - Pick 12-15 charts total - BE BOLD AND CREATIVE!
                 - FORCE MAXIMUM VARIETY: Use ALL chart categories: Area (5), Bar (11), Pie (7), Radar (9), Radial (6)
@@ -586,15 +595,15 @@ class DashboardOrchestrator:
                 - SURPRISE FACTOR: Each chart type category must have at least 2-3 different variants
                 - CREATIVE MANDATE: Be adventurous with chart selection - choose unusual combinations!
 
-                            Available charts: {shuffled_charts}
-            
+                Available charts: {shuffled_charts}
+                
             TITLE EXAMPLES - CONCISE & IMPACTFUL:
             ✅ GOOD: "Sales", "Growth", "Performance", "Analytics", "Insights", "Trends", "Distribution"
             ❌ BAD: "Sales Performance Dashboard", "Monthly Revenue Analysis Chart", "Customer Data Visualization"
             
-            RANDOMIZATION NOTE: Charts are presented in randomized order to encourage variety.
+                RANDOMIZATION NOTE: Charts are presented in randomized order to encourage variety.
 
-            Respond in JSON format:
+                Respond in JSON format:
                 {{
                     "industry": "E-commerce/SaaS/Financial/Operations/General",
                     "business_type": "ecommerce|saas|financial|operations|general",
@@ -1897,7 +1906,11 @@ class DashboardOrchestrator:
                     "labels": {{
                         "dataKey": "Sales Volume",
                         "nameKey": "Product Category",
-                        "legend": ["Electronics", "Clothing", "Home"]
+                        "legend": ["Primary Data", "Secondary Data"],
+                        "tooltip": {{
+                            "valueLabel": "Amount",
+                            "nameLabel": "Category"
+                        }}
                     }}
                 }},
                 ...
@@ -2193,39 +2206,41 @@ class DashboardOrchestrator:
             
             # Create dropdown options based on data type and content
             if len(date_periods) > 1:
-                # Time-based dropdown options
+                # REAL time-based dropdown options
                 sorted_periods = sorted(list(date_periods))
                 dropdown_options = [
-                    {'value': 'all', 'label': 'All Time Periods'},
-                    {'value': 'recent', 'label': 'Recent Data'},
-                    {'value': 'custom', 'label': 'Custom Range'}
+                    {'value': 'all', 'label': 'All Data'}  # Only one generic option
                 ]
-                # Add specific time periods
-                for period in sorted_periods[-6:]:  # Last 6 periods
-                    dropdown_options.append({
-                        'value': period, 
-                        'label': datetime.strptime(period, '%Y-%m').strftime('%B %Y')
-                    })
+                # Add ONLY actual time periods from the data
+                for period in sorted_periods[-8:]:  # Last 8 periods
+                    try:
+                        formatted_label = datetime.strptime(period, '%Y-%m').strftime('%B %Y')
+                        dropdown_options.append({
+                            'value': period, 
+                            'label': formatted_label
+                        })
+                    except:
+                        # If date parsing fails, use the period as-is
+                        dropdown_options.append({
+                            'value': period, 
+                            'label': period
+                        })
             elif len(unique_categories) > 1:
-                # Category-based dropdown options
-                sorted_categories = sorted(list(unique_categories))[:10]  # Top 10 categories
+                # REAL category-based dropdown options - ONLY real data categories
+                sorted_categories = sorted(list(unique_categories))[:8]  # Top 8 real categories
                 dropdown_options = [
-                    {'value': 'all', 'label': 'All Categories'},
-                    {'value': 'top5', 'label': 'Top 5 Categories'},
-                    {'value': 'comparison', 'label': 'Category Comparison'}
+                    {'value': 'all', 'label': 'All Data'}  # Only one generic option
                 ]
-                # Add specific categories
+                # Add ONLY actual data categories - no generic labels
                 for category in sorted_categories:
                     dropdown_options.append({
-                        'value': category.lower().replace(' ', '_'), 
-                        'label': category
+                        'value': category, 
+                        'label': category  # Use real category name as both value and label
                     })
             else:
-                # Default dropdown options for any interactive chart
+                # Minimal dropdown options when no clear categories exist
                 dropdown_options = [
-                    {'value': 'overview', 'label': 'Overview'},
-                    {'value': 'detailed', 'label': 'Detailed View'},
-                    {'value': 'summary', 'label': 'Summary'}
+                    {'value': 'all', 'label': 'All Data'}
                 ]
             
             logger.info(f"🎛️ Generated {len(dropdown_options)} dropdown options for {chart_widget.title}")
@@ -2416,6 +2431,372 @@ class DashboardOrchestrator:
                 ],
                 confidence_score=0.5
             )
+
+    async def generate_template_based_dashboard(self, client_id: uuid.UUID, template_type: DashboardTemplateType = None, force_regenerate: bool = False) -> DashboardGenerationResponse:
+        """Generate a dashboard based on a specific template type"""
+        start_time = datetime.now()
+        
+        try:
+            logger.info(f"🏗️ Starting template-based dashboard generation for client {client_id}")
+            
+            # Step 1: Get client data first
+            client_data = await self.ai_analyzer.get_client_data_optimized(str(client_id))
+            
+            if not client_data.get('data'):
+                raise Exception(f"No real data found for client {client_id}")
+            
+            # Step 2: Analyze client data
+            data_analysis = await self._analyze_real_client_data(client_id, client_data)
+            
+            # Step 3: Auto-detect template type if not provided
+            if not template_type:
+                template_type = self.template_manager.detect_best_template(
+                    data_analysis.get('columns', []),
+                    business_context=None
+                )
+                logger.info(f"🎯 Auto-detected template type: {template_type.value}")
+            
+            # Step 4: Get template configuration
+            template = self.template_manager.get_template(template_type)
+            if not template:
+                raise Exception(f"Template type {template_type.value} not found")
+            
+            logger.info(f"📋 Using template: {template.title}")
+            
+            # Step 5: Generate template-specific components
+            kpi_widgets = await self._generate_template_kpi_widgets(client_id, template, data_analysis)
+            chart_widgets = await self._generate_template_chart_widgets(client_id, template, data_analysis)
+            
+            # Step 6: Create dashboard layout based on template
+            layout = DashboardLayout(
+                grid_cols=template.layout_config.get('grid_cols', 4),
+                grid_rows=template.layout_config.get('grid_rows', 6),
+                gap=template.layout_config.get('gap', 4),
+                responsive=template.layout_config.get('responsive', True)
+            )
+            
+            # Step 7: Create dashboard configuration
+            dashboard_config = DashboardConfig(
+                client_id=client_id,
+                title=template.title,
+                subtitle=template.description,
+                layout=layout,
+                kpi_widgets=kpi_widgets,
+                chart_widgets=chart_widgets,
+                theme="template",
+                last_generated=datetime.now(),
+                version=f"4.0-template-{template_type.value}"
+            )
+            
+            # Step 8: Save dashboard configuration
+            await self._save_dashboard_config(dashboard_config)
+            
+            # Step 9: Generate and save metrics
+            metrics_generated = await self._generate_and_save_template_metrics(client_id, dashboard_config, data_analysis, template)
+            
+            generation_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"✅ Template dashboard generated successfully for client {client_id} in {generation_time:.2f}s")
+            
+            return DashboardGenerationResponse(
+                success=True,
+                client_id=client_id,
+                dashboard_config=dashboard_config,
+                metrics_generated=metrics_generated,
+                message=f"Template dashboard ({template_type.value}) generated successfully",
+                generation_time=generation_time
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Template dashboard generation failed for client {client_id}: {e}")
+            return DashboardGenerationResponse(
+                success=False,
+                client_id=client_id,
+                dashboard_config=None,
+                metrics_generated=0,
+                message=f"Template dashboard generation failed: {str(e)}",
+                generation_time=(datetime.now() - start_time).total_seconds()
+            )
+
+    async def _generate_template_kpi_widgets(self, client_id: uuid.UUID, template, data_analysis: Dict[str, Any]) -> List[KPIWidget]:
+        """Generate KPI widgets based on template configuration"""
+        kpi_widgets = []
+        numeric_columns = data_analysis['numeric_columns']
+        latest_data = data_analysis['data_summary']['latest_data']
+        
+        # Get template-specific KPI components
+        kpi_components = [comp for comp in template.components if comp.component_type.value == 'kpi_card']
+        
+        logger.info(f"🔢 Generating {len(kpi_components)} template KPI widgets")
+        
+        for i, component in enumerate(kpi_components[:4]):  # Limit to 4 KPIs
+            # Find best matching column for this KPI
+            matching_column = self._find_best_column_match(
+                numeric_columns, 
+                component.required_columns or [],
+                data_analysis
+            )
+            
+            if not matching_column:
+                continue
+                
+            # Get real value from data
+            current_value = latest_data.get(matching_column, 0)
+            
+            # Format value based on template type and column
+            if template.template_type == DashboardTemplateType.INVENTORY:
+                if 'price' in matching_column.lower() or 'value' in matching_column.lower():
+                    formatted_value = f"${current_value:,.0f}"
+                    icon_config = {'icon': 'DollarSign', 'color': '#059669', 'bg': '#ecfdf5'}
+                elif 'stock' in matching_column.lower() or 'quantity' in matching_column.lower():
+                    formatted_value = f"{current_value:,.0f}"
+                    icon_config = {'icon': 'Package', 'color': '#8b5cf6', 'bg': '#f3e8ff'}
+                else:
+                    formatted_value = f"{current_value:,.0f}"
+                    icon_config = {'icon': 'BarChart3', 'color': template.color_scheme['primary'], 'bg': f"{template.color_scheme['primary']}20"}
+            else:
+                # Default formatting
+                if any(term in matching_column.lower() for term in ['revenue', 'sales', 'amount', 'price']):
+                    formatted_value = f"${current_value:,.0f}"
+                    icon_config = {'icon': 'DollarSign', 'color': template.color_scheme['success'], 'bg': f"{template.color_scheme['success']}20"}
+                else:
+                    formatted_value = f"{current_value:,.0f}"
+                    icon_config = {'icon': 'BarChart3', 'color': template.color_scheme['primary'], 'bg': f"{template.color_scheme['primary']}20"}
+            
+            # Generate smart title
+            smart_title = self._generate_smart_title(matching_column, component.title)
+            
+            kpi_widget = KPIWidget(
+                id=f"template_kpi_{template.template_type.value}_{i}",
+                title=smart_title,
+                value=formatted_value,
+                icon=icon_config['icon'],
+                icon_color=icon_config['color'],
+                icon_bg_color=icon_config['bg'],
+                trend={"value": "+5.2%", "isPositive": True},  # Placeholder trend
+                position={"row": 0, "col": i},
+                size={"width": 1, "height": 1}
+            )
+            kpi_widgets.append(kpi_widget)
+        
+        return kpi_widgets
+
+    async def _generate_template_chart_widgets(self, client_id: uuid.UUID, template, data_analysis: Dict[str, Any]) -> List[ChartWidget]:
+        """Generate chart widgets based on template configuration"""
+        chart_widgets = []
+        
+        # Get template-specific chart components
+        chart_components = [comp for comp in template.components if comp.component_type.value in ['line_chart', 'bar_chart', 'pie_chart', 'area_chart']]
+        
+        logger.info(f"📊 Generating {len(chart_components)} template chart widgets")
+        
+        for i, component in enumerate(chart_components):
+            # Map component chart type to Shadcn chart type
+            shadcn_chart_type = self._map_to_shadcn_chart_type(component.chart_type or 'ShadcnAreaChart')
+            
+            # Find appropriate data columns
+            data_columns = self._find_chart_data_columns(data_analysis, component)
+            
+            if not data_columns or len(data_columns) < 2:
+                continue
+            
+            chart_widget = ChartWidget(
+                id=f"template_chart_{template.template_type.value}_{i}",
+                title=component.title,
+                subtitle=component.subtitle,
+                chart_type=shadcn_chart_type,
+                data_source="template_client_data",
+                config={
+                    "component": shadcn_chart_type,
+                    "data_columns": {"nameKey": data_columns[0], "dataKey": data_columns[1]},
+                    "props": {
+                        "title": component.title,
+                        "height": 350,
+                        "showTooltip": True
+                    },
+                    "real_data_columns": data_columns,
+                    "template_type": template.template_type.value
+                },
+                position={"row": component.position['row'], "col": component.position['col']},
+                size={"width": component.size['width'], "height": component.size['height']},
+                priority=i + 1
+            )
+            chart_widgets.append(chart_widget)
+        
+        return chart_widgets
+
+    def _find_best_column_match(self, available_columns: List[str], required_columns: List[str], data_analysis: Dict[str, Any]) -> Optional[str]:
+        """Find the best matching column from available columns based on requirements"""
+        if not available_columns:
+            return None
+            
+        # First try exact matches
+        for req_col in required_columns:
+            for avail_col in available_columns:
+                if req_col.lower() in avail_col.lower():
+                    return avail_col
+        
+        # If no exact match, return first available numeric column
+        return available_columns[0] if available_columns else None
+
+    def _find_chart_data_columns(self, data_analysis: Dict[str, Any], component) -> List[str]:
+        """Find appropriate data columns for chart based on component requirements"""
+        categorical_cols = data_analysis.get('categorical_columns', [])
+        numeric_cols = data_analysis.get('numeric_columns', [])
+        date_cols = data_analysis.get('date_columns', [])
+        
+        # For different chart types, prefer different column combinations
+        if component.chart_type and 'area' in component.chart_type.lower():
+            # Area charts prefer date + numeric
+            if date_cols and numeric_cols:
+                return [date_cols[0], numeric_cols[0]]
+        elif component.chart_type and 'bar' in component.chart_type.lower():
+            # Bar charts prefer categorical + numeric
+            if categorical_cols and numeric_cols:
+                return [categorical_cols[0], numeric_cols[0]]
+        elif component.chart_type and 'pie' in component.chart_type.lower():
+            # Pie charts prefer categorical + count or categorical + numeric
+            if categorical_cols:
+                if numeric_cols:
+                    return [categorical_cols[0], numeric_cols[0]]
+                else:
+                    return [categorical_cols[0], 'count']
+        
+        # Default fallback
+        if categorical_cols and numeric_cols:
+            return [categorical_cols[0], numeric_cols[0]]
+        elif categorical_cols:
+            return [categorical_cols[0], 'count']
+        elif numeric_cols and len(numeric_cols) >= 2:
+            return numeric_cols[:2]
+        
+        return []
+
+    def _map_to_shadcn_chart_type(self, template_chart_type: str) -> str:
+        """Map template chart types to actual Shadcn chart component names"""
+        mapping = {
+            'ShadcnAreaChart': 'ShadcnAreaChart',
+            'ShadcnAreaInteractive': 'ShadcnAreaInteractive',
+            'ShadcnAreaStacked': 'ShadcnAreaStacked',
+            'ShadcnBarChart': 'ShadcnBarChart',
+            'ShadcnBarHorizontal': 'ShadcnBarHorizontal',
+            'ShadcnBarMultiple': 'ShadcnBarMultiple',
+            'ShadcnPieChart': 'ShadcnPieChart',
+            'ShadcnPieInteractive': 'ShadcnPieInteractive',
+            'line_chart': 'ShadcnAreaChart',
+            'bar_chart': 'ShadcnBarChart',
+            'pie_chart': 'ShadcnPieChart',
+            'area_chart': 'ShadcnAreaChart'
+        }
+        return mapping.get(template_chart_type, 'ShadcnAreaChart')
+
+    async def _generate_and_save_template_metrics(self, client_id: uuid.UUID, dashboard_config: DashboardConfig, data_analysis: Dict[str, Any], template) -> int:
+        """Generate and save metrics for template-based dashboard"""
+        try:
+            metrics_generated = 0
+            db_client = get_admin_client()
+            
+            # Generate metrics for KPIs with template context
+            for kpi in dashboard_config.kpi_widgets:
+                metric = DashboardMetric(
+                    metric_id=uuid.uuid4(),
+                    client_id=client_id,
+                    metric_name=kpi.id,
+                    metric_value={
+                        'value': kpi.value,
+                        'title': kpi.title,
+                        'trend': kpi.trend,
+                        'template_type': template.template_type.value
+                    },
+                    metric_type='template_kpi',
+                    calculated_at=datetime.now()
+                )
+                
+                metric_dict = self._convert_uuids_to_strings(metric.dict())
+                db_client.table('client_dashboard_metrics').insert(metric_dict).execute()
+                metrics_generated += 1
+            
+            # Generate metrics for charts with template context
+            for chart in dashboard_config.chart_widgets:
+                chart_data = await self._generate_template_chart_data(chart, data_analysis, template)
+                
+                metric = DashboardMetric(
+                    metric_id=uuid.uuid4(),
+                    client_id=client_id,
+                    metric_name=chart.data_source,
+                    metric_value={
+                        'data': chart_data,
+                        'chart_type': chart.chart_type.value,
+                        'title': chart.title,
+                        'template_type': template.template_type.value
+                    },
+                    metric_type='template_chart_data',
+                    calculated_at=datetime.now()
+                )
+                
+                metric_dict = self._convert_uuids_to_strings(metric.dict())
+                db_client.table('client_dashboard_metrics').insert(metric_dict).execute()
+                metrics_generated += 1
+            
+            return metrics_generated
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to generate and save template metrics: {e}")
+            return 0
+
+    async def _generate_template_chart_data(self, chart: ChartWidget, data_analysis: Dict[str, Any], template) -> List[Dict]:
+        """Generate chart data based on template configuration"""
+        try:
+            real_data_columns = chart.config.get('real_data_columns', [])
+            if not real_data_columns or len(real_data_columns) < 2:
+                return []
+            
+            sample_data = data_analysis.get('sample_data', [])
+            if not sample_data:
+                return []
+            
+            # Process data based on chart type and template
+            processed_data = []
+            name_key, data_key = real_data_columns[0], real_data_columns[1]
+            
+            for item in sample_data[:20]:  # Limit for performance
+                if name_key in item and (data_key in item or data_key == 'count'):
+                    processed_item = {
+                        'name': str(item[name_key])[:30],  # Truncate long names
+                        'value': float(item[data_key]) if data_key != 'count' else 1
+                    }
+                    # Add original data for reference
+                    processed_item[name_key] = item[name_key]
+                    if data_key != 'count':
+                        processed_item[data_key] = item[data_key]
+                    
+                    processed_data.append(processed_item)
+            
+            # Sort by value for better visualization
+            processed_data.sort(key=lambda x: x['value'], reverse=True)
+            
+            return processed_data[:15]  # Return top 15 items
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to generate template chart data: {e}")
+            return []
+
+    def get_available_templates(self) -> Dict[str, Dict[str, Any]]:
+        """Get all available dashboard templates"""
+        templates = {}
+        for template_type, template in self.template_manager.get_all_templates().items():
+            templates[template_type.value] = {
+                'title': template.title,
+                'description': template.description,
+                'required_data_types': template.required_data_types,
+                'recommended_columns': template.recommended_columns,
+                'color_scheme': template.color_scheme
+            }
+        return templates
+
+    def detect_recommended_template(self, client_data_columns: List[str], business_context: str = None) -> str:
+        """Detect the recommended template type based on client data"""
+        template_type = self.template_manager.detect_best_template(client_data_columns, business_context)
+        return template_type.value
 
 # Create global instance
 dashboard_orchestrator = DashboardOrchestrator() 

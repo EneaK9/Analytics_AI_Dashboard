@@ -14,31 +14,7 @@ interface ShadcnPieChartLabelProps {
 	minimal?: boolean;
 }
 
-const chartConfig = {
-	visitors: {
-		label: "Visitors",
-	},
-	chrome: {
-		label: "Chrome",
-		color: "hsl(var(--chart-1))",
-	},
-	safari: {
-		label: "Safari",
-		color: "hsl(var(--chart-2))",
-	},
-	firefox: {
-		label: "Firefox",
-		color: "hsl(var(--chart-3))",
-	},
-	edge: {
-		label: "Edge",
-		color: "hsl(var(--chart-4))",
-	},
-	other: {
-		label: "Other",
-		color: "hsl(var(--chart-5))",
-	},
-} satisfies ChartConfig;
+// NO HARDCODED DATA - All data comes from props
 
 const ShadcnPieChartLabel: React.FC<ShadcnPieChartLabelProps> = ({
 	data,
@@ -46,16 +22,64 @@ const ShadcnPieChartLabel: React.FC<ShadcnPieChartLabelProps> = ({
 	description = "A pie chart with labels",
 	minimal = false,
 }) => {
-	// Transform data to match Shadcn format with proper colors
-	const browsers = ["chrome", "safari", "firefox", "edge", "other"];
-	const chartData = data.slice(0, 5).map((item, index) => {
-		const browser = browsers[index];
-		return {
-			browser,
-			visitors: item.value || item.visitors || 0,
-			fill: `hsl(var(--chart-${index + 1}))`,
+	// Process REAL data only
+	const { chartData, chartConfig } = React.useMemo(() => {
+		if (!data || data.length === 0) {
+			return { chartData: [], chartConfig: {} };
+		}
+
+		const processedData = data
+			.slice(0, 5)
+			.map((item: any, index: number) => {
+				const nameValue =
+					item.name || item.category || item.symbol || `Item ${index + 1}`;
+				const dataValue =
+					Number(item.value) ||
+					Number(item.visitors) ||
+					Number(item.count) ||
+					Number(item.total) ||
+					0;
+
+				return {
+					name: nameValue,
+					value: dataValue,
+					fill: item.fill || `hsl(var(--chart-${(index % 5) + 1}))`,
+				};
+			})
+			.filter((item) => item.value > 0);
+
+		// Generate dynamic chart config
+		const config: any = {
+			value: {
+				label: "Value",
+			},
 		};
-	});
+
+		processedData.forEach((item: any, index: number) => {
+			config[item.name] = {
+				label: item.name,
+				color: `hsl(var(--chart-${(index % 5) + 1}))`,
+			};
+		});
+
+		return { chartData: processedData, chartConfig: config };
+	}, [data]);
+
+	if (chartData.length === 0) {
+		return (
+			<div className="w-full h-full">
+				{!minimal && (
+					<div className="mb-4">
+						<h3 className="text-lg font-semibold">{title}</h3>
+						<p className="text-sm text-muted-foreground">{description}</p>
+					</div>
+				)}
+				<div className="flex items-center justify-center h-[250px] text-muted-foreground">
+					No data available
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="w-full h-full">
@@ -70,7 +94,7 @@ const ShadcnPieChartLabel: React.FC<ShadcnPieChartLabelProps> = ({
 				className="[&_.recharts-pie-label-text]:fill-foreground mx-auto aspect-square max-h-[250px] h-full w-full">
 				<PieChart>
 					<ChartTooltip content={<ChartTooltipContent hideLabel />} />
-					<Pie data={chartData} dataKey="visitors" label nameKey="browser" />
+					<Pie data={chartData} dataKey="value" label nameKey="name" />
 				</PieChart>
 			</ChartContainer>
 		</div>

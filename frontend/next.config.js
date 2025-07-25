@@ -12,6 +12,15 @@ const nextConfig = {
 		},
 	},
 
+	// Transpile Material UI packages to handle CSS imports
+	transpilePackages: [
+		"@mui/x-data-grid",
+		"@mui/x-data-grid-pro",
+		"@mui/x-charts",
+		"@mui/x-date-pickers",
+		"@mui/x-tree-view",
+	],
+
 	// Enable experimental features from Next.js 15.3
 	experimental: {
 		// Enable optimized package imports

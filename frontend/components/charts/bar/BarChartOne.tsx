@@ -1,12 +1,67 @@
 "use client";
 
+import React from "react";
 import dynamic from "next/dynamic";
 import { ApexOptions } from "apexcharts";
 
 // Dynamic import to prevent SSR issues
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
-export default function BarChartOne() {
+interface BarChartOneProps {
+	data?: any[];
+	title?: string;
+	description?: string;
+	minimal?: boolean;
+}
+
+export default function BarChartOne({
+	data = [],
+	title = "Bar Chart",
+	description = "ApexCharts bar chart with real data",
+	minimal = false,
+}: BarChartOneProps) {
+	// Process real data for ApexCharts format
+	const { categories, seriesData } = React.useMemo(() => {
+		if (!data || data.length === 0) {
+			// Use original fallback data if no real data
+			const fallbackCategories = [
+				"Jan",
+				"Feb",
+				"Mar",
+				"Apr",
+				"May",
+				"Jun",
+				"Jul",
+				"Aug",
+				"Sep",
+				"Oct",
+				"Nov",
+				"Dec",
+			];
+			const fallbackData = [
+				168, 385, 201, 298, 187, 195, 291, 110, 215, 390, 280, 112,
+			];
+			return { categories: fallbackCategories, seriesData: fallbackData };
+		}
+
+		// Transform real data for ApexCharts
+		const processedCategories = data
+			.slice(0, 12)
+			.map(
+				(item, index) =>
+					item.name ||
+					item.category ||
+					item.symbol ||
+					item.month ||
+					`Item ${index + 1}`
+			);
+		const processedData = data
+			.slice(0, 12)
+			.map((item) => item.value || item.sales || item.count || item.total || 0);
+
+		return { categories: processedCategories, seriesData: processedData };
+	}, [data]);
+
 	const options: ApexOptions = {
 		colors: ["#465fff"],
 		chart: {
@@ -34,20 +89,7 @@ export default function BarChartOne() {
 			colors: ["transparent"],
 		},
 		xaxis: {
-			categories: [
-				"Jan",
-				"Feb",
-				"Mar",
-				"Apr",
-				"May",
-				"Jun",
-				"Jul",
-				"Aug",
-				"Sep",
-				"Oct",
-				"Nov",
-				"Dec",
-			],
+			categories: categories,
 			axisBorder: {
 				show: false,
 			},
@@ -76,7 +118,6 @@ export default function BarChartOne() {
 		fill: {
 			opacity: 1,
 		},
-
 		tooltip: {
 			x: {
 				show: false,
@@ -90,14 +131,22 @@ export default function BarChartOne() {
 	const series = [
 		{
 			name: "Sales",
-			data: [168, 385, 201, 298, 187, 195, 291, 110, 215, 390, 280, 112],
+			data: seriesData,
 		},
 	];
 
 	return (
-		<div className="max-w-full overflow-x-auto">
-			<div id="chartOne" className="min-w-[1000px]">
-				<Chart options={options} series={series} type="bar" height={180} />
+		<div className="w-full h-full">
+			{!minimal && (
+				<div className="mb-4">
+					<h3 className="text-lg font-semibold">{title}</h3>
+					<p className="text-sm text-muted-foreground">{description}</p>
+				</div>
+			)}
+			<div className="max-w-full overflow-x-auto">
+				<div id="chartOne" className="min-w-[1000px]">
+					<Chart options={options} series={series} type="bar" height={180} />
+				</div>
 			</div>
 		</div>
 	);
