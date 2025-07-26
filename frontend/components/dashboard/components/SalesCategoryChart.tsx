@@ -6,6 +6,8 @@ import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { useTheme } from "@mui/material/styles";
+import CardHeader from "@mui/material/CardHeader";
+import Box from "@mui/material/Box";
 
 interface SalesCategoryChartProps {
 	dashboardData?: {
@@ -14,11 +16,13 @@ interface SalesCategoryChartProps {
 		categoriesCount: number;
 	};
 	categoryData?: any[];
+	clientData?: any[]; // Add real client data
 }
 
 export default function SalesCategoryChart({
 	dashboardData,
-	categoryData = []
+	categoryData = [],
+	clientData = []
 }: SalesCategoryChartProps) {
 	const theme = useTheme();
 	const colorPalette = [
@@ -29,97 +33,81 @@ export default function SalesCategoryChart({
 		theme.palette.info.main,
 	];
 
-	// Generate category data or use provided data
+	// Generate category data ONLY from real API response - NO client data processing
 	const generateCategoryData = () => {
-		if (categoryData.length > 0) {
-			console.log("Raw category data:", categoryData); // Debug log
+		// ONLY use provided categoryData from API response
+		if (categoryData && categoryData.length > 0) {
+			console.log("📊 SalesCategoryChart - Direct API categoryData:", categoryData.slice(0, 3));
+			console.log("📊 SalesCategoryChart - Full API data structure:", categoryData);
 			
-			// Check if we have real business categories or product names
-			const hasRealCategories = categoryData.some(item => 
-				item.category && !item.category.includes('-') && !item.category.includes('(')
+			// Handle MUI-transformed data structure
+			const categories = categoryData.map(item => 
+				item.id || item.name || item.label || "Unknown"
 			);
 			
-			if (hasRealCategories) {
-				// Use real category data
-				const categories = categoryData.map(item => 
-					item.category || item.name || item.label || "Unknown"
-				);
-				const sales = categoryData.map(item => 
-					parseFloat(item.sales || item.value || item.amount || item.revenue || 0)
-				);
-				const orders = categoryData.map(item => 
-					parseInt(item.orders || item.count || item.quantity || 0)
-				);
-				
-				return { categories, sales, orders };
-			} else {
-				// Data appears to be product names, let's group them into categories
-				const productToCategory = (productName: string): string => {
-					const name = productName.toLowerCase();
-					if (name.includes('card') || name.includes('gift')) return 'Gift Cards';
-					if (name.includes('snowboard') || name.includes('ski')) return 'Winter Sports';
-					if (name.includes('board') || name.includes('surf')) return 'Board Sports';
-					if (name.includes('bike') || name.includes('cycle')) return 'Cycling';
-					if (name.includes('shoe') || name.includes('boot')) return 'Footwear';
-					if (name.includes('shirt') || name.includes('jacket')) return 'Apparel';
-					return 'Other';
-				};
-				
-				// Group products by category
-				const categoryMap = new Map<string, number>();
-				categoryData.forEach(item => {
-					const productName = item.name || item.label || 'Unknown';
-					const category = productToCategory(productName);
-					const value = parseFloat(item.value || item.amount || item.count || 1);
-					
-					categoryMap.set(category, (categoryMap.get(category) || 0) + value);
-				});
-				
-				const categories = Array.from(categoryMap.keys());
-				const sales = Array.from(categoryMap.values()).map(v => v * 1000); // Convert to realistic sales figures
-				const orders = sales.map(s => Math.floor(s / 100)); // Estimate orders
-				
-				return { categories, sales, orders };
-			}
-		}
-
-		// Fallback to generated data with realistic values
-		const defaultCategories = ["Electronics", "Clothing", "Books", "Home & Garden", "Sports"];
-		const baseSales = dashboardData?.totalSales || 50000; // Increased default
-		
-		const categories = defaultCategories;
-		const sales = [];
-		const orders = [];
-
-		// Generate realistic distribution
-		const distributions = [0.35, 0.25, 0.18, 0.15, 0.07]; // Electronics highest, Sports lowest
-		
-		for (let i = 0; i < categories.length; i++) {
-			const categoryRevenue = Math.floor(baseSales * distributions[i] * (0.8 + Math.random() * 0.4));
-			const categoryOrders = Math.floor(categoryRevenue / (80 + Math.random() * 40)); // Random AOV
+			// Use MUI-transformed values - this is the key fix!
+			const sales = categoryData.map(item => {
+				// MUI service transforms API data to have "value" field
+				const value = parseFloat(item.value || 0);
+				console.log(`📊 Category item: ${item.id || item.name} -> MUI value: ${value} (from transformed data)`);
+				return value;
+			});
 			
-			sales.push(categoryRevenue);
-			orders.push(categoryOrders);
+			// For orders, try to find count-related fields in transformed data
+			const orders = categoryData.map(item => 
+				parseInt(item.count || item.orders || item.quantity || item.visitors || 1)
+			);
+			
+			// Calculate totals for summary
+			const totalSales = sales.reduce((sum, val) => sum + val, 0);
+			const totalOrders = orders.reduce((sum, val) => sum + val, 0);
+			
+			console.log("📊 SalesCategoryChart - Processed MUI data:", { 
+				categories: categories.slice(0, 3), 
+				sales: sales.slice(0, 3), 
+				orders: orders.slice(0, 3),
+				totalSales,
+				totalOrders,
+				itemCount: categories.length,
+				sampleTransformedItem: categoryData[0]
+			});
+			
+			// Skip if all values are zero (transformation failed)
+			const hasValidData = sales.some(val => val > 0);
+			if (!hasValidData) {
+				console.warn("⚠️ SalesCategoryChart - No valid sales values found in transformed data. Raw item:", categoryData[0]);
+				return { categories: [], sales: [], orders: [] };
+			}
+			
+			return { categories, sales, orders };
 		}
 
-		return { categories, sales, orders };
+		// No API data available - show empty state
+		console.log("⚠️ SalesCategoryChart - No API categoryData available - showing empty state");
+		return { 
+			categories: [], 
+			sales: [], 
+			orders: [] 
+		};
 	};
 
 	const { categories, sales, orders } = generateCategoryData();
 
-	// Calculate total and growth
+	// Calculate total and growth from REAL data only
 	const totalSales = sales.reduce((a, b) => a + b, 0);
 	const totalOrders = orders.reduce((a, b) => a + b, 0);
 	
 	// Find top performing category
 	const maxSalesIndex = sales.indexOf(Math.max(...sales));
-	const topCategory = categories[maxSalesIndex] || "Electronics";
+	const topCategory = categories[maxSalesIndex] || "No data";
 	const topCategorySales = sales[maxSalesIndex] || 0;
 	const topCategoryShare = totalSales > 0 ? ((topCategorySales / totalSales) * 100).toFixed(1) : "0.0";
 
-	// Mock growth calculation
-	const growthPercentage = Math.floor(-5 + Math.random() * 18); // -5% to +13%
-	const isPositiveGrowth = growthPercentage > 0;
+	// Show "No data" state when no real data is available
+	if (categories.length === 0 || sales.length === 0) {
+		// Hide chart completely when no data
+		return null;
+	}
 
 	// Format total sales display
 	const formatSalesAmount = (amount: number): string => {
@@ -151,8 +139,8 @@ export default function SalesCategoryChart({
 						</Typography>
 						<Chip
 							size="small"
-							color={isPositiveGrowth ? "success" : "error"}
-							label={`${isPositiveGrowth ? "+" : ""}${growthPercentage}%`}
+							color="primary"
+							label={`${categories.length} categories`}
 						/>
 					</Stack>
 					<Typography variant="caption" sx={{ color: "text.secondary" }}>

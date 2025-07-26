@@ -56,7 +56,7 @@ const ShadcnBarDefault: React.FC<ShadcnBarDefaultProps> = ({
 				Number(item.count) ||
 				Number(item.quantity) ||
 				Number(item.revenue) ||
-				Math.floor(Math.random() * 400) + 50;
+				0; // No more Math.random() fallback
 
 			return {
 				category: String(categoryName).substring(0, 12),
@@ -76,8 +76,8 @@ const ShadcnBarDefault: React.FC<ShadcnBarDefaultProps> = ({
 		[]
 	);
 
-	// Don't render if no data
-	if (chartData.length === 0) {
+	// Don't render if no meaningful data
+	if (chartData.length === 0 || chartData.every(item => item.value === 0)) {
 		return (
 			<Card>
 				<CardHeader>

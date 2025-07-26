@@ -6,6 +6,8 @@ import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
 import { LineChart } from "@mui/x-charts/LineChart";
+import CardHeader from "@mui/material/CardHeader";
+import Box from "@mui/material/Box";
 
 function AreaGradient({ color, id }: { color: string; id: string }) {
 	return (
@@ -25,11 +27,13 @@ interface RevenueTrendsChartProps {
 		averageOrderValue: number;
 	};
 	revenueData?: any[];
+	clientData?: any[]; // Add real client data
 }
 
 export default function RevenueTrendsChart({ 
 	dashboardData,
-	revenueData = []
+	revenueData = [],
+	clientData = []
 }: RevenueTrendsChartProps) {
 	const theme = useTheme();
 
@@ -39,64 +43,120 @@ export default function RevenueTrendsChart({
 		theme.palette.primary.dark,
 	];
 
-	// Generate realistic revenue data or use provided data
+	// Generate revenue data ONLY from real API response - NO client data processing
 	const generateRevenueData = () => {
-		if (revenueData.length > 0) {
-			// Use real data if available
+		// ONLY use provided revenueData from API response
+		if (revenueData && revenueData.length > 0) {
+			console.log("📊 RevenueTrendsChart - Direct API revenueData:", revenueData.slice(0, 3));
+			console.log("📊 RevenueTrendsChart - Full API data structure:", revenueData);
+			
+			// Handle MUI-transformed data structure
 			const labels = revenueData.map((item, index) => 
-				item.date || item.month || item.name || `Day ${index + 1}`
+				item.month || item.name || item.id || `Item ${index + 1}`
 			);
-			const revenue = revenueData.map(item => 
-				item.revenue || item.value || item.amount || 0
-			);
+			
+			// Use MUI-transformed values - this is the key fix!
+			const revenue = revenueData.map(item => {
+				// MUI service transforms API data to have "value" field
+				const value = parseFloat(item.value || 0);
+				console.log(`📊 Revenue item: ${item.name || item.id} -> MUI value: ${value} (from transformed data)`);
+				return value;
+			});
+			
+			// For orders, try to find count-related fields in transformed data
 			const orders = revenueData.map(item => 
-				item.orders || item.count || item.quantity || 0
+				parseInt(item.count || item.orders || item.quantity || item.visitors || 1)
 			);
+			
+			// Calculate totals for debugging
+			const totalRevenue = revenue.reduce((sum, val) => sum + val, 0);
+			const totalOrders = orders.reduce((sum, val) => sum + val, 0);
+			
+			console.log("📊 RevenueTrendsChart - Processed MUI data:", { 
+				labels: labels.slice(0, 3), 
+				revenue: revenue.slice(0, 3), 
+				orders: orders.slice(0, 3),
+				totalRevenue,
+				totalOrders,
+				itemCount: labels.length,
+				sampleTransformedItem: revenueData[0]
+			});
+			
+			// Skip if all values are zero (transformation failed)
+			const hasValidData = revenue.some(val => val > 0);
+			if (!hasValidData) {
+				console.warn("⚠️ RevenueTrendsChart - No valid revenue values found in transformed data. Raw item:", revenueData[0]);
+				return { labels: [], revenue: [], orders: [] };
+			}
 			
 			return { labels, revenue, orders };
 		}
 
-		// Fallback to generated data based on totals
-		const baseRevenue = dashboardData?.totalRevenue || 50000;
-		const baseOrders = dashboardData?.totalOrders || 500;
-
-		const labels = [];
-		const revenue = [];
-		const orders = [];
-
-		// Generate 30 days of data
-		for (let i = 0; i < 30; i++) {
-			const date = new Date();
-			date.setDate(date.getDate() - (29 - i));
-			labels.push(date.toLocaleDateString("en-US", { month: "short", day: "numeric" }));
-
-			// Create realistic patterns
-			const dayOfWeek = date.getDay();
-			const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-			const isMiddleMonth = i >= 10 && i <= 20;
-
-			let multiplier = 1.0;
-			if (isWeekend) multiplier *= 0.7;
-			if (isMiddleMonth) multiplier *= 1.3;
-
-			const randomFactor = 0.7 + Math.random() * 0.6;
-
-			revenue.push(Math.floor((baseRevenue / 30) * multiplier * randomFactor));
-			orders.push(Math.floor((baseOrders / 30) * multiplier * randomFactor));
-		}
-
-		return { labels, revenue, orders };
+		// No API data available - show empty state
+		console.log("⚠️ RevenueTrendsChart - No API revenueData available - showing empty state");
+		return { 
+			labels: [], 
+			revenue: [], 
+			orders: [] 
+		};
 	};
 
 	const { labels, revenue, orders } = generateRevenueData();
 
-	// Calculate trend
-	const currentRevenue = dashboardData?.totalRevenue || revenue.reduce((a, b) => a + b, 0);
-	const previousRevenue = Math.floor(currentRevenue * 0.88);
-	const trendPercentage = Math.round(
-		((currentRevenue - previousRevenue) / previousRevenue) * 100
-	);
-	const isPositiveTrend = trendPercentage > 0;
+	// Calculate trend from REAL data only - no fake percentages
+	const calculateRealTrend = () => {
+		if (revenue.length < 2) {
+			return { percentage: 0, isPositive: null, display: "No trend data" };
+		}
+
+		// Compare first half vs second half of the data for trend
+		const midPoint = Math.floor(revenue.length / 2);
+		const firstHalf = revenue.slice(0, midPoint);
+		const secondHalf = revenue.slice(midPoint);
+		
+		const firstAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+		const secondAvg = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+		
+		if (firstAvg === 0) {
+			return { percentage: 0, isPositive: null, display: "No change" };
+		}
+		
+		const percentage = Math.round(((secondAvg - firstAvg) / firstAvg) * 100);
+		const isPositive = percentage > 0;
+		const display = `${isPositive ? '+' : ''}${percentage}%`;
+		
+		return { percentage, isPositive, display };
+	};
+
+	const trendData = calculateRealTrend();
+	const currentRevenue = revenue.reduce((a, b) => a + b, 0);
+	const currentOrders = orders.reduce((a, b) => a + b, 0);
+
+	// Format revenue display based on actual size
+	const formatRevenue = (value: number) => {
+		if (value >= 1000000) {
+			return `$${(value / 1000000).toFixed(1)}M`;
+		} else if (value >= 1000) {
+			return `$${(value / 1000).toFixed(1)}k`;
+		} else {
+			return `$${value.toFixed(0)}`;
+		}
+	};
+
+	// Debug logging for transparency
+	console.log("📊 RevenueTrendsChart Final Values:", {
+		currentRevenue,
+		currentOrders,
+		formattedRevenue: formatRevenue(currentRevenue),
+		trendData,
+		dataPoints: revenue.length
+	});
+
+	// Show "No data" state when no real data is available
+	if (labels.length === 0 || revenue.length === 0) {
+		// Hide chart completely when no data
+		return null;
+	}
 
 	return (
 		<Card variant="outlined" sx={{ width: "100%" }}>
@@ -113,16 +173,16 @@ export default function RevenueTrendsChart({
 							gap: 1,
 						}}>
 						<Typography variant="h4" component="p">
-							${(currentRevenue / 1000).toFixed(1)}k
+							{formatRevenue(currentRevenue)}
 						</Typography>
 						<Chip
 							size="small"
-							color={isPositiveTrend ? "success" : "error"}
-							label={`${isPositiveTrend ? "+" : ""}${trendPercentage}%`}
+							color={trendData.isPositive ? "success" : "error"}
+							label={trendData.display}
 						/>
 					</Stack>
 					<Typography variant="caption" sx={{ color: "text.secondary" }}>
-						Revenue and orders for the last 30 days
+						Total Revenue: {formatRevenue(currentRevenue)} | Total Orders: {currentOrders} | Items: {labels.length}
 					</Typography>
 				</Stack>
 				<LineChart
@@ -134,25 +194,33 @@ export default function RevenueTrendsChart({
 							tickInterval: (index, i) => (i + 1) % 5 === 0,
 						},
 					]}
+					yAxis={[
+						{
+							// Let the chart auto-scale based on actual data values
+							min: 0,
+						},
+					]}
 					series={[
 						{
 							id: "revenue",
 							label: "Revenue ($)",
-							showMark: false,
+							showMark: true,
 							curve: "linear",
 							area: true,
 							data: revenue,
+							valueFormatter: (value) => `$${value}`,
 						},
 						{
-							id: "orders",
+							id: "orders", 
 							label: "Orders",
-							showMark: false,
+							showMark: true,
 							curve: "linear",
 							data: orders,
+							valueFormatter: (value) => `${value} orders`,
 						},
 					]}
 					height={250}
-					margin={{ left: 50, right: 20, top: 20, bottom: 20 }}
+					margin={{ left: 60, right: 20, top: 20, bottom: 20 }}
 					grid={{ horizontal: true }}
 					sx={{
 						"& .MuiAreaElement-series-revenue": {
@@ -161,7 +229,9 @@ export default function RevenueTrendsChart({
 					}}
 					slotProps={{
 						legend: {
-							hidden: true,
+							hidden: false,
+							direction: 'row',
+							position: { vertical: 'top', horizontal: 'right' },
 						},
 					}}>
 					<AreaGradient color={theme.palette.primary.main} id="revenue" />

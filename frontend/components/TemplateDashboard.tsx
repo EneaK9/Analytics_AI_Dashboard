@@ -623,11 +623,11 @@ function generateKPIData(data: any[], templateType: DashboardTemplateType) {
 		totalSKUs,
 		lowStockItems,
 		inventoryValue,
-		turnoverRate: Math.round(Math.random() * 20 + 10), // Placeholder calculation
+		turnoverRate: 0, // Require real calculation instead of Math.random()
 		totalRevenue,
 		totalOrders,
 		avgOrderValue: totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0,
-		conversionRate: Math.round(Math.random() * 5 + 2), // Placeholder calculation
+		conversionRate: 0, // Require real calculation instead of Math.random()
 	};
 }
 

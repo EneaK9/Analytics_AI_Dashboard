@@ -70,7 +70,7 @@ const ShadcnAreaChart: React.FC<ShadcnAreaChartProps> = ({
 						Number(item["total_value"]) ||
 						Number(item["value"]) ||
 						Number(Object.values(item).find((v) => typeof v === "number")) ||
-						Math.random() * 100;
+						0; // No more Math.random() fallback
 
 					return {
 						name: String(nameValue),

@@ -66,7 +66,7 @@ const ShadcnAreaStacked: React.FC<ShadcnAreaStackedProps> = ({
 				Number(item["customers"]) ||
 				Number(item["transactions"]) ||
 				Number(item["value1"]) ||
-				Math.floor(Math.random() * 150) + 50;
+				0; // No more Math.random() fallback
 
 			// Extract second data series (replace "desktop" with real business metric)
 			const series2Value =
@@ -76,7 +76,7 @@ const ShadcnAreaStacked: React.FC<ShadcnAreaStackedProps> = ({
 				Number(item["amount"]) ||
 				Number(item["total"]) ||
 				Number(item["value2"]) ||
-				Math.floor(Math.random() * 200) + 80;
+				0; // No more Math.random() fallback
 
 			return {
 				[xAxisKey]: String(xValue).substring(0, 15), // Limit length for readability

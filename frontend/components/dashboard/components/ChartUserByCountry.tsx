@@ -122,13 +122,42 @@ export default function ChartUserByCountry({
 	height = 260,
 	width = 260,
 }: ChartUserByCountryProps) {
-	// Use provided data or fall back to defaults
-	const inputData = data || [
-		{ label: "India", value: 50000 },
-		{ label: "USA", value: 35000 },
-		{ label: "Brazil", value: 10000 },
-		{ label: "Other", value: 5000 },
-	];
+	// Only use real data - no fake fallbacks
+	if (!data || data.length === 0) {
+		return (
+			<Card
+				variant="outlined"
+				sx={{
+					display: "flex",
+					flexDirection: "column",
+					gap: "8px",
+					flexGrow: 1,
+				}}>
+				<CardContent>
+					<Typography component="h2" variant="subtitle2">
+						{title}
+					</Typography>
+					<Box sx={{ 
+						display: 'flex', 
+						alignItems: 'center', 
+						justifyContent: 'center', 
+						height: height,
+						flexDirection: 'column',
+						color: 'text.secondary'
+					}}>
+						<Typography variant="h6" color="text.secondary" gutterBottom>
+							No Geographic Data Available
+						</Typography>
+						<Typography variant="body2" color="text.secondary">
+							Upload data with location information to see geographic distribution
+						</Typography>
+					</Box>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	const inputData = data; // Use only real data
 
 	// Calculate total and percentages
 	const total = inputData.reduce((sum, item) => sum + item.value, 0);

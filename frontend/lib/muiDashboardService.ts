@@ -252,7 +252,7 @@ class MUIDashboardService {
 				subtitle: metric.metric_value.subtitle || "",
 				muiChartType,
 				originalChartType: chartType,
-				data: this.transformDataForMUI(metric.metric_value.data || [], muiChartType),
+				data: this.transformDataForMUI(metric.metric_value.data || [], muiChartType, metric.metric_value.title || ""),
 				config: this.generateMUIConfig(chartType, muiChartType),
 				hasDropdown: metric.metric_value.has_dropdown,
 				dropdownOptions: metric.metric_value.dropdown_options
@@ -282,26 +282,41 @@ class MUIDashboardService {
 	}
 
 	// Transform backend data format to MUI chart format
-	private transformDataForMUI(data: any[], muiChartType: string): any[] {
+	private transformDataForMUI(data: any[], muiChartType: string, title: string): any[] {
 		if (!data || data.length === 0) return [];
 
-		// Calculate total for percentage calculations using REAL backend values
-		const totalSum = data.reduce((sum, item) => sum + (item.total || item.value || item.count || item.amount || 0), 0);
-		console.log(`💯 Total sum for percentage calculation: ${totalSum}`, data.map(item => ({
+		// Detect if this is a status-related chart based on data content
+		const isStatusChart = this.detectStatusChart(data, title);
+		
+		// Calculate total for percentage calculations using appropriate fields
+		// For status charts, prioritize count fields; for monetary charts, prioritize amount fields
+		const totalSum = data.reduce((sum, item) => {
+			if (isStatusChart) {
+				return sum + (item.count || item.visitors || item.value || item.total || item.amount || 0);
+			} else {
+				return sum + (item.amount || item.total || item.value || item.count || 0);
+			}
+		}, 0);
+		
+		console.log(`💯 Total sum for percentage calculation: ${totalSum} (isStatusChart: ${isStatusChart})`, data.map(item => ({
 			name: item.name,
+			amount: item.amount,
 			total: item.total,
 			value: item.value,
 			count: item.count,
-			amount: item.amount
+			visitors: item.visitors
 		})));
 
 		switch (muiChartType) {
 			case "PieChart":
 				return data.map((item, index) => {
-					const value = item.total || item.value || item.count || item.amount || 0;
+					// Use appropriate field based on chart type
+					const value = isStatusChart 
+						? (item.count || item.visitors || item.value || item.total || item.amount || 0)
+						: (item.amount || item.total || item.value || item.count || 0);
 					const percentage = totalSum > 0 ? Math.round((value / totalSum) * 100) : 0;
 					
-					console.log(`🥧 PieChart item: ${item.name} - value: ${value}, percentage: ${percentage}%`);
+					console.log(`🥧 PieChart item: ${item.name} - value: ${value}, percentage: ${percentage}% (isStatusChart: ${isStatusChart}) (from: amount=${item.amount}, total=${item.total}, value=${item.value}, count=${item.count})`);
 					
 					return {
 						id: item.name,
@@ -313,12 +328,15 @@ class MUIDashboardService {
 
 			case "BarChart":
 				return data.map(item => {
-					const value = item.total || item.value || item.count || item.amount || 0;
+					// Use appropriate field based on chart type
+					const value = isStatusChart 
+						? (item.count || item.visitors || item.value || item.total || item.amount || 0)
+						: (item.amount || item.total || item.value || item.count || 0);
 					const percentage = totalSum > 0 ? Math.round((value / totalSum) * 100) : 0;
 					const desktop = item.desktop || value;
 					const mobile = item.mobile || (value * 0.8);
 					
-					console.log(`📊 BarChart item: ${item.name} - value: ${value}, desktop: ${desktop}, mobile: ${mobile}`);
+					console.log(`📊 BarChart item: ${item.name} - value: ${value}, desktop: ${desktop}, mobile: ${mobile} (isStatusChart: ${isStatusChart}) (from: amount=${item.amount}, total=${item.total})`);
 					
 					return {
 						name: item.name,
@@ -332,8 +350,13 @@ class MUIDashboardService {
 
 			case "LineChart":
 				return data.map((item, index) => {
-					const value = item.total || item.value || item.count || item.amount || 0;
+					// Use appropriate field based on chart type
+					const value = isStatusChart 
+						? (item.count || item.visitors || item.value || item.total || item.amount || 0)
+						: (item.amount || item.total || item.value || item.count || 0);
 					const percentage = totalSum > 0 ? Math.round((value / totalSum) * 100) : 0;
+					
+					console.log(`📈 LineChart item: ${item.name} - value: ${value}, percentage: ${percentage}% (isStatusChart: ${isStatusChart}) (from: amount=${item.amount}, total=${item.total})`);
 					
 					return {
 						name: item.name,
@@ -347,8 +370,13 @@ class MUIDashboardService {
 
 			case "RadarChart":
 				return data.map(item => {
-					const value = item.total || item.value || item.count || item.amount || 0;
+					// Use appropriate field based on chart type
+					const value = isStatusChart 
+						? (item.count || item.visitors || item.value || item.total || item.amount || 0)
+						: (item.amount || item.total || item.value || item.count || 0);
 					const percentage = totalSum > 0 ? Math.round((value / totalSum) * 100) : 0;
+					
+					console.log(`🎯 RadarChart item: ${item.name} - value: ${value}, percentage: ${percentage}% (isStatusChart: ${isStatusChart})`);
 					
 					return {
 						name: item.name,
@@ -363,6 +391,75 @@ class MUIDashboardService {
 			default:
 				return data;
 		}
+	}
+
+	// Detect if this is a status-related chart based on data content
+	private detectStatusChart(data: any[], title: string): boolean {
+		if (!data || data.length === 0) return false;
+		
+		// Check chart title for status-related keywords
+		const titleLower = title.toLowerCase();
+		const statusTitleKeywords = ['activity radar', 'activity tracking'];
+		const hasTitleKeywords = statusTitleKeywords.some(keyword => titleLower.includes(keyword));
+		
+		// Exclude charts that are explicitly about monetary comparisons
+		const monetaryKeywords = ['revenue', 'sales', 'profit', 'platform share', 'growth', 'price'];
+		const isExplicitlyMonetary = monetaryKeywords.some(keyword => 
+			titleLower.includes(keyword) || (data[0] && typeof data[0].amount === 'number' && data[0].amount > 100)
+		);
+		
+		// Check if the names/categories are status-related terms
+		const statusTerms = ['active', 'inactive', 'archived', 'draft', 'pending', 'approved', 'rejected', 'published', 'unpublished', 'enabled', 'disabled'];
+		
+		const hasStatusTerms = data.some(item => {
+			const name = (item.name || '').toLowerCase();
+			return statusTerms.some(term => name.includes(term));
+		});
+		
+		// Check if count/visitors fields are present and more meaningful than amount fields
+		const hasCountData = data.some(item => item.count || item.visitors);
+		const hasAmountData = data.some(item => item.amount || item.total);
+		
+		// Filter out charts with unrealistic large numbers (likely IDs or timestamps)
+		if (hasAmountData) {
+			const avgAmount = data.reduce((sum, item) => sum + (item.amount || item.total || 0), 0) / data.length;
+			const avgCount = data.reduce((sum, item) => sum + (item.count || item.visitors || 0), 0) / data.length;
+			
+			// If amounts are extremely large, treat as status chart (to use count instead)
+			if (avgAmount > 1000000) {
+				console.log(`🔍 Detected unrealistic large values, treating as status chart: avgAmount=${avgAmount}`);
+				return true;
+			}
+		}
+		
+		// Special cases:
+		// 1. If title explicitly mentions monetary terms and has realistic amounts, prefer monetary
+		if (isExplicitlyMonetary && hasAmountData) {
+			const avgAmount = data.reduce((sum, item) => sum + (item.amount || item.total || 0), 0) / data.length;
+			if (avgAmount > 0 && avgAmount < 100000) { // Realistic monetary range
+				console.log(`🔍 Chart "${title}" has monetary focus with realistic amounts, treating as monetary chart`);
+				return false;
+			}
+		}
+		
+		// 2. If chart title suggests status analysis but data doesn't contain status terms, it's not a status chart
+		if (titleLower.includes('status') && !hasStatusTerms) {
+			console.log(`🔍 Chart "${title}" has status in title but no status terms in data, treating as regular chart`);
+			return false;
+		}
+		
+		// 3. Pure status charts: explicit status keywords in title AND status terms in data
+		const isPureStatusChart = hasTitleKeywords && hasStatusTerms;
+		
+		const isStatusChart = isPureStatusChart || (hasCountData && !hasAmountData);
+		console.log(`🔍 Status chart detection for "${title}": 
+		  hasTitleKeywords=${hasTitleKeywords}, 
+		  hasStatusTerms=${hasStatusTerms}, 
+		  isExplicitlyMonetary=${isExplicitlyMonetary},
+		  isPureStatusChart=${isPureStatusChart},
+		  result=${isStatusChart}`);
+		
+		return isStatusChart;
 	}
 
 	// Generate MUI-specific configuration based on chart types
@@ -419,85 +516,20 @@ class MUIDashboardService {
 		return `hsl(${(index * 137.5) % 360}, 70%, 50%)`;
 	}
 
-	// Generate fallback data when backend is unavailable
+	// Return empty data when backend is unavailable - NO fake data
 	private generateFallbackData(): MUIDashboardData {
-		console.log("⚠️ Generating fallback data - backend unavailable");
+		console.log("⚠️ No backend data available - returning empty data structure");
 		
-		const fallbackKPIs: MUIStatCardData[] = [
-			{
-				title: "Total Revenue",
-				value: "$45,231",
-				interval: "Last 30 days",
-				trend: "up",
-				trendValue: "+12.5%",
-				data: Array.from({ length: 30 }, () => 40000 + Math.random() * 10000)
-			},
-			{
-				title: "Active Users",
-				value: "2,350",
-				interval: "Last 30 days", 
-				trend: "up",
-				trendValue: "+8.2%",
-				data: Array.from({ length: 30 }, () => 2000 + Math.random() * 700)
-			},
-			{
-				title: "Conversion Rate",
-				value: "3.2%",
-				interval: "Last 30 days",
-				trend: "down",
-				trendValue: "-2.4%",
-				data: Array.from({ length: 30 }, () => 3 + Math.random() * 1)
-			},
-			{
-				title: "Total Orders",
-				value: "1,234",
-				interval: "Last 30 days",
-				trend: "up",
-				trendValue: "+15.7%",
-				data: Array.from({ length: 30 }, () => 1000 + Math.random() * 500)
-			}
-		];
-
-		const fallbackPieChart: MUIChartData = {
-			id: "fallback-pie",
-			title: "Sales by Category",
-			subtitle: "Product category breakdown",
-			muiChartType: "PieChart",
-			originalChartType: "ShadcnPieChart",
-			data: [
-				{ id: "Electronics", value: 35, label: "Electronics", color: "#0088FE" },
-				{ id: "Clothing", value: 25, label: "Clothing", color: "#00C49F" },
-				{ id: "Books", value: 20, label: "Books", color: "#FFBB28" },
-				{ id: "Home", value: 20, label: "Home & Garden", color: "#FF8042" }
-			]
-		};
-
-		const fallbackBarChart: MUIChartData = {
-			id: "fallback-bar",
-			title: "Monthly Sales",
-			subtitle: "Sales performance by month",
-			muiChartType: "BarChart",
-			originalChartType: "ShadcnBarDefault",
-			data: [
-				{ name: "Jan", value: 4000, desktop: 4000, mobile: 3200 },
-				{ name: "Feb", value: 3000, desktop: 3000, mobile: 2400 },
-				{ name: "Mar", value: 5000, desktop: 5000, mobile: 4000 },
-				{ name: "Apr", value: 4500, desktop: 4500, mobile: 3600 },
-				{ name: "May", value: 6000, desktop: 6000, mobile: 4800 },
-				{ name: "Jun", value: 5500, desktop: 5500, mobile: 4400 }
-			]
-		};
-
 		return {
-			kpis: fallbackKPIs,
-			pieCharts: [fallbackPieChart],
-			barCharts: [fallbackBarChart],
-			lineCharts: [],
-			radarCharts: [],
-			radialCharts: [],
-			areaCharts: [],
-			totalMetrics: 6,
-			lastUpdated: new Date().toLocaleString()
+			kpis: [], // No fake KPIs
+			pieCharts: [], // No fake pie charts
+			barCharts: [], // No fake bar charts
+			lineCharts: [], // No fake line charts
+			radarCharts: [], // No fake radar charts
+			radialCharts: [], // No fake radial charts
+			areaCharts: [], // No fake area charts
+			totalMetrics: 0,
+			lastUpdated: "No data available"
 		};
 	}
 
