@@ -292,9 +292,25 @@ const SuperAdminDashboard: React.FC = () => {
 			});
 		} catch (error: any) {
 			console.error("API connection test failed:", error);
+
+			let errorMessage = "Connection test failed";
+
+			// Handle specific error cases
+			if (error.response?.status === 401) {
+				errorMessage =
+					"Authentication failed - please refresh the page and try again (your session may have expired)";
+			} else if (error.response?.data?.detail === "Token expired") {
+				errorMessage =
+					"Your session has expired. Please refresh the page and log in again.";
+			} else if (error.response?.data?.message) {
+				errorMessage = error.response.data.message;
+			} else if (error.response?.data?.detail) {
+				errorMessage = error.response.data.detail;
+			}
+
 			setConnectionTestResult({
 				success: false,
-				message: error.response?.data?.message || "Connection test failed",
+				message: errorMessage,
 				tested: true,
 			});
 		} finally {

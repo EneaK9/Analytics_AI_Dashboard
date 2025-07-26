@@ -72,7 +72,7 @@ security = HTTPBearer()
 # JWT Configuration
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-this-in-production")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_TIME = 1  # hours - tokens expire after 1 hour
+JWT_EXPIRATION_TIME = 8  # hours - tokens expire after 8 hours (more practical for extended work sessions)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token"""
