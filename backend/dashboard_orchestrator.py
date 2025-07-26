@@ -7,7 +7,9 @@ from models import (
     DashboardMetric, BusinessContext, AIInsight, DataAnalysisResult,
     DashboardGenerationRequest, DashboardGenerationResponse,
     DashboardGenerationTracking, GenerationStatus, GenerationType, ErrorType,
-    RetryInfo, GenerationResult, AutoGenerationRequest
+    RetryInfo, GenerationResult, AutoGenerationRequest,
+    StandardizedDashboardResponse, StandardizedDashboardData, MetadataInfo,
+    StandardizedKPI, StandardizedChart, FieldMapping, TrendInfo
 )
 import re
 import logging
@@ -22,6 +24,7 @@ import concurrent.futures
 import time
 from openai import OpenAI
 from dashboard_templates import DashboardTemplateManager, DashboardTemplateType
+from field_mapper import field_mapper
 
 logger = logging.getLogger(__name__)
 
@@ -2797,6 +2800,201 @@ class DashboardOrchestrator:
         """Detect the recommended template type based on client data"""
         template_type = self.template_manager.detect_best_template(client_data_columns, business_context)
         return template_type.value
+
+    async def generate_standardized_dashboard_data(self, client_id: uuid.UUID, source_type: str = "unknown") -> StandardizedDashboardResponse:
+        """Generate dashboard data in the new standardized format"""
+        try:
+            logger.info(f"🔄 Generating standardized dashboard data for client {client_id}")
+            
+            # Get the existing dashboard config and data analysis
+            dashboard_config = await self._get_existing_dashboard(client_id)
+            if not dashboard_config:
+                # Generate new dashboard if none exists
+                generation_response = await self.generate_dashboard(client_id, force_regenerate=False)
+                dashboard_config = generation_response.dashboard_config
+                
+            if not dashboard_config:
+                raise Exception("Failed to generate or retrieve dashboard config")
+            
+            # Get client data for analysis and field mapping
+            client_data = await self.ai_analyzer.get_client_data_optimized(str(client_id))
+            data_analysis = await self._analyze_real_client_data(client_id, client_data)
+            
+            # Create field mappings using the smart field mapper
+            sample_data = data_analysis.get('sample_data', [])
+            field_mappings_dict = field_mapper.create_field_mappings_from_data(sample_data)
+            field_mappings = FieldMapping(
+                original_fields=field_mappings_dict["original_fields"],
+                display_names=field_mappings_dict["display_names"]
+            )
+            
+            # Generate metadata
+            metadata = MetadataInfo(
+                source_type=source_type,
+                generated_at=datetime.now(),
+                total_records=data_analysis.get('total_records', 0),
+                version="1.0"
+            )
+            
+            # Convert KPIs to standardized format
+            standardized_kpis = []
+            for kpi in dashboard_config.kpi_widgets:
+                # Extract trend information
+                trend_data = kpi.trend if hasattr(kpi, 'trend') and kpi.trend else {"value": "0%", "isPositive": True}
+                trend_percentage = float(trend_data.get("value", "0%").replace("%", ""))
+                trend_direction = "up" if trend_data.get("isPositive", True) else "down"
+                
+                # Determine format based on KPI value
+                kpi_format = "number"
+                if "$" in str(kpi.value):
+                    kpi_format = "currency"
+                elif "%" in str(kpi.value):
+                    kpi_format = "percentage"
+                
+                standardized_kpi = StandardizedKPI(
+                    id=kpi.id.replace("kpi_", "").replace("_", "-"),
+                    display_name=kpi.title,
+                    technical_name=kpi.id,
+                    value=str(kpi.value),
+                    trend=TrendInfo(
+                        percentage=trend_percentage,
+                        direction=trend_direction,
+                        description="vs last month"
+                    ),
+                    format=kpi_format
+                )
+                standardized_kpis.append(standardized_kpi)
+            
+            # Convert Charts to standardized format
+            standardized_charts = []
+            for chart in dashboard_config.chart_widgets:
+                # Generate real chart data
+                chart_data_result = await self._generate_real_chart_data(chart, data_analysis)
+                chart_data = chart_data_result.get('data', [])
+                
+                # Determine axis configuration from chart data
+                x_axis_field = "date"
+                y_axis_field = "value"
+                
+                if chart_data and len(chart_data) > 0:
+                    first_record = chart_data[0]
+                    # Find likely x-axis (date/time fields)
+                    for field in first_record.keys():
+                        if any(indicator in field.lower() for indicator in ['date', 'time', 'month', 'day']):
+                            x_axis_field = field
+                            break
+                    
+                    # Find likely y-axis (numeric fields)
+                    for field in first_record.keys():
+                        if field != x_axis_field and isinstance(first_record.get(field), (int, float)):
+                            y_axis_field = field
+                            break
+                
+                # Get display names for axes
+                x_display = field_mappings.display_names.get(x_axis_field, x_axis_field.replace('_', ' ').title())
+                y_display = field_mappings.display_names.get(y_axis_field, y_axis_field.replace('_', ' ').title())
+                
+                # Detect axis formats
+                x_format = field_mapper.detect_field_format(x_axis_field)
+                y_format = field_mapper.detect_field_format(y_axis_field)
+                
+                # Create chart configuration as simple dictionary
+                chart_config = {
+                    "x_axis": {
+                        "field": x_axis_field,
+                        "display_name": x_display,
+                        "format": x_format
+                    },
+                    "y_axis": {
+                        "field": y_axis_field,
+                        "display_name": y_display,
+                        "format": y_format
+                    },
+                    "filters": {}
+                }
+                
+                # Add filter options if available
+                dropdown_options = chart_data_result.get('dropdown_options', [])
+                if dropdown_options:
+                    chart_config["filters"]["region"] = dropdown_options
+                
+                # Convert chart type to standardized format
+                chart_type = chart.chart_type
+                if hasattr(chart_type, 'value'):
+                    chart_type = chart_type.value
+                chart_type = str(chart_type).lower().replace('shadcn', '').replace('chart', '')
+                
+                # Clean and serialize chart data to avoid Pydantic warnings
+                cleaned_chart_data = []
+                for item in chart_data:
+                    if isinstance(item, dict):
+                        # Convert any problematic types to strings/numbers
+                        cleaned_item = {}
+                        for key, value in item.items():
+                            if isinstance(value, (str, int, float, bool)) or value is None:
+                                cleaned_item[key] = value
+                            elif isinstance(value, dict):
+                                # Convert dict to JSON string to avoid Pydantic warnings
+                                cleaned_item[key] = json.dumps(value)
+                            elif isinstance(value, list):
+                                # Convert list to string representation
+                                cleaned_item[key] = str(value)
+                            else:
+                                # Convert other complex types to string representation
+                                cleaned_item[key] = str(value)
+                        cleaned_chart_data.append(cleaned_item)
+                    elif isinstance(item, (str, int, float, bool)) or item is None:
+                        cleaned_chart_data.append(item)
+                    else:
+                        # Convert non-dict complex types to string
+                        cleaned_chart_data.append(str(item))
+                
+                standardized_chart = StandardizedChart(
+                    id=chart.id.replace("chart_", "").replace("_", "-"),
+                    display_name=chart.title,
+                    technical_name=chart.id,
+                    chart_type=chart_type,
+                    data=cleaned_chart_data,
+                    config=chart_config
+                )
+                standardized_charts.append(standardized_chart)
+            
+            # Create the complete standardized response
+            dashboard_data = StandardizedDashboardData(
+                metadata=metadata,
+                kpis=standardized_kpis,
+                charts=standardized_charts,
+                field_mappings=field_mappings
+            )
+            
+            standardized_response = StandardizedDashboardResponse(
+                success=True,
+                client_id=client_id,
+                dashboard_data=dashboard_data,
+                message="Dashboard data generated successfully in standardized format"
+            )
+            
+            logger.info(f"✅ Generated standardized dashboard with {len(standardized_kpis)} KPIs and {len(standardized_charts)} charts")
+            return standardized_response
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to generate standardized dashboard data: {e}")
+            # Return error response
+            return StandardizedDashboardResponse(
+                success=False,
+                client_id=client_id,
+                dashboard_data=StandardizedDashboardData(
+                    metadata=MetadataInfo(
+                        source_type=source_type,
+                        generated_at=datetime.now(),
+                        total_records=0
+                    ),
+                    kpis=[],
+                    charts=[],
+                    field_mappings=FieldMapping(original_fields={}, display_names={})
+                ),
+                message=f"Failed to generate dashboard data: {str(e)}"
+            )
 
 # Create global instance
 dashboard_orchestrator = DashboardOrchestrator() 

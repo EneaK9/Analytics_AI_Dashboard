@@ -1432,45 +1432,66 @@ async def get_dashboard_config(token: str = Depends(security)):
         logger.error(f"❌ Failed to get dashboard config: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get dashboard config: {str(e)}")
 
-@app.get("/api/dashboard/metrics", response_model=List[DashboardMetric])
+@app.get("/api/dashboard/metrics", response_model=StandardizedDashboardResponse)
 async def get_dashboard_metrics(token: str = Depends(security)):
-    """Get dashboard metrics for the authenticated client"""
+    """Get dashboard metrics in standardized format for the authenticated client"""
     try:
         # Verify client token
         token_data = verify_token(token.credentials)
         
-        db_client = get_admin_client()
-        if not db_client:
-            raise HTTPException(status_code=503, detail="Database not configured")
-        
-        # Get dashboard metrics
+        # Determine source type from client schema data
+        source_type = "unknown"
         try:
-            response = db_client.table("client_dashboard_metrics").select("*").eq("client_id", str(token_data.client_id)).order("calculated_at", desc=True).execute()
-            
-            metrics = []
-            for metric_data in response.data:
-                metric = DashboardMetric(
-                    metric_id=metric_data["metric_id"],
-                    client_id=metric_data["client_id"],
-                    metric_name=metric_data["metric_name"],
-                    metric_value=metric_data["metric_value"],
-                    metric_type=metric_data["metric_type"],
-                    calculated_at=metric_data["calculated_at"]
-                )
-                metrics.append(metric)
-            
-            return metrics
-        except Exception as e:
-            if "relation" in str(e) and "does not exist" in str(e):
-                logger.warning(f"⚠️  Dashboard metrics table not found: {e}")
-                return []
-            raise
+            db_client = get_admin_client()
+            if db_client:
+                schema_response = db_client.table("client_schemas").select("*").eq("client_id", str(token_data.client_id)).execute()
+                if schema_response.data:
+                    schema_data = schema_response.data[0]
+                    data_type = schema_data.get('data_type', 'unknown')
+                    input_method = schema_data.get('input_method', 'unknown')
+                    
+                    # Determine source type from available data
+                    if input_method in ['csv', 'json', 'api']:
+                        source_type = input_method
+                    elif 'csv' in str(data_type).lower():
+                        source_type = 'csv'
+                    elif 'json' in str(data_type).lower():
+                        source_type = 'json'
+                    elif 'api' in str(data_type).lower():
+                        source_type = 'api'
+        except Exception as schema_error:
+            logger.warning(f"⚠️ Could not determine source type: {schema_error}")
+            source_type = "unknown"
+        
+        # Generate standardized dashboard data
+        from dashboard_orchestrator import dashboard_orchestrator
+        standardized_response = await dashboard_orchestrator.generate_standardized_dashboard_data(
+            client_id=token_data.client_id,
+            source_type=source_type
+        )
+        
+        return standardized_response
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Failed to get dashboard metrics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return error in standardized format
+        return StandardizedDashboardResponse(
+            success=False,
+            client_id=token_data.client_id if 'token_data' in locals() else uuid.uuid4(),
+            dashboard_data=StandardizedDashboardData(
+                metadata=MetadataInfo(
+                    source_type="unknown",
+                    generated_at=datetime.now(),
+                    total_records=0
+                ),
+                kpis=[],
+                charts=[],
+                field_mappings=FieldMapping(original_fields={}, display_names={})
+            ),
+            message=f"Failed to get dashboard metrics: {str(e)}"
+        )
 
 @app.get("/api/dashboard/status", response_model=DashboardStatusResponse)
 async def get_dashboard_status(token: str = Depends(security)):

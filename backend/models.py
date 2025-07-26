@@ -373,6 +373,77 @@ class DashboardMetric(BaseModel):
     metric_type: str  # 'kpi', 'chart_data', 'trend'
     calculated_at: datetime
 
+# NEW STANDARDIZED RESPONSE MODELS
+class FieldMapping(BaseModel):
+    """Field name mapping for clear display"""
+    original_fields: Dict[str, str]  # "Monthly Sales" -> "monthly_sales"
+    display_names: Dict[str, str]    # "monthly_sales" -> "Monthly Sales"
+    
+class MetadataInfo(BaseModel):
+    """Dashboard metadata information"""
+    source_type: str  # csv, json, api
+    generated_at: datetime
+    total_records: int
+    version: str = "1.0"
+
+class TrendInfo(BaseModel):
+    """KPI trend information"""
+    percentage: float
+    direction: str  # up, down, neutral
+    description: str = "vs last month"
+
+class StandardizedKPI(BaseModel):
+    """Standardized KPI structure"""
+    id: str
+    display_name: str
+    technical_name: str
+    value: str
+    trend: TrendInfo
+    format: str  # currency, number, percentage
+
+class StandardizedChart(BaseModel):
+    """Standardized chart structure"""
+    id: str
+    display_name: str
+    technical_name: str
+    chart_type: str
+    data: List[Any]  # More flexible to handle complex chart data
+    config: Dict[str, Any]  # Use simple dict instead of nested Pydantic models
+    
+    class Config:
+        # Allow arbitrary types to handle complex chart data
+        arbitrary_types_allowed = True
+        # Use JSON serialization for complex objects
+        json_encoders = {
+            # Handle any datetime objects
+            datetime: lambda dt: dt.isoformat(),
+            # Handle numpy types if present
+            type(None): lambda _: None
+        }
+
+class StandardizedDashboardData(BaseModel):
+    """Main dashboard data structure"""
+    metadata: MetadataInfo
+    kpis: List[StandardizedKPI]
+    charts: List[StandardizedChart]
+    field_mappings: FieldMapping
+
+class StandardizedDashboardResponse(BaseModel):
+    """Standardized response format for all dashboard endpoints"""
+    success: bool
+    client_id: uuid.UUID
+    dashboard_data: StandardizedDashboardData
+    message: Optional[str] = None
+    
+    class Config:
+        # Allow arbitrary types for flexible data handling
+        arbitrary_types_allowed = True
+        # Custom JSON encoders for special types
+        json_encoders = {
+            datetime: lambda dt: dt.isoformat(),
+            uuid.UUID: lambda u: str(u)
+        }
+
 class DashboardGenerationRequest(BaseModel):
     """Request to generate a dashboard"""
     force_regenerate: bool = False

@@ -2,8 +2,6 @@ import * as React from "react";
 import { styled } from "@mui/material/styles";
 import Avatar from "@mui/material/Avatar";
 import Chip from "@mui/material/Chip";
-import MuiListItem from "@mui/material/ListItem";
-import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import MuiSelect from "@mui/material/Select";
 import MuiMenuItem from "@mui/material/MenuItem";
@@ -29,10 +27,6 @@ const Select = styled(MuiSelect)({
 		gap: "8px",
 		paddingLeft: 0,
 	},
-});
-
-const ListItem = styled(MuiListItem)({
-	padding: 0,
 });
 
 const MenuItem = styled(MuiMenuItem)({
@@ -218,18 +212,16 @@ export default function SelectContent({
 	if (loading) {
 		return (
 			<Select value="" displayEmpty disabled fullWidth>
-				<MenuItem value="">
-					<ListItem>
-						<ListItemButton>
-							<Avatar sx={{ width: 36, height: 36, bgcolor: "grey.300" }}>
-								<DashboardIcon />
-							</Avatar>
-							<ListItemText
-								primary="Loading..."
-								secondary="Generating dashboards"
-							/>
-						</ListItemButton>
-					</ListItem>
+				<MenuItem
+					value=""
+					sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+					<Avatar sx={{ width: 36, height: 36, bgcolor: "grey.300" }}>
+						<DashboardIcon />
+					</Avatar>
+					<ListItemText
+						primary="Loading..."
+						secondary="Generating dashboards"
+					/>
 				</MenuItem>
 			</Select>
 		);
@@ -245,21 +237,24 @@ export default function SelectContent({
 			inputProps={{ "aria-label": "Select dashboard" }}
 			fullWidth>
 			{dashboardOptions.map((option) => (
-				<MenuItem key={option.id} value={option.id}>
-					<ListItem>
-						<ListItemButton selected={option.isActive}>
-							<Avatar sx={{ width: 36, height: 36, bgcolor: option.color }}>
-								{option.icon}
-							</Avatar>
-							<ListItemText
-								primary={option.title}
-								secondary={option.subtitle}
-							/>
-							{option.isActive && (
-								<Chip size="small" color="primary" label="Active" />
-							)}
-						</ListItemButton>
-					</ListItem>
+				<MenuItem
+					key={option.id}
+					value={option.id}
+					selected={option.isActive}
+					sx={{
+						display: "flex",
+						alignItems: "center",
+						gap: 1,
+						width: "100%",
+						padding: 1,
+					}}>
+					<Avatar sx={{ width: 36, height: 36, bgcolor: option.color }}>
+						{option.icon}
+					</Avatar>
+					<ListItemText primary={option.title} secondary={option.subtitle} />
+					{option.isActive && (
+						<Chip size="small" color="primary" label="Active" />
+					)}
 				</MenuItem>
 			))}
 		</Select>
