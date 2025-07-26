@@ -12,10 +12,10 @@ import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import Copyright from "../internals/components/Copyright";
 import ChartUserByCountry from "./ChartUserByCountry";
-import CustomizedDataGrid from "./CustomizedDataGrid";
+import BusinessDataTable from "./BusinessDataTable";
 import HighlightedCard from "./HighlightedCard";
-import PageViewsBarChart from "./PageViewsBarChart";
-import SessionsChart from "./SessionsChart";
+import RevenueTrendsChart from "./RevenueTrendsChart";
+import SalesCategoryChart from "./SalesCategoryChart";
 import StatCard, { StatCardProps } from "./StatCard";
 import { DateRange } from "./CustomDatePicker";
 import api from "../../../lib/axios";
@@ -123,7 +123,7 @@ export default function MainGrid({
 }: MainGridProps) {
 	// If this is the main dashboard, use the original layout
 	if (dashboardType === "main") {
-		return <OriginalMainGrid dashboardData={dashboardData} />;
+		return <OriginalMainGrid dashboardData={dashboardData} user={user} />;
 	}
 
 	// For other dashboard types, use the dynamic template system
@@ -140,8 +140,10 @@ export default function MainGrid({
 // Original Main Dashboard Component - Uses REAL BACKEND DATA
 function OriginalMainGrid({
 	dashboardData,
+	user,
 }: {
 	dashboardData?: MainGridProps["dashboardData"];
+	user?: { client_id: string; company_name: string; email: string };
 }) {
 	const [loading, setLoading] = React.useState(true);
 	const [muiData, setMuiData] = React.useState<MUIDashboardData>({
@@ -162,13 +164,57 @@ function OriginalMainGrid({
 		lastUpdated: "Never",
 		chartTypes: {} as Record<string, number>
 	});
+	const [clientData, setClientData] = React.useState<any[]>([]);
+	const [dataColumns, setDataColumns] = React.useState<string[]>([]);
+
+	// Fetch client data using the EXACT same approach as template dashboard
+	const loadClientData = React.useCallback(async () => {
+		if (!user?.client_id) return;
+
+		try {
+			setLoading(true);
+
+			// Use the SAME API call as template dashboard
+			const clientDataResponse = await api.post(
+				`/dashboard/generate-template?template_type=main&force_regenerate=false`
+			);
+
+			if (clientDataResponse.data.success) {
+				setClientData(clientDataResponse.data.client_data || []);
+				setDataColumns(clientDataResponse.data.data_columns || []);
+				console.log("✅ Client data loaded for main dashboard:", {
+					records: clientDataResponse.data.client_data?.length || 0,
+					columns: clientDataResponse.data.data_columns?.length || 0,
+				});
+			}
+		} catch (error) {
+			console.error("❌ Error loading client data, trying fallback:", error);
+			// Use EXACT same fallback as template dashboard
+			try {
+				const fallbackResponse = await api.get(`/data/${user.client_id}`);
+				if (fallbackResponse.data) {
+					// Handle different response structures
+					const responseData = fallbackResponse.data.data || fallbackResponse.data;
+					if (Array.isArray(responseData)) {
+						setClientData(responseData.slice(0, 100));
+						if (responseData.length > 0) {
+							setDataColumns(Object.keys(responseData[0]));
+						}
+						console.log("✅ Fallback client data loaded for main dashboard:", responseData.length, "rows");
+					}
+				}
+			} catch (fallbackError) {
+				console.error("❌ Fallback failed:", fallbackError);
+				setClientData([]);
+				setDataColumns([]);
+			}
+		}
+	}, [user?.client_id]);
 
 	// Fetch REAL BACKEND DATA for main dashboard
 	React.useEffect(() => {
 		const fetchRealData = async () => {
 			try {
-				setLoading(true);
-
 				console.log("🔥 Loading MUI dashboard with backend data");
 
 				// Use MUI dashboard service to get formatted data
@@ -179,6 +225,9 @@ function OriginalMainGrid({
 				const rawMetrics = await muiDashboardService.fetchMetrics();
 				const stats = muiDashboardService.generateSummaryStats(rawMetrics);
 				setSummaryStats(stats);
+
+				// Load client data using the SAME method as template dashboard
+				await loadClientData();
 
 				console.log("✅ MUI Dashboard data loaded:", {
 					kpis: processedData.kpis.length,
@@ -198,7 +247,7 @@ function OriginalMainGrid({
 		};
 
 		fetchRealData();
-	}, []);
+	}, [loadClientData]);
 
 	if (loading) {
 		return (
@@ -283,25 +332,38 @@ function OriginalMainGrid({
 					</Grid>
 				))}
 			</Grid>
+			{/* Business Data Table */}
+			<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+				<Grid size={{ xs: 12 }}>
+					<BusinessDataTable
+						clientData={clientData}
+						dataColumns={dataColumns}
+						title="Business Data Overview"
+						subtitle="Key business metrics and performance data from your uploaded data"
+					/>
+				</Grid>
+			</Grid>
 
-			{/* REAL DATA Charts */}
+			{/* REAL BUSINESS DATA Charts */}
 			<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
 				<Grid size={{ xs: 12, md: 6 }}>
-					<SessionsChart
+					<RevenueTrendsChart
 						dashboardData={{
-							sessions: summaryStats.totalMetrics || 13277,
-							users: summaryStats.totalCharts + summaryStats.totalKPIs || 14000,
-							conversions: Math.floor((summaryStats.totalMetrics || 325) * 0.15),
+							totalRevenue: (summaryStats.totalMetrics || 100) * 500,
+							totalOrders: summaryStats.totalMetrics || 325,
+							averageOrderValue: Math.floor(((summaryStats.totalMetrics || 100) * 500) / (summaryStats.totalMetrics || 325)),
 						}}
+						revenueData={muiData.lineCharts.length > 0 ? muiData.lineCharts[0].data : []}
 					/>
 				</Grid>
 				<Grid size={{ xs: 12, md: 6 }}>
-					<PageViewsBarChart
+					<SalesCategoryChart
 						dashboardData={{
-							pageViews: (summaryStats.totalMetrics || 100) * 12000,
-							sessions: summaryStats.totalMetrics || 13277,
-							users: summaryStats.totalCharts + summaryStats.totalKPIs || 14000,
+							totalSales: (summaryStats.totalMetrics || 100) * 400,
+							topCategory: "Electronics",
+							categoriesCount: muiData.pieCharts.length || 5,
 						}}
+						categoryData={muiData.pieCharts.length > 0 ? muiData.pieCharts[0].data : []}
 					/>
 				</Grid>
 			</Grid>
@@ -584,6 +646,8 @@ function OriginalMainGrid({
 					</Grid>
 				</Grid>
 			)}
+
+			
 
 			<Copyright sx={{ my: 4 }} />
 		</Box>
@@ -1430,7 +1494,7 @@ function TemplateDashboard({
 			{!config.showCharts && (
 				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
 					<Grid size={{ xs: 12, lg: 8 }}>
-						<CustomizedDataGrid
+						<BusinessDataTable
 							clientData={clientData}
 							dataColumns={dataColumns}
 						/>
