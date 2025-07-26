@@ -5,12 +5,52 @@ import api from "../lib/axios";
 import { useAuth } from "../lib/useAuth";
 import Dashboard from "../components/dashboard/Dashboard";
 
+// Import MUI components for charts
+import { PieChart, Pie, Cell, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line } from 'recharts';
+import { Box, Card, CardContent, Typography } from '@mui/material';
+
 interface User {
 	client_id: string;
 	company_name: string;
 	email: string;
 	subscription_tier: string;
 	created_at: string;
+}
+
+interface ChartDataPoint {
+	label: string;
+	value: number;
+}
+
+interface MetricTrend {
+	value: string;
+	isPositive: boolean;
+}
+
+interface KPIMetricValue {
+	title: string;
+	value: string;
+	trend?: MetricTrend;
+	source: string;
+	kpi_id: string;
+	timestamp: string;
+}
+
+interface ChartMetricValue {
+	title: string;
+	subtitle?: string;
+	chart_type: string;
+	source: string;
+	timestamp: string;
+	data: ChartDataPoint[];
+}
+
+interface IndividualMetric {
+	metric_id: string;
+	metric_name: string;
+	metric_type: 'kpi' | 'chart_data';
+	metric_value: KPIMetricValue | ChartMetricValue;
+	calculated_at: string;
 }
 
 interface DashboardData {
@@ -22,6 +62,7 @@ interface DashboardData {
 	isAnalyzing: boolean;
 	lastAnalysis: Date | null;
 	error: string | null;
+	intelligentMetrics: IndividualMetric[];
 }
 
 const DashboardPage: React.FC = () => {
@@ -36,6 +77,7 @@ const DashboardPage: React.FC = () => {
 		isAnalyzing: false,
 		lastAnalysis: null,
 		error: null,
+		intelligentMetrics: [],
 	});
 	const router = useRouter();
 	const { logout } = useAuth();
@@ -47,80 +89,84 @@ const DashboardPage: React.FC = () => {
 
 			console.log("🔥 Loading REAL AI analysis data from backend...");
 
-			// First, try to get dashboard metrics
-			const response = await api.get("/dashboard/metrics");
-			console.log("📊 Backend metrics response:", response.data);
+			// Get intelligent individual metrics from new endpoint  
+			const response = await api.get("/dashboard/individual-metrics");
+			console.log("🧠 Intelligent metrics response:", response.data);
 
-			if (response.data && response.data.length > 0) {
-				// Extract REAL data from backend metrics
-				const metrics = response.data;
+			if (response.data && response.data.success && response.data.metrics && response.data.metrics.length > 0) {
+				// Extract REAL data from intelligent individual metrics
+				const metrics = response.data.metrics;
 				const extractedData: Partial<DashboardData> = {};
 
 				console.log(
 					"📈 Processing",
 					metrics.length,
-					"real metrics from backend"
+					"intelligent metrics from backend"
 				);
 
-				// Map real AI metrics to dashboard data
+				// Map intelligent individual metrics to dashboard data
 				metrics.forEach((metric: any) => {
 					console.log(
-						"🔍 Processing metric:",
-						metric.metric_type,
+						"🧠 Processing intelligent metric:",
+						metric.metric_id,
 						metric.metric_name,
-						metric.metric_value
+						metric.metric_type,
+						metric.metric_value?.title
 					);
 
 					if (metric.metric_type === "kpi" && metric.metric_value) {
 						const value = metric.metric_value;
 
-						// Handle different metric value formats
+						// Handle KPI metric value format
 						let numValue = 0;
-						if (typeof value === "object" && value.value) {
-							numValue =
-								parseInt(value.value.toString().replace(/[^\d]/g, "")) || 0;
-						} else if (typeof value === "number") {
-							numValue = value;
-						} else if (typeof value === "string") {
-							numValue = parseInt(value.replace(/[^\d]/g, "")) || 0;
+						if (value.value) {
+							numValue = parseInt(value.value.toString().replace(/[^\d]/g, "")) || 0;
 						}
 
 						const name = (metric.metric_name || "").toLowerCase();
 						const title = (value.title || "").toLowerCase();
 
-						// Map to dashboard metrics
+						// Map to dashboard metrics based on content analysis
 						if (
 							name.includes("user") ||
 							title.includes("user") ||
-							name.includes("client")
+							name.includes("client") ||
+							name.includes("total_users")
 						) {
 							extractedData.users = numValue;
 						} else if (
 							name.includes("conversion") ||
-							title.includes("conversion")
+							title.includes("conversion") ||
+							name.includes("orders") ||
+							name.includes("sales")
 						) {
 							extractedData.conversions = numValue;
 						} else if (
 							name.includes("event") ||
 							title.includes("event") ||
-							name.includes("record")
+							name.includes("record") ||
+							name.includes("total") && !title.includes("user")
 						) {
 							extractedData.eventCount = numValue;
-						} else if (name.includes("session") || title.includes("session")) {
+						} else if (
+							name.includes("session") ||
+							title.includes("session") ||
+							name.includes("visits")
+						) {
 							extractedData.sessions = numValue;
 						} else if (
 							name.includes("view") ||
 							title.includes("page") ||
-							name.includes("total")
+							name.includes("pageview")
 						) {
 							extractedData.pageViews = numValue;
 						}
 					}
 				});
 
-				console.log("✅ Extracted real data:", extractedData);
+				console.log("✅ Extracted intelligent data:", extractedData);
 
-				// If we got real data, use it
+				// If we got real intelligent data, use it
 				if (Object.keys(extractedData).length > 0) {
 					setDashboardData((prev) => ({
 						...prev,
@@ -128,11 +174,23 @@ const DashboardPage: React.FC = () => {
 						isAnalyzing: false,
 						lastAnalysis: new Date(),
 						error: null,
+						intelligentMetrics: metrics,
 					}));
 
-					console.log("🎯 Using REAL backend data:", extractedData);
+					console.log("🎯 Using REAL intelligent backend data:", extractedData);
 					return;
 				}
+
+				// Even if no numeric data for dashboard, we got intelligent metrics
+				console.log("🧠 Received intelligent metrics but no numeric dashboard data");
+				setDashboardData((prev) => ({
+					...prev,
+					isAnalyzing: false,
+					lastAnalysis: new Date(),
+					error: null,
+					intelligentMetrics: metrics,
+				}));
+				return;
 			}
 
 			// Fallback: Try to get raw client data and calculate metrics
@@ -205,6 +263,7 @@ const DashboardPage: React.FC = () => {
 				isAnalyzing: false,
 				lastAnalysis: new Date(),
 				error: null,
+				intelligentMetrics: [],
 			}));
 
 			console.log("✅ Using smart defaults:", smartDefaults);
@@ -225,6 +284,7 @@ const DashboardPage: React.FC = () => {
 				...emergencyData,
 				isAnalyzing: false,
 				error: "Could not connect to backend. Showing sample data.",
+				intelligentMetrics: [],
 			}));
 		}
 	};
@@ -260,14 +320,19 @@ const DashboardPage: React.FC = () => {
 					router.push("/login");
 				} else {
 					// Show loading state but continue trying
-					setUser({
-						client_id: "fallback-user",
-						email: "user@dashboard.com",
-						company_name: "Loading...",
-						subscription_tier: "basic",
-						created_at: new Date().toISOString(),
-					});
-					setLoading(false);
+									setUser({
+					client_id: "fallback-user",
+					email: "user@dashboard.com",
+					company_name: "Loading...",
+					subscription_tier: "basic",
+					created_at: new Date().toISOString(),
+				});
+				setLoading(false);
+				// Initialize with empty intelligent metrics for fallback user
+				setDashboardData((prev) => ({
+					...prev,
+					intelligentMetrics: [],
+				}));
 				}
 			}
 		};
@@ -312,8 +377,237 @@ const DashboardPage: React.FC = () => {
 		return null; // Will redirect to login
 	}
 
+	// Render functions for intelligent metrics using MUI
+	const renderKPICard = (metric: IndividualMetric, kpiValue: KPIMetricValue) => (
+		<Card key={metric.metric_id} sx={{ boxShadow: 2, '&:hover': { boxShadow: 4 }, transition: 'box-shadow 0.3s' }}>
+			<CardContent>
+				<Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+					<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+						<Box sx={{ width: 8, height: 8, bgcolor: 'primary.main', borderRadius: '50%' }} />
+						<Typography variant="subtitle2" sx={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, color: 'text.secondary' }}>
+							{kpiValue.title}
+						</Typography>
+					</Box>
+					<Box sx={{ 
+						bgcolor: 'primary.light', 
+						color: 'primary.contrastText', 
+						px: 1.5, 
+						py: 0.5, 
+						borderRadius: 2,
+						fontSize: '0.75rem',
+						fontWeight: 'bold'
+					}}>
+						KPI
+					</Box>
+				</Box>
+				
+				<Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2, mb: 2 }}>
+					<Typography variant="h4" component="p" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+						{kpiValue.value}
+					</Typography>
+					{kpiValue.trend && (
+						<Box sx={{ 
+							display: 'flex', 
+							alignItems: 'center', 
+							gap: 0.5, 
+							px: 1, 
+							py: 0.5, 
+							borderRadius: 2,
+							bgcolor: kpiValue.trend.isPositive ? 'success.light' : 'error.light',
+							color: kpiValue.trend.isPositive ? 'success.dark' : 'error.dark',
+							fontSize: '0.875rem',
+							fontWeight: 'medium'
+						}}>
+							<span style={{ fontSize: '1.1em' }}>
+								{kpiValue.trend.isPositive ? '📈' : '📉'}
+							</span>
+							<span>{kpiValue.trend.value}</span>
+						</Box>
+					)}
+				</Box>
+				
+				<Box sx={{ 
+					display: 'flex', 
+					justifyContent: 'space-between', 
+					alignItems: 'center', 
+					pt: 2, 
+					borderTop: '1px solid',
+					borderColor: 'divider'
+				}}>
+					<Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+						🔗 {kpiValue.source}
+					</Typography>
+					<Typography variant="caption" color="text.secondary" sx={{ 
+						fontFamily: 'monospace', 
+						bgcolor: 'grey.100', 
+						px: 1, 
+						py: 0.5, 
+						borderRadius: 1 
+					}}>
+						{metric.metric_id}
+					</Typography>
+				</Box>
+			</CardContent>
+		</Card>
+	);
+
+	const renderChartCard = (metric: IndividualMetric, chartValue: ChartMetricValue) => {
+		// Prepare data for charts
+		const chartData = chartValue.data.map(point => ({
+			name: point.label,
+			value: point.value,
+			label: point.label
+		}));
+
+		// Define colors for charts
+		const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+
+		// Function to render chart based on type
+		const renderChart = () => {
+			switch (chartValue.chart_type.toLowerCase()) {
+				case 'pie':
+					return (
+						<ResponsiveContainer width="100%" height={300}>
+							<PieChart>
+								<Pie
+									data={chartData}
+									cx="50%"
+									cy="50%"
+									labelLine={false}
+									label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+									outerRadius={80}
+									fill="#8884d8"
+									dataKey="value"
+								>
+									{chartData.map((entry, index) => (
+										<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+									))}
+								</Pie>
+								<Tooltip />
+							</PieChart>
+						</ResponsiveContainer>
+					);
+				case 'radar':
+					return (
+						<ResponsiveContainer width="100%" height={300}>
+							<RadarChart data={chartData}>
+								<PolarGrid />
+								<PolarAngleAxis dataKey="name" />
+								<PolarRadiusAxis angle={90} domain={[0, 10]} />
+								<Radar
+									name={chartValue.title}
+									dataKey="value"
+									stroke="#8884d8"
+									fill="#8884d8"
+									fillOpacity={0.3}
+								/>
+								<Tooltip />
+							</RadarChart>
+						</ResponsiveContainer>
+					);
+				case 'bar':
+					return (
+						<ResponsiveContainer width="100%" height={300}>
+							<BarChart data={chartData}>
+								<CartesianGrid strokeDasharray="3 3" />
+								<XAxis dataKey="name" />
+								<YAxis />
+								<Tooltip />
+								<Bar dataKey="value" fill="#8884d8" />
+							</BarChart>
+						</ResponsiveContainer>
+					);
+				case 'line':
+					return (
+						<ResponsiveContainer width="100%" height={300}>
+							<LineChart data={chartData}>
+								<CartesianGrid strokeDasharray="3 3" />
+								<XAxis dataKey="name" />
+								<YAxis />
+								<Tooltip />
+								<Legend />
+								<Line type="monotone" dataKey="value" stroke="#8884d8" />
+							</LineChart>
+						</ResponsiveContainer>
+					);
+				default:
+					// Fallback to bar chart for unknown types
+					return (
+						<ResponsiveContainer width="100%" height={300}>
+							<BarChart data={chartData}>
+								<CartesianGrid strokeDasharray="3 3" />
+								<XAxis dataKey="name" />
+								<YAxis />
+								<Tooltip />
+								<Bar dataKey="value" fill="#8884d8" />
+							</BarChart>
+						</ResponsiveContainer>
+					);
+			}
+		};
+
+		return (
+			<Card key={metric.metric_id} sx={{ mb: 3, boxShadow: 2, '&:hover': { boxShadow: 4 } }}>
+				<CardContent>
+					<Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+						<Box>
+							<Typography variant="h6" component="h3" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+								{chartValue.title}
+							</Typography>
+							{chartValue.subtitle && (
+								<Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+									{chartValue.subtitle}
+								</Typography>
+							)}
+						</Box>
+						<Box sx={{ 
+							bgcolor: 'primary.light', 
+							color: 'primary.contrastText', 
+							px: 2, 
+							py: 1, 
+							borderRadius: 2,
+							display: 'flex',
+							alignItems: 'center',
+							gap: 1
+						}}>
+							<Typography variant="caption" sx={{ fontWeight: 'bold' }}>
+								📊 {chartValue.chart_type.toUpperCase()}
+							</Typography>
+						</Box>
+					</Box>
+
+					{/* Render the actual chart */}
+					<Box sx={{ height: 300, width: '100%' }}>
+						{renderChart()}
+					</Box>
+
+					{/* Chart metadata */}
+					<Box sx={{ 
+						display: 'flex', 
+						justifyContent: 'space-between', 
+						alignItems: 'center', 
+						mt: 2, 
+						pt: 2, 
+						borderTop: '1px solid',
+						borderColor: 'divider'
+					}}>
+						<Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+							🔗 {chartValue.source}
+						</Typography>
+						<Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+							📊 {chartValue.data.length} data points
+						</Typography>
+					</Box>
+				</CardContent>
+			</Card>
+		);
+	};
+
+	const kpiMetrics = dashboardData.intelligentMetrics.filter(m => m.metric_type === 'kpi');
+	const chartMetrics = dashboardData.intelligentMetrics.filter(m => m.metric_type === 'chart_data');
+
 	return (
-		<div className="min-h-screen">
+		<div className="min-h-screen bg-gray-50">
 			{/* Material UI Dashboard */}
 			<Dashboard
 				dashboardData={dashboardData}
@@ -321,6 +615,68 @@ const DashboardPage: React.FC = () => {
 				onRefreshAIData={loadAIAnalysisData}
 				onLogout={handleLogout}
 			/>
+
+			{/* Intelligent Metrics Section - MUI Version */}
+			{dashboardData.intelligentMetrics.length > 0 && (
+				<Box sx={{ bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider', mt: 4 }}>
+					<Box sx={{ maxWidth: '1200px', mx: 'auto', px: 3, py: 4 }}>
+						{/* Compact Header */}
+						<Box sx={{ textAlign: 'center', mb: 4 }}>
+							<Typography variant="h4" component="h2" sx={{ fontWeight: 'bold', mb: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+								<span>🧠</span>
+								Intelligent Data Analysis
+							</Typography>
+							<Typography variant="body1" color="text.secondary">
+								AI-generated insights • {dashboardData.intelligentMetrics.length} metrics from real data
+							</Typography>
+						</Box>
+
+						{/* KPI Section */}
+						{kpiMetrics.length > 0 && (
+							<Box sx={{ mb: 4 }}>
+								<Typography variant="h6" component="h3" sx={{ fontWeight: 'bold', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+									📈 KPIs ({kpiMetrics.length})
+								</Typography>
+								<Box sx={{ 
+									display: 'grid', 
+									gridTemplateColumns: { 
+										xs: '1fr', 
+										sm: 'repeat(2, 1fr)', 
+										md: 'repeat(3, 1fr)', 
+										lg: 'repeat(4, 1fr)' 
+									}, 
+									gap: 2 
+								}}>
+									{kpiMetrics.map(metric => 
+										renderKPICard(metric, metric.metric_value as KPIMetricValue)
+									)}
+								</Box>
+							</Box>
+						)}
+
+						{/* Charts Section */}
+						{chartMetrics.length > 0 && (
+							<Box sx={{ mb: 3 }}>
+								<Typography variant="h6" component="h3" sx={{ fontWeight: 'bold', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+									📊 Charts ({chartMetrics.length})
+								</Typography>
+								<Box sx={{ 
+									display: 'grid', 
+									gridTemplateColumns: { 
+										xs: '1fr', 
+										lg: 'repeat(2, 1fr)' 
+									}, 
+									gap: 3 
+								}}>
+									{chartMetrics.map(metric => 
+										renderChartCard(metric, metric.metric_value as ChartMetricValue)
+									)}
+								</Box>
+							</Box>
+						)}
+					</Box>
+				</Box>
+			)}
 
 			{/* Error Display */}
 			{dashboardData.error && (

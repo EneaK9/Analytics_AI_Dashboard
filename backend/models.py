@@ -678,4 +678,50 @@ class DataQualityReport(BaseModel):
     quality_score: float  # 0.0 to 1.0
     recommendations: List[str]
     issues: List[str]
-    processing_time: float 
+    processing_time: float
+
+# ==================== INDIVIDUAL METRIC MODELS ====================
+
+class MetricTrend(BaseModel):
+    """Trend information for KPI metrics"""
+    value: str  # e.g., "+12.5%"
+    isPositive: bool
+
+class KPIMetricValue(BaseModel):
+    """Value structure for KPI type metrics"""
+    title: str
+    value: str
+    trend: Optional[MetricTrend] = None
+    source: str = "real_data"
+    kpi_id: str
+    timestamp: str
+
+class ChartDataPoint(BaseModel):
+    """Individual data point for chart metrics"""
+    label: str
+    value: Union[int, float]
+
+class ChartMetricValue(BaseModel):
+    """Value structure for chart_data type metrics"""
+    title: str
+    subtitle: Optional[str] = None
+    chart_type: str  # "radar", "line", "bar", "pie", etc.
+    source: str = "real_data"
+    timestamp: str
+    data: List[ChartDataPoint]
+
+class IndividualMetric(BaseModel):
+    """Individual metric object in the desired format"""
+    metric_id: str
+    metric_name: str
+    metric_type: str  # "kpi" or "chart_data"
+    metric_value: Union[KPIMetricValue, ChartMetricValue]
+    calculated_at: str
+
+class IndividualMetricsResponse(BaseModel):
+    """Response containing list of individual metrics"""
+    success: bool
+    client_id: uuid.UUID
+    metrics: List[IndividualMetric]
+    message: Optional[str] = None
+    total_count: int 

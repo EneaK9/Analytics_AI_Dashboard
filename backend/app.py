@@ -1493,6 +1493,34 @@ async def get_dashboard_metrics(token: str = Depends(security)):
             message=f"Failed to get dashboard metrics: {str(e)}"
         )
 
+@app.get("/api/dashboard/individual-metrics", response_model=IndividualMetricsResponse)
+async def get_individual_metrics(token: str = Depends(security)):
+    """Get individual metrics in the intelligent format for the authenticated client"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        
+        # Generate intelligent individual metrics using the new method
+        from dashboard_orchestrator import dashboard_orchestrator
+        individual_metrics_response = await dashboard_orchestrator.generate_individual_metrics(
+            client_id=token_data.client_id
+        )
+        
+        return individual_metrics_response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get individual metrics: {e}")
+        # Return error response
+        return IndividualMetricsResponse(
+            success=False,
+            client_id=token_data.client_id if 'token_data' in locals() else uuid.uuid4(),
+            metrics=[],
+            message=f"Failed to get intelligent metrics: {str(e)}",
+            total_count=0
+        )
+
 @app.get("/api/dashboard/status", response_model=DashboardStatusResponse)
 async def get_dashboard_status(token: str = Depends(security)):
     """Get dashboard status for the authenticated client"""
