@@ -4,7 +4,7 @@
  * This service handles:
  * - Loading pre-generated dashboard configs
  * - Loading pre-calculated metrics
- * - Processing real data for AI-selected Shadcn charts
+ * - Processing real data for AI-selected MUI charts
  * - NO AI ANALYSIS (already done during client creation)
  * - NO FAKE DATA - only real database data or null
  */
@@ -28,7 +28,7 @@ export interface AIChartConfig {
 	id: string;
 	title: string;
 	subtitle: string;
-	chart_type: string; // Shadcn component name
+	chart_type: string; // MUI component name
 	data_source: string;
 	config: {
 		component: string;
@@ -113,7 +113,7 @@ class DashboardService {
 	}
 
 	/**
-	 * 🧠 AI CHART DATA PROCESSOR: Get processed data for specific AI-selected Shadcn charts
+	 * 🧠 AI CHART DATA PROCESSOR: Get processed data for specific AI-selected MUI charts
 	 * This method takes the AI configuration and returns properly formatted data for each chart
 	 */
 	async getProcessedChartData(
@@ -162,7 +162,7 @@ class DashboardService {
 			}
 
 			// Process data based on AI-selected component
-			const processedData = this.processDataForShadcnComponent(
+			const processedData = this.processDataForMuiComponent(
 				chartConfig.config.component,
 				clientData,
 				chartConfig.config.real_data_columns
@@ -195,72 +195,29 @@ class DashboardService {
 	}
 
 	/**
-	 * 📊 SHADCN COMPONENT DATA PROCESSOR
-	 * Processes raw client data specifically for different Shadcn chart components
+	 * 📊 MUI COMPONENT DATA PROCESSOR
+	 * Processes raw client data specifically for different MUI chart components
 	 */
-	private processDataForShadcnComponent(
+	private processDataForMuiComponent(
 		component: string,
 		rawData: any[],
 		dataColumns: string[]
 	): any[] {
 		try {
 			switch (component) {
-				// Area Charts - Time Series Data
-				case "ShadcnAreaChart":
-				case "ShadcnAreaInteractive":
-				case "ShadcnAreaLinear":
-				case "ShadcnAreaStacked":
-				case "ShadcnAreaStep":
+				// Line Charts - Time Series Data
+				case "LineChartOne":
 					return this.processTimeSeriesData(rawData, dataColumns);
 
-				// Bar Charts - Categorical Data - ALL BAR CHART TYPES
-				case "ShadcnBarChart":
-				case "ShadcnBarDefault":
-				case "ShadcnBarLabel":
-				case "ShadcnBarLabelCustom":
-				case "ShadcnBarHorizontal":
-				case "ShadcnBarMultiple":
-				case "ShadcnBarStacked":
-				case "ShadcnBarMixed":
-				case "ShadcnBarActive":
-				case "ShadcnBarNegative":
-				case "ShadcnBarCustom":
+				// Bar Charts - Categorical Data
+				case "BarChartOne":
 					return this.processCategoricalData(rawData, dataColumns);
 
-				// Pie Charts - Part-to-Whole Data - ALL PIE CHART TYPES
-				case "ShadcnPieChart":
-				case "ShadcnPieChartLabel":
-				case "ShadcnPieDonutText":
-				case "ShadcnPieInteractive":
-				case "ShadcnPieLegend":
-				case "ShadcnPieSimple":
-				case "ShadcnPieStacked":
-					return this.processPieChartData(rawData, dataColumns);
-
-				// Radar Charts - Multi-dimensional Data - ALL RADAR CHART TYPES
-				case "ShadcnRadarDefault":
-				case "ShadcnRadarGridFill":
-				case "ShadcnRadarLegend":
-				case "ShadcnRadarLinesOnly":
-				case "ShadcnRadarMultiple":
-				case "ShadcnRadarCustom":
-				case "ShadcnRadarFilled":
-				case "ShadcnRadarLines":
-				case "ShadcnRadarGrid":
-					return this.processRadarData(rawData, dataColumns);
-
-				// Radial Charts - Progress/Percentage Data - ALL RADIAL CHART TYPES
-				case "ShadcnRadialChart":
-				case "ShadcnRadialLabel":
-				case "ShadcnRadialGrid":
-				case "ShadcnRadialText":
-				case "ShadcnRadialShape":
-				case "ShadcnRadialStacked":
-					return this.processRadialData(rawData, dataColumns);
-
 				default:
-					console.warn(`Unknown Shadcn component: ${component}`);
-					return this.processGenericData(rawData, dataColumns);
+					console.warn(
+						`Unknown MUI component: ${component}, using categorical data processing`
+					);
+					return this.processCategoricalData(rawData, dataColumns);
 			}
 		} catch (error) {
 			console.error(`Error processing data for ${component}:`, error);

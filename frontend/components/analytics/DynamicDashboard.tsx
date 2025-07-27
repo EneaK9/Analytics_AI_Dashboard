@@ -33,7 +33,7 @@ interface AIChartConfig {
 	id: string;
 	title: string;
 	subtitle: string;
-	chart_type: string; // This will be the Shadcn component name
+	chart_type: string; // This will be the MUI component name
 	data_source: string;
 	config: {
 		component: string;
@@ -67,64 +67,20 @@ export default function DynamicDashboard({
 	const [error, setError] = useState<string | null>(null);
 	const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-	// 🧠 AI-POWERED CHART COMPONENT SELECTOR - ALL CHARTS AS PRIMARY OPTIONS
-	const getShadcnComponent = (componentName: string) => {
+	// 🧠 AI-POWERED CHART COMPONENT SELECTOR - MUI CHARTS ONLY
+	const getMuiComponent = (componentName: string) => {
 		const componentMap = {
-			// Area Charts (5)
-			ShadcnAreaChart: Charts.ShadcnAreaChart,
-			ShadcnAreaInteractive: Charts.ShadcnAreaInteractive,
-			ShadcnAreaLinear: Charts.ShadcnAreaLinear,
-			ShadcnAreaStacked: Charts.ShadcnAreaStacked,
-			ShadcnAreaStep: Charts.ShadcnAreaStep,
-
-			// Bar Charts (11)
-			ShadcnBarChart: Charts.ShadcnBarChart,
-			ShadcnBarDefault: Charts.ShadcnBarDefault,
-			ShadcnBarLabel: Charts.ShadcnBarLabel,
-			ShadcnBarLabelCustom: Charts.ShadcnBarLabelCustom,
-			ShadcnBarHorizontal: Charts.ShadcnBarHorizontal,
-			ShadcnBarMultiple: Charts.ShadcnBarMultiple,
-			ShadcnBarStacked: Charts.ShadcnBarStacked,
-			ShadcnBarMixed: Charts.ShadcnBarMixed,
-			ShadcnBarActive: Charts.ShadcnBarActive,
-			ShadcnBarNegative: Charts.ShadcnBarNegative,
-			ShadcnBarCustom: Charts.ShadcnBarCustom,
-
-			// Pie Charts (7)
-			ShadcnPieChart: Charts.ShadcnPieChart,
-			ShadcnPieChartLabel: Charts.ShadcnPieChartLabel,
-			ShadcnPieDonutText: Charts.ShadcnPieDonutText,
-			ShadcnPieInteractive: Charts.ShadcnPieInteractive,
-			ShadcnPieLegend: Charts.ShadcnPieLegend,
-			ShadcnPieSimple: Charts.ShadcnPieSimple,
-			ShadcnPieStacked: Charts.ShadcnPieStacked,
-
-			// Radar Charts (9)
-			ShadcnRadarDefault: Charts.ShadcnRadarDefault,
-			ShadcnRadarGridFill: Charts.ShadcnRadarGridFill,
-			ShadcnRadarLegend: Charts.ShadcnRadarLegend,
-			ShadcnRadarLinesOnly: Charts.ShadcnRadarLinesOnly,
-			ShadcnRadarMultiple: Charts.ShadcnRadarMultiple,
-			ShadcnRadarCustom: Charts.ShadcnRadarCustom,
-			ShadcnRadarFilled: Charts.ShadcnRadarFilled,
-			ShadcnRadarLines: Charts.ShadcnRadarLines,
-			ShadcnRadarGrid: Charts.ShadcnRadarGrid,
-
-			// Radial Charts (6)
-			ShadcnRadialChart: Charts.ShadcnRadialChart,
-			ShadcnRadialLabel: Charts.ShadcnRadialLabel,
-			ShadcnRadialGrid: Charts.ShadcnRadialGrid,
-			ShadcnRadialText: Charts.ShadcnRadialText,
-			ShadcnRadialShape: Charts.ShadcnRadialShape,
-			ShadcnRadialStacked: Charts.ShadcnRadialStacked,
+			// Available MUI Charts
+			BarChartOne: Charts.BarChartOne,
+			LineChartOne: Charts.LineChartOne,
 		};
 
 		const component = componentMap[componentName as keyof typeof componentMap];
 		if (!component) {
 			console.warn(
-				`⚠️ Unknown chart component: ${componentName}, using ShadcnAreaChart as fallback`
+				`⚠️ Unknown chart component: ${componentName}, using BarChartOne as fallback`
 			);
-			return Charts.ShadcnAreaChart; // Fallback to a reliable default component
+			return Charts.BarChartOne; // Fallback to a reliable default component
 		}
 		return component;
 	};
@@ -157,64 +113,18 @@ export default function DynamicDashboard({
 
 			let processedData: any[] = [];
 
-			// 🚀 Process data for ALL chart types with VALIDATION - ALL SHADCN CHARTS SUPPORTED
+			// 🚀 Process data for MUI chart types
 			switch (component) {
-				// Area Charts - Time Series Data
-				case "ShadcnAreaChart":
-				case "ShadcnAreaInteractive":
-				case "ShadcnAreaLinear":
-				case "ShadcnAreaStacked":
-				case "ShadcnAreaStep":
+				// Line Charts - Time Series Data
+				case "LineChartOne":
 					processedData = processTimeSeriesData(rawData, real_data_columns);
 					break;
 
-				// Bar Charts - Categorical Data - ALL BAR CHART TYPES
-				case "ShadcnBarChart":
-				case "ShadcnBarDefault":
-				case "ShadcnBarLabel":
-				case "ShadcnBarLabelCustom":
-				case "ShadcnBarHorizontal":
-				case "ShadcnBarMultiple":
-				case "ShadcnBarStacked":
-				case "ShadcnBarMixed":
-				case "ShadcnBarActive":
-				case "ShadcnBarNegative":
-				case "ShadcnBarCustom":
+				// Bar Charts - Categorical Data
+				case "BarChartOne":
 					processedData = processCategoricalData(rawData, real_data_columns);
 					break;
 
-				// Pie Charts - Part-to-Whole Data - ALL PIE CHART TYPES
-				case "ShadcnPieChart":
-				case "ShadcnPieChartLabel":
-				case "ShadcnPieDonutText":
-				case "ShadcnPieInteractive":
-				case "ShadcnPieLegend":
-				case "ShadcnPieSimple":
-				case "ShadcnPieStacked":
-					processedData = processPieChartData(rawData, real_data_columns);
-					break;
-
-				// Radar Charts - Multi-dimensional Data - ALL RADAR CHART TYPES
-				case "ShadcnRadarDefault":
-				case "ShadcnRadarGridFill":
-				case "ShadcnRadarLegend":
-				case "ShadcnRadarLinesOnly":
-				case "ShadcnRadarMultiple":
-				case "ShadcnRadarCustom":
-				case "ShadcnRadarFilled":
-				case "ShadcnRadarLines":
-				case "ShadcnRadarGrid":
-					processedData = processRadarData(rawData, real_data_columns);
-					break;
-
-				// Radial Charts - Progress/Percentage Data - ALL RADIAL CHART TYPES
-				case "ShadcnRadialChart":
-				case "ShadcnRadialLabel":
-				case "ShadcnRadialGrid":
-				case "ShadcnRadialText":
-				case "ShadcnRadialShape":
-				case "ShadcnRadialStacked":
-					processedData = processRadialData(rawData, real_data_columns);
 					break;
 
 				default:
@@ -607,9 +517,9 @@ export default function DynamicDashboard({
 		}
 	};
 
-	// 🎨 Render AI-Selected Shadcn Chart with Enhanced Layout
+	// 🎨 Render AI-Selected MUI Chart with Enhanced Layout
 	const renderAIChart = (chartConfig: AIChartConfig) => {
-		const ChartComponent = getShadcnComponent(chartConfig.config.component);
+		const ChartComponent = getMuiComponent(chartConfig.config.component);
 
 		if (!ChartComponent) {
 			return (

@@ -74,54 +74,11 @@ export interface MUIDashboardData {
 	lastUpdated: string;
 }
 
-// Comprehensive mapping from Shadcn chart types to MUI equivalents
-const SHADCN_TO_MUI_CHART_MAP: Record<string, string> = {
-	// Bar Charts -> MUI BarChart
-	ShadcnBarDefault: "BarChart",
-	ShadcnBarHorizontal: "BarChart",
-	ShadcnBarStacked: "BarChart",
-	ShadcnBarActive: "BarChart",
-	ShadcnBarNegative: "BarChart",
-	ShadcnBarMultiple: "BarChart",
-	ShadcnBarMixed: "BarChart",
-	ShadcnBarLabel: "BarChart",
-	ShadcnBarLabelCustom: "BarChart",
-	ShadcnBarCustom: "BarChart",
-
-	// Pie Charts -> MUI PieChart
-	ShadcnPieChart: "PieChart",
-	ShadcnPieSimple: "PieChart",
-	ShadcnPieInteractive: "PieChart",
-	ShadcnPieLegend: "PieChart",
-	ShadcnPieChartLabel: "PieChart",
-	ShadcnPieDonutText: "PieChart",
-	ShadcnPieStacked: "PieChart",
-
-	// Area Charts -> MUI LineChart with area prop
-	ShadcnAreaChart: "LineChart",
-	ShadcnAreaLinear: "LineChart",
-	ShadcnAreaInteractive: "LineChart",
-	ShadcnAreaStacked: "LineChart",
-	ShadcnAreaStep: "LineChart",
-
-	// Radial Charts -> MUI PieChart with custom styling
-	ShadcnRadialChart: "PieChart",
-	ShadcnRadialStacked: "PieChart",
-	ShadcnRadialShape: "PieChart",
-	ShadcnRadialText: "PieChart",
-	ShadcnRadialLabel: "PieChart",
-	ShadcnRadialGrid: "PieChart",
-
-	// Radar Charts -> Custom Radar (using recharts/nivo)
-	ShadcnRadarDefault: "RadarChart",
-	ShadcnRadarCustom: "RadarChart",
-	ShadcnRadarFilled: "RadarChart",
-	ShadcnRadarLines: "RadarChart",
-	ShadcnRadarLinesOnly: "RadarChart",
-	ShadcnRadarMultiple: "RadarChart",
-	ShadcnRadarGrid: "RadarChart",
-	ShadcnRadarGridFill: "RadarChart",
-	ShadcnRadarLegend: "RadarChart",
+// Simple mapping for available MUI chart types
+const MUI_CHART_MAP: Record<string, string> = {
+	// Available MUI Charts
+	BarChartOne: "BarChart",
+	LineChartOne: "LineChart",
 };
 
 class MUIDashboardService {
@@ -360,7 +317,7 @@ class MUIDashboardService {
 
 		chartMetrics.forEach((metric) => {
 			const chartType = metric.metric_value.chart_type || "";
-			const muiChartType = SHADCN_TO_MUI_CHART_MAP[chartType] || "BarChart";
+			const muiChartType = MUI_CHART_MAP[chartType] || "BarChart";
 
 			const chartData: MUIChartData = {
 				id: metric.metric_id,

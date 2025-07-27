@@ -28,6 +28,50 @@ from field_mapper import field_mapper
 
 logger = logging.getLogger(__name__)
 
+# Chart type mapping based on data characteristics - MUI CHARTS ONLY
+CHART_TYPE_MAPPING = {
+    # Time series data
+    'time_series': [
+        'LineChartOne'
+    ],
+    # Categorical data  
+    'categorical': [
+        'BarChartOne'
+    ],
+    # Comparison data
+    'comparison': [
+        'BarChartOne'
+    ],
+    # Multi-dimensional analysis
+    'correlation': [
+        'BarChartOne'
+    ],
+    # Performance metrics
+    'performance': [
+        'BarChartOne', 'LineChartOne'
+    ],
+    # Distribution analysis
+    'distribution': [
+        'BarChartOne'
+    ],
+    # Percentage/proportion data
+    'percentage': [
+        'BarChartOne'
+    ],
+    # Trend analysis
+    'trends': [
+        'LineChartOne'
+    ],
+    # Simple comparison
+    'simple': [
+        'BarChartOne'
+    ],
+    # Default
+    'default': [
+        'BarChartOne'
+    ]
+}
+
 class DashboardOrchestrator:
     """AI-powered dashboard orchestrator - REAL DATA ONLY, NO FALLBACKS, HIGH PERFORMANCE"""
     
@@ -42,57 +86,6 @@ class DashboardOrchestrator:
         
         # Performance optimization
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
-        
-        # Sophisticated chart type mapping based on data characteristics - ALL SHADCN CHARTS
-        self.chart_type_mapping = {
-            'time_series': [
-                'ShadcnAreaChart', 'ShadcnAreaInteractive', 'ShadcnAreaLinear', 'ShadcnAreaStep', 'ShadcnAreaStacked'
-            ],
-            'categorical': [
-                'ShadcnBarChart', 'ShadcnBarDefault', 'ShadcnBarLabel', 'ShadcnBarLabelCustom', 'ShadcnBarHorizontal', 
-                'ShadcnBarMultiple', 'ShadcnBarStacked', 'ShadcnBarMixed', 'ShadcnBarActive', 'ShadcnBarNegative', 'ShadcnBarCustom',
-                'ShadcnPieChart', 'ShadcnPieChartLabel', 'ShadcnPieDonutText', 'ShadcnPieInteractive', 
-                'ShadcnPieLegend', 'ShadcnPieSimple', 'ShadcnPieStacked'
-            ],
-            'numerical': [
-                'ShadcnBarChart', 'ShadcnBarLabel', 'ShadcnBarHorizontal', 'ShadcnBarMultiple', 'ShadcnBarStacked',
-                'ShadcnAreaChart', 'ShadcnAreaStacked', 'ShadcnRadialChart', 'ShadcnRadialText', 'ShadcnRadialShape',
-                'ShadcnRadialLabel', 'ShadcnRadialGrid', 'ShadcnRadialStacked'
-            ],
-            'correlation': [
-                'ShadcnRadarDefault', 'ShadcnRadarGridFill', 'ShadcnRadarLegend', 'ShadcnRadarLinesOnly', 'ShadcnRadarMultiple',
-                'ShadcnRadarCustom', 'ShadcnRadarFilled', 'ShadcnRadarLines', 'ShadcnRadarGrid',
-                'ShadcnAreaStacked'
-            ],
-            'comparison': [
-                'ShadcnBarChart', 'ShadcnBarHorizontal', 'ShadcnBarMultiple', 'ShadcnBarStacked', 'ShadcnBarActive',
-                'ShadcnRadarDefault', 'ShadcnRadarGridFill', 'ShadcnRadarMultiple', 'ShadcnRadarCustom', 'ShadcnRadarFilled'
-            ],
-            'distribution': [
-                'ShadcnPieChart', 'ShadcnPieChartLabel', 'ShadcnPieInteractive', 'ShadcnPieDonut', 'ShadcnPieStacked',
-                'ShadcnBarChart', 'ShadcnBarLabel'
-            ],
-            'financial': [
-                'ShadcnAreaChart', 'ShadcnAreaInteractive', 'ShadcnAreaStacked', 'ShadcnBarNegative'
-            ],
-            'geographical': [
-                'ShadcnPieChart', 'ShadcnPieChartLabel', 'ShadcnPieInteractive', 'ShadcnBarChart', 'ShadcnBarLabel'
-            ],
-            'part_to_whole': [
-                'ShadcnPieChart', 'ShadcnPieChartLabel', 'ShadcnPieInteractive', 'ShadcnPieDonut', 'ShadcnPieStacked',
-                'ShadcnAreaStacked', 'ShadcnRadialChart', 'ShadcnRadialText', 'ShadcnRadialStacked'
-            ],
-            'trend': [
-                'ShadcnAreaChart', 'ShadcnAreaInteractive', 'ShadcnAreaLinear', 'ShadcnAreaStep'
-            ],
-            'ranking': [
-                'ShadcnBarChart', 'ShadcnBarLabel', 'ShadcnBarHorizontal', 'ShadcnBarCustom'
-            ],
-            'progress': [
-                'ShadcnRadarChart', 'ShadcnRadarFilled', 'ShadcnRadialChart', 'ShadcnRadialText', 'ShadcnRadialShape', 'ShadcnRadialStacked',
-                'ShadcnBarChart', 'ShadcnAreaChart'
-            ]
-        }
         
         # Icon mapping for common business metrics
         self.kpi_icons = {
@@ -496,22 +489,10 @@ class DashboardOrchestrator:
         max_retries = 3
         retry_count = 0
         
-        # Valid chart types for AI to choose from - ALL SHADCN CHARTS AS PRIMARY OPTIONS
+        # Valid chart types for AI to choose from - MUI CHARTS ONLY
         valid_chart_types = [
-            # Area Charts (5)
-            "ShadcnAreaChart", "ShadcnAreaInteractive", "ShadcnAreaLinear", "ShadcnAreaStacked", "ShadcnAreaStep",
-            # Bar Charts (11) - All available bar chart types
-            "ShadcnBarChart", "ShadcnBarDefault", "ShadcnBarLabel", "ShadcnBarLabelCustom", "ShadcnBarHorizontal", 
-            "ShadcnBarMultiple", "ShadcnBarStacked", "ShadcnBarMixed", "ShadcnBarActive", "ShadcnBarNegative", "ShadcnBarCustom",
-            # Pie Charts (7)
-            "ShadcnPieChart", "ShadcnPieChartLabel", "ShadcnPieDonutText", "ShadcnPieInteractive", 
-            "ShadcnPieLegend", "ShadcnPieSimple", "ShadcnPieStacked",
-            # Radar Charts (9) - All available radar chart types
-            "ShadcnRadarDefault", "ShadcnRadarGridFill", "ShadcnRadarLegend", "ShadcnRadarLinesOnly", "ShadcnRadarMultiple",
-            "ShadcnRadarCustom", "ShadcnRadarFilled", "ShadcnRadarLines", "ShadcnRadarGrid",
-            # Radial Charts (6)
-            "ShadcnRadialChart", "ShadcnRadialLabel", "ShadcnRadialGrid", "ShadcnRadialText", 
-            "ShadcnRadialShape", "ShadcnRadialStacked"
+            # Available MUI Charts
+            "BarChartOne", "LineChartOne"
         ]
         
         # 🎲 Add randomization factor to ensure diversity even with same data
@@ -576,11 +557,11 @@ class DashboardOrchestrator:
                 - NO generic insights - be specific about what the data shows
 
                 CHART RECOMMENDATIONS - CHOOSE DIVERSE TYPES:
-                📊 AREA CHARTS: ShadcnAreaChart, ShadcnAreaInteractive, ShadcnAreaLinear, ShadcnAreaStacked, ShadcnAreaStep
-                📈 BAR CHARTS: ShadcnBarChart, ShadcnBarDefault, ShadcnBarLabel, ShadcnBarLabelCustom, ShadcnBarHorizontal, ShadcnBarMultiple, ShadcnBarStacked, ShadcnBarMixed, ShadcnBarActive, ShadcnBarNegative, ShadcnBarCustom
-                🥧 PIE CHARTS: ShadcnPieChart, ShadcnPieChartLabel, ShadcnPieDonutText, ShadcnPieInteractive, ShadcnPieLegend, ShadcnPieSimple, ShadcnPieStacked
-                🎯 RADAR CHARTS: ShadcnRadarDefault, ShadcnRadarGridFill, ShadcnRadarLegend, ShadcnRadarLinesOnly, ShadcnRadarMultiple, ShadcnRadarCustom, ShadcnRadarFilled, ShadcnRadarLines, ShadcnRadarGrid
-                📉 RADIAL CHARTS: ShadcnRadialChart, ShadcnRadialLabel, ShadcnRadialGrid, ShadcnRadialText, ShadcnRadialShape, ShadcnRadialStacked
+                📊 AREA CHARTS: LineChartOne, LineChartOne, LineChartOne, LineChartOne, LineChartOne
+                📈 BAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOneCustom, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
+                🥧 PIE CHARTS: BarChartOne, BarChartOneLabel, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
+                🎯 RADAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
+                📉 RADIAL CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
                 
                             CHART LABELING REQUIREMENTS:
             - Generate SPECIFIC tooltip labels based on the actual data columns
@@ -593,7 +574,7 @@ class DashboardOrchestrator:
                 - Pick 12-15 charts total - BE BOLD AND CREATIVE!
                 - FORCE MAXIMUM VARIETY: Use ALL chart categories: Area (5), Bar (11), Pie (7), Radar (9), Radial (6)
                 - NO REPETITION: Every chart should be a different type - avoid duplicates
-                - INTERACTIVE FOCUS: Include multiple interactive charts (ShadcnAreaInteractive, ShadcnPieInteractive, ShadcnBarActive)
+                - INTERACTIVE FOCUS: Include multiple interactive charts (LineChartOne, BarChartOne, BarChartOne)
                 - WILD COMBINATIONS: Use radical variety within categories - different bar styles, pie variations, radar types
                 - SURPRISE FACTOR: Each chart type category must have at least 2-3 different variants
                 - CREATIVE MANDATE: Be adventurous with chart selection - choose unusual combinations!
@@ -678,7 +659,7 @@ class DashboardOrchestrator:
                     if chart in valid_chart_types:
                         valid_charts.append(chart)
                     else:
-                        valid_charts.append('ShadcnAreaInteractive')  # Safe fallback
+                        valid_charts.append('LineChartOne')  # Safe fallback
                 
                 ai_response['recommended_charts'] = valid_charts[:15]  # Ensure we get 12-15 charts for creative dashboards
                 
@@ -844,7 +825,7 @@ class DashboardOrchestrator:
                 "industry": "string",
                 "business_type": "string",
                 "key_metrics": {data_summary['numeric_columns'][:3]},
-                "recommended_charts": ["ShadcnAreaInteractive", "ShadcnBarLabel", "ShadcnPieChartLabel"],
+                "recommended_charts": ["LineChartOne", "BarChartOne", "BarChartOneLabel"],
                 "insights": [
                     {{
                         "type": "trend|opportunity|risk|performance",
@@ -985,7 +966,7 @@ class DashboardOrchestrator:
                 id="chart_time_series",
                 title="Trend Analysis",
                 subtitle="Performance over time",
-                chart_type=ChartType.SHADCN_LINE_CHART,
+                chart_type=ChartType.LINE_CHART_ONE,
                 data_source="time_series_data",
                 config={"responsive": True, "showLegend": True},
                 position={"row": 1, "col": 0},
@@ -998,7 +979,7 @@ class DashboardOrchestrator:
                 id="chart_categorical",
                 title="Category Breakdown",
                 subtitle="Distribution by category",
-                chart_type=ChartType.SHADCN_BAR_CHART,
+                chart_type=ChartType.BAR_CHART_ONE,
                 data_source="categorical_data",
                 config={"responsive": True, "showLegend": True},
                 position={"row": 1, "col": 2},
@@ -1011,7 +992,7 @@ class DashboardOrchestrator:
                 id="chart_correlation",
                 title="Performance Correlation",
                 subtitle="Relationship between key metrics",
-                chart_type=ChartType.SHADCN_LINE_CHART,  # Use line chart instead of scatter
+                chart_type=ChartType.LINE_CHART_ONE,  # Use line chart instead of scatter
                 data_source="correlation_data",
                 config={"responsive": True, "showLegend": True},
                 position={"row": 3, "col": 0},
@@ -1555,19 +1536,19 @@ class DashboardOrchestrator:
             # 🎨 FORCE VARIETY: Add different chart types if we don't have enough
             all_available_charts = [
                 # Area Charts
-                "ShadcnAreaChart", "ShadcnAreaInteractive", "ShadcnAreaLinear", "ShadcnAreaStacked", "ShadcnAreaStep",
+                "LineChartOne", "LineChartOne", "LineChartOne", "LineChartOne", "LineChartOne",
                 # Bar Charts  
-                "ShadcnBarChart", "ShadcnBarDefault", "ShadcnBarLabel", "ShadcnBarLabelCustom", "ShadcnBarHorizontal", 
-                "ShadcnBarMultiple", "ShadcnBarStacked", "ShadcnBarMixed", "ShadcnBarActive", "ShadcnBarNegative", "ShadcnBarCustom",
+                "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOneCustom", "BarChartOne", 
+                "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne",
                 # Pie Charts
-                "ShadcnPieChart", "ShadcnPieChartLabel", "ShadcnPieDonutText", "ShadcnPieInteractive", 
-                "ShadcnPieLegend", "ShadcnPieSimple", "ShadcnPieStacked",
+                "BarChartOne", "BarChartOneLabel", "BarChartOne", "BarChartOne", 
+                "BarChartOne", "BarChartOne", "BarChartOne",
                 # Radar Charts
-                "ShadcnRadarDefault", "ShadcnRadarGridFill", "ShadcnRadarLegend", "ShadcnRadarLinesOnly", "ShadcnRadarMultiple",
-                "ShadcnRadarCustom", "ShadcnRadarFilled", "ShadcnRadarLines", "ShadcnRadarGrid",
+                "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne",
+                "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne",
                 # Radial Charts
-                "ShadcnRadialChart", "ShadcnRadialLabel", "ShadcnRadialGrid", "ShadcnRadialText", 
-                "ShadcnRadialShape", "ShadcnRadialStacked"
+                "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne", 
+                "BarChartOne", "BarChartOne"
             ]
             
             # 🎲 Add more random charts to reach minimum
@@ -1702,10 +1683,10 @@ class DashboardOrchestrator:
                         id="emergency_chart_1",
                         title="Distribution", 
                         subtitle="Data category breakdown",
-                        chart_type=ChartType.SHADCN_BAR_CHART,
+                        chart_type=ChartType.BAR_CHART_ONE,
                         data_source="client_data",
                         config={
-                            "component": "ShadcnBarChart",
+                            "component": "BarChartOne",
                             "data_columns": {"nameKey": categorical_cols[0], "dataKey": "count"},
                             "props": {
                                 "title": "Distribution", 
@@ -1726,10 +1707,10 @@ class DashboardOrchestrator:
                         id="emergency_chart_2",
                         title="📈 Numeric Overview",
                         subtitle="Overview of your numeric data", 
-                        chart_type=ChartType.SHADCN_LINE_CHART,
+                        chart_type=ChartType.LINE_CHART_ONE,
                         data_source="client_data",
                         config={
-                            "component": "ShadcnLineChart",
+                            "component": "LineChartOne",
                             "data_columns": {"nameKey": "record_index", "dataKey": numeric_cols[0]},
                             "props": {"title": "Numeric Overview", "height": 350},
                             "real_data_columns": [numeric_cols[0]]
@@ -1801,10 +1782,10 @@ class DashboardOrchestrator:
                         id="emergency_chart_1",
                         title="📊 Data Distribution", 
                         subtitle="Distribution of your data records",
-                        chart_type=ChartType.SHADCN_BAR_CHART,
+                        chart_type=ChartType.BAR_CHART_ONE,
                         data_source="client_data",
                         config={
-                            "component": "ShadcnBarChart",
+                            "component": "BarChartOne",
                             "data_columns": {"nameKey": categorical_cols[0], "dataKey": "count"},
                             "props": {"title": "Data Distribution", "height": 350},
                             "real_data_columns": [categorical_cols[0]]
@@ -1820,10 +1801,10 @@ class DashboardOrchestrator:
                         id="emergency_chart_2",
                         title="📈 Numeric Overview",
                         subtitle="Overview of your numeric data", 
-                        chart_type=ChartType.SHADCN_LINE_CHART,
+                        chart_type=ChartType.LINE_CHART_ONE,
                         data_source="client_data",
                         config={
-                            "component": "ShadcnLineChart",
+                            "component": "LineChartOne",
                             "data_columns": {"nameKey": "record_index", "dataKey": numeric_cols[0]},
                             "props": {"title": "Numeric Overview", "height": 350},
                             "real_data_columns": [numeric_cols[0]]
@@ -2400,9 +2381,9 @@ class DashboardOrchestrator:
             ]
             
             # Recommend appropriate charts
-            recommended_charts = [ChartType.SHADCN_AREA_INTERACTIVE, ChartType.SHADCN_BAR_CHART, ChartType.SHADCN_PIE_CHART]
+            recommended_charts = [ChartType.LINE_CHART_ONE, ChartType.BAR_CHART_ONE, ChartType.BAR_CHART_ONE]
             if date_cols:
-                recommended_charts.insert(0, ChartType.SHADCN_AREA_LINEAR)
+                recommended_charts.insert(0, ChartType.LINE_CHART_ONE)
             
             return BusinessContext(
                 industry=industry,
@@ -2422,7 +2403,7 @@ class DashboardOrchestrator:
                 business_type="general",
                 data_characteristics=["data_available"],
                 key_metrics=["value", "amount", "total"],
-                recommended_charts=[ChartType.SHADCN_AREA_INTERACTIVE, ChartType.SHADCN_BAR_CHART, ChartType.SHADCN_PIE_CHART],
+                recommended_charts=[ChartType.LINE_CHART_ONE, ChartType.BAR_CHART_ONE, ChartType.BAR_CHART_ONE],
                 insights=[
                     AIInsight(
                         type="recommendation",
@@ -2593,8 +2574,8 @@ class DashboardOrchestrator:
         logger.info(f"📊 Generating {len(chart_components)} template chart widgets")
         
         for i, component in enumerate(chart_components):
-            # Map component chart type to Shadcn chart type
-            shadcn_chart_type = self._map_to_shadcn_chart_type(component.chart_type or 'ShadcnAreaChart')
+            # Map component chart type to MUI chart type
+            mui_chart_type = self._map_to_mui_chart_type(component.chart_type or 'LineChartOne')
             
             # Find appropriate data columns
             data_columns = self._find_chart_data_columns(data_analysis, component)
@@ -2606,10 +2587,10 @@ class DashboardOrchestrator:
                 id=f"template_chart_{template.template_type.value}_{i}",
                 title=component.title,
                 subtitle=component.subtitle,
-                chart_type=shadcn_chart_type,
+                chart_type=mui_chart_type,
                 data_source="template_client_data",
                 config={
-                    "component": shadcn_chart_type,
+                    "component": mui_chart_type,
                     "data_columns": {"nameKey": data_columns[0], "dataKey": data_columns[1]},
                     "props": {
                         "title": component.title,
@@ -2674,23 +2655,23 @@ class DashboardOrchestrator:
         
         return []
 
-    def _map_to_shadcn_chart_type(self, template_chart_type: str) -> str:
-        """Map template chart types to actual Shadcn chart component names"""
+    def _map_to_mui_chart_type(self, template_chart_type: str) -> str:
+        """Map template chart types to actual MUI chart component names"""
         mapping = {
-            'ShadcnAreaChart': 'ShadcnAreaChart',
-            'ShadcnAreaInteractive': 'ShadcnAreaInteractive',
-            'ShadcnAreaStacked': 'ShadcnAreaStacked',
-            'ShadcnBarChart': 'ShadcnBarChart',
-            'ShadcnBarHorizontal': 'ShadcnBarHorizontal',
-            'ShadcnBarMultiple': 'ShadcnBarMultiple',
-            'ShadcnPieChart': 'ShadcnPieChart',
-            'ShadcnPieInteractive': 'ShadcnPieInteractive',
-            'line_chart': 'ShadcnAreaChart',
-            'bar_chart': 'ShadcnBarChart',
-            'pie_chart': 'ShadcnPieChart',
-            'area_chart': 'ShadcnAreaChart'
+            'LineChartOne': 'LineChartOne',
+            'LineChartOne': 'LineChartOne',
+            'LineChartOne': 'LineChartOne',
+            'BarChartOne': 'BarChartOne',
+            'BarChartOne': 'BarChartOne',
+            'BarChartOne': 'BarChartOne',
+            'BarChartOne': 'BarChartOne',
+            'BarChartOne': 'BarChartOne',
+            'line_chart': 'LineChartOne',
+            'bar_chart': 'BarChartOne',
+            'pie_chart': 'BarChartOne',
+            'area_chart': 'LineChartOne'
         }
-        return mapping.get(template_chart_type, 'ShadcnAreaChart')
+        return mapping.get(template_chart_type, 'LineChartOne')
 
     async def _generate_and_save_template_metrics(self, client_id: uuid.UUID, dashboard_config: DashboardConfig, data_analysis: Dict[str, Any], template) -> int:
         """Generate and save metrics for template-based dashboard"""
@@ -2922,7 +2903,7 @@ class DashboardOrchestrator:
                 chart_type = chart.chart_type
                 if hasattr(chart_type, 'value'):
                     chart_type = chart_type.value
-                chart_type = str(chart_type).lower().replace('shadcn', '').replace('chart', '')
+                chart_type = str(chart_type).lower().replace('chart', '')
                 
                 # Clean and serialize chart data to avoid Pydantic warnings
                 cleaned_chart_data = []

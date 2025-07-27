@@ -2686,7 +2686,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_area_interactive",
                     "title": "Interactive Area Chart",
                     "subtitle": "Real data trends with interactions",
-                    "chart_type": "ShadcnAreaInteractive",
+                    "chart_type": "LineChartOne",
                     "data_source": "real_data_area", 
                     "config": {
                         "responsive": True,
@@ -2701,7 +2701,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_area_linear",
                     "title": "Linear Area Chart",
                     "subtitle": "Clean linear area visualization",
-                    "chart_type": "ShadcnAreaLinear",
+                                            "chart_type": "LineChartOne",
                     "data_source": "real_data_linear",
                     "config": {
                         "responsive": True,
@@ -2718,7 +2718,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_bar_label",
                     "title": "Labeled Bar Chart", 
                     "subtitle": "Bar chart with value labels",
-                    "chart_type": "ShadcnBarLabel",
+                    "chart_type": "BarChartOne",
                     "data_source": "real_data_bar",
                     "config": {
                         "responsive": True,
@@ -2733,7 +2733,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_bar_horizontal",
                     "title": "Horizontal Bar Chart",
                     "subtitle": "Horizontal bar visualization", 
-                    "chart_type": "ShadcnBarLabel",
+                    "chart_type": "BarChartOne",
                     "data_source": "real_data_horizontal",
                     "config": {
                         "responsive": True,
@@ -2750,7 +2750,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_pie_label",
                     "title": "Labeled Pie Chart",
                     "subtitle": "Pie chart with detailed labels",
-                    "chart_type": "ShadcnPieChartLabel", 
+                    "chart_type": "BarChartOneLabel", 
                     "data_source": "real_data_pie",
                     "config": {
                         "responsive": True,
@@ -2765,7 +2765,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_donut_interactive",
                     "title": "Interactive Donut Chart", 
                     "subtitle": "Interactive donut visualization",
-                    "chart_type": "ShadcnPieChartLabel",
+                    "chart_type": "BarChartOneLabel",
                     "data_source": "real_data_donut",
                     "config": {
                         "responsive": True,
@@ -2782,7 +2782,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_radar",
                     "title": "Radar Chart",
                     "subtitle": "Multi-dimensional radar view",
-                    "chart_type": "ShadcnRadarChart",
+                                            "chart_type": "BarChartOne",
                     "data_source": "real_data_radar",
                     "config": {
                         "responsive": True,
@@ -2797,7 +2797,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_area_stacked",
                     "title": "Stacked Area Chart",
                     "subtitle": "Stacked area visualization",
-                    "chart_type": "ShadcnAreaStacked",
+                    "chart_type": "LineChartOne",
                     "data_source": "real_data_stacked",
                     "config": {
                         "responsive": True,
@@ -2814,7 +2814,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_bar_custom",
                     "title": "Custom Bar Chart",
                     "subtitle": "Bar chart with custom styling",
-                    "chart_type": "ShadcnBarLabel",
+                    "chart_type": "BarChartOne",
                     "data_source": "real_data_custom",
                     "config": {
                         "responsive": True,
@@ -2829,7 +2829,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_multiple_area",
                     "title": "Multiple Area Chart",
                     "subtitle": "Multiple series area chart",
-                    "chart_type": "ShadcnAreaStacked",
+                    "chart_type": "LineChartOne",
                     "data_source": "real_data_multiple",
                     "config": {
                         "responsive": True,
@@ -2981,7 +2981,7 @@ async def fast_generate_dashboard_for_client(token: str = Depends(security)):
                     "id": "chart_area",
                     "title": "Data Trends",
                     "subtitle": "Interactive area chart",
-                    "chart_type": "ShadcnAreaInteractive",
+                    "chart_type": "LineChartOne",
                     "data_source": "trends_data", 
                     "config": {
                         "responsive": True,
@@ -2995,7 +2995,7 @@ async def fast_generate_dashboard_for_client(token: str = Depends(security)):
                     "id": "chart_bar",
                     "title": "Data Distribution", 
                     "subtitle": "Beautiful bar chart",
-                    "chart_type": "ShadcnBarLabel",
+                    "chart_type": "BarChartOne",
                     "data_source": "distribution_data",
                     "config": {
                         "responsive": True,
@@ -3009,7 +3009,7 @@ async def fast_generate_dashboard_for_client(token: str = Depends(security)):
                     "id": "chart_pie",
                     "title": "Data Composition",
                     "subtitle": "Labeled pie chart", 
-                    "chart_type": "ShadcnPieChartLabel",
+                    "chart_type": "BarChartOneLabel",
                     "data_source": "composition_data",
                     "config": {
                         "responsive": True,

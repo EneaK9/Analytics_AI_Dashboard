@@ -134,7 +134,7 @@ class DashboardTemplateManager:
                 component_type=ComponentType.LINE_CHART,
                 title="Inventory Levels Trend",
                 subtitle="7/30/90-day inventory tracking",
-                chart_type="ShadcnAreaInteractive",
+                chart_type="LineChartOne",
                 position={"row": 3, "col": 0},
                 size={"width": 2, "height": 2},
                 required_columns=["date", "stock_level"],
@@ -150,7 +150,7 @@ class DashboardTemplateManager:
                 component_type=ComponentType.BAR_CHART,
                 title="Sales Performance",
                 subtitle="Current vs historical average",
-                chart_type="ShadcnBarMultiple",
+                chart_type="BarChartOne",
                 position={"row": 3, "col": 2},
                 size={"width": 2, "height": 2},
                 required_columns=["product_name", "units_sold", "historical_average"],
@@ -235,7 +235,7 @@ class DashboardTemplateManager:
                 component_type=ComponentType.LINE_CHART,
                 title="Revenue Trends",
                 subtitle="Sales performance over time",
-                chart_type="ShadcnAreaStacked",
+                chart_type="LineChartOne",
                 position={"row": 1, "col": 0},
                 size={"width": 3, "height": 2},
                 required_columns=["date", "revenue"]
@@ -245,7 +245,7 @@ class DashboardTemplateManager:
             ComponentConfig(
                 component_type=ComponentType.BAR_CHART,
                 title="Top Selling Products",
-                chart_type="ShadcnBarHorizontal",
+                chart_type="BarChartOne",
                 position={"row": 1, "col": 3},
                 size={"width": 1, "height": 2},
                 required_columns=["product_name", "units_sold"]
@@ -255,7 +255,7 @@ class DashboardTemplateManager:
             ComponentConfig(
                 component_type=ComponentType.PIE_CHART,
                 title="Sales by Category",
-                chart_type="ShadcnPieInteractive",
+                chart_type="BarChartOne",
                 position={"row": 3, "col": 0},
                 size={"width": 2, "height": 2},
                 required_columns=["category", "sales_amount"]
@@ -265,7 +265,7 @@ class DashboardTemplateManager:
             ComponentConfig(
                 component_type=ComponentType.BAR_CHART,
                 title="Sales by Region",
-                chart_type="ShadcnBarMultiple",
+                chart_type="BarChartOne",
                 position={"row": 3, "col": 2},
                 size={"width": 2, "height": 2},
                 required_columns=["region", "sales_amount", "order_count"]
@@ -330,7 +330,7 @@ class DashboardTemplateManager:
             ComponentConfig(
                 component_type=ComponentType.LINE_CHART,
                 title="Revenue vs Expenses",
-                chart_type="ShadcnAreaLinear",
+                chart_type="LineChartOne",
                 position={"row": 1, "col": 0},
                 size={"width": 4, "height": 2},
                 required_columns=["date", "revenue", "expenses"]
@@ -340,7 +340,7 @@ class DashboardTemplateManager:
             ComponentConfig(
                 component_type=ComponentType.PIE_CHART,
                 title="Expense Categories",
-                chart_type="ShadcnPieDonutText",
+                chart_type="BarChartOne",
                 position={"row": 3, "col": 0},
                 size={"width": 2, "height": 2},
                 required_columns=["expense_category", "amount"]
@@ -350,7 +350,7 @@ class DashboardTemplateManager:
             ComponentConfig(
                 component_type=ComponentType.BAR_CHART,
                 title="Monthly Cash Flow",
-                chart_type="ShadcnBarNegative",
+                chart_type="BarChartOne",
                 position={"row": 3, "col": 2},
                 size={"width": 2, "height": 2},
                 required_columns=["month", "cash_flow"]
@@ -415,7 +415,7 @@ class DashboardTemplateManager:
             ComponentConfig(
                 component_type=ComponentType.AREA_CHART,
                 title="Daily Sales Trends",
-                chart_type="ShadcnAreaInteractive",
+                chart_type="LineChartOne",
                 position={"row": 1, "col": 0},
                 size={"width": 3, "height": 2},
                 required_columns=["date", "sales_amount"]

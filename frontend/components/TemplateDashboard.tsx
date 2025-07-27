@@ -164,7 +164,7 @@ export default function TemplateDashboard({
 							type: "chart",
 							title: "Inventory Levels Trend",
 							subtitle: "Stock level tracking over time",
-							chartType: "ShadcnAreaInteractive",
+							chartType: "LineChartOne",
 							position: { row: 3, col: 0 },
 							size: { width: 2, height: 2 },
 						},
@@ -173,7 +173,7 @@ export default function TemplateDashboard({
 							type: "chart",
 							title: "Sales Performance",
 							subtitle: "Units sold analysis",
-							chartType: "ShadcnBarMultiple",
+							chartType: "BarChartOne",
 							position: { row: 3, col: 2 },
 							size: { width: 2, height: 2 },
 						},
@@ -212,7 +212,7 @@ export default function TemplateDashboard({
 							type: "chart",
 							title: "Revenue Trends",
 							subtitle: "Sales performance over time",
-							chartType: "ShadcnAreaStacked",
+							chartType: "LineChartOne",
 							position: { row: 1, col: 0 },
 							size: { width: 3, height: 2 },
 						},
@@ -220,7 +220,7 @@ export default function TemplateDashboard({
 							id: "top_products",
 							type: "chart",
 							title: "Top Products",
-							chartType: "ShadcnBarHorizontal",
+							chartType: "BarChartOne",
 							position: { row: 1, col: 3 },
 							size: { width: 1, height: 2 },
 						},
@@ -456,7 +456,7 @@ export default function TemplateDashboard({
 							</p>
 						</div>
 						<div className="h-[300px]">
-							<Charts.ShadcnAreaInteractive
+							<Charts.LineChartOne
 								data={trendData}
 								title="Inventory Trends"
 								height={300}
@@ -480,7 +480,7 @@ export default function TemplateDashboard({
 							<p className="text-sm text-gray-600">Units sold by product</p>
 						</div>
 						<div className="h-[300px]">
-							<Charts.ShadcnBarMultiple
+							<Charts.BarChartOne
 								data={salesData.slice(0, 10)}
 								title="Sales Performance"
 								height={300}
