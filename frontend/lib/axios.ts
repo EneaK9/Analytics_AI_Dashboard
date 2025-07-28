@@ -5,11 +5,30 @@ const api = axios.create({
 	baseURL: process.env.NEXT_PUBLIC_API_URL
 		? `${process.env.NEXT_PUBLIC_API_URL}/api`
 		: "http://localhost:8000/api",
-	timeout: 15000, // 15 seconds - client creation should be instant now
+	timeout: 30000, // 30 seconds - increased for metrics processing
 	headers: {
 		"Content-Type": "application/json",
 	},
 });
+
+// Debug function to test timeout configuration
+export const testTimeoutConfig = async () => {
+	console.log("🧪 Testing timeout configuration...");
+	
+	// Test 1: Check default timeout
+	const defaultConfig = api.defaults;
+	console.log("🔧 Default timeout:", defaultConfig.timeout);
+	
+	// Test 2: Check request interceptor
+	const testConfig = { url: '/dashboard/metrics', timeout: 15000 };
+	const processedConfig = await new Promise((resolve) => {
+		api.interceptors.request.handlers[0].fulfilled(testConfig);
+		resolve(testConfig);
+	});
+	console.log("🔧 Processed config timeout:", processedConfig.timeout);
+	
+	return processedConfig;
+};
 
 // Add request interceptor to add auth token if available
 api.interceptors.request.use(
@@ -19,6 +38,15 @@ api.interceptors.request.use(
 		if (token) {
 			config.headers.Authorization = `Bearer ${token}`;
 		}
+
+		// Set longer timeout for metrics endpoint
+		if (config.url?.includes('/dashboard/metrics')) {
+			config.timeout = 60000; // 60 seconds for metrics
+			console.log("🔧 Setting 60s timeout for metrics endpoint:", config.url);
+		}
+		
+		console.log("🔧 Request config timeout:", config.timeout, "for URL:", config.url);
+
 		return config;
 	},
 	(error) => {
@@ -47,6 +75,11 @@ api.interceptors.response.use(
 			console.warn(
 				"Request timeout - server may be processing, real data unavailable"
 			);
+			console.warn("Timeout details:", {
+				url: error.config?.url,
+				timeout: error.config?.timeout,
+				message: error.message
+			});
 		} else if (error.code === "ERR_NETWORK") {
 			console.warn("Network error - server may be down, real data unavailable");
 		}

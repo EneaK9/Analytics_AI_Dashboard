@@ -89,10 +89,6 @@ export default function StatCard({
   const chartColor = trendColors[trend];
   
   // Use real trend value from backend if provided, otherwise fallback to defaults
-  const defaultTrendValues = { up: '+25%', down: '-25%', neutral: '+5%' };
-  const displayTrendValue = trendValue || defaultTrendValues[trend];
-  
-  console.log(`🎯 "${title}" - trendValue: "${trendValue}", displayTrendValue: "${displayTrendValue}"`);
 
   return (
     <Card variant="outlined" sx={{ height: '100%', flexGrow: 1 }}>
@@ -112,7 +108,7 @@ export default function StatCard({
               <Typography variant="h4" component="p">
                 {value}
               </Typography>
-                              <Chip size="small" color={color} label={displayTrendValue} />
+                              <Chip size="small" color={color} label={trendValue} />
             </Stack>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               {interval}

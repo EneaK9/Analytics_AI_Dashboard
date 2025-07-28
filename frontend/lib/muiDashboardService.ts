@@ -28,15 +28,26 @@ export interface BackendMetric {
 		has_dropdown?: boolean;
 		dropdown_options?: Array<{ label: string; value: string }>;
 
+		// For table type
+		table_data?: any[][];
+		table_columns?: string[];
+		table_config?: {
+			sortable?: boolean;
+			filterable?: boolean;
+			pagination?: boolean;
+		};
+
 		// For kpi type
 		value?: string;
 		trend?: {
 			value: string;
 			isPositive: boolean;
+			percentage?: string;
+			direction?: string;
 		};
 		kpi_id?: string;
 	};
-	metric_type: "chart_data" | "kpi";
+	metric_type: "chart_data" | "kpi" | "table";
 	calculated_at: string;
 }
 
@@ -62,6 +73,28 @@ export interface MUIChartData {
 	dropdownOptions?: Array<{ label: string; value: string }>;
 }
 
+export interface MUITableData {
+	id: string;
+	title: string;
+	subtitle: string;
+	data: any[][];
+	columns: string[];
+	config?: {
+		sortable?: boolean;
+		filterable?: boolean;
+		pagination?: boolean;
+	};
+}
+
+export interface MUIBusinessInsights {
+	insights: string[];
+	recommendations: string[];
+	dataQualityScore: number;
+	confidenceLevel: number;
+	businessType: string;
+	industrySector: string;
+}
+
 export interface MUIDashboardData {
 	kpis: MUIStatCardData[];
 	pieCharts: MUIChartData[];
@@ -70,13 +103,23 @@ export interface MUIDashboardData {
 	radarCharts: MUIChartData[];
 	radialCharts: MUIChartData[];
 	areaCharts: MUIChartData[];
+	tables: MUITableData[];
+	businessInsights?: MUIBusinessInsights;
 	totalMetrics: number;
 	lastUpdated: string;
 }
 
 // Simple mapping for available MUI chart types
 const MUI_CHART_MAP: Record<string, string> = {
-	// Available MUI Charts
+	// Backend chart types to MUI chart types
+	"pie": "PieChart",
+	"bar": "BarChart", 
+	"line": "LineChart",
+	"area": "AreaChart",
+	"radar": "RadarChart",
+	"radial": "RadialChart",
+	
+	// Legacy chart types
 	BarChartOne: "BarChart",
 	LineChartOne: "LineChart",
 };
@@ -87,63 +130,65 @@ class MUIDashboardService {
 	private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 	// Fetch metrics from backend (NEW STANDARDIZED FORMAT)
-	async fetchMetrics(): Promise<BackendMetric[]> {
+	async fetchMetrics(): Promise<{ metrics: BackendMetric[]; originalResponse: any }> {
 		const cacheKey = "dashboard_metrics";
 		const cached = this.cache.get(cacheKey);
 
 		if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
 			console.log("📊 Using cached dashboard metrics");
-			return cached.data;
+			return { metrics: cached.data, originalResponse: null };
 		}
 
+		// Simple timeout handling with fallback
 		try {
-			console.log(
-				"🔄 Fetching fresh dashboard metrics from backend (NEW FORMAT)"
-			);
+			console.log("🔄 Fetching fresh dashboard metrics from backend (NEW FORMAT)");
 			console.log("🌐 API call to:", "/dashboard/metrics");
-			const response = await api.get("/dashboard/metrics");
+			
+			// Use a simple timeout promise
+			const timeoutPromise = new Promise((_, reject) => {
+				setTimeout(() => reject(new Error("Request timeout")), 450000); // 45 seconds
+			});
+			
+			const fetchPromise = api.get("/dashboard/metrics", {
+				timeout: 6000000 // 60 seconds explicitly set
+			});
+			
+			const response = await Promise.race([fetchPromise, timeoutPromise]) as any;
 			console.log("📡 API Response status:", response.status);
 
 			// Handle new standardized response format
 			const standardizedResponse = response.data;
 			console.log(
 				"📊 Received standardized response:",
-				standardizedResponse.success,
-				standardizedResponse.message
+				standardizedResponse.client_id,
+				standardizedResponse.total_records
 			);
 
-			if (
-				!standardizedResponse.success ||
-				!standardizedResponse.dashboard_data
-			) {
+			// Check if we have the expected data structure
+			if (!standardizedResponse.llm_analysis) {
 				console.warn(
-					"⚠️ Backend returned unsuccessful response or no dashboard data"
+					"⚠️ Backend returned response without llm_analysis"
 				);
-				return [];
+				return { metrics: [], originalResponse: standardizedResponse };
 			}
 
 			// Convert standardized format back to legacy format for compatibility
-			const metrics: BackendMetric[] =
-				this.convertStandardizedToLegacy(standardizedResponse);
+			const metrics = this.convertStandardizedToLegacy(standardizedResponse);
+
+			// Cache the results
+			this.cache.set(cacheKey, {
+				data: metrics,
+				timestamp: Date.now(),
+			});
 
 			console.log(
-				`✅ Fetched and converted ${metrics.length} metrics from backend`
+				`✅ Successfully processed ${metrics.length} metrics from backend`
 			);
 
-			// DEBUG: Log sample data to see what we're actually getting
-			if (metrics.length > 0) {
-				console.log("📋 Sample converted metric data:", metrics[0]);
-				const chartData = metrics.find((m) => m.metric_type === "chart_data");
-				if (chartData) {
-					console.log("📊 Sample chart data:", chartData.metric_value);
-				}
-			}
-
-			this.cache.set(cacheKey, { data: metrics, timestamp: Date.now() });
-			return metrics;
+			return { metrics, originalResponse: standardizedResponse };
 		} catch (error) {
-			console.error("❌ Error fetching dashboard metrics:", error);
-			return [];
+			console.error("❌ Failed to fetch dashboard metrics:", error);
+			throw error;
 		}
 	}
 
@@ -152,64 +197,224 @@ class MUIDashboardService {
 		standardizedResponse: any
 	): BackendMetric[] {
 		const metrics: BackendMetric[] = [];
-		const { dashboard_data } = standardizedResponse;
+		
+		// Handle the new response format with llm_analysis
+		const llmAnalysis = standardizedResponse.llm_analysis;
+		if (!llmAnalysis) {
+			console.warn("⚠️ No llm_analysis found in response");
+			return [];
+		}
 
 		try {
 			// Convert KPIs to legacy format
-			if (dashboard_data.kpis) {
-				for (const kpi of dashboard_data.kpis) {
+			if (llmAnalysis.kpis) {
+				console.log(`🔄 Converting ${llmAnalysis.kpis.length} KPIs from standardized format`);
+				
+				for (const kpi of llmAnalysis.kpis) {
+					console.log(`📊 Processing KPI: "${kpi.display_name}"`, {
+						value: kpi.value,
+						trend: kpi.trend,
+						format: kpi.format
+					});
+
+					// Map trend direction from backend to frontend format
+					const mapTrendDirection = (direction: string): "up" | "down" | "neutral" => {
+						switch (direction.toLowerCase()) {
+							case "up":
+							case "increasing":
+								return "up";
+							case "down":
+							case "decreasing":
+								return "down";
+							case "stable":
+							case "neutral":
+							default:
+								return "neutral";
+						}
+					};
+
+					// Format trend value based on percentage
+					const formatTrendValue = (trend: any): string => {
+						if (trend.percentage === 0) {
+							return "0%";
+						}
+						const sign = trend.percentage > 0 ? "+" : "";
+						return `${sign}${trend.percentage}%`;
+					};
+
+					// Format the KPI value based on its format type
+					const formatKPIValue = (value: string, format: string): string => {
+						const numValue = parseFloat(value);
+						if (isNaN(numValue)) return value;
+						
+						switch (format) {
+							case "currency":
+								return `$${numValue.toLocaleString()}`;
+							case "percentage":
+								return `${numValue}%`;
+							case "number":
+							default:
+								return numValue.toLocaleString();
+						}
+					};
+
 					metrics.push({
 						metric_id: kpi.id,
 						client_id: standardizedResponse.client_id,
 						metric_name: kpi.display_name,
 						metric_type: "kpi",
 						metric_value: {
-							value: kpi.value,
+							value: formatKPIValue(kpi.value, kpi.format),
 							title: kpi.display_name,
 							trend: {
-								value: `${kpi.trend.percentage}%`,
-								isPositive: kpi.trend.direction === "up",
+								value: formatTrendValue(kpi.trend),
+								isPositive: kpi.trend.direction === "up" || kpi.trend.percentage > 0,
+								percentage: kpi.trend.percentage,
+								direction: kpi.trend.direction
 							},
 							source: "standardized",
-							format: kpi.format,
 						},
-						calculated_at: dashboard_data.metadata.generated_at,
+						calculated_at: llmAnalysis.metadata?.generated_at || new Date().toISOString(),
 					});
 				}
 			}
 
 			// Convert Charts to legacy format
-			if (dashboard_data.charts) {
-				for (const chart of dashboard_data.charts) {
+			if (llmAnalysis.charts) {
+				console.log(`🔄 Converting ${llmAnalysis.charts.length} charts from standardized format`);
+				
+				for (const chart of llmAnalysis.charts) {
+					console.log(`📊 Processing chart: "${chart.display_name}"`, {
+						chartType: chart.chart_type,
+						dataLength: chart.data?.length || 0,
+						dataSample: chart.data?.slice(0, 2)
+					});
+
+					// Map chart types to MUI chart types
+					const mapChartType = (chartType: string): string => {
+						switch (chartType.toLowerCase()) {
+							case "pie":
+								return "PieChart";
+							case "bar":
+								return "BarChart";
+							case "line":
+								return "LineChart";
+							case "area":
+								return "AreaChart";
+							default:
+								return "BarChart"; // Default fallback
+						}
+					};
+
+					// Transform chart data to MUI format
+					const transformChartData = (data: any[], chartType: string): any[] => {
+						if (!data || !Array.isArray(data)) {
+							console.warn(`⚠️ Invalid chart data for "${chart.display_name}"`);
+							return [];
+						}
+
+						console.log(`🔄 Transforming ${data.length} data points for ${chartType} chart`);
+
+						if (chartType.toLowerCase() === "pie") {
+							return data.map((item, index) => ({
+								id: index,
+								value: Number(item.value) || 0,
+								label: item.name || `Item ${index}`,
+								name: item.name || `Item ${index}`,
+								color: this.extractColor(`color-${index}`, index),
+							}));
+						} else if (chartType.toLowerCase() === "bar") {
+							return data.map((item, index) => ({
+								name: item.name || `Item ${index}`,
+								value: Number(item.value) || 0,
+								id: index,
+							}));
+						} else if (chartType.toLowerCase() === "line") {
+							return data.map((item, index) => ({
+								name: item.name || `Month ${index}`,
+								value: Number(item.value) || 0,
+								id: index,
+							}));
+						} else {
+							// Default transformation for other chart types
+							return data.map((item, index) => ({
+								name: item.name || `Item ${index}`,
+								value: Number(item.value) || 0,
+								id: index,
+							}));
+						}
+					};
+
+					// Process dropdown options if available
+					const processDropdownOptions = (config: any): Array<{ label: string; value: string }> => {
+						if (!config?.filters) return [];
+						
+						const options: Array<{ label: string; value: string }> = [];
+						Object.values(config.filters).forEach((filterArray: any) => {
+							if (Array.isArray(filterArray)) {
+								options.push(...filterArray);
+							}
+						});
+						
+						return options;
+					};
+
+					const transformedData = transformChartData(chart.data, chart.chart_type);
+					const dropdownOptions = processDropdownOptions(chart.config);
+
+					console.log(`✅ Transformed chart data:`, {
+						title: chart.display_name,
+						type: chart.chart_type,
+						dataPoints: transformedData.length,
+						dropdownOptions: dropdownOptions.length
+					});
+
 					metrics.push({
 						metric_id: chart.id,
 						client_id: standardizedResponse.client_id,
 						metric_name: chart.display_name,
 						metric_type: "chart_data",
 						metric_value: {
-							data: chart.data,
+							data: transformedData,
 							chart_type: chart.chart_type,
 							title: chart.display_name,
-							subtitle: `${chart.config.x_axis?.display_name || "X"} vs ${
-								chart.config.y_axis?.display_name || "Y"
+							subtitle: `${chart.config?.x_axis?.display_name || "X"} vs ${
+								chart.config?.y_axis?.display_name || "Y"
 							}`,
-							dropdown_options: chart.config.filters
-								? Object.values(chart.config.filters).flat()
-								: [],
-							has_dropdown:
-								chart.config.filters &&
-								Object.keys(chart.config.filters).length > 0,
+							dropdown_options: dropdownOptions,
+							has_dropdown: dropdownOptions.length > 0,
 							source: "standardized",
 						},
-						calculated_at: dashboard_data.metadata.generated_at,
+						calculated_at: llmAnalysis.metadata?.generated_at || new Date().toISOString(),
+					});
+				}
+			}
+
+			// Convert Tables to legacy format
+			if (llmAnalysis.tables) {
+				for (const table of llmAnalysis.tables) {
+					metrics.push({
+						metric_id: table.id,
+						client_id: standardizedResponse.client_id,
+						metric_name: table.display_name,
+						metric_type: "table",
+						metric_value: {
+							table_data: table.data,
+							table_columns: table.columns,
+							table_config: table.config,
+							title: table.display_name,
+							subtitle: `Data table with ${table.data?.length || 0} rows`,
+							source: "standardized",
+						},
+						calculated_at: llmAnalysis.metadata?.generated_at || new Date().toISOString(),
 					});
 				}
 			}
 
 			console.log(
 				`🔄 Converted standardized format: ${
-					dashboard_data.kpis?.length || 0
-				} KPIs + ${dashboard_data.charts?.length || 0} charts = ${
+					llmAnalysis.kpis?.length || 0
+				} KPIs + ${llmAnalysis.charts?.length || 0} charts + ${llmAnalysis.tables?.length || 0} tables = ${
 					metrics.length
 				} legacy metrics`
 			);
@@ -236,36 +441,67 @@ class MUIDashboardService {
 				value: value,
 				trend: trend,
 				trendValue: trend?.value,
+				trendPercentage: trend?.percentage,
+				trendDirection: trend?.direction,
 				isPositive: trend?.isPositive,
 				fullMetric: metric,
 			});
 
-			// Use REAL trend percentage from your backend data
-			const trendValue = trend?.value || "0%";
-			const isPositive = trend?.isPositive ?? true;
+			// Map trend direction from backend to frontend format
+			const mapTrendDirection = (direction: string): "up" | "down" | "neutral" => {
+				switch (direction.toLowerCase()) {
+					case "up":
+					case "increasing":
+						return "up";
+					case "down":
+					case "decreasing":
+						return "down";
+					case "stable":
+					case "neutral":
+					default:
+						return "neutral";
+				}
+			};
+
+			// Format trend value based on the trend data from response
+			const formatTrendValue = (trend: any): string => {
+				if (!trend) return "0%";
+				
+				// If trend.value is already formatted (like "0%"), use it directly
+				if (typeof trend.value === 'string' && trend.value.includes('%')) {
+					return trend.value;
+				}
+				
+				// If trend.percentage exists, format it
+				if (trend.percentage !== undefined) {
+					if (trend.percentage === 0) return "0%";
+					const sign = trend.percentage > 0 ? "+" : "";
+					return `${sign}${trend.percentage}%`;
+				}
+				
+				return "0%";
+			};
+
+			// Use REAL trend data from your backend response
+			const trendValue = formatTrendValue(trend);
+			const trendDirection = mapTrendDirection(trend?.direction || "stable");
 
 			console.log(
-				`🎯 Final trendValue for "${metric.metric_name}": "${trendValue}"`
+				`🎯 Final KPI result for "${metric.metric_name}":`, {
+					value: value,
+					trendValue: trendValue,
+					trendDirection: trendDirection,
+					trendData: trend
+				}
 			);
 
-			// Validate that we're getting the expected values
-			if (
-				metric.metric_name === "Total First Variant Price" &&
-				trendValue !== "-2.9%"
-			) {
-				console.warn(`⚠️ Expected -2.9% but got: "${trendValue}"`);
-			}
-
-			// Generate realistic trend data based on the actual value and trend
+			// Generate realistic trend data based on the actual value
 			const baseValue = parseFloat(value?.replace(/[$,]/g, "") || "0") || 100;
-			const trendPercentage = parseFloat(trendValue.replace(/[%+-]/g, "")) || 0;
-			const trendMultiplier = isPositive
-				? 1 + trendPercentage / 100
-				: 1 - trendPercentage / 100;
-
+			const trendPercentage = parseFloat(trend?.percentage?.toString() || "0") || 0;
+			
 			const trendData = Array.from({ length: 30 }, (_, i) => {
-				// Create realistic progression over 30 days using real trend
-				const dailyChange = Math.pow(trendMultiplier, i / 30);
+				// Create realistic progression over 30 days
+				const dailyChange = 1 + (trendPercentage / 100) * (i / 30);
 				const randomFactor = 0.95 + Math.random() * 0.1; // ±5% daily variation
 				return Math.round(baseValue * dailyChange * randomFactor);
 			});
@@ -273,9 +509,9 @@ class MUIDashboardService {
 			return {
 				title: metric.metric_name,
 				value: value || "0",
-				interval: "Last 30 days", // Remove the trend from interval text
-				trend: isPositive ? "up" : "down",
-				trendValue: trendValue, // Real percentage from backend like "-34.6%"
+				interval: "Current period",
+				trend: trendDirection,
+				trendValue: trendValue,
 				data: trendData,
 			};
 		});
@@ -319,43 +555,106 @@ class MUIDashboardService {
 			const chartType = metric.metric_value.chart_type || "";
 			const muiChartType = MUI_CHART_MAP[chartType] || "BarChart";
 
+			console.log(`📊 Processing chart: "${metric.metric_value.title}" - Type: ${chartType} -> MUI: ${muiChartType}`);
+			console.log(`📊 Chart data:`, metric.metric_value.data);
+
 			const chartData: MUIChartData = {
 				id: metric.metric_id,
 				title: metric.metric_value.title || "Chart",
 				subtitle: metric.metric_value.subtitle || "",
 				muiChartType,
 				originalChartType: chartType,
-				data: this.transformDataForMUI(
-					metric.metric_value.data || [],
-					muiChartType,
-					metric.metric_value.title || ""
-				),
+				data: metric.metric_value.data || [], // Use data directly - already transformed
 				config: this.generateMUIConfig(chartType, muiChartType),
 				hasDropdown: metric.metric_value.has_dropdown,
 				dropdownOptions: metric.metric_value.dropdown_options,
 			};
 
-			// Categorize charts based on MUI type and original type
+			console.log(`📊 Final chart data:`, chartData);
+
+			// Categorize charts based on MUI type
 			if (muiChartType === "PieChart") {
-				if (chartType.includes("Radial")) {
-					categorizedCharts.radialCharts.push(chartData);
-				} else {
-					categorizedCharts.pieCharts.push(chartData);
-				}
+				categorizedCharts.pieCharts.push(chartData);
+				console.log(`✅ Added to pieCharts: ${chartData.title}`);
 			} else if (muiChartType === "BarChart") {
 				categorizedCharts.barCharts.push(chartData);
+				console.log(`✅ Added to barCharts: ${chartData.title}`);
 			} else if (muiChartType === "LineChart") {
-				if (chartType.includes("Area")) {
-					categorizedCharts.areaCharts.push(chartData);
-				} else {
-					categorizedCharts.lineCharts.push(chartData);
-				}
+				categorizedCharts.lineCharts.push(chartData);
+				console.log(`✅ Added to lineCharts: ${chartData.title}`);
+			} else if (muiChartType === "AreaChart") {
+				categorizedCharts.areaCharts.push(chartData);
+				console.log(`✅ Added to areaCharts: ${chartData.title}`);
 			} else if (muiChartType === "RadarChart") {
 				categorizedCharts.radarCharts.push(chartData);
+				console.log(`✅ Added to radarCharts: ${chartData.title}`);
+			} else if (muiChartType === "RadialChart") {
+				categorizedCharts.radialCharts.push(chartData);
+				console.log(`✅ Added to radialCharts: ${chartData.title}`);
 			}
 		});
 
+		console.log(`📊 Final categorized charts:`, {
+			pieCharts: categorizedCharts.pieCharts.length,
+			barCharts: categorizedCharts.barCharts.length,
+			lineCharts: categorizedCharts.lineCharts.length,
+			areaCharts: categorizedCharts.areaCharts.length,
+			radarCharts: categorizedCharts.radarCharts.length,
+			radialCharts: categorizedCharts.radialCharts.length,
+		});
+
 		return categorizedCharts;
+	}
+
+	// Convert backend table metrics to MUI table format
+	convertToMUITables(metrics: BackendMetric[]): MUITableData[] {
+		const tableMetrics = metrics.filter((m) => m.metric_type === "table");
+		console.log(`📋 Converting ${tableMetrics.length} table metrics to MUI format`);
+
+		return tableMetrics.map((metric) => {
+			console.log(`📊 Processing table: "${metric.metric_name}"`, {
+				rows: metric.metric_value.table_data?.length || 0,
+				columns: metric.metric_value.table_columns?.length || 0,
+			});
+
+			return {
+				id: metric.metric_id,
+				title: metric.metric_value.title || metric.metric_name,
+				subtitle: metric.metric_value.subtitle || "",
+				data: metric.metric_value.table_data || [],
+				columns: metric.metric_value.table_columns || [],
+				config: metric.metric_value.table_config || {
+					sortable: true,
+					filterable: true,
+					pagination: true,
+				},
+			};
+		});
+	}
+
+	// Extract business insights from the response
+	extractBusinessInsights(standardizedResponse: any): MUIBusinessInsights | undefined {
+		const businessAnalysis = standardizedResponse.llm_analysis?.business_analysis;
+		if (!businessAnalysis) {
+			console.log("⚠️ No business analysis found in response");
+			return undefined;
+		}
+
+		console.log("📊 Extracting business insights:", {
+			businessType: businessAnalysis.business_type,
+			industrySector: businessAnalysis.industry_sector,
+			insightsCount: businessAnalysis.business_insights?.length || 0,
+			recommendationsCount: businessAnalysis.recommendations?.length || 0,
+		});
+
+		return {
+			insights: businessAnalysis.business_insights || [],
+			recommendations: businessAnalysis.recommendations || [],
+			dataQualityScore: businessAnalysis.data_quality_score || 0,
+			confidenceLevel: businessAnalysis.confidence_level || 0,
+			businessType: businessAnalysis.business_type || "unknown",
+			industrySector: businessAnalysis.industry_sector || "unknown",
+		};
 	}
 
 	// Transform backend data format to MUI chart format
@@ -366,156 +665,46 @@ class MUIDashboardService {
 	): any[] {
 		if (!data || data.length === 0) return [];
 
-		// Detect if this is a status-related chart based on data content
-		const isStatusChart = this.detectStatusChart(data, title);
+		console.log(`🔄 Transforming data for ${muiChartType}:`, data);
 
-		// Calculate total for percentage calculations using appropriate fields
-		// For status charts, prioritize count fields; for monetary charts, prioritize amount fields
-		const totalSum = data.reduce((sum, item) => {
-			if (isStatusChart) {
-				return (
-					sum +
-					(item.count ||
-						item.visitors ||
-						item.value ||
-						item.total ||
-						item.amount ||
-						0)
-				);
-			} else {
-				return (
-					sum + (item.amount || item.total || item.value || item.count || 0)
-				);
-			}
-		}, 0);
-
-		console.log(
-			`💯 Total sum for percentage calculation: ${totalSum} (isStatusChart: ${isStatusChart})`,
-			data.map((item) => ({
-				name: item.name,
-				amount: item.amount,
-				total: item.total,
-				value: item.value,
-				count: item.count,
-				visitors: item.visitors,
-			}))
-		);
-
+		// For the new response format, data is already in the correct format
+		// Just ensure we have the right field names for MUI charts
 		switch (muiChartType) {
 			case "PieChart":
-				return data.map((item, index) => {
-					// Use appropriate field based on chart type
-					const value = isStatusChart
-						? item.count ||
-						  item.visitors ||
-						  item.value ||
-						  item.total ||
-						  item.amount ||
-						  0
-						: item.amount || item.total || item.value || item.count || 0;
-					const percentage =
-						totalSum > 0 ? Math.round((value / totalSum) * 100) : 0;
-
-					console.log(
-						`🥧 PieChart item: ${item.name} - value: ${value}, percentage: ${percentage}% (isStatusChart: ${isStatusChart}) (from: amount=${item.amount}, total=${item.total}, value=${item.value}, count=${item.count})`
-					);
-
-					return {
-						id: item.name,
-						value: value,
-						label: `${item.name} (${percentage}%)`,
-						color: this.extractColor(item.fill, index),
-					};
-				});
+				return data.map((item, index) => ({
+					id: index,
+					value: Number(item.value) || 0,
+					label: item.name || `Item ${index}`,
+					color: this.extractColor(`color-${index}`, index),
+				}));
 
 			case "BarChart":
-				return data.map((item) => {
-					// Use appropriate field based on chart type
-					const value = isStatusChart
-						? item.count ||
-						  item.visitors ||
-						  item.value ||
-						  item.total ||
-						  item.amount ||
-						  0
-						: item.amount || item.total || item.value || item.count || 0;
-					const percentage =
-						totalSum > 0 ? Math.round((value / totalSum) * 100) : 0;
-					const desktop = item.desktop || value;
-					const mobile = item.mobile || value * 0.8;
-
-					console.log(
-						`📊 BarChart item: ${item.name} - value: ${value}, desktop: ${desktop}, mobile: ${mobile} (isStatusChart: ${isStatusChart}) (from: amount=${item.amount}, total=${item.total})`
-					);
-
-					return {
-						name: item.name,
-						value: value,
-						desktop: desktop,
-						mobile: mobile,
-						percentage: percentage,
-						fill: item.fill,
-					};
-				});
+				return data.map((item, index) => ({
+					name: item.name || `Item ${index}`,
+					value: Number(item.value) || 0,
+					id: index,
+				}));
 
 			case "LineChart":
-				return data.map((item, index) => {
-					// Use appropriate field based on chart type
-					const value = isStatusChart
-						? item.count ||
-						  item.visitors ||
-						  item.value ||
-						  item.total ||
-						  item.amount ||
-						  0
-						: item.amount || item.total || item.value || item.count || 0;
-					const percentage =
-						totalSum > 0 ? Math.round((value / totalSum) * 100) : 0;
+				return data.map((item, index) => ({
+					month: item.name || `Month ${index}`,
+					value: Number(item.value) || 0,
+					id: index,
+				}));
 
-					console.log(
-						`📈 LineChart item: ${item.name} - value: ${value}, percentage: ${percentage}% (isStatusChart: ${isStatusChart}) (from: amount=${item.amount}, total=${item.total})`
-					);
-
-					return {
-						name: item.name,
-						value: value,
-						desktop: item.desktop || value,
-						mobile: item.mobile || value * 0.8,
-						month: item.month || item.name || `Point ${index + 1}`,
-						percentage: percentage,
-					};
-				});
-
-			case "RadarChart":
-				return data.map((item) => {
-					// Use appropriate field based on chart type
-					const value = isStatusChart
-						? item.count ||
-						  item.visitors ||
-						  item.value ||
-						  item.total ||
-						  item.amount ||
-						  0
-						: item.amount || item.total || item.value || item.count || 0;
-					const percentage =
-						totalSum > 0 ? Math.round((value / totalSum) * 100) : 0;
-
-					console.log(
-						`🎯 RadarChart item: ${item.name} - value: ${value}, percentage: ${percentage}% (isStatusChart: ${isStatusChart})`
-					);
-
-					return {
-						name: item.name,
-						value: value,
-						desktop: item.desktop || value,
-						mobile: item.mobile || value * 0.8,
-						count: item.count || value,
-						percentage: percentage,
-					};
-				});
+			case "AreaChart":
+				return data.map((item, index) => ({
+					name: item.name || `Item ${index}`,
+					value: Number(item.value) || 0,
+					id: index,
+				}));
 
 			default:
-				return data;
+				return data.map((item, index) => ({
+					...item,
+					value: Number(item.value) || 0,
+					name: item.name || `Item ${index}`,
+				}));
 		}
 	}
 
@@ -699,6 +888,7 @@ class MUIDashboardService {
 			radarCharts: [], // No fake radar charts
 			radialCharts: [], // No fake radial charts
 			areaCharts: [], // No fake area charts
+			tables: [], // No fake tables
 			totalMetrics: 0,
 			lastUpdated: "No data available",
 		};
@@ -708,19 +898,60 @@ class MUIDashboardService {
 	async processMUIMetrics(): Promise<MUIDashboardData> {
 		try {
 			console.log("🚀 Starting MUI dashboard data processing");
-			const metrics = await this.fetchMetrics();
+			const { metrics, originalResponse } = await this.fetchMetrics();
+
+			console.log("🚨 CRITICAL DEBUG - Raw metrics received:", {
+				totalMetrics: metrics.length,
+				hasOriginalResponse: !!originalResponse,
+				originalResponseKeys: originalResponse ? Object.keys(originalResponse) : []
+			});
 
 			if (metrics.length === 0) {
 				console.warn("⚠️ No metrics found, using fallback data");
 				return this.generateFallbackData();
 			}
 
+			// Debug each metric type
+			const kpiMetrics = metrics.filter((m) => m.metric_type === "kpi");
+			const chartMetrics = metrics.filter((m) => m.metric_type === "chart_data");
+			const tableMetrics = metrics.filter((m) => m.metric_type === "table");
+
+			console.log("🚨 CRITICAL DEBUG - Metric breakdown:", {
+				kpis: kpiMetrics.length,
+				charts: chartMetrics.length,
+				tables: tableMetrics.length
+			});
+
+			// Debug KPI metrics
+			if (kpiMetrics.length > 0) {
+				console.log("🚨 CRITICAL DEBUG - KPI Metrics:", kpiMetrics.map(kpi => ({
+					id: kpi.metric_id,
+					name: kpi.metric_name,
+					value: kpi.metric_value.value,
+					trend: kpi.metric_value.trend
+				})));
+			}
+
+			// Debug Chart metrics
+			if (chartMetrics.length > 0) {
+				console.log("🚨 CRITICAL DEBUG - Chart Metrics:", chartMetrics.map(chart => ({
+					id: chart.metric_id,
+					name: chart.metric_name,
+					type: chart.metric_value.chart_type,
+					dataLength: chart.metric_value.data?.length || 0
+				})));
+			}
+
 			const kpis = this.convertToStatCards(metrics);
 			const charts = this.convertToMUICharts(metrics);
+			const tables = this.convertToMUITables(metrics);
+			const businessInsights = this.extractBusinessInsights(originalResponse);
 
 			const result = {
 				kpis,
 				...charts,
+				tables,
+				businessInsights,
 				totalMetrics: metrics.length,
 				lastUpdated: new Date().toLocaleString(),
 			};
@@ -733,6 +964,7 @@ class MUIDashboardService {
 					result.barCharts.length +
 					result.lineCharts.length +
 					result.radarCharts.length,
+				tables: result.tables.length,
 			});
 
 			return result;
@@ -747,11 +979,13 @@ class MUIDashboardService {
 		totalMetrics: number;
 		totalCharts: number;
 		totalKPIs: number;
+		totalTables: number;
 		lastUpdated: string;
 		chartTypes: Record<string, number>;
 	} {
 		const chartMetrics = metrics.filter((m) => m.metric_type === "chart_data");
 		const kpiMetrics = metrics.filter((m) => m.metric_type === "kpi");
+		const tableMetrics = metrics.filter((m) => m.metric_type === "table");
 
 		const chartTypes: Record<string, number> = {};
 		chartMetrics.forEach((metric) => {
@@ -768,6 +1002,7 @@ class MUIDashboardService {
 			totalMetrics: metrics.length,
 			totalCharts: chartMetrics.length,
 			totalKPIs: kpiMetrics.length,
+			totalTables: tableMetrics.length,
 			lastUpdated:
 				latestTimestamp > 0
 					? new Date(latestTimestamp).toLocaleString()

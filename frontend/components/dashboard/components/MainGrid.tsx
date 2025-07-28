@@ -23,6 +23,7 @@ import {
 	muiDashboardService,
 	MUIDashboardData,
 	BackendMetric,
+	MUITableData,
 } from "../../../lib/muiDashboardService";
 
 // Import various chart components
@@ -101,7 +102,7 @@ interface KPIWidget {
 	title: string;
 	value: string;
 	subtitle: string;
-	trend: "up" | "down" | "neutral";
+	trend: "up" | "down" | "stable";
 	data: number[];
 	position: { row: number; col: number };
 	size: { width: number; height: number };
@@ -147,64 +148,60 @@ function OriginalMainGrid({
 	dashboardData?: MainGridProps["dashboardData"];
 	user?: { client_id: string; company_name: string; email: string };
 }) {
-	const [muiData, setMuiData] = React.useState<MUIDashboardData>({
-		kpis: [],
-		pieCharts: [],
-		barCharts: [],
-		lineCharts: [],
-		radarCharts: [],
-		radialCharts: [],
-		areaCharts: [],
-		totalMetrics: 0,
-		lastUpdated: "",
-	});
+	const [llmAnalysis, setLlmAnalysis] = React.useState<any>(null);
 	const [clientData, setClientData] = React.useState<any[]>([]);
 	const [dataColumns, setDataColumns] = React.useState<any[]>([]);
 	const [loading, setLoading] = React.useState(true);
+	const [error, setError] = React.useState<string | null>(null);
 
 	// State for chart dropdown selections
 	const [chartDropdownSelections, setChartDropdownSelections] = React.useState<{
 		[chartId: string]: string;
 	}>({});
 
-	// Helper function to filter chart data based on dropdown selection
-	const getFilteredChartData = (chart: any) => {
-		if (!chart.hasDropdown || !chart.dropdownOptions) {
-			return chart.data;
+	// Helper function to format KPI values based on format type
+	const formatKPIValue = (value: string, format: string): string => {
+		const numValue = parseFloat(value);
+		if (isNaN(numValue)) return value;
+		
+		switch (format) {
+			case "currency":
+				return `$${numValue.toLocaleString()}`;
+			case "percentage":
+				return `${numValue}%`;
+			case "number":
+			default:
+				return numValue.toLocaleString();
 		}
-
-		const selectedValue = chartDropdownSelections[chart.id];
-		if (!selectedValue || selectedValue === "all") {
-			return chart.data;
-		}
-
-		// Filter data based on selected dropdown value
-		return chart.data.filter(
-			(item: any) =>
-				(item.id || item.name || "")
-					.toLowerCase()
-					.includes(selectedValue.toLowerCase()) ||
-				item.name === selectedValue ||
-				item.id === selectedValue
-		);
 	};
 
-	// Handle dropdown change
+	// Helper function to get trend direction icon and color
+	const getTrendDisplay = (trend: any) => {
+		if (!trend || !trend.direction) return null;
+		
+		const direction = trend.direction.toLowerCase();
+		const percentage = trend.percentage || "0%";
+		
+		switch (direction) {
+			case "up":
+			case "increasing":
+				return { icon: "↗️", color: "success.main", direction: "up" as const };
+			case "down":
+			case "decreasing":
+				return { icon: "↘️", color: "error.main", direction: "down" as const };
+			case "stable":
+			case "neutral":
+			default:
+				return { icon: "→", color: "text.secondary", direction: "neutral" as const };
+		}
+	};
+
+	// Handle dropdown change for charts
 	const handleDropdownChange = (chartId: string, value: string) => {
 		setChartDropdownSelections((prev) => ({
 			...prev,
 			[chartId]: value,
 		}));
-	};
-
-	const summaryStats = {
-		totalMetrics: muiData.totalMetrics,
-		totalCharts:
-			muiData.pieCharts.length +
-			muiData.barCharts.length +
-			muiData.lineCharts.length,
-		totalKPIs: muiData.kpis.length,
-		lastUpdated: muiData.lastUpdated,
 	};
 
 	// Fetch client data using the EXACT same approach as template dashboard
@@ -260,29 +257,74 @@ function OriginalMainGrid({
 	React.useEffect(() => {
 		const fetchRealData = async () => {
 			try {
-				console.log("🔥 Loading MUI dashboard with backend data");
+				console.log("🔥 Loading dynamic dashboard with llm_analysis data");
 
-				// Use MUI dashboard service to get formatted data
-				const processedData = await muiDashboardService.processMUIMetrics();
-				setMuiData(processedData);
+				// Fetch the metrics endpoint to get llm_analysis
+				const response = await api.get("/dashboard/metrics");
+				
+				if (response.data && response.data.llm_analysis) {
+					const analysis = response.data.llm_analysis;
+					
+					console.log("🚨 CRITICAL DEBUG - LLM Analysis received:", {
+						hasKpis: !!analysis.kpis,
+						kpisCount: analysis.kpis?.length || 0,
+						hasCharts: !!analysis.charts,
+						chartsCount: analysis.charts?.length || 0,
+						hasTables: !!analysis.tables,
+						tablesCount: analysis.tables?.length || 0,
+						hasBusinessAnalysis: !!analysis.business_analysis
+					});
 
-				// Get summary statistics
-				const rawMetrics = await muiDashboardService.fetchMetrics();
-				const stats = muiDashboardService.generateSummaryStats(rawMetrics);
-				// setSummaryStats(stats); // This line was removed as per the new_code
+					// Debug KPIs
+					if (analysis.kpis && analysis.kpis.length > 0) {
+						console.log("📈 KPI Data:", analysis.kpis.map((kpi: any) => ({
+							display_name: kpi.display_name,
+							value: kpi.value,
+							format: kpi.format,
+							trend: kpi.trend
+						})));
+					} else {
+						console.warn("⚠️ NO KPIs found in llm_analysis!");
+					}
+
+					// Debug Charts
+					if (analysis.charts && analysis.charts.length > 0) {
+						console.log("📊 Chart Data:", analysis.charts.map((chart: any) => ({
+							display_name: chart.display_name,
+							chart_type: chart.chart_type,
+							dataLength: chart.data?.length || 0,
+							dataSample: chart.data?.slice(0, 2)
+						})));
+					} else {
+						console.warn("⚠️ NO Charts found in llm_analysis!");
+					}
+
+					// Debug Tables
+					if (analysis.tables && analysis.tables.length > 0) {
+						console.log("📋 Table Data:", analysis.tables.map((table: any) => ({
+							display_name: table.display_name,
+							columnsCount: table.columns?.length || 0,
+							rowsCount: table.data?.length || 0
+						})));
+					} else {
+						console.warn("⚠️ NO Tables found in llm_analysis!");
+					}
+
+					setLlmAnalysis(analysis);
+					setError(null);
+				} else {
+					console.error("❌ No llm_analysis found in response");
+					setError("No analysis data available");
+					setLlmAnalysis(null);
+				}
 
 				// Load client data using the SAME method as template dashboard
 				await loadClientData();
 
-				console.log("✅ MUI Dashboard data loaded:", {
-					kpis: processedData.kpis.length,
-					pieCharts: processedData.pieCharts.length,
-					barCharts: processedData.barCharts.length,
-					lineCharts: processedData.lineCharts.length,
-					totalMetrics: processedData.totalMetrics,
-				});
 			} catch (error) {
-				console.error("❌ Error loading MUI dashboard data:", error);
+				console.error("❌ CRITICAL ERROR loading dashboard data:", error);
+				setError("Failed to load dashboard data");
+				setLlmAnalysis(null);
 			} finally {
 				setLoading(false);
 			}
@@ -312,633 +354,489 @@ function OriginalMainGrid({
 		);
 	}
 
+	if (error) {
+		return (
+			<Box sx={{ width: "100%", maxWidth: { sm: "100%", md: "1700px" } }}>
+				<Card sx={{ bgcolor: 'error.light', color: 'error.contrastText' }}>
+					<CardContent sx={{ textAlign: 'center', py: 4 }}>
+						<Typography variant="h6" sx={{ mb: 1 }}>
+							❌ Dashboard Error
+						</Typography>
+						<Typography variant="body2">
+							{error}
+						</Typography>
+					</CardContent>
+				</Card>
+			</Box>
+		);
+	}
+
 	return (
 		<Box sx={{ width: "100%", maxWidth: { sm: "100%", md: "1700px" } }}>
-			{/* REAL Backend KPI Cards */}
-			<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-				{/* Display real KPIs from backend */}
-				{muiData.kpis.length > 0
-					? muiData.kpis.map((card, index) => (
-							<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
-								<StatCard
-									title={card.title}
-									value={card.value}
-									interval={card.interval}
-									trend={card.trend}
-									trendValue={card.trendValue}
-									data={card.data}
-								/>
-							</Grid>
-					  ))
-					: [
-							{
-								title: "Total Metrics",
-								value: summaryStats.totalMetrics.toString(),
-								interval: "Current dataset",
-								trend: "neutral" as const,
-								trendValue: "Real data",
-								data: Array.from(
-									{ length: 30 },
-									() => summaryStats.totalMetrics
-								),
-							},
-							{
-								title: "Chart Data",
-								value: summaryStats.totalCharts.toString(),
-								interval: "Active charts",
-								trend: "neutral" as const,
-								trendValue: "Available",
-								data: Array.from(
-									{ length: 30 },
-									() => summaryStats.totalCharts
-								),
-							},
-							{
-								title: "KPI Metrics",
-								value: summaryStats.totalKPIs.toString(),
-								interval: "Current period",
-								trend: "neutral" as const,
-								trendValue: "Calculated",
-								data: Array.from({ length: 30 }, () => summaryStats.totalKPIs),
-							},
-							{
-								title: "Last Updated",
-								value: summaryStats.lastUpdated,
-								interval: "Recent activity",
-								trend: "neutral" as const,
-								trendValue: "Current",
-								data: Array.from({ length: 30 }, () => 1),
-							},
-					  ].map((card, index) => (
-							<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
-								<StatCard
-									title={card.title}
-									value={card.value}
-									interval={card.interval}
-									trend={card.trend}
-									trendValue={card.trendValue}
-									data={card.data}
-								/>
-							</Grid>
-					  ))}
-			</Grid>
-			{/* Business Data Table */}
-			<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-				<Grid size={{ xs: 12 }}>
-					<BusinessDataTable
-						clientData={clientData}
-						dataColumns={dataColumns}
-						title="Business Data Overview"
-						subtitle="Key business metrics and performance data from your uploaded data"
-					/>
-				</Grid>
-			</Grid>
-
-			{/* REAL BUSINESS DATA Charts - Only show if data exists */}
-			{(muiData.lineCharts.length > 0 || muiData.pieCharts.length > 0) && (
-				<>
-					{/* Debug: Log available chart metrics */}
-					{console.log("🔍 MainGrid - Available chart metrics:", {
-						lineCharts: muiData.lineCharts.map((chart) => ({
-							title: chart.title,
-							dataLength: chart.data.length,
-						})),
-						pieCharts: muiData.pieCharts.map((chart) => ({
-							title: chart.title,
-							dataLength: chart.data.length,
-						})),
-					})}
-
-					<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-						{muiData.lineCharts.length > 0 && (
-							<Grid
-								size={{ xs: 12, md: muiData.pieCharts.length > 0 ? 6 : 12 }}>
-								<RevenueTrendsChart
-									dashboardData={{
-										totalRevenue: (summaryStats.totalMetrics || 100) * 500,
-										totalOrders: summaryStats.totalMetrics || 325,
-										averageOrderValue: Math.floor(
-											((summaryStats.totalMetrics || 100) * 500) /
-												(summaryStats.totalMetrics || 325)
-										),
-									}}
-									revenueData={muiData.lineCharts[0].data}
-								/>
-							</Grid>
-						)}
-						{muiData.pieCharts.length > 0 && (
-							<Grid
-								size={{ xs: 12, md: muiData.lineCharts.length > 0 ? 6 : 12 }}>
-								<SalesCategoryChart
-									dashboardData={{
-										totalSales: (summaryStats.totalMetrics || 100) * 400,
-										topCategory: "Electronics",
-										categoriesCount: muiData.pieCharts.length || 5,
-									}}
-									categoryData={(() => {
-										// Find the best pie chart metric for sales data
-										// Look for charts with meaningful sales values (not all identical small values)
-										console.log(
-											`🔍 Selecting best pie chart from ${muiData.pieCharts.length} available options`
-										);
-
-										let bestChart = null;
-										let bestScore = 0;
-
-										for (const chart of muiData.pieCharts) {
-											const values = chart.data.map((item) => item.value || 0);
-											const uniqueValues = [...new Set(values)];
-											const hasVariedValues =
-												uniqueValues.length > 1 || uniqueValues[0] > 10;
-											const totalValue = values.reduce((a, b) => a + b, 0);
-											const avgValue = totalValue / values.length;
-
-											// Calculate a score for this chart
-											let score = 0;
-
-											// Prefer charts with varied values
-											if (uniqueValues.length > 1) score += 100;
-
-											// Prefer charts with realistic monetary ranges (10-50000)
-											if (avgValue >= 100 && avgValue <= 50000) score += 200;
-											else if (avgValue >= 10 && avgValue <= 100000)
-												score += 100;
-											else if (avgValue >= 1 && avgValue <= 10) score += 50; // Small values (counts)
-
-											// Bonus for sales-related titles
-											const title = chart.title?.toLowerCase() || "";
-											if (
-												title.includes("platform") ||
-												title.includes("vendor") ||
-												title.includes("sales")
-											)
-												score += 50;
-
-											console.log(`🔍 Evaluating pie chart "${chart.title}":`, {
-												values: values.slice(0, 3),
-												uniqueValues: uniqueValues.length,
-												avgValue: avgValue.toFixed(2),
-												hasVariedValues,
-												totalValue,
-												score,
-											});
-
-											if (hasVariedValues && score > bestScore) {
-												bestChart = chart;
-												bestScore = score;
-											}
-										}
-
-										if (bestChart) {
-											console.log(
-												`✅ Selected pie chart "${bestChart.title}" for Sales by Category (score: ${bestScore})`
-											);
-											return bestChart.data;
-										}
-
-										// Fallback to first chart if none meet criteria
-										console.warn(
-											"⚠️ No suitable pie chart found, using first available"
-										);
-										return muiData.pieCharts[0]?.data || [];
-									})()}
-								/>
-							</Grid>
-						)}
-					</Grid>
-				</>
-			)}
-
-			{/* Real Backend Charts - Pie Charts */}
-			{muiData.pieCharts.length > 0 && (
+			{/* Business Insights Section - Only if available */}
+			{llmAnalysis?.business_analysis && (
 				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-					{muiData.pieCharts.map((pieChart, index) => {
-						// Check if this is a status chart
-						const isStatusChart =
-							pieChart.title?.toLowerCase().includes("status") ||
-							pieChart.title?.toLowerCase().includes("activity") ||
-							pieChart.title?.toLowerCase().includes("comparison") ||
-							pieChart.data.some((item) =>
-								["active", "inactive", "archived", "draft", "pending"].some(
-									(status) =>
-										(item.id || item.name || "").toLowerCase().includes(status)
-								)
-							);
-
-						// Get filtered data based on dropdown selection
-						const filteredData = getFilteredChartData(pieChart);
-						const selectedValue = chartDropdownSelections[pieChart.id] || "all";
-
-						return (
-							<Grid key={index} size={{ xs: 12, md: 4 }}>
-								<Card>
-									<CardHeader
-										title={pieChart.title}
-										subheader={
-											isStatusChart
-												? `${pieChart.subtitle} • Status Distribution`
-												: pieChart.subtitle
-										}
-										action={
-											pieChart.hasDropdown &&
-											pieChart.dropdownOptions && (
-												<FormControl size="small" sx={{ minWidth: 120 }}>
-													<InputLabel id={`chart-dropdown-${pieChart.id}`}>
-														Filter
-													</InputLabel>
-													<Select
-														labelId={`chart-dropdown-${pieChart.id}`}
-														value={selectedValue}
-														label="Filter"
-														onChange={(e) =>
-															handleDropdownChange(pieChart.id, e.target.value)
-														}>
-														{pieChart.dropdownOptions.map((option: any) => (
-															<MenuItem key={option.value} value={option.value}>
-																{option.label}
-															</MenuItem>
-														))}
-													</Select>
-												</FormControl>
-											)
-										}
-									/>
-									<CardContent>
-										<Box
-											sx={{
-												height: 300,
-												display: "flex",
-												justifyContent: "center",
-												alignItems: "center",
+					<Grid size={{ xs: 12 }}>
+						<Card sx={{ 
+							background: 'linear-gradient(135deg,rgb(134, 136, 139) 0%,rgb(140, 180, 213) 100%)',
+							color: 'white',
+							boxShadow: '0 4px 20px rgba(25, 118, 210, 0.3)'
+						}}>
+							<CardHeader
+								title={
+									<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+										<Typography variant="h5" sx={{ fontWeight: 600 }}>
+											💡 Business Insights & Recommendations
+										</Typography>
+									</Box>
+								}
+								sx={{ color: 'inherit', pb: 1 }}
+							/>
+							<CardContent sx={{ pt: 0 }}>
+								<Grid container spacing={3}>
+									{llmAnalysis.business_analysis.business_insights && (
+										<Grid size={{ xs: 12, md: 6 }}>
+											<Card sx={{ 
+												bgcolor: 'rgba(255, 255, 255, 0.1)', 
+												backdropFilter: 'blur(10px)',
+												border: '1px solid rgba(255, 255, 255, 0.2)'
 											}}>
-											<PieChart
-												series={[
-													{
-														data: filteredData.map((item) => ({
-															...item,
-															// For status charts, format as counts instead of currency
-															label: isStatusChart
-																? `${item.id || item.name} (${
-																		item.value
-																  } items)`
-																: item.label,
-														})),
-														...(isStatusChart
-															? {}
-															: { valueFormatter: (value) => `$${value}` }),
-													},
-												]}
-												width={300}
-												height={300}
-												margin={{ top: 40, bottom: 40, left: 40, right: 40 }}
-											/>
-										</Box>
-									</CardContent>
-								</Card>
-							</Grid>
-						);
-					})}
-				</Grid>
-			)}
-
-			{/* Real Backend Charts - Bar Charts */}
-			{muiData.barCharts.length > 0 && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-					{muiData.barCharts.map((barChart, index) => {
-						// Get filtered data based on dropdown selection
-						const filteredData = getFilteredChartData(barChart);
-						const selectedValue = chartDropdownSelections[barChart.id] || "all";
-
-						return (
-							<Grid key={index} size={{ xs: 12, md: 6 }}>
-								<Card>
-									<CardHeader
-										title={barChart.title}
-										subheader={barChart.subtitle}
-										action={
-											barChart.hasDropdown &&
-											barChart.dropdownOptions && (
-												<FormControl size="small" sx={{ minWidth: 120 }}>
-													<InputLabel id={`bar-chart-dropdown-${barChart.id}`}>
-														Filter
-													</InputLabel>
-													<Select
-														labelId={`bar-chart-dropdown-${barChart.id}`}
-														value={selectedValue}
-														label="Filter"
-														onChange={(e) =>
-															handleDropdownChange(barChart.id, e.target.value)
-														}>
-														{barChart.dropdownOptions.map((option: any) => (
-															<MenuItem key={option.value} value={option.value}>
-																{option.label}
-															</MenuItem>
+												<CardHeader
+													title={
+														<Typography variant="h6" sx={{ color: 'white', fontWeight: 600 }}>
+															🔍 Key Insights
+														</Typography>
+													}
+													sx={{ pb: 1 }}
+												/>
+												<CardContent sx={{ pt: 0 }}>
+													<Box component="ul" sx={{ pl: 2, m: 0 }}>
+														{llmAnalysis.business_analysis.business_insights.map((insight: string, index: number) => (
+															<Typography
+																key={index}
+																component="li"
+																variant="body2"
+																sx={{ 
+																	mb: 2, 
+																	color: 'white',
+																	opacity: 0.95,
+																	lineHeight: 1.6,
+																	padding: '8px 12px',
+																	borderRadius: '6px',
+																	bgcolor: 'rgba(255, 255, 255, 0.05)',
+																	border: '1px solid rgba(255, 255, 255, 0.1)',
+																	'&::marker': {
+																		color: 'rgba(255, 255, 255, 0.8)',
+																		fontWeight: 'bold'
+																	},
+																	'&:hover': {
+																		bgcolor: 'rgba(255, 255, 255, 0.1)',
+																		transition: 'background-color 0.2s ease'
+																	}
+																}}
+															>
+																{insight}
+															</Typography>
 														))}
-													</Select>
-												</FormControl>
-											)
-										}
-									/>
-									<CardContent>
-										<Box sx={{ height: 300 }}>
-											<BarChart
-												dataset={filteredData}
-												xAxis={[
-													{
-														scaleType: "band",
-														dataKey: "name",
-														tickPlacement: "middle",
-														tickLabelPlacement: "middle",
-													},
-												]}
-												series={[
-													{
-														dataKey: "value",
-														label: "Value",
-														valueFormatter: (value) => `$${value}`,
-													},
-												]}
-												width={500}
-												height={300}
-												margin={{ top: 20, bottom: 60, left: 70, right: 20 }}
-											/>
-										</Box>
-									</CardContent>
-								</Card>
-							</Grid>
-						);
-					})}
-				</Grid>
-			)}
-
-			{/* Real Backend Charts - Line Charts */}
-			{muiData.lineCharts.length > 0 && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-					{muiData.lineCharts.map((lineChart, index) => {
-						// Get filtered data based on dropdown selection
-						const filteredData = getFilteredChartData(lineChart);
-						const selectedValue =
-							chartDropdownSelections[lineChart.id] || "all";
-
-						return (
-							<Grid key={index} size={{ xs: 12, md: 6 }}>
-								<Card>
-									<CardHeader
-										title={lineChart.title}
-										subheader={lineChart.subtitle}
-										action={
-											lineChart.hasDropdown &&
-											lineChart.dropdownOptions && (
-												<FormControl size="small" sx={{ minWidth: 120 }}>
-													<InputLabel
-														id={`line-chart-dropdown-${lineChart.id}`}>
-														Filter
-													</InputLabel>
-													<Select
-														labelId={`line-chart-dropdown-${lineChart.id}`}
-														value={selectedValue}
-														label="Filter"
-														onChange={(e) =>
-															handleDropdownChange(lineChart.id, e.target.value)
-														}>
-														{lineChart.dropdownOptions.map((option: any) => (
-															<MenuItem key={option.value} value={option.value}>
-																{option.label}
-															</MenuItem>
+													</Box>
+												</CardContent>
+											</Card>
+										</Grid>
+									)}
+									{llmAnalysis.business_analysis.recommendations && (
+										<Grid size={{ xs: 12, md: 6 }}>
+											<Card sx={{ 
+												bgcolor: 'rgba(255, 255, 255, 0.1)', 
+												backdropFilter: 'blur(10px)',
+												border: '1px solid rgba(255, 255, 255, 0.2)'
+											}}>
+												<CardHeader
+													title={
+														<Typography variant="h6" sx={{ color: 'white', fontWeight: 600 }}>
+															🚀 Recommendations
+														</Typography>
+													}
+													sx={{ pb: 1 }}
+												/>
+												<CardContent sx={{ pt: 0 }}>
+													<Box component="ul" sx={{ pl: 2, m: 0 }}>
+														{llmAnalysis.business_analysis.recommendations.map((recommendation: string, index: number) => (
+															<Typography
+																key={index}
+																component="li"
+																variant="body2"
+																sx={{ 
+																	mb: 2, 
+																	color: 'white',
+																	opacity: 0.95,
+																	lineHeight: 1.6,
+																	padding: '8px 12px',
+																	borderRadius: '6px',
+																	bgcolor: 'rgba(255, 255, 255, 0.05)',
+																	border: '1px solid rgba(255, 255, 255, 0.1)',
+																	'&::marker': {
+																		color: 'rgba(255, 255, 255, 0.8)',
+																		fontWeight: 'bold'
+																	},
+																	'&:hover': {
+																		bgcolor: 'rgba(255, 255, 255, 0.1)',
+																		transition: 'background-color 0.2s ease'
+																	}
+																}}
+															>
+																{recommendation}
+															</Typography>
 														))}
-													</Select>
-												</FormControl>
-											)
-										}
-									/>
-									<CardContent>
-										<Box sx={{ height: 300 }}>
-											<LineChart
-												dataset={filteredData}
-												xAxis={[
-													{
-														scaleType: "point",
-														dataKey: "month",
-													},
-												]}
-												series={[
-													{
-														dataKey: "value",
-														label: "Revenue",
-														curve: "linear",
-														valueFormatter: (value) => `$${value}`,
-													},
-												]}
-												width={500}
-												height={300}
-												margin={{ top: 20, bottom: 60, left: 70, right: 20 }}
-											/>
-										</Box>
-									</CardContent>
-								</Card>
-							</Grid>
-						);
-					})}
-				</Grid>
-			)}
-
-			{/* Real Backend Charts - Area Charts */}
-			{muiData.areaCharts.length > 0 && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-					{muiData.areaCharts.map((areaChart, index) => (
-						<Grid key={index} size={{ xs: 12, md: 6 }}>
-							<Card>
-								<CardHeader
-									title={areaChart.title}
-									subheader={areaChart.subtitle}
-								/>
-								<CardContent>
-									<Box sx={{ height: 300 }}>
-										<LineChart
-											dataset={areaChart.data}
-											xAxis={[{ dataKey: "name", scaleType: "band" }]}
-											series={[
-												{
-													dataKey: "value",
-													label: "Value",
-													area: true,
-													stack: areaChart.originalChartType.includes("Stacked")
-														? "total"
-														: undefined,
-													color: "#1976d2",
-												},
-												{
-													dataKey: "desktop",
-													label: "Desktop",
-													area: true,
-													stack: areaChart.originalChartType.includes("Stacked")
-														? "total"
-														: undefined,
-													color: "#42a5f5",
-												},
-												{
-													dataKey: "mobile",
-													label: "Mobile",
-													area: true,
-													stack: areaChart.originalChartType.includes("Stacked")
-														? "total"
-														: undefined,
-													color: "#90caf9",
-												},
-											]}
-											width={500}
-											height={300}
-											margin={{ top: 40, bottom: 40, left: 40, right: 40 }}
-										/>
-									</Box>
-								</CardContent>
-							</Card>
-						</Grid>
-					))}
-				</Grid>
-			)}
-
-			{/* Real Backend Charts - Radar Charts */}
-			{muiData.radarCharts.length > 0 && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-					{muiData.radarCharts.map((radarChart, index) => {
-						// Get filtered data based on dropdown selection
-						const filteredData = getFilteredChartData(radarChart);
-						const selectedValue =
-							chartDropdownSelections[radarChart.id] || "all";
-
-						return (
-							<Grid key={index} size={{ xs: 12, md: 6 }}>
-								<Card>
-									<CardHeader
-										title={radarChart.title}
-										subheader={radarChart.subtitle}
-										action={
-											radarChart.hasDropdown &&
-											radarChart.dropdownOptions && (
-												<FormControl size="small" sx={{ minWidth: 120 }}>
-													<InputLabel
-														id={`radar-chart-dropdown-${radarChart.id}`}>
-														Filter
-													</InputLabel>
-													<Select
-														labelId={`radar-chart-dropdown-${radarChart.id}`}
-														value={selectedValue}
-														label="Filter"
-														onChange={(e) =>
-															handleDropdownChange(
-																radarChart.id,
-																e.target.value
-															)
-														}>
-														{radarChart.dropdownOptions.map((option: any) => (
-															<MenuItem key={option.value} value={option.value}>
-																{option.label}
-															</MenuItem>
-														))}
-													</Select>
-												</FormControl>
-											)
-										}
-									/>
-									<CardContent>
-										<Box sx={{ height: 400 }}>
-											<ResponsiveRadar
-												data={filteredData.map((item) => ({
-													name: item.name,
-													value: item.value,
-													...item,
-												}))}
-												keys={["value"]}
-												indexBy="name"
-												maxValue="auto"
-												margin={{ top: 70, right: 80, bottom: 40, left: 80 }}
-												curve="linearClosed"
-												borderWidth={2}
-												borderColor={{ from: "color" }}
-												gridLevels={5}
-												gridShape="circular"
-												gridLabelOffset={36}
-												enableDots={true}
-												dotSize={10}
-												dotColor={{ theme: "background" }}
-												dotBorderWidth={2}
-												dotBorderColor={{ from: "color" }}
-												enableDotLabel={true}
-												dotLabel="value"
-												dotLabelYOffset={-12}
-												colors={{ scheme: "nivo" }}
-												fillOpacity={0.25}
-												blendMode="multiply"
-												animate={true}
-												motionConfig="wobbly"
-												isInteractive={true}
-											/>
-										</Box>
-									</CardContent>
-								</Card>
-							</Grid>
-						);
-					})}
-				</Grid>
-			)}
-
-			{/* Real Backend Charts - Radial Charts */}
-			{muiData.radialCharts.length > 0 && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-					{muiData.radialCharts.map((radialChart, index) => (
-						<Grid key={index} size={{ xs: 12, md: 4 }}>
-							<Card>
-								<CardHeader
-									title={radialChart.title}
-									subheader={radialChart.subtitle}
-								/>
-								<CardContent>
-									<Box
-										sx={{
-											height: 300,
-											display: "flex",
-											justifyContent: "center",
-											alignItems: "center",
-										}}>
-										<PieChart
-											series={[
-												{
-													data: radialChart.data,
-													innerRadius: 40,
-													outerRadius: 80,
-												},
-											]}
-											width={300}
-											height={300}
-											margin={{ top: 40, bottom: 40, left: 40, right: 40 }}
-										/>
-									</Box>
-								</CardContent>
-							</Card>
-						</Grid>
-					))}
-				</Grid>
-			)}
-
-			{/* Fallback - Default country chart if no backend charts available */}
-			{muiData.pieCharts.length === 0 && muiData.barCharts.length === 0 && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-					<Grid size={{ xs: 12, md: 4 }}>
-						<ChartUserByCountry />
+													</Box>
+												</CardContent>
+											</Card>
+										</Grid>
+									)}
+								</Grid>
+							</CardContent>
+						</Card>
 					</Grid>
-					<Grid size={{ xs: 12, md: 8 }}>
-						<Card>
-							<CardHeader title="Dashboard Summary" />
-							<CardContent>
-								<Typography variant="body1" color="text.secondary">
-									Total Metrics: {summaryStats.totalMetrics}
-									<br />
-									Charts: {summaryStats.totalCharts}
-									<br />
-									KPIs: {summaryStats.totalKPIs}
-									<br />
-									Last Updated: {summaryStats.lastUpdated}
+				</Grid>
+			)}
+
+			{/* KPI Cards - Only render if kpis array exists and has items */}
+			{llmAnalysis?.kpis && llmAnalysis.kpis.length > 0 && (
+				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+					{llmAnalysis.kpis.map((kpi: any, index: number) => {
+						const trendDisplay = getTrendDisplay(kpi.trend);
+						
+						return (
+							<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
+								<StatCard
+									title={kpi.display_name}
+									value={formatKPIValue(kpi.value, kpi.format)}
+									interval={kpi.trend.description}
+									trend={kpi.trend.direction || "neutral"}
+									trendValue={kpi.trend?.percentage || "0%"}
+									data={Array.from({ length: 30 }, () => parseFloat(kpi.value) || 0)}
+								/>
+							</Grid>
+						);
+					})}
+				</Grid>
+			)}
+
+			{/* Charts - Only render if charts array exists and has items */}
+			{llmAnalysis?.charts && llmAnalysis.charts.length > 0 && (
+				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+					{llmAnalysis.charts.map((chart: any, index: number) => {
+						// Skip if no data or invalid chart type
+						if (!chart.data || !Array.isArray(chart.data) || chart.data.length === 0) {
+							return null;
+						}
+
+						const chartId = `chart-${index}`;
+						const selectedValue = chartDropdownSelections[chartId] || "all";
+
+						// Filter data based on dropdown selection if filters exist
+						let filteredData = chart.data;
+						if (chart.config?.filters && selectedValue !== "all") {
+							filteredData = chart.data.filter((item: any) => {
+								const itemName = item.name || item.id || "";
+								return itemName.toLowerCase().includes(selectedValue.toLowerCase()) ||
+									itemName === selectedValue ||
+									item.id === selectedValue;
+							});
+						}
+
+						// Render based on chart type
+						switch (chart.chart_type?.toLowerCase()) {
+							case "pie":
+								return (
+									<Grid key={index} size={{ xs: 12, md: 4 }}>
+										<Card>
+											<CardHeader
+												title={chart.display_name}
+												subtitle={chart.config?.x_axis?.display_name && chart.config?.y_axis?.display_name 
+													? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
+													: "Data visualization"
+												}
+												action={
+													chart.config?.filters && (
+														<FormControl size="small" sx={{ minWidth: 120 }}>
+															<InputLabel id={`chart-dropdown-${chartId}`}>
+																Filter
+															</InputLabel>
+															<Select
+																labelId={`chart-dropdown-${chartId}`}
+																value={selectedValue}
+																label="Filter"
+																onChange={(e) =>
+																	handleDropdownChange(chartId, e.target.value)
+																}>
+																<MenuItem value="all">All</MenuItem>
+																{Object.values(chart.config.filters).flat().map((option: any) => (
+																	<MenuItem key={option.value} value={option.value}>
+																		{option.label}
+																	</MenuItem>
+																))}
+															</Select>
+														</FormControl>
+													)
+												}
+											/>
+											<CardContent>
+												<Box sx={{
+													height: 300,
+													display: "flex",
+													justifyContent: "center",
+													alignItems: "center",
+												}}>
+													<PieChart
+														series={[{
+															data: filteredData.map((item: any, idx: number) => ({
+																id: item.id || idx,
+																value: Number(item.value) || 0,
+																label: item.name || `Item ${idx}`,
+															})),
+															valueFormatter: (value: any) => {
+																// Handle case where value might be an object
+																const actualValue = typeof value === 'object' && value !== null ? value.value || value : value;
+																
+																if (actualValue == null) return "0";
+																if (typeof actualValue === 'number' && actualValue > 100) {
+																	return `$${actualValue.toLocaleString()}`;
+																}
+																return actualValue.toString();
+															},
+														}]}
+														width={300}
+														height={300}
+														margin={{ top: 40, bottom: 40, left: 40, right: 40 }}
+													/>
+												</Box>
+											</CardContent>
+										</Card>
+									</Grid>
+								);
+
+							case "bar":
+								return (
+									<Grid key={index} size={{ xs: 12, md: 6 }}>
+										<Card>
+											<CardHeader
+												title={chart.display_name}
+												subtitle={chart.config?.x_axis?.display_name && chart.config?.y_axis?.display_name 
+													? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
+													: "Data visualization"
+												}
+												action={
+													chart.config?.filters && (
+														<FormControl size="small" sx={{ minWidth: 120 }}>
+															<InputLabel id={`bar-chart-dropdown-${chartId}`}>
+																Filter
+															</InputLabel>
+															<Select
+																labelId={`bar-chart-dropdown-${chartId}`}
+																value={selectedValue}
+																label="Filter"
+																onChange={(e) =>
+																	handleDropdownChange(chartId, e.target.value)
+																}>
+																<MenuItem value="all">All</MenuItem>
+																{Object.values(chart.config.filters).flat().map((option: any) => (
+																	<MenuItem key={option.value} value={option.value}>
+																		{option.label}
+																	</MenuItem>
+																))}
+															</Select>
+														</FormControl>
+													)
+												}
+											/>
+											<CardContent>
+												<Box sx={{ height: 300 }}>
+													<BarChart
+														dataset={filteredData}
+														xAxis={[{
+															scaleType: "band",
+															dataKey: "name",
+															tickPlacement: "middle",
+															tickLabelPlacement: "middle",
+														}]}
+														series={[{
+															dataKey: "value",
+															label: chart.config?.y_axis?.display_name || "Value",
+															valueFormatter: (value: any) => {
+																// Handle case where value might be an object
+																const actualValue = typeof value === 'object' && value !== null ? value.value || value : value;
+																
+																if (actualValue == null) return "0";
+																if (typeof actualValue === 'number' && actualValue > 100) {
+																	return `$${actualValue.toLocaleString()}`;
+																}
+																return actualValue.toString();
+															},
+														}]}
+														width={500}
+														height={300}
+														margin={{ top: 20, bottom: 60, left: 70, right: 20 }}
+													/>
+												</Box>
+											</CardContent>
+										</Card>
+									</Grid>
+								);
+
+							case "line":
+								return (
+									<Grid key={index} size={{ xs: 12, md: 6 }}>
+										<Card>
+											<CardHeader
+												title={chart.display_name}
+												subtitle={chart.config?.x_axis?.display_name && chart.config?.y_axis?.display_name 
+													? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
+													: "Data visualization"
+												}
+												action={
+													chart.config?.filters && (
+														<FormControl size="small" sx={{ minWidth: 120 }}>
+															<InputLabel id={`line-chart-dropdown-${chartId}`}>
+																Filter
+															</InputLabel>
+															<Select
+																labelId={`line-chart-dropdown-${chartId}`}
+																value={selectedValue}
+																label="Filter"
+																onChange={(e) =>
+																	handleDropdownChange(chartId, e.target.value)
+																}>
+																<MenuItem value="all">All</MenuItem>
+																{Object.values(chart.config.filters).flat().map((option: any) => (
+																	<MenuItem key={option.value} value={option.value}>
+																		{option.label}
+																	</MenuItem>
+																))}
+															</Select>
+														</FormControl>
+													)
+												}
+											/>
+											<CardContent>
+												<Box sx={{ height: 300 }}>
+													<LineChart
+														dataset={filteredData}
+														xAxis={[{
+															scaleType: "point",
+															dataKey: "name",
+														}]}
+														series={[{
+															dataKey: "value",
+															label: chart.config?.y_axis?.display_name || "Value",
+															curve: "linear",
+															valueFormatter: (value: any) => {
+																// Handle case where value might be an object
+																const actualValue = typeof value === 'object' && value !== null ? value.value || value : value;
+																
+																if (actualValue == null) return "0";
+																if (typeof actualValue === 'number' && actualValue > 100) {
+																	return `$${actualValue.toLocaleString()}`;
+																}
+																return actualValue.toString();
+															},
+														}]}
+														width={500}
+														height={300}
+														margin={{ top: 20, bottom: 60, left: 70, right: 20 }}
+													/>
+												</Box>
+											</CardContent>
+										</Card>
+									</Grid>
+								);
+
+							default:
+								console.warn(`⚠️ Unknown chart type: ${chart.chart_type}`);
+								return null;
+						}
+					})}
+				</Grid>
+			)}
+
+			{/* Tables - Only render if tables array exists and has items */}
+			{llmAnalysis?.tables && llmAnalysis.tables.length > 0 && (
+				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+					{llmAnalysis.tables.map((table: any, index: number) => {
+						// Skip if no columns or data
+						if (!table.columns || !Array.isArray(table.columns) || 
+							!table.data || !Array.isArray(table.data)) {
+							return null;
+						}
+
+						return (
+							<Grid key={index} size={{ xs: 12 }}>
+								<Card>
+									<CardHeader
+										title={table.display_name}
+										subheader={`${table.data.length} rows of data`}
+									/>
+									<CardContent>
+										<Box sx={{ overflow: "auto", maxHeight: 400 }}>
+											<table style={{ width: "100%", borderCollapse: "collapse" }}>
+												<thead>
+													<tr style={{ backgroundColor: "#f5f5f5" }}>
+														{table.columns.map((column: string, colIndex: number) => (
+															<th
+																key={colIndex}
+																style={{
+																	padding: "12px",
+																	textAlign: "left",
+																	borderBottom: "1px solid #ddd",
+																	fontWeight: "bold",
+																}}>
+																{column}
+															</th>
+														))}
+													</tr>
+												</thead>
+												<tbody>
+													{table.data.map((row: any[], rowIndex: number) => (
+														<tr key={rowIndex}>
+															{row.map((cell: any, cellIndex: number) => (
+																<td
+																	key={cellIndex}
+																	style={{
+																		padding: "12px",
+																		borderBottom: "1px solid #eee",
+																	}}>
+																	{String(cell || "-")}
+																</td>
+															))}
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</Box>
+									</CardContent>
+								</Card>
+							</Grid>
+						);
+					})}
+				</Grid>
+			)}
+
+			{/* No Data Message - Only show if no data at all */}
+			{(!llmAnalysis || 
+				(!llmAnalysis.kpis || llmAnalysis.kpis.length === 0) &&
+				(!llmAnalysis.charts || llmAnalysis.charts.length === 0) &&
+				(!llmAnalysis.tables || llmAnalysis.tables.length === 0)) && (
+				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+					<Grid size={{ xs: 12 }}>
+						<Card sx={{ 
+							bgcolor: 'grey.50',
+							border: '2px dashed #ccc'
+						}}>
+							<CardContent sx={{ textAlign: 'center', py: 4 }}>
+								<Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+									📊 Dashboard Data
+								</Typography>
+								<Typography variant="body2" color="text.secondary">
+									No KPIs, charts, or tables available in the current analysis
 								</Typography>
 							</CardContent>
 						</Card>
