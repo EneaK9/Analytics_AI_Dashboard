@@ -372,11 +372,25 @@ class StandardizedChart(BaseModel):
             type(None): lambda _: None
         }
 
+class StandardizedTable(BaseModel):
+    """Standardized table structure"""
+    id: str
+    display_name: str
+    technical_name: str
+    data: List[Any]  # Table rows - can be list or dict format
+    columns: List[Any]  # Column definitions - can be string or dict format
+    config: Dict[str, Any] = {}  # Table configuration (sorting, filtering, etc.)
+    
+    class Config:
+        # Allow arbitrary types to handle both list and dict formats
+        arbitrary_types_allowed = True
+
 class StandardizedDashboardData(BaseModel):
     """Main dashboard data structure"""
     metadata: MetadataInfo
     kpis: List[StandardizedKPI]
     charts: List[StandardizedChart]
+    tables: List[StandardizedTable] = []  # Add tables support
     field_mappings: FieldMapping
 
 class StandardizedDashboardResponse(BaseModel):

@@ -20,6 +20,7 @@ import traceback
 from models import *
 from database import get_db_client, get_admin_client
 from ai_analyzer import ai_analyzer
+from dashboard_orchestrator import dashboard_orchestrator
 
 # Import enhanced components
 from api_key_auth import (
@@ -1432,66 +1433,52 @@ async def get_dashboard_config(token: str = Depends(security)):
         logger.error(f"❌ Failed to get dashboard config: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get dashboard config: {str(e)}")
 
-@app.get("/api/dashboard/metrics", response_model=StandardizedDashboardResponse)
-async def get_dashboard_metrics(token: str = Depends(security)):
-    """Get dashboard metrics in standardized format for the authenticated client"""
+@app.get("/api/dashboard/metrics")
+async def get_dashboard_metrics(
+    token: str = Depends(security),
+    fast_mode: bool = False
+):
+    """Get dashboard metrics in exact LLM-generated format for the authenticated client"""
     try:
         # Verify client token
         token_data = verify_token(token.credentials)
         
-        # Determine source type from client schema data
-        source_type = "unknown"
-        try:
-            db_client = get_admin_client()
-            if db_client:
-                schema_response = db_client.table("client_schemas").select("*").eq("client_id", str(token_data.client_id)).execute()
-                if schema_response.data:
-                    schema_data = schema_response.data[0]
-                    data_type = schema_data.get('data_type', 'unknown')
-                    input_method = schema_data.get('input_method', 'unknown')
-                    
-                    # Determine source type from available data
-                    if input_method in ['csv', 'json', 'api']:
-                        source_type = input_method
-                    elif 'csv' in str(data_type).lower():
-                        source_type = 'csv'
-                    elif 'json' in str(data_type).lower():
-                        source_type = 'json'
-                    elif 'api' in str(data_type).lower():
-                        source_type = 'api'
-        except Exception as schema_error:
-            logger.warning(f"⚠️ Could not determine source type: {schema_error}")
-            source_type = "unknown"
-        
-        # Generate standardized dashboard data
+        # Get client data and extract LLM insights directly
+        from ai_analyzer import ai_analyzer
         from dashboard_orchestrator import dashboard_orchestrator
-        standardized_response = await dashboard_orchestrator.generate_standardized_dashboard_data(
-            client_id=token_data.client_id,
-            source_type=source_type
-        )
         
-        return standardized_response
+        # Get client data
+        client_data = await ai_analyzer.get_client_data_optimized(str(token_data.client_id))
+        if not client_data:
+            raise HTTPException(status_code=404, detail="No data found for this client")
+        
+        # Use fast mode if requested (no LLM, immediate response)
+        if fast_mode:
+            logger.info(f"🚀 Fast mode enabled - using cached/fallback insights")
+            insights = await dashboard_orchestrator._extract_fallback_insights(
+                client_data.get('data', []), 
+                client_data.get('data_type', 'unknown')
+            )
+        else:
+            # Extract LLM-powered insights directly (same as test-llm-analysis)
+            insights = await dashboard_orchestrator._extract_business_insights_from_data(client_data)
+        
+        # Return the exact same format as /api/test-llm-analysis
+        return {
+            "client_id": str(token_data.client_id),
+            "data_type": client_data.get('data_type', 'unknown'),
+            "schema_type": client_data.get('schema', {}).get('type', 'unknown'),
+            "total_records": len(client_data.get('data', [])),
+            "llm_analysis": insights
+        }
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Failed to get dashboard metrics: {e}")
-        # Return error in standardized format
-        return StandardizedDashboardResponse(
-            success=False,
-            client_id=token_data.client_id if 'token_data' in locals() else uuid.uuid4(),
-            dashboard_data=StandardizedDashboardData(
-                metadata=MetadataInfo(
-                    source_type="unknown",
-                    generated_at=datetime.now(),
-                    total_records=0
-                ),
-                kpis=[],
-                charts=[],
-                field_mappings=FieldMapping(original_fields={}, display_names={})
-            ),
-            message=f"Failed to get dashboard metrics: {str(e)}"
-        )
+        return {
+            "error": f"Failed to get dashboard metrics: {str(e)}"
+        }
 
 @app.get("/api/dashboard/status", response_model=DashboardStatusResponse)
 async def get_dashboard_status(token: str = Depends(security)):
@@ -3205,6 +3192,435 @@ async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: st
     
     return total_inserted
 
+@app.get("/api/debug/data-type-detection/{client_id}")
+async def debug_data_type_detection(client_id: str):
+    """Debug endpoint to test data type detection and business insights extraction"""
+    try:
+        # Get client data
+        client_data = await ai_analyzer.get_client_data_optimized(client_id)
+        if not client_data:
+            return {"error": "No data found for this client"}
+        
+        # Test data type detection
+        data_records = client_data.get('data', [])
+        data_type = client_data.get('data_type', 'unknown')
+        schema_type = client_data.get('schema', {}).get('type', 'unknown')
+        
+        # Test Shopify structure detection
+        shopify_fields = ['title', 'handle', 'status', 'vendor', 'platform', 'variants', 'product_id', 'product_type']
+        first_record = data_records[0] if data_records else {}
+        shopify_field_count = sum(1 for field in shopify_fields if field in first_record)
+        is_shopify = shopify_field_count >= 5
+        
+        # Test business data format detection
+        business_fields = ['business_info', 'customer_data', 'monthly_summary', 'product_inventory', 'sales_transactions', 'performance_metrics']
+        business_field_count = sum(1 for field in business_fields if field in first_record)
+        is_business = business_field_count >= 5
+        
+        # Extract insights
+        insights = await dashboard_orchestrator._extract_business_insights_from_data(client_data)
+        
+        return {
+            "client_id": client_id,
+            "data_type": data_type,
+            "schema_type": schema_type,
+            "total_records": len(data_records),
+            "shopify_detection": {
+                "field_count": shopify_field_count,
+                "total_fields": len(shopify_fields),
+                "is_shopify": is_shopify,
+                "found_fields": [field for field in shopify_fields if field in first_record]
+            },
+            "business_detection": {
+                "field_count": business_field_count,
+                "total_fields": len(business_fields),
+                "is_business": is_business,
+                "found_fields": [field for field in business_fields if field in first_record]
+            },
+            "first_record_keys": list(first_record.keys()) if first_record else [],
+            "insights_result": insights
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Debug data type detection failed: {e}")
+        return {"error": f"Debug failed: {str(e)}"}
+
+@app.get("/api/test-llm-analysis/{client_id}")
+async def test_llm_analysis(client_id: str):
+    """Test endpoint to demonstrate LLM-powered dashboard analysis"""
+    try:
+        # Get client data
+        client_data = await ai_analyzer.get_client_data_optimized(client_id)
+        if not client_data:
+            return {"error": "No data found for this client"}
+        
+        # Extract LLM-powered insights
+        insights = await dashboard_orchestrator._extract_business_insights_from_data(client_data)
+        
+        return {
+            "client_id": client_id,
+            "data_type": client_data.get('data_type', 'unknown'),
+            "schema_type": client_data.get('schema', {}).get('type', 'unknown'),
+            "total_records": len(client_data.get('data', [])),
+            "llm_analysis": insights
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ LLM analysis test failed: {e}")
+        return {"error": f"LLM analysis test failed: {str(e)}"}
+
+@app.get("/api/debug/llm-analysis/{client_id}")
+async def debug_llm_analysis(client_id: str):
+    """Debug endpoint to test LLM analysis step by step"""
+    try:
+        # Get client data
+        client_data = await ai_analyzer.get_client_data_optimized(client_id)
+        if not client_data:
+            return {"error": "No data found for this client"}
+        
+        # Test each step of the LLM analysis
+        data_records = client_data.get('data', [])
+        data_type = client_data.get('data_type', 'unknown')
+        schema_type = client_data.get('schema', {}).get('type', 'unknown')
+        
+        # Step 1: Create prompt
+        sample_data = data_records[:3] if len(data_records) > 3 else data_records
+        llm_prompt = dashboard_orchestrator._create_llm_analysis_prompt(data_type, schema_type, sample_data, len(data_records))
+        
+        # Step 2: Test LLM call
+        try:
+            llm_response = await dashboard_orchestrator._get_llm_analysis(llm_prompt)
+            llm_success = True
+            llm_error = None
+        except Exception as e:
+            llm_response = None
+            llm_success = False
+            llm_error = str(e)
+        
+        # Step 3: Test parsing (if LLM succeeded)
+        parse_success = False
+        parse_error = None
+        structured_insights = None
+        
+        if llm_success and llm_response:
+            try:
+                structured_insights = dashboard_orchestrator._parse_llm_insights(llm_response, data_records)
+                parse_success = True
+            except Exception as e:
+                parse_error = str(e)
+        
+        return {
+            "client_id": client_id,
+            "data_type": data_type,
+            "schema_type": schema_type,
+            "total_records": len(data_records),
+            "sample_data_keys": list(sample_data[0].keys()) if sample_data else [],
+            "prompt_length": len(llm_prompt),
+            "prompt_preview": llm_prompt[:500] + "..." if len(llm_prompt) > 500 else llm_prompt,
+            "llm_call": {
+                "success": llm_success,
+                "error": llm_error,
+                "response_length": len(llm_response) if llm_response else 0,
+                "response_preview": llm_response[:500] + "..." if llm_response and len(llm_response) > 500 else llm_response
+            },
+            "parsing": {
+                "success": parse_success,
+                "error": parse_error
+            },
+            "final_result": structured_insights
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Debug LLM analysis failed: {e}")
+        return {"error": f"Debug LLM analysis failed: {str(e)}"}
+
+@app.get("/api/debug/env-check")
+async def debug_environment_variables():
+    """Debug endpoint to check environment variables"""
+    try:
+        import os
+        from dotenv import load_dotenv
+        
+        # Check if .env file exists
+        env_file_path = os.path.join(os.path.dirname(__file__), '.env')
+        env_file_exists = os.path.exists(env_file_path)
+        
+        # Load dotenv
+        load_dotenv()
+        
+        # Check environment variables
+        openai_key = os.getenv("OPENAI_API_KEY")
+        openai_key_length = len(openai_key) if openai_key else 0
+        openai_key_preview = openai_key[:20] + "..." if openai_key and len(openai_key) > 20 else openai_key
+        
+        # Check other important env vars
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_KEY")
+        jwt_secret = os.getenv("JWT_SECRET_KEY")
+        
+        return {
+            "env_file_exists": env_file_exists,
+            "env_file_path": env_file_path,
+            "openai_api_key": {
+                "exists": bool(openai_key),
+                "length": openai_key_length,
+                "preview": openai_key_preview,
+                "starts_with_sk": openai_key.startswith("sk-") if openai_key else False
+            },
+            "supabase_url": {
+                "exists": bool(supabase_url),
+                "preview": supabase_url[:30] + "..." if supabase_url and len(supabase_url) > 30 else supabase_url
+            },
+            "supabase_key": {
+                "exists": bool(supabase_key),
+                "preview": supabase_key[:20] + "..." if supabase_key and len(supabase_key) > 20 else supabase_key
+            },
+            "jwt_secret": {
+                "exists": bool(jwt_secret),
+                "preview": jwt_secret[:20] + "..." if jwt_secret and len(jwt_secret) > 20 else jwt_secret
+            }
+        }
+        
+    except Exception as e:
+        return {"error": f"Environment check failed: {str(e)}"}
+
+@app.get("/api/debug/instance-check")
+async def debug_instance_api_keys():
+    """Debug endpoint to check API keys in singleton instances"""
+    try:
+        # Import the instances
+        from dashboard_orchestrator import dashboard_orchestrator
+        from ai_analyzer import ai_analyzer
+        
+        # Check dashboard orchestrator
+        dashboard_key = getattr(dashboard_orchestrator, 'openai_api_key', None)
+        dashboard_key_length = len(dashboard_key) if dashboard_key else 0
+        dashboard_key_preview = dashboard_key[:20] + "..." if dashboard_key and len(dashboard_key) > 20 else dashboard_key
+        
+        # Check AI analyzer
+        ai_analyzer_key = getattr(ai_analyzer, 'openai_api_key', None)
+        ai_analyzer_key_length = len(ai_analyzer_key) if ai_analyzer_key else 0
+        ai_analyzer_key_preview = ai_analyzer_key[:20] + "..." if ai_analyzer_key and len(ai_analyzer_key) > 20 else ai_analyzer_key
+        
+        # Check if they match the current environment
+        import os
+        current_env_key = os.getenv("OPENAI_API_KEY")
+        current_env_key_preview = current_env_key[:20] + "..." if current_env_key and len(current_env_key) > 20 else current_env_key
+        
+        return {
+            "dashboard_orchestrator": {
+                "has_key": bool(dashboard_key),
+                "key_length": dashboard_key_length,
+                "key_preview": dashboard_key_preview,
+                "starts_with_sk": dashboard_key.startswith("sk-") if dashboard_key else False
+            },
+            "ai_analyzer": {
+                "has_key": bool(ai_analyzer_key),
+                "key_length": ai_analyzer_key_length,
+                "key_preview": ai_analyzer_key_preview,
+                "starts_with_sk": ai_analyzer_key.startswith("sk-") if ai_analyzer_key else False
+            },
+            "current_environment": {
+                "has_key": bool(current_env_key),
+                "key_length": len(current_env_key) if current_env_key else 0,
+                "key_preview": current_env_key_preview,
+                "starts_with_sk": current_env_key.startswith("sk-") if current_env_key else False
+            },
+            "keys_match": {
+                "dashboard_vs_env": dashboard_key == current_env_key,
+                "ai_analyzer_vs_env": ai_analyzer_key == current_env_key,
+                "dashboard_vs_ai_analyzer": dashboard_key == ai_analyzer_key
+            }
+        }
+        
+    except Exception as e:
+        return {"error": f"Instance check failed: {str(e)}"}
+
+@app.get("/api/debug/test-openai-key")
+async def test_openai_api_key():
+    """Test endpoint to verify OpenAI API key works"""
+    try:
+        import os
+        from openai import OpenAI
+        
+        # Get the API key
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return {"error": "No API key found in environment"}
+        
+        # Debug: Show the actual key being used
+        key_preview = api_key[:20] + "..." if len(api_key) > 20 else api_key
+        key_length = len(api_key)
+        
+        # Test with a simple API call
+        client = OpenAI(api_key=api_key)
+        
+        try:
+            # Make a simple test call
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "user", "content": "Say 'Hello, API key is working!'"}
+                ],
+                max_tokens=10
+            )
+            
+            return {
+                "success": True,
+                "message": "API key is valid and working",
+                "response": response.choices[0].message.content,
+                "model_used": response.model,
+                "usage": {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens
+                },
+                "debug": {
+                    "key_length": key_length,
+                    "key_preview": key_preview,
+                    "starts_with_sk": api_key.startswith("sk-")
+                }
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"OpenAI API call failed: {str(e)}",
+                "error_type": type(e).__name__,
+                "debug": {
+                    "key_length": key_length,
+                    "key_preview": key_preview,
+                    "starts_with_sk": api_key.startswith("sk-")
+                }
+            }
+        
+    except Exception as e:
+        return {"error": f"Test failed: {str(e)}"}
+
+@app.get("/api/debug/env-files")
+async def debug_env_files():
+    """Debug endpoint to check for multiple .env files"""
+    try:
+        import os
+        from pathlib import Path
+        
+        # Get current directory
+        current_dir = Path(__file__).parent
+        root_dir = current_dir.parent
+        
+        # Check for .env files in different locations
+        env_files = []
+        
+        # Check current directory (backend)
+        backend_env = current_dir / '.env'
+        if backend_env.exists():
+            env_files.append({
+                "path": str(backend_env),
+                "exists": True,
+                "size": backend_env.stat().st_size
+            })
+        else:
+            env_files.append({
+                "path": str(backend_env),
+                "exists": False
+            })
+        
+        # Check root directory
+        root_env = root_dir / '.env'
+        if root_env.exists():
+            env_files.append({
+                "path": str(root_env),
+                "exists": True,
+                "size": root_env.stat().st_size
+            })
+        else:
+            env_files.append({
+                "path": str(root_env),
+                "exists": False
+            })
+        
+        # Check parent directory
+        parent_env = root_dir.parent / '.env'
+        if parent_env.exists():
+            env_files.append({
+                "path": str(parent_env),
+                "exists": True,
+                "size": parent_env.stat().st_size
+            })
+        else:
+            env_files.append({
+                "path": str(parent_env),
+                "exists": False
+            })
+        
+        # Check system environment variables
+        system_openai_key = os.environ.get("OPENAI_API_KEY")
+        
+        return {
+            "env_files": env_files,
+            "system_environment": {
+                "has_openai_key": bool(system_openai_key),
+                "key_length": len(system_openai_key) if system_openai_key else 0,
+                "key_preview": system_openai_key[:20] + "..." if system_openai_key and len(system_openai_key) > 20 else system_openai_key
+            },
+            "current_working_dir": str(Path.cwd()),
+            "script_location": str(current_dir)
+        }
+        
+    except Exception as e:
+        return {"error": f"Env files check failed: {str(e)}"}
+
+@app.get("/api/debug/force-reload-env")
+async def force_reload_environment():
+    """Force reload environment variables and test"""
+    try:
+        import os
+        from dotenv import load_dotenv
+        
+        # Force reload dotenv
+        load_dotenv(override=True)
+        
+        # Get the API key after reload
+        api_key = os.getenv("OPENAI_API_KEY")
+        key_preview = api_key[:20] + "..." if api_key and len(api_key) > 20 else api_key
+        key_length = len(api_key) if api_key else 0
+        
+        # Test the key
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "user", "content": "Test"}
+                ],
+                max_tokens=5
+            )
+            
+            return {
+                "success": True,
+                "message": "Environment reloaded and API key works",
+                "debug": {
+                    "key_length": key_length,
+                    "key_preview": key_preview,
+                    "starts_with_sk": api_key.startswith("sk-") if api_key else False
+                }
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"API call failed after reload: {str(e)}",
+                "debug": {
+                    "key_length": key_length,
+                    "key_preview": key_preview,
+                    "starts_with_sk": api_key.startswith("sk-") if api_key else False
+                }
+            }
+        
+    except Exception as e:
+        return {"error": f"Force reload failed: {str(e)}"}
 
 if __name__ == "__main__":
     import uvicorn

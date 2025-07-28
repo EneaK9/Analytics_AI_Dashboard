@@ -9,7 +9,7 @@ from models import (
     DashboardGenerationTracking, GenerationStatus, GenerationType, ErrorType,
     RetryInfo, GenerationResult, AutoGenerationRequest,
     StandardizedDashboardResponse, StandardizedDashboardData, MetadataInfo,
-    StandardizedKPI, StandardizedChart, FieldMapping, TrendInfo
+    StandardizedKPI, StandardizedChart, StandardizedTable, FieldMapping, TrendInfo
 )
 import re
 import logging
@@ -22,9 +22,10 @@ import numpy as np
 from collections import Counter
 import concurrent.futures
 import time
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 from dashboard_templates import DashboardTemplateManager, DashboardTemplateType
 from field_mapper import field_mapper
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -1559,11 +1560,6 @@ class DashboardOrchestrator:
                 if chart_type not in selected_chart_types:
                     selected_chart_types.append(chart_type)
             
-            # Ensure we have at least min_charts
-            while len(selected_chart_types) < min_charts:
-                random_chart = random.choice(all_available_charts)
-                selected_chart_types.append(random_chart)
-            
             logger.info(f"🎨 CREATIVE DASHBOARD: Generating {len(selected_chart_types)} diverse charts for client {client_id}")
             
             # 🤖 AI-GENERATED CHART TITLES - Smart, contextual, and data-driven
@@ -2783,179 +2779,134 @@ class DashboardOrchestrator:
         return template_type.value
 
     async def generate_standardized_dashboard_data(self, client_id: uuid.UUID, source_type: str = "unknown") -> StandardizedDashboardResponse:
-        """Generate dashboard data in the new standardized format"""
+        """Generate dashboard data in standardized format from actual business data"""
         try:
             logger.info(f"🔄 Generating standardized dashboard data for client {client_id}")
             
-            # Get the existing dashboard config and data analysis
-            dashboard_config = await self._get_existing_dashboard(client_id)
-            if not dashboard_config:
-                # Generate new dashboard if none exists
-                generation_response = await self.generate_dashboard(client_id, force_regenerate=False)
-                dashboard_config = generation_response.dashboard_config
-                
-            if not dashboard_config:
-                raise Exception("Failed to generate or retrieve dashboard config")
-            
-            # Get client data for analysis and field mapping
+            # Get client data
             client_data = await self.ai_analyzer.get_client_data_optimized(str(client_id))
-            data_analysis = await self._analyze_real_client_data(client_id, client_data)
+            if not client_data or not client_data.get('data'):
+                raise Exception("No data found for this client")
             
-            # Create field mappings using the smart field mapper
-            sample_data = data_analysis.get('sample_data', [])
-            field_mappings_dict = field_mapper.create_field_mappings_from_data(sample_data)
-            field_mappings = FieldMapping(
-                original_fields=field_mappings_dict["original_fields"],
-                display_names=field_mappings_dict["display_names"]
-            )
+            # Extract business insights from the actual data
+            business_insights = await self._extract_business_insights_from_data(client_data)
+            if "error" in business_insights:
+                raise Exception(business_insights["error"])
             
-            # Generate metadata
+            # Get business analysis from LLM response
+            business_analysis = business_insights.get('business_analysis', {})
+            business_type = business_analysis.get('business_type', 'unknown')
+            analysis_confidence = business_analysis.get('confidence_level', 0.8)
+            
+            # Generate metadata with business type
             metadata = MetadataInfo(
                 source_type=source_type,
                 generated_at=datetime.now(),
-                total_records=data_analysis.get('total_records', 0),
+                total_records=business_insights.get('total_records', 0),
                 version="1.0"
             )
             
-            # Convert KPIs to standardized format
+            # Convert business KPIs to standardized format
             standardized_kpis = []
-            for kpi in dashboard_config.kpi_widgets:
-                # Extract trend information
-                trend_data = kpi.trend if hasattr(kpi, 'trend') and kpi.trend else {"value": "0%", "isPositive": True}
-                trend_percentage = float(trend_data.get("value", "0%").replace("%", ""))
-                trend_direction = "up" if trend_data.get("isPositive", True) else "down"
-                
-                # Determine format based on KPI value
-                kpi_format = "number"
-                if "$" in str(kpi.value):
-                    kpi_format = "currency"
-                elif "%" in str(kpi.value):
-                    kpi_format = "percentage"
-                
+            for kpi in business_insights.get('kpis', []):
                 standardized_kpi = StandardizedKPI(
-                    id=kpi.id.replace("kpi_", "").replace("_", "-"),
-                    display_name=kpi.title,
-                    technical_name=kpi.id,
-                    value=str(kpi.value),
+                    id=kpi['id'],
+                    display_name=kpi['display_name'],
+                    technical_name=kpi['technical_name'],
+                    value=kpi['value'],
                     trend=TrendInfo(
-                        percentage=trend_percentage,
-                        direction=trend_direction,
-                        description="vs last month"
+                        percentage=kpi['trend']['percentage'],
+                        direction=kpi['trend']['direction'],
+                        description=kpi['trend']['description']
                     ),
-                    format=kpi_format
+                    format=kpi['format']
                 )
                 standardized_kpis.append(standardized_kpi)
             
-            # Convert Charts to standardized format
+            # Convert business charts to standardized format
             standardized_charts = []
-            for chart in dashboard_config.chart_widgets:
-                # Generate real chart data
-                chart_data_result = await self._generate_real_chart_data(chart, data_analysis)
-                chart_data = chart_data_result.get('data', [])
-                
-                # Determine axis configuration from chart data
-                x_axis_field = "date"
-                y_axis_field = "value"
-                
-                if chart_data and len(chart_data) > 0:
-                    first_record = chart_data[0]
-                    # Find likely x-axis (date/time fields)
-                    for field in first_record.keys():
-                        if any(indicator in field.lower() for indicator in ['date', 'time', 'month', 'day']):
-                            x_axis_field = field
-                            break
-                    
-                    # Find likely y-axis (numeric fields)
-                    for field in first_record.keys():
-                        if field != x_axis_field and isinstance(first_record.get(field), (int, float)):
-                            y_axis_field = field
-                            break
-                
-                # Get display names for axes
-                x_display = field_mappings.display_names.get(x_axis_field, x_axis_field.replace('_', ' ').title())
-                y_display = field_mappings.display_names.get(y_axis_field, y_axis_field.replace('_', ' ').title())
-                
-                # Detect axis formats
-                x_format = field_mapper.detect_field_format(x_axis_field)
-                y_format = field_mapper.detect_field_format(y_axis_field)
-                
-                # Create chart configuration as simple dictionary
-                chart_config = {
-                    "x_axis": {
-                        "field": x_axis_field,
-                        "display_name": x_display,
-                        "format": x_format
-                    },
-                    "y_axis": {
-                        "field": y_axis_field,
-                        "display_name": y_display,
-                        "format": y_format
-                    },
-                    "filters": {}
-                }
-                
-                # Add filter options if available
-                dropdown_options = chart_data_result.get('dropdown_options', [])
-                if dropdown_options:
-                    chart_config["filters"]["region"] = dropdown_options
-                
-                # Convert chart type to standardized format
-                chart_type = chart.chart_type
-                if hasattr(chart_type, 'value'):
-                    chart_type = chart_type.value
-                chart_type = str(chart_type).lower().replace('chart', '')
-                
-                # Clean and serialize chart data to avoid Pydantic warnings
-                cleaned_chart_data = []
-                for item in chart_data:
-                    if isinstance(item, dict):
-                        # Convert any problematic types to strings/numbers
-                        cleaned_item = {}
-                        for key, value in item.items():
-                            if isinstance(value, (str, int, float, bool)) or value is None:
-                                cleaned_item[key] = value
-                            elif isinstance(value, dict):
-                                # Convert dict to JSON string to avoid Pydantic warnings
-                                cleaned_item[key] = json.dumps(value)
-                            elif isinstance(value, list):
-                                # Convert list to string representation
-                                cleaned_item[key] = str(value)
-                            else:
-                                # Convert other complex types to string representation
-                                cleaned_item[key] = str(value)
-                        cleaned_chart_data.append(cleaned_item)
-                    elif isinstance(item, (str, int, float, bool)) or item is None:
-                        cleaned_chart_data.append(item)
-                    else:
-                        # Convert non-dict complex types to string
-                        cleaned_chart_data.append(str(item))
-                
+            for chart in business_insights.get('charts', []):
                 standardized_chart = StandardizedChart(
-                    id=chart.id.replace("chart_", "").replace("_", "-"),
-                    display_name=chart.title,
-                    technical_name=chart.id,
-                    chart_type=chart_type,
-                    data=cleaned_chart_data,
-                    config=chart_config
+                    id=chart['id'],
+                    display_name=chart['display_name'],
+                    technical_name=chart['technical_name'],
+                    chart_type=chart['chart_type'],
+                    data=chart['data'],
+                    config=chart['config']
                 )
                 standardized_charts.append(standardized_chart)
+            
+            # Convert business tables to standardized format
+            standardized_tables = []
+            for table in business_insights.get('tables', []):
+                try:
+                    logger.info(f"🔄 Processing table: {table.get('id', 'unknown')}")
+                    
+                    # Use the data as-is since the model now accepts both formats
+                    standardized_table = StandardizedTable(
+                        id=table['id'],
+                        display_name=table['display_name'],
+                        technical_name=table['technical_name'],
+                        data=table.get('data', []),
+                        columns=table.get('columns', []),
+                        config=table.get('config', {})
+                    )
+                    standardized_tables.append(standardized_table)
+                    logger.info(f"✅ Successfully created StandardizedTable: {table['id']}")
+                    
+                except Exception as e:
+                    logger.error(f"❌ Failed to process table {table.get('id', 'unknown')}: {e}")
+                    logger.error(f"❌ Table data: {table}")
+                    # Skip this table and continue with others
+                    continue
+            
+            # Use field mappings from LLM response or create defaults
+            llm_field_mappings = business_insights.get('field_mappings', {})
+            if llm_field_mappings:
+                field_mappings = FieldMapping(
+                    original_fields=llm_field_mappings.get('original_fields', {}),
+                    display_names=llm_field_mappings.get('display_names', {})
+                )
+            else:
+                # Fallback field mappings
+                field_mappings = FieldMapping(
+                    original_fields={
+                        "customer_name": "customer_name",
+                        "total_spent": "total_spent",
+                        "revenue": "revenue",
+                        "category": "category",
+                        "product_name": "product_name"
+                    },
+                    display_names={
+                        "customer_name": "Customer Name",
+                        "total_spent": "Total Spent",
+                        "revenue": "Revenue",
+                        "category": "Category",
+                        "product_name": "Product Name"
+                    }
+                )
             
             # Create the complete standardized response
             dashboard_data = StandardizedDashboardData(
                 metadata=metadata,
                 kpis=standardized_kpis,
                 charts=standardized_charts,
+                tables=standardized_tables,
                 field_mappings=field_mappings
             )
+            
+            # Create enhanced message with business type
+            business_type_display = business_type.replace('_', ' ').title()
+            message = f"Dashboard data generated successfully for {business_type_display} business (confidence: {analysis_confidence:.1%})"
             
             standardized_response = StandardizedDashboardResponse(
                 success=True,
                 client_id=client_id,
                 dashboard_data=dashboard_data,
-                message="Dashboard data generated successfully in standardized format"
+                message=message
             )
             
-            logger.info(f"✅ Generated standardized dashboard with {len(standardized_kpis)} KPIs and {len(standardized_charts)} charts")
+            logger.info(f"✅ Generated standardized dashboard with {len(standardized_kpis)} KPIs, {len(standardized_charts)} charts, and {len(standardized_tables)} tables")
             return standardized_response
             
         except Exception as e:
@@ -2972,10 +2923,435 @@ class DashboardOrchestrator:
                     ),
                     kpis=[],
                     charts=[],
+                    tables=[],
                     field_mappings=FieldMapping(original_fields={}, display_names={})
                 ),
                 message=f"Failed to generate dashboard data: {str(e)}"
             )
+
+    async def _extract_business_insights_from_data(self, client_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract meaningful business insights from client data and format them for dashboard"""
+        try:
+            logger.info(f"🔍 Extracting business insights from client data")
+            
+            # Get the actual business data
+            data_records = client_data.get('data', [])
+            if not data_records:
+                return {"error": "No data found"}
+            
+            # Use LLM-powered intelligent analysis for all data types
+            return await self._extract_llm_powered_insights(client_data, data_records)
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to extract business insights: {e}")
+            return {"error": f"Failed to extract insights: {str(e)}"}
+    
+    async def _extract_llm_powered_insights(self, client_data: Dict[str, Any], data_records: List[Dict]) -> Dict[str, Any]:
+        """Use LLM to intelligently analyze any data type and generate consistent insights"""
+        try:
+            logger.info(f"🤖 Using LLM-powered analysis for {len(data_records)} records")
+            
+            # Prepare data for LLM analysis
+            data_type = client_data.get('data_type', 'unknown')
+            schema_type = client_data.get('schema', {}).get('type', 'unknown')
+            
+            logger.info(f"📊 Data type: {data_type}, Schema type: {schema_type}")
+            
+            # Sample the data for LLM analysis (first 3 records to avoid token limits)
+            sample_data = data_records[:3] if len(data_records) > 3 else data_records
+            
+            logger.info(f"📊 Sample data keys: {list(sample_data[0].keys()) if sample_data else 'No data'}")
+            
+            # Create LLM prompt for intelligent analysis
+            llm_prompt = self._create_llm_analysis_prompt(data_type, schema_type, sample_data, len(data_records))
+            
+            logger.info(f"📝 LLM prompt length: {len(llm_prompt)} characters")
+            
+            # Get LLM analysis
+            llm_response = await self._get_llm_analysis(llm_prompt)
+            
+            logger.info(f"🤖 LLM response received: {len(llm_response)} characters")
+            logger.info(f"🤖 LLM response preview: {llm_response[:200]}...")
+            
+            # Parse LLM response into structured format
+            structured_insights = self._parse_llm_insights(llm_response, data_records)
+            
+            logger.info(f"✅ LLM analysis completed successfully")
+            return structured_insights
+            
+        except Exception as e:
+            logger.error(f"❌ LLM analysis failed: {e}")
+            logger.error(f"❌ Error traceback: {traceback.format_exc()}")
+            # Fallback to basic analysis
+            return await self._extract_fallback_insights(data_records, client_data.get('data_type', 'unknown'))
+    
+    def _create_llm_analysis_prompt(self, data_type: str, schema_type: str, sample_data: List[Dict], total_records: int) -> str:
+        """Create a comprehensive LLM prompt for intelligent data analysis"""
+        
+        prompt = f"""
+You are an expert business intelligence analyst with deep expertise in data analysis and business insights. Analyze the following data and generate comprehensive, meaningful business insights in the EXACT standardized format used by the dashboard API.
+
+DATA CONTEXT:
+- Data Type: {data_type}
+- Schema Type: {schema_type}
+- Total Records: {total_records}
+- Sample Data: {sample_data}
+
+TASK:
+First, analyze the data to determine the business type, then generate comprehensive business insights in the EXACT standardized dashboard format:
+
+{{
+    "business_analysis": {{
+        "business_type": "ecommerce_retail|saas_software|financial_services|healthcare|manufacturing|logistics|real_estate|education|consulting|other",
+        "industry_sector": "retail|technology|finance|healthcare|manufacturing|transportation|real_estate|education|professional_services|other",
+        "business_model": "b2c|b2b|marketplace|subscription|transactional|service_based|product_based|hybrid",
+        "data_characteristics": ["list of key data characteristics"],
+        "business_insights": ["list of 5-7 key business insights"],
+        "recommendations": ["list of 3-5 actionable recommendations"],
+        "data_quality_score": 0.85,
+        "confidence_level": 0.92
+    }},
+    "success": true,
+    "client_id": "client-uuid-here",
+    "dashboard_data": {{
+        "metadata": {{
+            "source_type": "{data_type}",
+            "generated_at": "2025-01-01T00:00:00.000000",
+            "total_records": {total_records},
+            "version": "1.0",
+            "business_type": "detected_business_type_here",
+            "analysis_confidence": 0.92
+        }},
+        "kpis": [
+            {{
+                "id": "unique-kpi-id",
+                "display_name": "Human readable KPI name",
+                "technical_name": "kpi_technical_name",
+                "value": "calculated value as string",
+                "trend": {{
+                    "percentage": 0.0,
+                    "direction": "up|down|stable",
+                    "description": "trend description"
+                }},
+                "format": "currency|number|percentage|text",
+                "category": "revenue|operations|customers|inventory|performance|financial|growth|efficiency"
+            }}
+        ],
+        "charts": [
+            {{
+                "id": "unique-chart-id",
+                "display_name": "Human readable chart name",
+                "technical_name": "chart_technical_name",
+                "chart_type": "bar|pie|line",
+                "data": [
+                    {{
+                        "name": "category name",
+                        "value": numeric_value
+                    }}
+                ],
+                "config": {{
+                    "x_axis": {{
+                        "field": "name",
+                        "display_name": "X Axis Label",
+                        "format": "text|number|currency|date"
+                    }},
+                    "y_axis": {{
+                        "field": "value",
+                        "display_name": "Y Axis Label",
+                        "format": "text|number|currency|date"
+                    }},
+                    "filters": {{
+                        "category": [
+                            {{"value": "all", "label": "All Categories"}}
+                        ]
+                    }}
+                }}
+            }}
+        ],
+        "tables": [
+            {{
+                "id": "unique-table-id",
+                "display_name": "Human readable table name",
+                "technical_name": "table_technical_name",
+                "data": [
+                    ["row1_col1", "row1_col2", "row1_col3", "row1_col4"],
+                    ["row2_col1", "row2_col2", "row2_col3", "row2_col4"]
+                ],
+                "columns": ["Column 1", "Column 2", "Column 3", "Column 4"],
+                "config": {{
+                    "sortable": true,
+                    "filterable": true,
+                    "pagination": true
+                }}
+            }}
+        ],
+        "field_mappings": {{
+            "original_fields": {{
+                "field1": "original_field1",
+                "field2": "original_field2"
+            }},
+            "display_names": {{
+                "field1": "Display Name 1",
+                "field2": "Display Name 2"
+            }}
+        }}
+    }},
+    "message": "Dashboard data generated successfully from business data"
+}}
+
+COMPREHENSIVE ANALYSIS REQUIREMENTS:
+1. Generate EXACTLY this structure - no extra fields, no missing fields
+2. Generate 6-8 meaningful KPIs covering multiple business aspects:
+   - Revenue metrics (total revenue, average order value, revenue per customer)
+   - Operational metrics (efficiency, performance, utilization)
+   - Customer metrics (customer count, satisfaction, retention)
+   - Financial metrics (profit margins, costs, growth rates)
+   - Inventory metrics (stock levels, turnover, availability)
+3. Generate 4-6 relevant charts with appropriate chart types:
+   - Distribution charts (pie, bar) for categories and segments
+   - Trend charts (line) for time-based data
+   - Comparison charts (bar) for performance metrics
+   - Correlation charts for relationships between variables
+4. Generate 3-4 comprehensive tables with actionable data:
+   - Top performers (products, customers, regions)
+   - Detailed breakdowns with multiple columns
+   - Comparative analysis tables
+   - Summary tables with key metrics
+5. All values must be calculated from the actual data provided
+6. Use appropriate formatting (currency for money, percentages for ratios, etc.)
+7. Make insights business-relevant and actionable
+8. Ensure all IDs are unique and descriptive
+9. Chart data should be aggregated/summarized appropriately
+10. Tables should use list format for data and string format for columns
+11. Field mappings should reflect the actual data fields
+12. Include business type detection and analysis confidence
+
+DETAILED ANALYSIS GUIDELINES:
+- For ecommerce data: Focus on sales, products, customers, inventory, conversion rates, customer lifetime value
+- For customer data: Focus on demographics, behavior, segments, lifetime value, acquisition costs, retention rates
+- For financial data: Focus on revenue, expenses, profit margins, growth, cash flow, ROI, cost analysis
+- For operational data: Focus on efficiency, performance, bottlenecks, capacity utilization, process optimization
+- For SaaS data: Focus on MRR, churn, customer acquisition, feature usage, subscription metrics
+- For manufacturing data: Focus on production efficiency, quality metrics, supply chain, inventory management
+- For healthcare data: Focus on patient outcomes, operational efficiency, resource utilization, quality metrics
+
+BUSINESS TYPE DETECTION:
+Analyze the data structure and content to determine:
+- Business type (ecommerce_retail, saas_software, financial_services, etc.)
+- Industry sector (retail, technology, finance, healthcare, etc.)
+- Business model (b2c, b2b, marketplace, subscription, etc.)
+- Data characteristics (transactional, time-series, categorical, etc.)
+
+IMPORTANT: Return ONLY the JSON object, no additional text or explanations. Generate as much meaningful data as possible while maintaining accuracy.
+- For financial data: Focus on revenue, costs, profitability, trends
+- For operational data: Focus on efficiency, performance, bottlenecks
+- Always calculate real metrics from the provided data
+- Use business terminology and meaningful labels
+- Ensure data accuracy and logical calculations
+
+Return ONLY the JSON response, no additional text or explanations.
+"""
+        
+        return prompt
+    
+    async def _get_llm_analysis(self, prompt: str) -> str:
+        """Get analysis from LLM using OpenAI API"""
+        try:
+            import openai
+            from openai import AsyncOpenAI
+            
+            # Check if API key is available
+            api_key = os.getenv('OPENAI_API_KEY')
+            if not api_key:
+                logger.error("❌ OpenAI API key not found in environment variables")
+                raise Exception("OpenAI API key not configured")
+            
+            # Initialize OpenAI client
+            client = AsyncOpenAI(api_key=api_key)
+            
+            logger.info(f"🤖 Sending prompt to LLM for analysis")
+            logger.info(f"🤖 Using model: gpt-4.1")
+            
+            # Call OpenAI API
+            response = await client.chat.completions.create(
+                model="gpt-4.1",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert business intelligence analyst. Provide accurate, data-driven insights in the exact JSON format requested."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.1,  # Low temperature for consistent, accurate analysis
+                max_tokens=4000
+            )
+            
+            llm_response = response.choices[0].message.content.strip()
+            logger.info(f"✅ LLM response received: {len(llm_response)} characters")
+            
+            return llm_response
+            
+        except openai.AuthenticationError as e:
+            logger.error(f"❌ OpenAI authentication failed: {e}")
+            raise Exception(f"OpenAI authentication failed: {e}")
+        except openai.RateLimitError as e:
+            logger.error(f"❌ OpenAI rate limit exceeded: {e}")
+            raise Exception(f"OpenAI rate limit exceeded: {e}")
+        except openai.APIError as e:
+            logger.error(f"❌ OpenAI API error: {e}")
+            raise Exception(f"OpenAI API error: {e}")
+        except Exception as e:
+            logger.error(f"❌ LLM analysis failed: {e}")
+            logger.error(f"❌ Error type: {type(e).__name__}")
+            raise e
+    
+    def _parse_llm_insights(self, llm_response: str, data_records: List[Dict]) -> Dict[str, Any]:
+        """Parse LLM response into structured insights format"""
+        try:
+            import json
+            
+            # Clean the response (remove markdown if present)
+            cleaned_response = llm_response
+            if llm_response.startswith('```json'):
+                cleaned_response = llm_response.split('```json')[1].split('```')[0]
+            elif llm_response.startswith('```'):
+                cleaned_response = llm_response.split('```')[1]
+            
+            # Parse JSON response
+            parsed_data = json.loads(cleaned_response.strip())
+            
+            # Check if it's the new standardized format
+            if 'dashboard_data' in parsed_data:
+                # New standardized format - extract from dashboard_data
+                dashboard_data = parsed_data.get('dashboard_data', {})
+                business_analysis = parsed_data.get('business_analysis', {})
+                kpis = dashboard_data.get('kpis', [])
+                charts = dashboard_data.get('charts', [])
+                tables = dashboard_data.get('tables', [])
+                field_mappings = dashboard_data.get('field_mappings', {})
+                metadata = dashboard_data.get('metadata', {})
+                
+                logger.info(f"📊 Parsed standardized LLM insights: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
+                logger.info(f"🏢 Business type detected: {business_analysis.get('business_type', 'unknown')}")
+                
+                return {
+                    "business_analysis": business_analysis,
+                    "kpis": kpis,
+                    "charts": charts,
+                    "tables": tables,
+                    "field_mappings": field_mappings,
+                    "metadata": metadata,
+                    "total_records": len(data_records)
+                }
+            else:
+                # Legacy format - extract directly
+                kpis = parsed_data.get('kpis', [])
+                charts = parsed_data.get('charts', [])
+                tables = parsed_data.get('tables', [])
+                data_analysis = parsed_data.get('data_analysis', {})
+                
+                logger.info(f"📊 Parsed legacy LLM insights: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
+                
+                return {
+                    "kpis": kpis,
+                    "charts": charts,
+                    "tables": tables,
+                    "data_analysis": data_analysis,
+                    "total_records": len(data_records)
+                }
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Failed to parse LLM JSON response: {e}")
+            logger.error(f"❌ Raw response: {llm_response[:500]}...")
+            raise e
+        except Exception as e:
+            logger.error(f"❌ Failed to parse LLM insights: {e}")
+            raise e
+    
+    async def _extract_fallback_insights(self, data_records: List[Dict], data_type: str) -> Dict[str, Any]:
+        """Fallback analysis when LLM fails"""
+        try:
+            logger.info(f"🔄 Using fallback analysis for {data_type} data")
+            
+            # Basic KPIs
+            kpis = [
+                {
+                    "id": "total-records",
+                    "display_name": "Total Records",
+                    "technical_name": "kpi_total_records",
+                    "value": str(len(data_records)),
+                    "trend": {
+                        "percentage": 0.0,
+                        "direction": "up",
+                        "description": "vs last month"
+                    },
+                    "format": "number"
+                }
+            ]
+            
+            # Basic chart
+            charts = [
+                {
+                    "id": "data-overview",
+                    "display_name": "Data Overview",
+                    "technical_name": "chart_data_overview",
+                    "chart_type": "bar",
+                    "data": [{"name": "Records", "value": len(data_records)}],
+                    "config": {
+                        "x_axis": {
+                            "field": "name",
+                            "display_name": "Category",
+                            "format": "text"
+                        },
+                        "y_axis": {
+                            "field": "value",
+                            "display_name": "Count",
+                            "format": "number"
+                        }
+                    }
+                }
+            ]
+            
+            # Basic table
+            tables = []
+            if data_records and len(data_records) > 0:
+                first_record = data_records[0]
+                if isinstance(first_record, dict):
+                    table_data = []
+                    for i, record in enumerate(data_records[:5]):
+                        row = [f"Record {i+1}"]
+                        for key, value in record.items():
+                            if isinstance(value, (str, int, float, bool)):
+                                row.append(str(value))
+                            else:
+                                row.append(str(type(value).__name__))
+                        table_data.append(row)
+                    
+                    tables = [{
+                        "id": "sample-data",
+                        "display_name": "Sample Data",
+                        "technical_name": "table_sample_data",
+                        "data": table_data,
+                        "columns": ["Record"] + list(first_record.keys()),
+                        "config": {
+                            "sortable": True,
+                            "filterable": True
+                        }
+                    }]
+            
+            return {
+                "kpis": kpis,
+                "charts": charts,
+                "tables": tables,
+                "total_records": len(data_records)
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Fallback analysis failed: {e}")
+            return {"error": f"Analysis failed: {str(e)}"}
 
 # Create global instance
 dashboard_orchestrator = DashboardOrchestrator() 
