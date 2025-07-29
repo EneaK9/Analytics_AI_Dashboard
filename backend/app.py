@@ -1687,6 +1687,14 @@ async def refresh_dashboard_metrics(token: str = Depends(security)):
             data_analysis
         )
         
+        # 🗑️ INVALIDATE LLM CACHE SINCE METRICS WERE REFRESHED
+        try:
+            from llm_cache_manager import llm_cache_manager
+            await llm_cache_manager.invalidate_cache(str(token_data.client_id))
+            logger.info(f"🗑️ Invalidated LLM cache for client {token_data.client_id} after metrics refresh")
+        except Exception as cache_error:
+            logger.warning(f"⚠️ Failed to invalidate cache after metrics refresh: {cache_error}")
+        
         logger.info(f"✅ Dashboard metrics refreshed for client {token_data.client_id}")
         
         return {
@@ -3637,6 +3645,104 @@ async def force_reload_environment():
         
     except Exception as e:
         return {"error": f"Force reload failed: {str(e)}"}
+
+# ============================================================================
+# LLM CACHE MANAGEMENT ENDPOINTS
+# ============================================================================
+
+@app.get("/api/cache/stats")
+async def get_cache_stats(token: str = Depends(security)):
+    """Get LLM cache statistics"""
+    try:
+        from llm_cache_manager import llm_cache_manager
+        stats = await llm_cache_manager.get_cache_stats()
+        return {
+            "success": True,
+            "cache_stats": stats,
+            "message": "Cache statistics retrieved successfully"
+        }
+    except Exception as e:
+        logger.error(f"❌ Failed to get cache stats: {e}")
+        return {
+            "success": False,
+            "error": f"Failed to get cache stats: {str(e)}"
+        }
+
+@app.post("/api/cache/invalidate/{client_id}")
+async def invalidate_client_cache(client_id: str, token: str = Depends(security)):
+    """Invalidate cache for a specific client"""
+    try:
+        from llm_cache_manager import llm_cache_manager
+        success = await llm_cache_manager.invalidate_cache(client_id)
+        return {
+            "success": success,
+            "message": f"Cache invalidated for client {client_id}" if success else f"Failed to invalidate cache for client {client_id}"
+        }
+    except Exception as e:
+        logger.error(f"❌ Failed to invalidate cache for client {client_id}: {e}")
+        return {
+            "success": False,
+            "error": f"Failed to invalidate cache: {str(e)}"
+        }
+
+@app.post("/api/cache/cleanup")
+async def cleanup_expired_cache(max_age_days: int = 7, token: str = Depends(security)):
+    """Clean up expired cache entries"""
+    try:
+        from llm_cache_manager import llm_cache_manager
+        cleaned_count = await llm_cache_manager.cleanup_expired_cache(max_age_days)
+        return {
+            "success": True,
+            "cleaned_count": cleaned_count,
+            "message": f"Cleaned up {cleaned_count} expired cache entries (older than {max_age_days} days)"
+        }
+    except Exception as e:
+        logger.error(f"❌ Failed to cleanup expired cache: {e}")
+        return {
+            "success": False,
+            "error": f"Failed to cleanup expired cache: {str(e)}"
+        }
+
+@app.get("/api/cache/debug/{client_id}")
+async def debug_client_cache(client_id: str, token: str = Depends(security)):
+    """Debug cache for a specific client"""
+    try:
+        from llm_cache_manager import llm_cache_manager
+        from database import get_admin_client
+        
+        db_client = get_admin_client()
+        
+        # Get cache entry
+        response = db_client.table("llm_response_cache").select("*").eq("client_id", client_id).limit(1).execute()
+        
+        if response.data:
+            cache_entry = response.data[0]
+            return {
+                "success": True,
+                "cache_exists": True,
+                "cache_entry": {
+                    "client_id": cache_entry.get("client_id"),
+                    "data_hash": cache_entry.get("data_hash"),
+                    "data_type": cache_entry.get("data_type"),
+                    "total_records": cache_entry.get("total_records"),
+                    "created_at": cache_entry.get("created_at"),
+                    "updated_at": cache_entry.get("updated_at"),
+                    "response_preview": str(cache_entry.get("llm_response"))[:200] + "..." if cache_entry.get("llm_response") else None
+                }
+            }
+        else:
+            return {
+                "success": True,
+                "cache_exists": False,
+                "message": f"No cache entry found for client {client_id}"
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to debug cache for client {client_id}: {e}")
+        return {
+            "success": False,
+            "error": f"Failed to debug cache: {str(e)}"
+        }
 
 if __name__ == "__main__":
     import uvicorn
