@@ -88,6 +88,12 @@ class DashboardOrchestrator:
         # Performance optimization
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
         
+        # 💾 SIMPLE IN-MEMORY CACHE FOR LLM ANALYSIS (NO DB CHANGES NEEDED)
+        self._llm_analysis_cache = {}
+        
+        # 🔒 SIMPLE LOCK TO PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT
+        self._llm_analysis_locks = {}
+        
         # Icon mapping for common business metrics
         self.kpi_icons = {
             'revenue': {'icon': 'DollarSign', 'color': 'text-meta-3', 'bg': 'bg-meta-3/10'},
@@ -559,8 +565,8 @@ class DashboardOrchestrator:
 
                 CHART RECOMMENDATIONS - CHOOSE DIVERSE TYPES:
                 📊 AREA CHARTS: LineChartOne, LineChartOne, LineChartOne, LineChartOne, LineChartOne
-                📈 BAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOneCustom, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
-                🥧 PIE CHARTS: BarChartOne, BarChartOneLabel, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
+                📈 BAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
+                🥧 PIE CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
                 🎯 RADAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
                 📉 RADIAL CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
                 
@@ -610,7 +616,7 @@ class DashboardOrchestrator:
                 # Call OpenAI with enhanced analysis
                 client = OpenAI(api_key=self.openai_api_key)
                 response = client.chat.completions.create(
-                        model="gpt-4.1",
+                        model="gpt-4o",
                         messages=[
                         {"role": "system", "content": "You are a senior business intelligence analyst with expertise in data visualization and dashboard design. Analyze business data structures and provide strategic insights with appropriate chart recommendations. Always respond with valid JSON only."},
                             {"role": "user", "content": prompt}
@@ -826,7 +832,7 @@ class DashboardOrchestrator:
                 "industry": "string",
                 "business_type": "string",
                 "key_metrics": {data_summary['numeric_columns'][:3]},
-                "recommended_charts": ["LineChartOne", "BarChartOne", "BarChartOneLabel"],
+                "recommended_charts": ["LineChartOne", "BarChartOne", "BarChartOne"],
                 "insights": [
                     {{
                         "type": "trend|opportunity|risk|performance",
@@ -844,7 +850,7 @@ class DashboardOrchestrator:
             
             async with AsyncOpenAI(api_key=self.openai_api_key) as client:
                 response = await client.chat.completions.create(
-                    model="gpt-4.1",
+                    model="gpt-4o",
                     messages=[
                         {"role": "system", "content": "You are a business intelligence expert analyzing data to create personalized dashboards."},
                         {"role": "user", "content": prompt}
@@ -1539,10 +1545,10 @@ class DashboardOrchestrator:
                 # Area Charts
                 "LineChartOne", "LineChartOne", "LineChartOne", "LineChartOne", "LineChartOne",
                 # Bar Charts  
-                "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOneCustom", "BarChartOne", 
+                "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne", 
                 "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne",
                 # Pie Charts
-                "BarChartOne", "BarChartOneLabel", "BarChartOne", "BarChartOne", 
+                "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne", 
                 "BarChartOne", "BarChartOne", "BarChartOne",
                 # Radar Charts
                 "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne", "BarChartOne",
@@ -1901,7 +1907,7 @@ class DashboardOrchestrator:
             client = AsyncOpenAI(api_key=self.openai_api_key)
             
             response = await client.chat.completions.create(
-                model="gpt-4.1",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You are a business intelligence expert. Always respond with valid JSON."},
                     {"role": "user", "content": prompt}
@@ -2939,8 +2945,45 @@ class DashboardOrchestrator:
             if not data_records:
                 return {"error": "No data found"}
             
-            # Use LLM-powered intelligent analysis for all data types
-            return await self._extract_llm_powered_insights(client_data, data_records)
+            # 🚀 CHECK FOR EXISTING ANALYSIS FIRST - AVOID REPEATED LLM CALLS
+            client_id = client_data.get('client_id')
+            if client_id:
+                existing_analysis = await self._get_cached_llm_analysis(client_id, len(data_records))
+                if existing_analysis:
+                    logger.info(f"✅ Using cached LLM analysis for client {client_id}")
+                    return existing_analysis
+            
+            # 🔒 PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT
+            if client_id:
+                # Check if another request is already processing this client
+                if client_id in self._llm_analysis_locks:
+                    logger.info(f"⏳ Another request is processing LLM analysis for client {client_id}, waiting...")
+                    # Wait a bit and check cache again
+                    await asyncio.sleep(1)
+                    cached_result = await self._get_cached_llm_analysis(client_id, len(data_records))
+                    if cached_result:
+                        logger.info(f"✅ Using LLM analysis cached by concurrent request for client {client_id}")
+                        return cached_result
+                
+                # Set lock for this client
+                self._llm_analysis_locks[client_id] = True
+            
+            try:
+                # Only run LLM analysis if no cache exists
+                logger.info(f"🤖 No cached analysis found, running LLM analysis for client {client_id}")
+                llm_results = await self._extract_llm_powered_insights(client_data, data_records)
+                
+                # 💾 CACHE THE RESULTS FOR FUTURE USE
+                if client_id and 'error' not in llm_results:
+                    await self._cache_llm_analysis(client_id, llm_results, len(data_records))
+                    logger.info(f"💾 Cached LLM analysis for client {client_id}")
+                
+                return llm_results
+                
+            finally:
+                # 🔓 REMOVE LOCK
+                if client_id and client_id in self._llm_analysis_locks:
+                    del self._llm_analysis_locks[client_id]
             
         except Exception as e:
             logger.error(f"❌ Failed to extract business insights: {e}")
@@ -2986,170 +3029,57 @@ class DashboardOrchestrator:
             return await self._extract_fallback_insights(data_records, client_data.get('data_type', 'unknown'))
     
     def _create_llm_analysis_prompt(self, data_type: str, schema_type: str, sample_data: List[Dict], total_records: int) -> str:
-        """Create a comprehensive LLM prompt for intelligent data analysis"""
+        """Create a SIMPLE LLM prompt to reduce JSON parsing errors"""
         
         prompt = f"""
-You are an expert business intelligence analyst with deep expertise in data analysis and business insights. Analyze the following data and generate comprehensive, meaningful business insights in the EXACT standardized format used by the dashboard API.
+Analyze this business data and return ONLY valid JSON.
 
-DATA CONTEXT:
-- Data Type: {data_type}
-- Schema Type: {schema_type}
-- Total Records: {total_records}
-- Sample Data: {sample_data}
+Data: {total_records} records
+Sample: {sample_data[0] if sample_data else {}}
 
-TASK:
-First, analyze the data to determine the business type, then generate comprehensive business insights in the EXACT standardized dashboard format:
+Return EXACTLY this format (no extra text):
 
 {{
     "business_analysis": {{
-        "business_type": "ecommerce_retail|saas_software|financial_services|healthcare|manufacturing|logistics|real_estate|education|consulting|other",
-        "industry_sector": "retail|technology|finance|healthcare|manufacturing|transportation|real_estate|education|professional_services|other",
-        "business_model": "b2c|b2b|marketplace|subscription|transactional|service_based|product_based|hybrid",
-        "data_characteristics": ["list of key data characteristics"],
-        "business_insights": ["list of 5-7 key business insights"],
-        "recommendations": ["list of 3-5 actionable recommendations"],
-        "data_quality_score": 0.85,
-        "confidence_level": 0.92
+        "business_type": "ecommerce_retail",
+        "confidence_level": 0.8
     }},
-    "success": true,
-    "client_id": "client-uuid-here",
-    "dashboard_data": {{
-        "metadata": {{
-            "source_type": "{data_type}",
-            "generated_at": "2025-01-01T00:00:00.000000",
-            "total_records": {total_records},
-            "version": "1.0",
-            "business_type": "detected_business_type_here",
-            "analysis_confidence": 0.92
-        }},
-        "kpis": [
-            {{
-                "id": "unique-kpi-id",
-                "display_name": "Human readable KPI name",
-                "technical_name": "kpi_technical_name",
-                "value": "calculated value as string",
-                "trend": {{
-                    "percentage": 0.0,
-                    "direction": "up|down|stable",
-                    "description": "trend description"
-                }},
-                "format": "currency|number|percentage|text",
-                "category": "revenue|operations|customers|inventory|performance|financial|growth|efficiency"
-            }}
-        ],
-        "charts": [
-            {{
-                "id": "unique-chart-id",
-                "display_name": "Human readable chart name",
-                "technical_name": "chart_technical_name",
-                "chart_type": "bar|pie|line",
-                "data": [
-                    {{
-                        "name": "category name",
-                        "value": numeric_value
-                    }}
-                ],
-                "config": {{
-                    "x_axis": {{
-                        "field": "name",
-                        "display_name": "X Axis Label",
-                        "format": "text|number|currency|date"
-                    }},
-                    "y_axis": {{
-                        "field": "value",
-                        "display_name": "Y Axis Label",
-                        "format": "text|number|currency|date"
-                    }},
-                    "filters": {{
-                        "category": [
-                            {{"value": "all", "label": "All Categories"}}
-                        ]
-                    }}
-                }}
-            }}
-        ],
-        "tables": [
-            {{
-                "id": "unique-table-id",
-                "display_name": "Human readable table name",
-                "technical_name": "table_technical_name",
-                "data": [
-                    ["row1_col1", "row1_col2", "row1_col3", "row1_col4"],
-                    ["row2_col1", "row2_col2", "row2_col3", "row2_col4"]
-                ],
-                "columns": ["Column 1", "Column 2", "Column 3", "Column 4"],
-                "config": {{
-                    "sortable": true,
-                    "filterable": true,
-                    "pagination": true
-                }}
-            }}
-        ],
-        "field_mappings": {{
-            "original_fields": {{
-                "field1": "original_field1",
-                "field2": "original_field2"
+    "kpis": [
+        {{
+            "id": "kpi1",
+            "display_name": "Total Records",
+            "value": "{total_records}",
+            "trend": {{
+                "percentage": 5.0,
+                "direction": "up"
             }},
-            "display_names": {{
-                "field1": "Display Name 1",
-                "field2": "Display Name 2"
-            }}
+            "format": "number"
         }}
-    }},
-    "message": "Dashboard data generated successfully from business data"
+    ],
+    "charts": [
+        {{
+            "id": "chart1",
+            "display_name": "Data Overview",
+            "chart_type": "bar",
+            "data": [
+                {{
+                    "name": "Records",
+                    "value": {total_records}
+                }}
+            ]
+        }}
+    ],
+    "tables": [
+        {{
+            "id": "table1",
+            "display_name": "Sample Data",
+            "data": [
+                ["Record 1", "Data"]
+            ],
+            "columns": ["ID", "Info"]
+        }}
+    ]
 }}
-
-COMPREHENSIVE ANALYSIS REQUIREMENTS:
-1. Generate EXACTLY this structure - no extra fields, no missing fields
-2. Generate 6-8 meaningful KPIs covering multiple business aspects:
-   - Revenue metrics (total revenue, average order value, revenue per customer)
-   - Operational metrics (efficiency, performance, utilization)
-   - Customer metrics (customer count, satisfaction, retention)
-   - Financial metrics (profit margins, costs, growth rates)
-   - Inventory metrics (stock levels, turnover, availability)
-3. Generate 4-6 relevant charts with appropriate chart types:
-   - Distribution charts (pie, bar) for categories and segments
-   - Trend charts (line) for time-based data
-   - Comparison charts (bar) for performance metrics
-   - Correlation charts for relationships between variables
-4. Generate 3-4 comprehensive tables with actionable data:
-   - Top performers (products, customers, regions)
-   - Detailed breakdowns with multiple columns
-   - Comparative analysis tables
-   - Summary tables with key metrics
-5. All values must be calculated from the actual data provided
-6. Use appropriate formatting (currency for money, percentages for ratios, etc.)
-7. Make insights business-relevant and actionable
-8. Ensure all IDs are unique and descriptive
-9. Chart data should be aggregated/summarized appropriately
-10. Tables should use list format for data and string format for columns
-11. Field mappings should reflect the actual data fields
-12. Include business type detection and analysis confidence
-
-DETAILED ANALYSIS GUIDELINES:
-- For ecommerce data: Focus on sales, products, customers, inventory, conversion rates, customer lifetime value
-- For customer data: Focus on demographics, behavior, segments, lifetime value, acquisition costs, retention rates
-- For financial data: Focus on revenue, expenses, profit margins, growth, cash flow, ROI, cost analysis
-- For operational data: Focus on efficiency, performance, bottlenecks, capacity utilization, process optimization
-- For SaaS data: Focus on MRR, churn, customer acquisition, feature usage, subscription metrics
-- For manufacturing data: Focus on production efficiency, quality metrics, supply chain, inventory management
-- For healthcare data: Focus on patient outcomes, operational efficiency, resource utilization, quality metrics
-
-BUSINESS TYPE DETECTION:
-Analyze the data structure and content to determine:
-- Business type (ecommerce_retail, saas_software, financial_services, etc.)
-- Industry sector (retail, technology, finance, healthcare, etc.)
-- Business model (b2c, b2b, marketplace, subscription, etc.)
-- Data characteristics (transactional, time-series, categorical, etc.)
-
-IMPORTANT: Return ONLY the JSON object, no additional text or explanations. Generate as much meaningful data as possible while maintaining accuracy.
-- For financial data: Focus on revenue, costs, profitability, trends
-- For operational data: Focus on efficiency, performance, bottlenecks
-- Always calculate real metrics from the provided data
-- Use business terminology and meaningful labels
-- Ensure data accuracy and logical calculations
-
-Return ONLY the JSON response, no additional text or explanations.
 """
         
         return prompt
@@ -3264,9 +3194,33 @@ Return ONLY the JSON response, no additional text or explanations.
                 }
             
         except json.JSONDecodeError as e:
-            logger.error(f"❌ Failed to parse LLM JSON response: {e}")
-            logger.error(f"❌ Raw response: {llm_response[:500]}...")
-            raise e
+            logger.warning(f"⚠️ LLM JSON parsing failed, trying to fix: {e}")
+            
+            # 🔧 TRY TO FIX MALFORMED JSON
+            try:
+                fixed_json = self._fix_malformed_json(cleaned_response)
+                parsed_data = json.loads(fixed_json)
+                logger.info(f"✅ Successfully fixed and parsed LLM JSON")
+                
+                # Continue with normal processing
+                business_analysis = parsed_data.get('business_analysis', {})
+                kpis = parsed_data.get('kpis', [])
+                charts = parsed_data.get('charts', [])
+                tables = parsed_data.get('tables', [])
+                
+                return {
+                    "business_analysis": business_analysis,
+                    "kpis": kpis,
+                    "charts": charts,
+                    "tables": tables,
+                    "total_records": len(data_records)
+                }
+                
+            except Exception as fix_error:
+                logger.warning(f"⚠️ JSON fix also failed: {fix_error}")
+                logger.warning(f"⚠️ Using fallback analysis due to JSON issues")
+                raise e  # This will trigger fallback analysis
+                
         except Exception as e:
             logger.error(f"❌ Failed to parse LLM insights: {e}")
             raise e
@@ -3352,6 +3306,103 @@ Return ONLY the JSON response, no additional text or explanations.
         except Exception as e:
             logger.error(f"❌ Fallback analysis failed: {e}")
             return {"error": f"Analysis failed: {str(e)}"}
+
+    def _fix_malformed_json(self, json_string: str) -> str:
+        """Fix common JSON syntax errors from LLM responses"""
+        try:
+            import re
+            
+            # Remove any trailing commas before closing brackets/braces
+            json_string = re.sub(r',(\s*[}\]])', r'\1', json_string)
+            
+            # Fix unescaped quotes in strings (basic attempt)
+            # This is a simple fix - look for quotes inside string values
+            lines = json_string.split('\n')
+            fixed_lines = []
+            
+            for line in lines:
+                # If line contains a string value with unescaped quotes
+                if '"' in line and ':' in line:
+                    # Try to fix obvious unescaped quotes in values
+                    if line.count('"') > 2:  # More than just key-value quotes
+                        # Find the value part after the colon
+                        if ':' in line:
+                            key_part, value_part = line.split(':', 1)
+                            # If value part has unescaped quotes, try to escape them
+                            if '"' in value_part.strip().strip(',').strip():
+                                # Simple escape of internal quotes
+                                value_part = value_part.replace('""', '"').replace('"', '\\"')
+                                # But restore the outer quotes
+                                if value_part.strip().startswith('\\"'):
+                                    value_part = '"' + value_part.strip()[2:]
+                                if value_part.strip().endswith('\\"'):
+                                    value_part = value_part.strip()[:-2] + '"'
+                                line = key_part + ':' + value_part
+                
+                fixed_lines.append(line)
+            
+            fixed_json = '\n'.join(fixed_lines)
+            
+            # Remove any remaining syntax issues
+            fixed_json = re.sub(r'([^\\])"([^",:}\]]*)"([^,:}\]]*)', r'\1"\2\3"', fixed_json)
+            
+            return fixed_json
+            
+        except Exception as e:
+            logger.warning(f"⚠️ JSON fixing failed: {e}")
+            return json_string  # Return original if fixing fails
+
+    async def _get_cached_llm_analysis(self, client_id: str, current_record_count: int) -> Optional[Dict[str, Any]]:
+        """Get cached LLM analysis results from in-memory cache to avoid repeated API calls"""
+        try:
+            if client_id not in self._llm_analysis_cache:
+                logger.info(f"📝 No cached analysis found for client {client_id}")
+                return None
+            
+            cached_data = self._llm_analysis_cache[client_id]
+            
+            # Check if data has changed (record count differs significantly)
+            cached_record_count = cached_data.get('record_count', 0)
+            if abs(current_record_count - cached_record_count) > max(1, current_record_count * 0.1):
+                logger.info(f"📊 Data changed for client {client_id}: {cached_record_count} -> {current_record_count}, re-analysis needed")
+                # Remove stale cache
+                del self._llm_analysis_cache[client_id]
+                return None
+            
+            # Check if cache is not too old (1 hour max for in-memory cache)
+            from datetime import datetime, timedelta
+            cached_at = datetime.fromisoformat(cached_data['cached_at'])
+            if datetime.now() - cached_at > timedelta(hours=1):
+                logger.info(f"⏰ Cache expired for client {client_id}, re-analysis needed")
+                # Remove expired cache
+                del self._llm_analysis_cache[client_id]
+                return None
+            
+            logger.info(f"✅ Using cached analysis from memory for client {client_id}")
+            return cached_data['analysis_result']
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to get cached analysis: {e}")
+            return None
+    
+    async def _cache_llm_analysis(self, client_id: str, analysis_results: Dict[str, Any], record_count: int):
+        """Cache LLM analysis results in memory to avoid repeated API calls"""
+        try:
+            from datetime import datetime
+            
+            # Store in simple in-memory cache
+            self._llm_analysis_cache[client_id] = {
+                'analysis_result': analysis_results,
+                'record_count': record_count,
+                'cached_at': datetime.now().isoformat(),
+                'cache_version': '1.0'
+            }
+            
+            logger.info(f"💾 Successfully cached LLM analysis in memory for client {client_id}")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to cache LLM analysis: {e}")
+            # Don't raise exception - caching failure shouldn't break the flow
 
 # Create global instance
 dashboard_orchestrator = DashboardOrchestrator() 

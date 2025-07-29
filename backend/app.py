@@ -554,6 +554,22 @@ async def create_client_superadmin(
                                     logger.error(f"❌ Failed to import dashboard_orchestrator: {import_error}")
                                     return
                                 
+                                # 💾 PRE-CACHE LLM ANALYSIS DURING CLIENT CREATION (PERFORMANCE BOOST!)
+                                try:
+                                    logger.info(f"🧠 Pre-caching LLM analysis for {email} to avoid future delays...")
+                                    
+                                    # Get client data and run LLM analysis once
+                                    client_data = await dashboard_orchestrator.ai_analyzer.get_client_data_optimized(client_id)
+                                    if client_data and client_data.get('data'):
+                                        # This will cache the results automatically
+                                        await dashboard_orchestrator._extract_business_insights_from_data(client_data)
+                                        logger.info(f"✅ LLM analysis pre-cached for {email}!")
+                                    else:
+                                        logger.warning(f"⚠️ No data found for LLM pre-caching for {email}")
+                                except Exception as cache_error:
+                                    logger.warning(f"⚠️ LLM analysis pre-caching failed for {email}: {cache_error}")
+                                    # Continue with dashboard generation even if caching fails
+                                
                                 # Generate dashboard with detailed error handling
                                 try:
                                     generation_response = await dashboard_orchestrator.generate_dashboard(
@@ -2737,7 +2753,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_pie_label",
                     "title": "Labeled Pie Chart",
                     "subtitle": "Pie chart with detailed labels",
-                    "chart_type": "BarChartOneLabel", 
+                    "chart_type": "BarChartOne", 
                     "data_source": "real_data_pie",
                     "config": {
                         "responsive": True,
@@ -2752,7 +2768,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
                     "id": "chart_donut_interactive",
                     "title": "Interactive Donut Chart", 
                     "subtitle": "Interactive donut visualization",
-                    "chart_type": "BarChartOneLabel",
+                    "chart_type": "BarChartOne",
                     "data_source": "real_data_donut",
                     "config": {
                         "responsive": True,
@@ -2996,7 +3012,7 @@ async def fast_generate_dashboard_for_client(token: str = Depends(security)):
                     "id": "chart_pie",
                     "title": "Data Composition",
                     "subtitle": "Labeled pie chart", 
-                    "chart_type": "BarChartOneLabel",
+                    "chart_type": "BarChartOne",
                     "data_source": "composition_data",
                     "config": {
                         "responsive": True,
