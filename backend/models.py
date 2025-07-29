@@ -3,29 +3,23 @@ from typing import Optional, Dict, Any, List, Union
 from datetime import datetime
 from enum import Enum
 import uuid
+from dataclasses import dataclass, field
 
-# Enums
-class SubscriptionTier(str, Enum):
-    BASIC = "basic"
-    PREMIUM = "premium"
-    ENTERPRISE = "enterprise"
+# Import basic types from dashboard_types.py to avoid circular imports
+from dashboard_types import (
+    SubscriptionTier, DataFormat, UploadStatus, AIModelVersion, 
+    DashboardLayout, ChartType, KPIWidget, ChartWidget, DashboardConfig
+)
 
-class DataFormat(str, Enum):
-    JSON = "json"
-    CSV = "csv"
-    EXCEL = "excel"
-    XML = "xml"
-    TSV = "tsv"
-    PARQUET = "parquet"
-    YAML = "yaml"
-    AVRO = "avro"
-    ORC = "orc"
+# Import intelligent component config to avoid duplication
+# from intelligent_component_system import IntelligentComponentConfig  # Will be imported when needed
 
-class UploadStatus(str, Enum):
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    ANALYZING = "analyzing"
+# Forward declarations to avoid circular imports - will be imported in functions when needed
+# from business_dna_analyzer import BusinessDNA, BusinessModel, BusinessMaturity, BusinessProcessFlow  
+# from dynamic_template_orchestrator import TemplateArchitecture, TemplateCategory, TemplatePersonality, ComponentBlueprint
+# from template_ecosystem_manager import TemplateTheme, SmartTemplateName, EcosystemNavigation
+
+# Note: Basic enums and classes imported from types.py to avoid circular imports
 
 # Client Management Models
 class ClientCreate(BaseModel):
@@ -644,3 +638,209 @@ class DataQualityReport(BaseModel):
     recommendations: List[str]
     issues: List[str]
     processing_time: float 
+
+# New models for custom template system
+@dataclass
+class CustomTemplateRequest:
+    client_id: uuid.UUID
+    template_count: int = 3
+    force_regenerate: bool = False
+    business_context_override: Optional[str] = None
+    template_preferences: Dict[str, Any] = field(default_factory=dict)
+
+@dataclass
+class CustomTemplateResponse:
+    success: bool
+    client_id: uuid.UUID
+    generated_templates: List[DashboardConfig]
+    business_dna: Optional['BusinessDNA']
+    template_ecosystem: Optional['EcosystemNavigation']
+    generation_metadata: Dict[str, Any]
+    message: str
+    generation_time: float
+
+@dataclass
+class TemplateGenerationMetadata:
+    generation_id: str
+    client_id: uuid.UUID
+    business_model: 'BusinessModel'
+    template_architectures: List['TemplateArchitecture']
+    custom_themes: Dict[str, 'TemplateTheme']
+    smart_names: Dict[str, 'SmartTemplateName']
+    ecosystem_navigation: 'EcosystemNavigation'
+    confidence_scores: Dict[str, float]
+    generation_timestamp: datetime
+    version: str
+
+# Note: IntelligentComponentConfig imported from intelligent_component_system.py to avoid duplication
+
+@dataclass
+class TemplateEcosystemConfig:
+    ecosystem_id: str
+    primary_template_id: str
+    template_relationships: List[Dict[str, Any]]
+    shared_filters: List[str]
+    cross_template_navigation: Dict[str, str]
+    synchronized_states: List[str]
+
+# Extended dashboard configuration for custom templates
+@dataclass
+class EnhancedDashboardConfig:
+    # Core dashboard config
+    base_config: DashboardConfig
+    
+    # Enhanced features
+    business_dna: Optional['BusinessDNA'] = None
+    template_architecture: Optional['TemplateArchitecture'] = None
+    custom_theme: Optional['TemplateTheme'] = None
+    smart_name: Optional['SmartTemplateName'] = None
+    ecosystem_config: Optional['TemplateEcosystemConfig'] = None
+    intelligent_components: List['IntelligentComponentConfig'] = field(default_factory=list)
+    generation_metadata: Optional['TemplateGenerationMetadata'] = None
+    customization_level: str = "intelligent"  # basic, intelligent, advanced
+
+# Database schema additions (for reference - actual implementation would use Supabase schema)
+class ClientBusinessDNA:
+    """Database model for storing business DNA analysis"""
+    def __init__(self):
+        self.table_name = "client_business_dna"
+        self.schema = {
+            "id": "uuid PRIMARY KEY",
+            "client_id": "uuid REFERENCES clients(id)",
+            "business_model": "text",
+            "industry_sector": "text", 
+            "maturity_level": "text",
+            "data_sophistication": "text",
+            "primary_workflows": "jsonb",
+            "success_metrics": "text[]",
+            "key_relationships": "jsonb",
+            "business_personality": "jsonb",
+            "unique_characteristics": "text[]",
+            "data_story": "text",
+            "confidence_score": "float",
+            "analysis_timestamp": "timestamp DEFAULT NOW()",
+            "version": "text DEFAULT '1.0'"
+        }
+
+class CustomTemplateArchitectures:
+    """Database model for storing custom template architectures"""
+    def __init__(self):
+        self.table_name = "custom_template_architectures"
+        self.schema = {
+            "id": "uuid PRIMARY KEY",
+            "client_id": "uuid REFERENCES clients(id)",
+            "template_id": "text UNIQUE",
+            "template_name": "text",
+            "template_category": "text",
+            "template_personality": "text",
+            "target_audience": "text",
+            "business_context": "text",
+            "component_blueprint": "jsonb",
+            "layout_config": "jsonb",
+            "visual_identity": "jsonb",
+            "data_requirements": "text[]",
+            "success_metrics": "text[]",
+            "relationships": "text[]",
+            "confidence_score": "float",
+            "created_at": "timestamp DEFAULT NOW()",
+            "version": "text"
+        }
+
+class TemplateEcosystems:
+    """Database model for template ecosystem relationships"""
+    def __init__(self):
+        self.table_name = "template_ecosystems"
+        self.schema = {
+            "id": "uuid PRIMARY KEY",
+            "client_id": "uuid REFERENCES clients(id)",
+            "ecosystem_id": "text UNIQUE",
+            "primary_template_id": "text",
+            "template_hierarchy": "jsonb",
+            "cross_references": "jsonb",
+            "shared_filters": "text[]",
+            "synchronized_states": "text[]",
+            "breadcrumb_structure": "jsonb",
+            "navigation_config": "jsonb",
+            "created_at": "timestamp DEFAULT NOW()",
+            "version": "text DEFAULT '1.0'"
+        }
+
+class CustomThemes:
+    """Database model for storing custom generated themes"""
+    def __init__(self):
+        self.table_name = "custom_themes"
+        self.schema = {
+            "id": "uuid PRIMARY KEY",
+            "client_id": "uuid REFERENCES clients(id)",
+            "theme_id": "text UNIQUE",
+            "template_id": "text",
+            "primary_color": "text",
+            "secondary_color": "text",
+            "accent_color": "text",
+            "success_color": "text",
+            "warning_color": "text",
+            "error_color": "text",
+            "neutral_color": "text",
+            "background_gradient": "text",
+            "typography": "jsonb",
+            "icon_style": "text",
+            "visual_personality": "text",
+            "color_psychology": "text",
+            "accessibility_score": "float",
+            "created_at": "timestamp DEFAULT NOW()"
+        }
+
+class SmartTemplateNames:
+    """Database model for storing AI-generated template names"""
+    def __init__(self):
+        self.table_name = "smart_template_names"
+        self.schema = {
+            "id": "uuid PRIMARY KEY",
+            "client_id": "uuid REFERENCES clients(id)",
+            "template_id": "text",
+            "primary_name": "text",
+            "alternative_names": "text[]", 
+            "description": "text",
+            "target_audience": "text",
+            "business_context": "text",
+            "naming_confidence": "float",
+            "semantic_tags": "text[]",
+            "created_at": "timestamp DEFAULT NOW()",
+            "version": "text DEFAULT '1.0'"
+        }
+
+class TemplateUsageAnalytics:
+    """Database model for tracking template usage and performance"""
+    def __init__(self):
+        self.table_name = "template_usage_analytics"
+        self.schema = {
+            "id": "uuid PRIMARY KEY",
+            "client_id": "uuid REFERENCES clients(id)",
+            "template_id": "text",
+            "usage_session_id": "uuid",
+            "user_interactions": "jsonb",
+            "time_spent": "interval",
+            "performance_metrics": "jsonb",
+            "user_feedback": "jsonb",
+            "conversion_events": "jsonb",
+            "recorded_at": "timestamp DEFAULT NOW()"
+        }
+
+class BusinessPatternLibrary:
+    """Database model for storing reusable business patterns across clients"""
+    def __init__(self):
+        self.table_name = "business_pattern_library"
+        self.schema = {
+            "id": "uuid PRIMARY KEY",
+            "pattern_id": "text UNIQUE",
+            "pattern_name": "text",
+            "business_model": "text",
+            "industry_sector": "text",
+            "pattern_definition": "jsonb",
+            "usage_frequency": "integer DEFAULT 0",
+            "success_rate": "float",
+            "template_components": "jsonb",
+            "optimization_rules": "jsonb",
+            "created_at": "timestamp DEFAULT NOW()",
+            "updated_at": "timestamp DEFAULT NOW()"
+        } 

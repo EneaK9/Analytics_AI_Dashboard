@@ -41,6 +41,7 @@ interface DashboardOption {
 	template_type: string;
 	color: string;
 	isActive: boolean;
+	customTemplateData?: any; // For AI-generated custom templates
 }
 
 interface SelectContentProps {
@@ -71,28 +72,44 @@ export default function SelectContent({
 
 		try {
 			console.log(
-				`🎨 Generating dashboard options for client ${user.client_id}`
+				`🎨 Generating CUSTOM dashboard options for client ${user.client_id}`
 			);
 
-			// Get available templates from backend
-			const templatesResponse = await api.get("/dashboard/templates");
-			console.log("📋 Templates response:", templatesResponse.data);
-
-			const { available_templates, recommended_template, client_data_columns } =
-				templatesResponse.data;
-
-			// Generate dashboard options based on available templates and data
-			const dashboardTemplates = await generateDashboardTemplatesFromBackend(
-				available_templates,
-				recommended_template,
-				client_data_columns,
-				user.company_name
+			// 🚀 NEW: Generate custom intelligent templates
+			const customTemplatesResponse = await api.post(
+				"/dashboard/generate-custom",
+				{
+					template_count: 3,
+					force_regenerate: false,
+					business_context_override: null,
+				}
 			);
 
-			setDashboardOptions(dashboardTemplates);
+			console.log(
+				"🤖 Custom templates response:",
+				customTemplatesResponse.data
+			);
+
+			if (
+				customTemplatesResponse.data.success &&
+				customTemplatesResponse.data.generated_templates
+			) {
+				// Create dashboard options from AI-generated custom templates
+				const customTemplates = await generateCustomDashboardOptions(
+					customTemplatesResponse.data.generated_templates,
+					customTemplatesResponse.data.business_dna,
+					user.company_name
+				);
+				setDashboardOptions(customTemplates);
+			} else {
+				// Fallback to old template system if custom generation fails
+				console.warn("⚠️ Custom template generation failed, using fallback");
+				const fallbackOptions = createFallbackDashboards(user.company_name);
+				setDashboardOptions(fallbackOptions);
+			}
 			setLoading(false);
 		} catch (error) {
-			console.error("Failed to generate dashboard options:", error);
+			console.error("Failed to generate custom dashboard options:", error);
 			// Create fallback options
 			const fallbackOptions = createFallbackDashboards(user.company_name);
 			setDashboardOptions(fallbackOptions);
@@ -100,48 +117,44 @@ export default function SelectContent({
 		}
 	}, [user?.client_id, user?.company_name]);
 
-	// Generate dashboard templates from backend response
-	const generateDashboardTemplatesFromBackend = async (
-		availableTemplates: any,
-		recommendedTemplate: string,
-		dataColumns: string[],
+	// 🚀 NEW: Generate dashboard options from AI-generated custom templates
+	const generateCustomDashboardOptions = async (
+		customTemplates: any[],
+		businessDNA: any,
 		companyName: string
 	): Promise<DashboardOption[]> => {
 		const templates: DashboardOption[] = [];
 
-		// Main dashboard (always present - original)
+		// Main dashboard (always present - but now AI-enhanced)
 		templates.push({
 			id: "0",
 			title: companyName || "Analytics Dashboard",
-			subtitle: "Main Overview",
+			subtitle: "AI-Enhanced Overview",
 			icon: <DashboardIcon />,
 			template_type: "main",
 			color: "primary.main",
 			isActive: true,
 		});
 
-		// Template 1: Data Template (shows actual data)
-		templates.push({
-			id: "1",
-			title: "Data Analytics",
-			subtitle: "Raw Data & Tables",
-			icon: <AssessmentIcon />,
-			template_type: "sales",
-			color: "success.main",
-			isActive: false,
+		// Add AI-generated custom templates
+		customTemplates.forEach((template, index) => {
+			templates.push({
+				id: (index + 1).toString(),
+				title:
+					template.smart_name?.primary_name || `Custom Template ${index + 1}`,
+				subtitle: template.smart_name?.description || "AI-Generated Dashboard",
+				icon: index === 0 ? <AssessmentIcon /> : <InsightsIcon />,
+				template_type: `custom_${index + 1}`,
+				color: index === 0 ? "success.main" : "info.main",
+				isActive: false,
+				// Store custom template data for later use
+				customTemplateData: template,
+			});
 		});
 
-		// Template 2: Charts Template (Material UI charts)
-		templates.push({
-			id: "2",
-			title: "Visual Analytics",
-			subtitle: "Charts & Insights",
-			icon: <InsightsIcon />,
-			template_type: "operations",
-			color: "info.main",
-			isActive: false,
-		});
-
+		console.log(
+			`🎨 Generated ${templates.length} dashboard options with AI intelligence`
+		);
 		return templates;
 	};
 

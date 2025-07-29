@@ -163,7 +163,7 @@ function OriginalMainGrid({
 	const formatKPIValue = (value: string, format: string): string => {
 		const numValue = parseFloat(value);
 		if (isNaN(numValue)) return value;
-		
+
 		switch (format) {
 			case "currency":
 				return `$${numValue.toLocaleString()}`;
@@ -178,10 +178,10 @@ function OriginalMainGrid({
 	// Helper function to get trend direction icon and color
 	const getTrendDisplay = (trend: any) => {
 		if (!trend || !trend.direction) return null;
-		
+
 		const direction = trend.direction.toLowerCase();
 		const percentage = trend.percentage || "0%";
-		
+
 		switch (direction) {
 			case "up":
 			case "increasing":
@@ -192,7 +192,11 @@ function OriginalMainGrid({
 			case "stable":
 			case "neutral":
 			default:
-				return { icon: "→", color: "text.secondary", direction: "neutral" as const };
+				return {
+					icon: "→",
+					color: "text.secondary",
+					direction: "neutral" as const,
+				};
 		}
 	};
 
@@ -253,18 +257,22 @@ function OriginalMainGrid({
 		}
 	}, [user?.client_id]);
 
-	// Fetch REAL BACKEND DATA for main dashboard
+	// Fetch REAL BACKEND DATA for main dashboard with AI-POWERED CUSTOM TEMPLATES
 	React.useEffect(() => {
 		const fetchRealData = async () => {
 			try {
-				console.log("🔥 Loading dynamic dashboard with llm_analysis data");
+				console.log(
+					"🚀 Loading AI-POWERED custom dashboard with intelligent analysis"
+				);
 
-				// Fetch the metrics endpoint to get llm_analysis
-				const response = await api.get("/dashboard/metrics");
-				
+				// 🚀 NEW: Use AI-powered metrics with full LLM analysis (not fast mode)
+				const response = await api.get(
+					"/dashboard/metrics?fast_mode=false&force_llm=true"
+				);
+
 				if (response.data && response.data.llm_analysis) {
 					const analysis = response.data.llm_analysis;
-					
+
 					console.log("🚨 CRITICAL DEBUG - LLM Analysis received:", {
 						hasKpis: !!analysis.kpis,
 						kpisCount: analysis.kpis?.length || 0,
@@ -272,40 +280,49 @@ function OriginalMainGrid({
 						chartsCount: analysis.charts?.length || 0,
 						hasTables: !!analysis.tables,
 						tablesCount: analysis.tables?.length || 0,
-						hasBusinessAnalysis: !!analysis.business_analysis
+						hasBusinessAnalysis: !!analysis.business_analysis,
 					});
 
 					// Debug KPIs
 					if (analysis.kpis && analysis.kpis.length > 0) {
-						console.log("📈 KPI Data:", analysis.kpis.map((kpi: any) => ({
-							display_name: kpi.display_name,
-							value: kpi.value,
-							format: kpi.format,
-							trend: kpi.trend
-						})));
+						console.log(
+							"📈 KPI Data:",
+							analysis.kpis.map((kpi: any) => ({
+								display_name: kpi.display_name,
+								value: kpi.value,
+								format: kpi.format,
+								trend: kpi.trend,
+							}))
+						);
 					} else {
 						console.warn("⚠️ NO KPIs found in llm_analysis!");
 					}
 
 					// Debug Charts
 					if (analysis.charts && analysis.charts.length > 0) {
-						console.log("📊 Chart Data:", analysis.charts.map((chart: any) => ({
-							display_name: chart.display_name,
-							chart_type: chart.chart_type,
-							dataLength: chart.data?.length || 0,
-							dataSample: chart.data?.slice(0, 2)
-						})));
+						console.log(
+							"📊 Chart Data:",
+							analysis.charts.map((chart: any) => ({
+								display_name: chart.display_name,
+								chart_type: chart.chart_type,
+								dataLength: chart.data?.length || 0,
+								dataSample: chart.data?.slice(0, 2),
+							}))
+						);
 					} else {
 						console.warn("⚠️ NO Charts found in llm_analysis!");
 					}
 
 					// Debug Tables
 					if (analysis.tables && analysis.tables.length > 0) {
-						console.log("📋 Table Data:", analysis.tables.map((table: any) => ({
-							display_name: table.display_name,
-							columnsCount: table.columns?.length || 0,
-							rowsCount: table.data?.length || 0
-						})));
+						console.log(
+							"📋 Table Data:",
+							analysis.tables.map((table: any) => ({
+								display_name: table.display_name,
+								columnsCount: table.columns?.length || 0,
+								rowsCount: table.data?.length || 0,
+							}))
+						);
 					} else {
 						console.warn("⚠️ NO Tables found in llm_analysis!");
 					}
@@ -320,7 +337,6 @@ function OriginalMainGrid({
 
 				// Load client data using the SAME method as template dashboard
 				await loadClientData();
-
 			} catch (error) {
 				console.error("❌ CRITICAL ERROR loading dashboard data:", error);
 				setError("Failed to load dashboard data");
@@ -357,14 +373,12 @@ function OriginalMainGrid({
 	if (error) {
 		return (
 			<Box sx={{ width: "100%", maxWidth: { sm: "100%", md: "1700px" } }}>
-				<Card sx={{ bgcolor: 'error.light', color: 'error.contrastText' }}>
-					<CardContent sx={{ textAlign: 'center', py: 4 }}>
+				<Card sx={{ bgcolor: "error.light", color: "error.contrastText" }}>
+					<CardContent sx={{ textAlign: "center", py: 4 }}>
 						<Typography variant="h6" sx={{ mb: 1 }}>
 							❌ Dashboard Error
 						</Typography>
-						<Typography variant="body2">
-							{error}
-						</Typography>
+						<Typography variant="body2">{error}</Typography>
 					</CardContent>
 				</Card>
 			</Box>
@@ -377,33 +391,38 @@ function OriginalMainGrid({
 			{llmAnalysis?.business_analysis && (
 				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
 					<Grid size={{ xs: 12 }}>
-						<Card sx={{ 
-							background: 'linear-gradient(135deg,rgb(134, 136, 139) 0%,rgb(140, 180, 213) 100%)',
-							color: 'white',
-							boxShadow: '0 4px 20px rgba(25, 118, 210, 0.3)'
-						}}>
+						<Card
+							sx={{
+								background:
+									"linear-gradient(135deg,rgb(134, 136, 139) 0%,rgb(140, 180, 213) 100%)",
+								color: "white",
+								boxShadow: "0 4px 20px rgba(25, 118, 210, 0.3)",
+							}}>
 							<CardHeader
 								title={
-									<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+									<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
 										<Typography variant="h5" sx={{ fontWeight: 600 }}>
 											💡 Business Insights & Recommendations
 										</Typography>
 									</Box>
 								}
-								sx={{ color: 'inherit', pb: 1 }}
+								sx={{ color: "inherit", pb: 1 }}
 							/>
 							<CardContent sx={{ pt: 0 }}>
 								<Grid container spacing={3}>
 									{llmAnalysis.business_analysis.business_insights && (
 										<Grid size={{ xs: 12, md: 6 }}>
-											<Card sx={{ 
-												bgcolor: 'rgba(255, 255, 255, 0.1)', 
-												backdropFilter: 'blur(10px)',
-												border: '1px solid rgba(255, 255, 255, 0.2)'
-											}}>
+											<Card
+												sx={{
+													bgcolor: "rgba(255, 255, 255, 0.1)",
+													backdropFilter: "blur(10px)",
+													border: "1px solid rgba(255, 255, 255, 0.2)",
+												}}>
 												<CardHeader
 													title={
-														<Typography variant="h6" sx={{ color: 'white', fontWeight: 600 }}>
+														<Typography
+															variant="h6"
+															sx={{ color: "white", fontWeight: 600 }}>
 															🔍 Key Insights
 														</Typography>
 													}
@@ -411,33 +430,35 @@ function OriginalMainGrid({
 												/>
 												<CardContent sx={{ pt: 0 }}>
 													<Box component="ul" sx={{ pl: 2, m: 0 }}>
-														{llmAnalysis.business_analysis.business_insights.map((insight: string, index: number) => (
-															<Typography
-																key={index}
-																component="li"
-																variant="body2"
-																sx={{ 
-																	mb: 2, 
-																	color: 'white',
-																	opacity: 0.95,
-																	lineHeight: 1.6,
-																	padding: '8px 12px',
-																	borderRadius: '6px',
-																	bgcolor: 'rgba(255, 255, 255, 0.05)',
-																	border: '1px solid rgba(255, 255, 255, 0.1)',
-																	'&::marker': {
-																		color: 'rgba(255, 255, 255, 0.8)',
-																		fontWeight: 'bold'
-																	},
-																	'&:hover': {
-																		bgcolor: 'rgba(255, 255, 255, 0.1)',
-																		transition: 'background-color 0.2s ease'
-																	}
-																}}
-															>
-																{insight}
-															</Typography>
-														))}
+														{llmAnalysis.business_analysis.business_insights.map(
+															(insight: string, index: number) => (
+																<Typography
+																	key={index}
+																	component="li"
+																	variant="body2"
+																	sx={{
+																		mb: 2,
+																		color: "white",
+																		opacity: 0.95,
+																		lineHeight: 1.6,
+																		padding: "8px 12px",
+																		borderRadius: "6px",
+																		bgcolor: "rgba(255, 255, 255, 0.05)",
+																		border:
+																			"1px solid rgba(255, 255, 255, 0.1)",
+																		"&::marker": {
+																			color: "rgba(255, 255, 255, 0.8)",
+																			fontWeight: "bold",
+																		},
+																		"&:hover": {
+																			bgcolor: "rgba(255, 255, 255, 0.1)",
+																			transition: "background-color 0.2s ease",
+																		},
+																	}}>
+																	{insight}
+																</Typography>
+															)
+														)}
 													</Box>
 												</CardContent>
 											</Card>
@@ -445,14 +466,17 @@ function OriginalMainGrid({
 									)}
 									{llmAnalysis.business_analysis.recommendations && (
 										<Grid size={{ xs: 12, md: 6 }}>
-											<Card sx={{ 
-												bgcolor: 'rgba(255, 255, 255, 0.1)', 
-												backdropFilter: 'blur(10px)',
-												border: '1px solid rgba(255, 255, 255, 0.2)'
-											}}>
+											<Card
+												sx={{
+													bgcolor: "rgba(255, 255, 255, 0.1)",
+													backdropFilter: "blur(10px)",
+													border: "1px solid rgba(255, 255, 255, 0.2)",
+												}}>
 												<CardHeader
 													title={
-														<Typography variant="h6" sx={{ color: 'white', fontWeight: 600 }}>
+														<Typography
+															variant="h6"
+															sx={{ color: "white", fontWeight: 600 }}>
 															🚀 Recommendations
 														</Typography>
 													}
@@ -460,33 +484,35 @@ function OriginalMainGrid({
 												/>
 												<CardContent sx={{ pt: 0 }}>
 													<Box component="ul" sx={{ pl: 2, m: 0 }}>
-														{llmAnalysis.business_analysis.recommendations.map((recommendation: string, index: number) => (
-															<Typography
-																key={index}
-																component="li"
-																variant="body2"
-																sx={{ 
-																	mb: 2, 
-																	color: 'white',
-																	opacity: 0.95,
-																	lineHeight: 1.6,
-																	padding: '8px 12px',
-																	borderRadius: '6px',
-																	bgcolor: 'rgba(255, 255, 255, 0.05)',
-																	border: '1px solid rgba(255, 255, 255, 0.1)',
-																	'&::marker': {
-																		color: 'rgba(255, 255, 255, 0.8)',
-																		fontWeight: 'bold'
-																	},
-																	'&:hover': {
-																		bgcolor: 'rgba(255, 255, 255, 0.1)',
-																		transition: 'background-color 0.2s ease'
-																	}
-																}}
-															>
-																{recommendation}
-															</Typography>
-														))}
+														{llmAnalysis.business_analysis.recommendations.map(
+															(recommendation: string, index: number) => (
+																<Typography
+																	key={index}
+																	component="li"
+																	variant="body2"
+																	sx={{
+																		mb: 2,
+																		color: "white",
+																		opacity: 0.95,
+																		lineHeight: 1.6,
+																		padding: "8px 12px",
+																		borderRadius: "6px",
+																		bgcolor: "rgba(255, 255, 255, 0.05)",
+																		border:
+																			"1px solid rgba(255, 255, 255, 0.1)",
+																		"&::marker": {
+																			color: "rgba(255, 255, 255, 0.8)",
+																			fontWeight: "bold",
+																		},
+																		"&:hover": {
+																			bgcolor: "rgba(255, 255, 255, 0.1)",
+																			transition: "background-color 0.2s ease",
+																		},
+																	}}>
+																	{recommendation}
+																</Typography>
+															)
+														)}
 													</Box>
 												</CardContent>
 											</Card>
@@ -504,7 +530,7 @@ function OriginalMainGrid({
 				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
 					{llmAnalysis.kpis.map((kpi: any, index: number) => {
 						const trendDisplay = getTrendDisplay(kpi.trend);
-						
+
 						return (
 							<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
 								<StatCard
@@ -513,7 +539,10 @@ function OriginalMainGrid({
 									interval={kpi.trend.description}
 									trend={kpi.trend.direction || "neutral"}
 									trendValue={kpi.trend?.percentage || "0%"}
-									data={Array.from({ length: 30 }, () => parseFloat(kpi.value) || 0)}
+									data={Array.from(
+										{ length: 30 },
+										() => parseFloat(kpi.value) || 0
+									)}
 								/>
 							</Grid>
 						);
@@ -526,7 +555,11 @@ function OriginalMainGrid({
 				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
 					{llmAnalysis.charts.map((chart: any, index: number) => {
 						// Skip if no data or invalid chart type
-						if (!chart.data || !Array.isArray(chart.data) || chart.data.length === 0) {
+						if (
+							!chart.data ||
+							!Array.isArray(chart.data) ||
+							chart.data.length === 0
+						) {
 							return null;
 						}
 
@@ -538,9 +571,13 @@ function OriginalMainGrid({
 						if (chart.config?.filters && selectedValue !== "all") {
 							filteredData = chart.data.filter((item: any) => {
 								const itemName = item.name || item.id || "";
-								return itemName.toLowerCase().includes(selectedValue.toLowerCase()) ||
+								return (
+									itemName
+										.toLowerCase()
+										.includes(selectedValue.toLowerCase()) ||
 									itemName === selectedValue ||
-									item.id === selectedValue;
+									item.id === selectedValue
+								);
 							});
 						}
 
@@ -552,9 +589,11 @@ function OriginalMainGrid({
 										<Card>
 											<CardHeader
 												title={chart.display_name}
-												subtitle={chart.config?.x_axis?.display_name && chart.config?.y_axis?.display_name 
-													? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
-													: "Data visualization"
+												subtitle={
+													chart.config?.x_axis?.display_name &&
+													chart.config?.y_axis?.display_name
+														? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
+														: "Data visualization"
 												}
 												action={
 													chart.config?.filters && (
@@ -570,44 +609,64 @@ function OriginalMainGrid({
 																	handleDropdownChange(chartId, e.target.value)
 																}>
 																<MenuItem value="all">All</MenuItem>
-																{Object.values(chart.config.filters).flat().map((option: any) => (
-																	<MenuItem key={option.value} value={option.value}>
-																		{option.label}
-																	</MenuItem>
-																))}
+																{Object.values(chart.config.filters)
+																	.flat()
+																	.map((option: any) => (
+																		<MenuItem
+																			key={option.value}
+																			value={option.value}>
+																			{option.label}
+																		</MenuItem>
+																	))}
 															</Select>
 														</FormControl>
 													)
 												}
 											/>
 											<CardContent>
-												<Box sx={{
-													height: 300,
-													display: "flex",
-													justifyContent: "center",
-													alignItems: "center",
-												}}>
+												<Box
+													sx={{
+														height: 300,
+														display: "flex",
+														justifyContent: "center",
+														alignItems: "center",
+													}}>
 													<PieChart
-														series={[{
-															data: filteredData.map((item: any, idx: number) => ({
-																id: item.id || idx,
-																value: Number(item.value) || 0,
-																label: item.name || `Item ${idx}`,
-															})),
-															valueFormatter: (value: any) => {
-																// Handle case where value might be an object
-																const actualValue = typeof value === 'object' && value !== null ? value.value || value : value;
-																
-																if (actualValue == null) return "0";
-																if (typeof actualValue === 'number' && actualValue > 100) {
-																	return `$${actualValue.toLocaleString()}`;
-																}
-																return actualValue.toString();
+														series={[
+															{
+																data: filteredData.map(
+																	(item: any, idx: number) => ({
+																		id: item.id || idx,
+																		value: Number(item.value) || 0,
+																		label: item.name || `Item ${idx}`,
+																	})
+																),
+																valueFormatter: (value: any) => {
+																	// Handle case where value might be an object
+																	const actualValue =
+																		typeof value === "object" && value !== null
+																			? value.value || value
+																			: value;
+
+																	if (actualValue == null) return "0";
+																	if (
+																		typeof actualValue === "number" &&
+																		actualValue > 100
+																	) {
+																		return `$${actualValue.toLocaleString()}`;
+																	}
+																	return actualValue.toString();
+																},
 															},
-														}]}
+														]}
 														width={300}
 														height={300}
-														margin={{ top: 40, bottom: 40, left: 40, right: 40 }}
+														margin={{
+															top: 40,
+															bottom: 40,
+															left: 40,
+															right: 40,
+														}}
 													/>
 												</Box>
 											</CardContent>
@@ -621,9 +680,11 @@ function OriginalMainGrid({
 										<Card>
 											<CardHeader
 												title={chart.display_name}
-												subtitle={chart.config?.x_axis?.display_name && chart.config?.y_axis?.display_name 
-													? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
-													: "Data visualization"
+												subtitle={
+													chart.config?.x_axis?.display_name &&
+													chart.config?.y_axis?.display_name
+														? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
+														: "Data visualization"
 												}
 												action={
 													chart.config?.filters && (
@@ -639,11 +700,15 @@ function OriginalMainGrid({
 																	handleDropdownChange(chartId, e.target.value)
 																}>
 																<MenuItem value="all">All</MenuItem>
-																{Object.values(chart.config.filters).flat().map((option: any) => (
-																	<MenuItem key={option.value} value={option.value}>
-																		{option.label}
-																	</MenuItem>
-																))}
+																{Object.values(chart.config.filters)
+																	.flat()
+																	.map((option: any) => (
+																		<MenuItem
+																			key={option.value}
+																			value={option.value}>
+																			{option.label}
+																		</MenuItem>
+																	))}
 															</Select>
 														</FormControl>
 													)
@@ -653,29 +718,45 @@ function OriginalMainGrid({
 												<Box sx={{ height: 300 }}>
 													<BarChart
 														dataset={filteredData}
-														xAxis={[{
-															scaleType: "band",
-															dataKey: "name",
-															tickPlacement: "middle",
-															tickLabelPlacement: "middle",
-														}]}
-														series={[{
-															dataKey: "value",
-															label: chart.config?.y_axis?.display_name || "Value",
-															valueFormatter: (value: any) => {
-																// Handle case where value might be an object
-																const actualValue = typeof value === 'object' && value !== null ? value.value || value : value;
-																
-																if (actualValue == null) return "0";
-																if (typeof actualValue === 'number' && actualValue > 100) {
-																	return `$${actualValue.toLocaleString()}`;
-																}
-																return actualValue.toString();
+														xAxis={[
+															{
+																scaleType: "band",
+																dataKey: "name",
+																tickPlacement: "middle",
+																tickLabelPlacement: "middle",
 															},
-														}]}
+														]}
+														series={[
+															{
+																dataKey: "value",
+																label:
+																	chart.config?.y_axis?.display_name || "Value",
+																valueFormatter: (value: any) => {
+																	// Handle case where value might be an object
+																	const actualValue =
+																		typeof value === "object" && value !== null
+																			? value.value || value
+																			: value;
+
+																	if (actualValue == null) return "0";
+																	if (
+																		typeof actualValue === "number" &&
+																		actualValue > 100
+																	) {
+																		return `$${actualValue.toLocaleString()}`;
+																	}
+																	return actualValue.toString();
+																},
+															},
+														]}
 														width={500}
 														height={300}
-														margin={{ top: 20, bottom: 60, left: 70, right: 20 }}
+														margin={{
+															top: 20,
+															bottom: 60,
+															left: 70,
+															right: 20,
+														}}
 													/>
 												</Box>
 											</CardContent>
@@ -689,9 +770,11 @@ function OriginalMainGrid({
 										<Card>
 											<CardHeader
 												title={chart.display_name}
-												subtitle={chart.config?.x_axis?.display_name && chart.config?.y_axis?.display_name 
-													? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
-													: "Data visualization"
+												subtitle={
+													chart.config?.x_axis?.display_name &&
+													chart.config?.y_axis?.display_name
+														? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
+														: "Data visualization"
 												}
 												action={
 													chart.config?.filters && (
@@ -707,11 +790,15 @@ function OriginalMainGrid({
 																	handleDropdownChange(chartId, e.target.value)
 																}>
 																<MenuItem value="all">All</MenuItem>
-																{Object.values(chart.config.filters).flat().map((option: any) => (
-																	<MenuItem key={option.value} value={option.value}>
-																		{option.label}
-																	</MenuItem>
-																))}
+																{Object.values(chart.config.filters)
+																	.flat()
+																	.map((option: any) => (
+																		<MenuItem
+																			key={option.value}
+																			value={option.value}>
+																			{option.label}
+																		</MenuItem>
+																	))}
 															</Select>
 														</FormControl>
 													)
@@ -721,28 +808,44 @@ function OriginalMainGrid({
 												<Box sx={{ height: 300 }}>
 													<LineChart
 														dataset={filteredData}
-														xAxis={[{
-															scaleType: "point",
-															dataKey: "name",
-														}]}
-														series={[{
-															dataKey: "value",
-															label: chart.config?.y_axis?.display_name || "Value",
-															curve: "linear",
-															valueFormatter: (value: any) => {
-																// Handle case where value might be an object
-																const actualValue = typeof value === 'object' && value !== null ? value.value || value : value;
-																
-																if (actualValue == null) return "0";
-																if (typeof actualValue === 'number' && actualValue > 100) {
-																	return `$${actualValue.toLocaleString()}`;
-																}
-																return actualValue.toString();
+														xAxis={[
+															{
+																scaleType: "point",
+																dataKey: "name",
 															},
-														}]}
+														]}
+														series={[
+															{
+																dataKey: "value",
+																label:
+																	chart.config?.y_axis?.display_name || "Value",
+																curve: "linear",
+																valueFormatter: (value: any) => {
+																	// Handle case where value might be an object
+																	const actualValue =
+																		typeof value === "object" && value !== null
+																			? value.value || value
+																			: value;
+
+																	if (actualValue == null) return "0";
+																	if (
+																		typeof actualValue === "number" &&
+																		actualValue > 100
+																	) {
+																		return `$${actualValue.toLocaleString()}`;
+																	}
+																	return actualValue.toString();
+																},
+															},
+														]}
 														width={500}
 														height={300}
-														margin={{ top: 20, bottom: 60, left: 70, right: 20 }}
+														margin={{
+															top: 20,
+															bottom: 60,
+															left: 70,
+															right: 20,
+														}}
 													/>
 												</Box>
 											</CardContent>
@@ -763,8 +866,12 @@ function OriginalMainGrid({
 				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
 					{llmAnalysis.tables.map((table: any, index: number) => {
 						// Skip if no columns or data
-						if (!table.columns || !Array.isArray(table.columns) || 
-							!table.data || !Array.isArray(table.data)) {
+						if (
+							!table.columns ||
+							!Array.isArray(table.columns) ||
+							!table.data ||
+							!Array.isArray(table.data)
+						) {
 							return null;
 						}
 
@@ -777,21 +884,24 @@ function OriginalMainGrid({
 									/>
 									<CardContent>
 										<Box sx={{ overflow: "auto", maxHeight: 400 }}>
-											<table style={{ width: "100%", borderCollapse: "collapse" }}>
+											<table
+												style={{ width: "100%", borderCollapse: "collapse" }}>
 												<thead>
 													<tr style={{ backgroundColor: "#f5f5f5" }}>
-														{table.columns.map((column: string, colIndex: number) => (
-															<th
-																key={colIndex}
-																style={{
-																	padding: "12px",
-																	textAlign: "left",
-																	borderBottom: "1px solid #ddd",
-																	fontWeight: "bold",
-																}}>
-																{column}
-															</th>
-														))}
+														{table.columns.map(
+															(column: string, colIndex: number) => (
+																<th
+																	key={colIndex}
+																	style={{
+																		padding: "12px",
+																		textAlign: "left",
+																		borderBottom: "1px solid #ddd",
+																		fontWeight: "bold",
+																	}}>
+																	{column}
+																</th>
+															)
+														)}
 													</tr>
 												</thead>
 												<tbody>
@@ -821,17 +931,18 @@ function OriginalMainGrid({
 			)}
 
 			{/* No Data Message - Only show if no data at all */}
-			{(!llmAnalysis || 
-				(!llmAnalysis.kpis || llmAnalysis.kpis.length === 0) &&
-				(!llmAnalysis.charts || llmAnalysis.charts.length === 0) &&
-				(!llmAnalysis.tables || llmAnalysis.tables.length === 0)) && (
+			{(!llmAnalysis ||
+				((!llmAnalysis.kpis || llmAnalysis.kpis.length === 0) &&
+					(!llmAnalysis.charts || llmAnalysis.charts.length === 0) &&
+					(!llmAnalysis.tables || llmAnalysis.tables.length === 0))) && (
 				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
 					<Grid size={{ xs: 12 }}>
-						<Card sx={{ 
-							bgcolor: 'grey.50',
-							border: '2px dashed #ccc'
-						}}>
-							<CardContent sx={{ textAlign: 'center', py: 4 }}>
+						<Card
+							sx={{
+								bgcolor: "grey.50",
+								border: "2px dashed #ccc",
+							}}>
+							<CardContent sx={{ textAlign: "center", py: 4 }}>
 								<Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
 									📊 Dashboard Data
 								</Typography>
@@ -1100,16 +1211,52 @@ function TemplateDashboard({
 			.slice(0, limit);
 	};
 
-	// Get template configuration - COMPLETELY DIFFERENT TEMPLATES
+	// 🚀 NEW: Get AI-POWERED custom template configuration
 	const getTemplateConfig = () => {
 		const filteredData = getFilteredData(clientData);
 		const totalRecords = filteredData.length;
 
-		// Create COMPLETELY DIFFERENT templates
+		// Handle AI-generated custom templates
+		if (dashboardType.startsWith("custom_")) {
+			const templateIndex = parseInt(dashboardType.replace("custom_", "")) - 1;
+			return {
+				title: `${user?.company_name} AI-Generated Template ${
+					templateIndex + 1
+				}`,
+				subtitle: `Intelligent analytics • ${totalRecords} records • AI-customized for your business`,
+				cards: [
+					{
+						title: "AI-Powered Insights",
+						value: "Active",
+						trend: "up",
+					},
+					{
+						title: "Data Records",
+						value: totalRecords.toLocaleString(),
+						trend: "up",
+					},
+					{
+						title: "Intelligence Level",
+						value: "Advanced",
+						trend: "up",
+					},
+					{
+						title: "Business Context",
+						value: "Detected",
+						trend: "neutral",
+					},
+				],
+				showDataTable: true,
+				showCharts: true,
+				templateType: "ai_custom",
+				isAIGenerated: true,
+			};
+		}
+
+		// Fallback templates (legacy)
 		switch (dashboardType) {
 			case "sales":
 			case "1":
-				// DATA ANALYTICS TEMPLATE - Table-focused, raw data analysis
 				return {
 					title: `${user?.company_name} Data Analytics Hub`,
 					subtitle: `Raw data exploration • ${totalRecords} records • Database analysis`,
@@ -1143,7 +1290,6 @@ function TemplateDashboard({
 			case "operations":
 			case "2":
 			default:
-				// VISUAL ANALYTICS TEMPLATE - Chart-focused, visual insights
 				return {
 					title: `${user?.company_name} Visual Insights Platform`,
 					subtitle: `Advanced visualizations • ${totalRecords} data points • AI-powered charts`,

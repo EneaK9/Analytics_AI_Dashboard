@@ -29,6 +29,10 @@ from models import (
     StandardizedTable,
     FieldMapping,
     TrendInfo,
+    CustomTemplateRequest,
+    CustomTemplateResponse,
+    EnhancedDashboardConfig,
+    TemplateGenerationMetadata,
 )
 import re
 import logging
@@ -45,6 +49,11 @@ from openai import OpenAI, AsyncOpenAI
 from dashboard_templates import DashboardTemplateManager, DashboardTemplateType
 from field_mapper import field_mapper
 import traceback
+from business_dna_analyzer import BusinessDNAAnalyzer, BusinessDNA, BusinessModel, BusinessMaturity, DataSophistication
+from dynamic_template_orchestrator import DynamicTemplateOrchestrator, TemplateArchitecture
+from intelligent_component_system import IntelligentComponentFactory, ComponentPerformanceAnalyzer, IntelligentComponentConfig
+from template_ecosystem_manager import TemplateEcosystemManager
+from models import TemplateEcosystemConfig
 
 logger = logging.getLogger(__name__)
 
@@ -82,17 +91,27 @@ class DashboardOrchestrator:
             raise Exception("❌ OpenAI API key REQUIRED - no fallbacks allowed")
 
         self.ai_analyzer = AIDataAnalyzer()
-        self.template_manager = DashboardTemplateManager()  # Add template manager
+        self.template_manager = DashboardTemplateManager()  # Keep existing template manager for compatibility
+        
+        # NEW: Custom template system components
+        self.business_dna_analyzer = BusinessDNAAnalyzer()
+        self.dynamic_template_orchestrator = DynamicTemplateOrchestrator()
+        self.intelligent_component_factory = IntelligentComponentFactory()
+        self.template_ecosystem_manager = TemplateEcosystemManager(self.openai_api_key)
+        self.component_performance_analyzer = ComponentPerformanceAnalyzer()
+        
         logger.info("✅ OpenAI API key configured for Dashboard Orchestrator")
-
+        logger.info("🚀 Custom template system initialized")
+        
         # Performance optimization
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
 
         # 💾 SIMPLE IN-MEMORY CACHE FOR LLM ANALYSIS (NO DB CHANGES NEEDED)
         self._llm_analysis_cache = {}
 
-        # 🔒 SIMPLE LOCK TO PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT
+        # 🔒 PROPER ASYNC LOCKS TO PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT
         self._llm_analysis_locks = {}
+        self._client_locks = {}
 
         # Icon mapping for common business metrics
         self.kpi_icons = {
@@ -3899,52 +3918,45 @@ class DashboardOrchestrator:
                     logger.info(f"✅ Using cached LLM response for client {client_id} - data unchanged")
                     return cached_response
 
-            # 🔒 PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT
+            # 🔒 PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT with proper async locks
             if client_id:
-                # Check if another request is already processing this client
-                if client_id in self._llm_analysis_locks:
-                    logger.info(
-                        f"⏳ Another request is processing LLM analysis for client {client_id}, waiting..."
-                    )
-                    # Wait a bit and check cache again
-                    await asyncio.sleep(1)
+                # Get or create async lock for this client
+                if client_id not in self._client_locks:
+                    self._client_locks[client_id] = asyncio.Lock()
+                
+                # Use async lock to prevent concurrent processing
+                async with self._client_locks[client_id]:
+                    # Double-check cache after acquiring lock
                     cached_result = await llm_cache_manager.get_cached_llm_response(
                         client_id, client_data
                     )
                     if cached_result:
-                        logger.info(
-                            f"✅ Using LLM response cached by concurrent request for client {client_id}"
-                        )
+                        logger.info(f"✅ Using cached LLM response for client {client_id} (after lock)")
                         return cached_result
 
-                # Set lock for this client
-                self._llm_analysis_locks[client_id] = True
-
-            try:
-                # Only run LLM analysis if no cache exists
-                logger.info(
-                    f"🤖 No cached response found, running LLM analysis for client {client_id}"
-                )
-                llm_results = await self._extract_llm_powered_insights(
-                    client_data, data_records
-                )
-
-                # 💾 CACHE THE RESULTS IN DATABASE FOR FUTURE USE
-                if client_id and "error" not in llm_results:
-                    cache_success = await llm_cache_manager.store_cached_llm_response(
-                        client_id, client_data, llm_results
+                    # Only run LLM analysis if no cache exists
+                    logger.info(
+                        f"🤖 No cached response found, running LLM analysis for client {client_id}"
                     )
-                    if cache_success:
-                        logger.info(f"💾 Cached LLM response in database for client {client_id}")
-                    else:
-                        logger.warning(f"⚠️ Failed to cache LLM response for client {client_id}")
+                    llm_results = await self._extract_llm_powered_insights(
+                        client_data, data_records
+                    )
 
-                return llm_results
+                    # 💾 CACHE THE RESULTS IN DATABASE FOR FUTURE USE
+                    if client_id and "error" not in llm_results:
+                        cache_success = await llm_cache_manager.store_cached_llm_response(
+                            client_id, client_data, llm_results
+                        )
+                        if cache_success:
+                            logger.info(f"💾 Cached LLM response in database for client {client_id}")
+                        else:
+                            logger.warning(f"⚠️ Failed to cache LLM response for client {client_id}")
 
-            finally:
-                # 🔓 REMOVE LOCK
-                if client_id and client_id in self._llm_analysis_locks:
-                    del self._llm_analysis_locks[client_id]
+                    return llm_results
+            else:
+                # If no client_id, run without locking
+                logger.info("🤖 Running LLM analysis without client-specific caching")
+                return await self._extract_llm_powered_insights(client_data, data_records)
 
         except Exception as e:
             logger.error(f"❌ Failed to extract business insights: {e}")
@@ -4516,6 +4528,323 @@ Return ONLY the JSON response, no additional text or explanations.
         except Exception as e:
             logger.warning(f"⚠️ Failed to cache LLM analysis: {e}")
             # Don't raise exception - caching failure shouldn't break the flow
+
+    # NEW METHOD: Generate custom intelligent templates
+    async def generate_custom_templates(self, request: CustomTemplateRequest) -> CustomTemplateResponse:
+        """Generate custom, intelligent templates using the new AI-powered system"""
+        start_time = datetime.now()
+        
+        try:
+            logger.info(f"🎨 Starting custom template generation for client {request.client_id}")
+            
+            # Step 1: Get and analyze client data
+            client_data = await self.ai_analyzer.get_client_data_optimized(str(request.client_id))
+            
+            if not client_data.get('data'):
+                raise Exception(f"No real data found for client {request.client_id}")
+            
+            # Step 2: Analyze real client data (existing method)
+            data_analysis = await self._analyze_real_client_data(request.client_id, client_data)
+            
+            # Step 3: NEW - Perform comprehensive business DNA analysis
+            business_dna = await self.business_dna_analyzer.analyze_business_dna(
+                str(request.client_id), 
+                data_analysis
+            )
+            
+            # Step 4: NEW - Generate custom template architectures using LangGraph
+            template_configs = await self.dynamic_template_orchestrator.generate_custom_templates(
+                str(request.client_id), 
+                data_analysis
+            )
+            
+            # 🚀 CRITICAL FIX: Save custom templates to database
+            logger.info(f"💾 Saving {len(template_configs)} custom templates to database")
+            await self._save_custom_templates_to_database(request.client_id, template_configs, business_dna)
+            
+            generation_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"✅ Custom templates generated and SAVED successfully for client {request.client_id} in {generation_time:.2f}s")
+            
+            # Create response with saved templates
+            return CustomTemplateResponse(
+                success=True,
+                client_id=request.client_id,
+                generated_templates=template_configs,  # These are now saved in DB
+                business_dna=business_dna,
+                template_ecosystem=None,  # Skip ecosystem for now
+                generation_metadata={
+                    "generated_at": datetime.now().isoformat(),
+                    "generation_time": generation_time,
+                    "template_count": len(template_configs),
+                    "method": "data_driven_with_database_save",
+                    "saved_to_database": True
+                },
+                message=f"Generated and saved {len(template_configs)} intelligent custom templates",
+                generation_time=generation_time
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Custom template generation failed for client {request.client_id}: {e}")
+            
+            # Return error response
+            return CustomTemplateResponse(
+                success=False,
+                client_id=request.client_id,
+                generated_templates=[],
+                business_dna=None,
+                template_ecosystem=None,
+                generation_metadata={"error": str(e)},
+                message=f"Custom template generation failed: {str(e)}",
+                generation_time=0.0
+            )
+
+    # ENHANCED METHOD: Get existing custom templates
+    async def get_custom_templates(self, client_id: uuid.UUID) -> Optional[List[EnhancedDashboardConfig]]:
+        """Get existing custom templates with full intelligence data"""
+        try:
+            db_client = get_admin_client()
+            
+            # Get business DNA
+            dna_response = db_client.table('client_business_dna').select('*').eq('client_id', str(client_id)).execute()
+            business_dna = None
+            
+            if dna_response.data:
+                dna_data = dna_response.data[0]
+                # Reconstruct BusinessDNA object (simplified)
+                business_dna = BusinessDNA(
+                    business_model=BusinessModel(dna_data['business_model']),
+                    industry_sector=dna_data['industry_sector'],
+                    maturity_level=BusinessMaturity(dna_data['maturity_level']),
+                    data_sophistication=DataSophistication(dna_data['data_sophistication']),
+                    success_metrics=dna_data.get('success_metrics', []),
+                    key_relationships=dna_data.get('key_relationships', {}),
+                    business_personality=dna_data.get('business_personality', {}),
+                    confidence_score=dna_data.get('confidence_score', 0.8)
+                )
+            
+            # 🚀 NEW: Get custom templates from single record format
+            templates_response = db_client.table('client_dashboard_configs').select('*').eq('client_id', str(client_id)).execute()
+            
+            if not templates_response.data:
+                logger.info(f"🔍 No custom templates found for client {client_id}")
+                return None
+            
+            # Find the record with custom templates
+            template_record = None
+            for record in templates_response.data:
+                dashboard_config = record.get('dashboard_config', {})
+                if dashboard_config.get('template_type') == 'custom_ai_generated' and dashboard_config.get('is_custom'):
+                    template_record = record
+                    break
+            
+            if not template_record:
+                logger.info(f"🔍 No custom AI templates found for client {client_id}")
+                return None
+            
+            # Extract the custom templates array from the record
+            dashboard_config = template_record.get('dashboard_config', {})
+            custom_templates_data = dashboard_config.get('custom_templates', [])
+            
+            if not custom_templates_data:
+                logger.info(f"🔍 No custom templates found in dashboard_config for client {client_id}")
+                return None
+            
+            # Convert each template back to EnhancedDashboardConfig
+            enhanced_configs = []
+            
+            for template_data in custom_templates_data:
+                # Reconstruct DashboardConfig from stored data
+                layout_data = template_data.get('layout', {})
+                dashboard_layout = DashboardLayout(
+                    grid_cols=layout_data.get('grid_cols', 4),
+                    grid_rows=layout_data.get('grid_rows', 6),
+                    gap=layout_data.get('gap', 4),
+                    responsive=layout_data.get('responsive', True)
+                )
+                
+                # Reconstruct KPI widgets
+                kpi_widgets = []
+                for kpi_data in template_data.get('kpi_widgets', []):
+                    kpi_widget = KPIWidget(
+                        id=kpi_data['id'],
+                        title=kpi_data['title'],
+                        value=kpi_data['value'],
+                        icon=kpi_data['icon'],
+                        icon_color=kpi_data['icon_color'],
+                        icon_bg_color=kpi_data['icon_bg_color'],
+                        trend=kpi_data['trend'],
+                        position=kpi_data['position'],
+                        size=kpi_data['size']
+                    )
+                    kpi_widgets.append(kpi_widget)
+                
+                # Reconstruct Chart widgets
+                chart_widgets = []
+                for chart_data in template_data.get('chart_widgets', []):
+                    chart_widget = ChartWidget(
+                        id=chart_data['id'],
+                        title=chart_data['title'],
+                        subtitle=chart_data['subtitle'],
+                        chart_type=ChartType(chart_data['chart_type']),
+                        data_source=chart_data['data_source'],
+                        config=chart_data['config'],
+                        position=chart_data['position'],
+                        size=chart_data['size']
+                    )
+                    chart_widgets.append(chart_widget)
+                
+                # Create base DashboardConfig
+                base_config = DashboardConfig(
+                    client_id=client_id,
+                    title=template_data['title'],
+                    subtitle=template_data['subtitle'],
+                    layout=dashboard_layout,
+                    kpi_widgets=kpi_widgets,
+                    chart_widgets=chart_widgets,
+                    theme=template_data.get('theme', 'default'),
+                    last_generated=datetime.now(),
+                    version=template_data.get('version', 'v1.0')
+                )
+                
+                # Create EnhancedDashboardConfig using composition
+                enhanced_config = EnhancedDashboardConfig(
+                    base_config=base_config,
+                    business_dna=business_dna,
+                    template_architecture=None,  # Simplified for now
+                    template_theme=None,
+                    smart_name=None,
+                    template_ecosystem=None,
+                    generation_metadata=TemplateGenerationMetadata(
+                        template_id=f"custom_{template_data.get('template_index', 1)}",
+                        client_id=client_id,
+                        generation_timestamp=datetime.now(),
+                        confidence_score=dashboard_config.get('confidence_score', 0.8),
+                        data_analysis_summary=f"Custom template {template_data.get('template_index', 1)}",
+                        business_context_used=dashboard_config.get('business_model', 'unknown'),
+                        generation_method="data_driven_custom"
+                    ),
+                    intelligent_components=[]  # Simplified for now
+                )
+                
+                enhanced_configs.append(enhanced_config)
+            
+            logger.info(f"✅ Retrieved {len(enhanced_configs)} custom templates for client {client_id}")
+            return enhanced_configs
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get custom templates for client {client_id}: {e}")
+            return None
+
+    async def _save_custom_templates_to_database(
+        self, 
+        client_id: uuid.UUID, 
+        template_configs: List[DashboardConfig], 
+        business_dna: BusinessDNA
+    ) -> None:
+        """Save custom templates to database for persistence"""
+        try:
+            db_client = get_admin_client()
+            
+            # Save business DNA first
+            business_dna_record = {
+                "client_id": str(client_id),
+                "business_model": business_dna.business_model.value,
+                "industry_sector": business_dna.industry_sector,
+                "maturity_level": business_dna.maturity_level.value,
+                "data_sophistication": business_dna.data_sophistication.value,
+                "primary_workflows": [],  # Simplified for now
+                "success_metrics": [],
+                "key_relationships": {},
+                "business_personality": {},
+                "confidence_score": getattr(business_dna, 'confidence_score', 0.8),
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat()
+            }
+            
+            business_dna_response = db_client.table('client_business_dna').upsert(
+                business_dna_record,
+                on_conflict="client_id"
+            ).execute()
+            
+            logger.info(f"💾 Business DNA saved for client {client_id}")
+            
+            # 🚀 NEW: Store all 3 templates in a SINGLE record as an array
+            all_templates_data = []
+            
+            for i, template_config in enumerate(template_configs):
+                template_data = {
+                    "template_index": i + 1,
+                    "title": template_config.title,
+                    "subtitle": template_config.subtitle,
+                    "layout": {
+                        "grid_cols": template_config.layout.grid_cols,
+                        "grid_rows": template_config.layout.grid_rows,
+                        "gap": template_config.layout.gap,
+                        "responsive": template_config.layout.responsive
+                    },
+                    "kpi_widgets": [
+                        {
+                            "id": kpi.id,
+                            "title": kpi.title,
+                            "value": kpi.value,
+                            "icon": kpi.icon,
+                            "icon_color": kpi.icon_color,
+                            "icon_bg_color": kpi.icon_bg_color,
+                            "trend": kpi.trend,
+                            "position": kpi.position,
+                            "size": kpi.size
+                        } for kpi in template_config.kpi_widgets
+                    ],
+                    "chart_widgets": [
+                        {
+                            "id": chart.id,
+                            "title": chart.title,
+                            "subtitle": chart.subtitle,
+                            "chart_type": chart.chart_type.value,
+                            "data_source": chart.data_source,
+                            "config": chart.config,
+                            "position": chart.position,
+                            "size": chart.size
+                        } for chart in template_config.chart_widgets
+                    ],
+                    "theme": template_config.theme,
+                    "version": template_config.version
+                }
+                all_templates_data.append(template_data)
+            
+            # Save as single record with all templates
+            dashboard_record = {
+                "client_id": str(client_id),
+                "is_generated": True,
+                "generation_timestamp": datetime.now().isoformat(),
+                "dashboard_config": {
+                    # All custom data goes in this JSONB field
+                    "template_type": "custom_ai_generated",
+                    "is_custom": True,
+                    "business_model": business_dna.business_model.value,
+                    "industry_sector": business_dna.industry_sector,
+                    "confidence_score": getattr(business_dna, 'confidence_score', 0.8),
+                    "custom_templates": all_templates_data,  # Array of all 3 templates
+                    "generation_metadata": {
+                        "generated_at": datetime.now().isoformat(),
+                        "business_dna_version": "v1.0",
+                        "template_count": len(template_configs),
+                        "data_analysis_summary": f"Generated from {len(template_configs)} unique data-driven templates"
+                    }
+                }
+            }
+            
+            # Upsert single record (this will replace any existing custom templates)
+            dashboard_response = db_client.table('client_dashboard_configs').upsert(
+                dashboard_record,
+                on_conflict="client_id"  # Replace existing record for this client
+            ).execute()
+            
+            logger.info(f"💾 Saved {len(template_configs)} custom templates as single record for client {client_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save custom templates to database: {e}")
+            raise
 
 
 # Create global instance

@@ -112,13 +112,13 @@ export interface MUIDashboardData {
 // Simple mapping for available MUI chart types
 const MUI_CHART_MAP: Record<string, string> = {
 	// Backend chart types to MUI chart types
-	"pie": "PieChart",
-	"bar": "BarChart", 
-	"line": "LineChart",
-	"area": "AreaChart",
-	"radar": "RadarChart",
-	"radial": "RadialChart",
-	
+	pie: "PieChart",
+	bar: "BarChart",
+	line: "LineChart",
+	area: "AreaChart",
+	radar: "RadarChart",
+	radial: "RadialChart",
+
 	// Legacy chart types
 	BarChartOne: "BarChart",
 	LineChartOne: "LineChart",
@@ -130,7 +130,10 @@ class MUIDashboardService {
 	private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 	// Fetch metrics from backend (NEW STANDARDIZED FORMAT)
-	async fetchMetrics(): Promise<{ metrics: BackendMetric[]; originalResponse: any }> {
+	async fetchMetrics(): Promise<{
+		metrics: BackendMetric[];
+		originalResponse: any;
+	}> {
 		const cacheKey = "dashboard_metrics";
 		const cached = this.cache.get(cacheKey);
 
@@ -141,19 +144,24 @@ class MUIDashboardService {
 
 		// Simple timeout handling with fallback
 		try {
-			console.log("🔄 Fetching fresh dashboard metrics from backend (NEW FORMAT)");
+			console.log(
+				"🔄 Fetching fresh dashboard metrics from backend (NEW FORMAT)"
+			);
 			console.log("🌐 API call to:", "/dashboard/metrics");
-			
-			// Use a simple timeout promise
+
+			// Use a simple timeout promise - OPTIMIZED for fast cached responses
 			const timeoutPromise = new Promise((_, reject) => {
-				setTimeout(() => reject(new Error("Request timeout")), 450000); // 45 seconds
+				setTimeout(() => reject(new Error("Request timeout")), 10000); // 10 seconds (fast cache should respond instantly)
 			});
-			
-			const fetchPromise = api.get("/dashboard/metrics", {
-				timeout: 6000000 // 60 seconds explicitly set
+
+			const fetchPromise = api.get("/dashboard/metrics?fast_mode=true", {
+				timeout: 15000, // 15 seconds - much faster now with cache
 			});
-			
-			const response = await Promise.race([fetchPromise, timeoutPromise]) as any;
+
+			const response = (await Promise.race([
+				fetchPromise,
+				timeoutPromise,
+			])) as any;
 			console.log("📡 API Response status:", response.status);
 
 			// Handle new standardized response format
@@ -166,9 +174,7 @@ class MUIDashboardService {
 
 			// Check if we have the expected data structure
 			if (!standardizedResponse.llm_analysis) {
-				console.warn(
-					"⚠️ Backend returned response without llm_analysis"
-				);
+				console.warn("⚠️ Backend returned response without llm_analysis");
 				return { metrics: [], originalResponse: standardizedResponse };
 			}
 
@@ -197,7 +203,7 @@ class MUIDashboardService {
 		standardizedResponse: any
 	): BackendMetric[] {
 		const metrics: BackendMetric[] = [];
-		
+
 		// Handle the new response format with llm_analysis
 		const llmAnalysis = standardizedResponse.llm_analysis;
 		if (!llmAnalysis) {
@@ -208,17 +214,21 @@ class MUIDashboardService {
 		try {
 			// Convert KPIs to legacy format
 			if (llmAnalysis.kpis) {
-				console.log(`🔄 Converting ${llmAnalysis.kpis.length} KPIs from standardized format`);
-				
+				console.log(
+					`🔄 Converting ${llmAnalysis.kpis.length} KPIs from standardized format`
+				);
+
 				for (const kpi of llmAnalysis.kpis) {
 					console.log(`📊 Processing KPI: "${kpi.display_name}"`, {
 						value: kpi.value,
 						trend: kpi.trend,
-						format: kpi.format
+						format: kpi.format,
 					});
 
 					// Map trend direction from backend to frontend format
-					const mapTrendDirection = (direction: string): "up" | "down" | "neutral" => {
+					const mapTrendDirection = (
+						direction: string
+					): "up" | "down" | "neutral" => {
 						switch (direction.toLowerCase()) {
 							case "up":
 							case "increasing":
@@ -246,7 +256,7 @@ class MUIDashboardService {
 					const formatKPIValue = (value: string, format: string): string => {
 						const numValue = parseFloat(value);
 						if (isNaN(numValue)) return value;
-						
+
 						switch (format) {
 							case "currency":
 								return `$${numValue.toLocaleString()}`;
@@ -268,26 +278,30 @@ class MUIDashboardService {
 							title: kpi.display_name,
 							trend: {
 								value: formatTrendValue(kpi.trend),
-								isPositive: kpi.trend.direction === "up" || kpi.trend.percentage > 0,
+								isPositive:
+									kpi.trend.direction === "up" || kpi.trend.percentage > 0,
 								percentage: kpi.trend.percentage,
-								direction: kpi.trend.direction
+								direction: kpi.trend.direction,
 							},
 							source: "standardized",
 						},
-						calculated_at: llmAnalysis.metadata?.generated_at || new Date().toISOString(),
+						calculated_at:
+							llmAnalysis.metadata?.generated_at || new Date().toISOString(),
 					});
 				}
 			}
 
 			// Convert Charts to legacy format
 			if (llmAnalysis.charts) {
-				console.log(`🔄 Converting ${llmAnalysis.charts.length} charts from standardized format`);
-				
+				console.log(
+					`🔄 Converting ${llmAnalysis.charts.length} charts from standardized format`
+				);
+
 				for (const chart of llmAnalysis.charts) {
 					console.log(`📊 Processing chart: "${chart.display_name}"`, {
 						chartType: chart.chart_type,
 						dataLength: chart.data?.length || 0,
-						dataSample: chart.data?.slice(0, 2)
+						dataSample: chart.data?.slice(0, 2),
 					});
 
 					// Map chart types to MUI chart types
@@ -307,13 +321,18 @@ class MUIDashboardService {
 					};
 
 					// Transform chart data to MUI format
-					const transformChartData = (data: any[], chartType: string): any[] => {
+					const transformChartData = (
+						data: any[],
+						chartType: string
+					): any[] => {
 						if (!data || !Array.isArray(data)) {
 							console.warn(`⚠️ Invalid chart data for "${chart.display_name}"`);
 							return [];
 						}
 
-						console.log(`🔄 Transforming ${data.length} data points for ${chartType} chart`);
+						console.log(
+							`🔄 Transforming ${data.length} data points for ${chartType} chart`
+						);
 
 						if (chartType.toLowerCase() === "pie") {
 							return data.map((item, index) => ({
@@ -346,27 +365,32 @@ class MUIDashboardService {
 					};
 
 					// Process dropdown options if available
-					const processDropdownOptions = (config: any): Array<{ label: string; value: string }> => {
+					const processDropdownOptions = (
+						config: any
+					): Array<{ label: string; value: string }> => {
 						if (!config?.filters) return [];
-						
+
 						const options: Array<{ label: string; value: string }> = [];
 						Object.values(config.filters).forEach((filterArray: any) => {
 							if (Array.isArray(filterArray)) {
 								options.push(...filterArray);
 							}
 						});
-						
+
 						return options;
 					};
 
-					const transformedData = transformChartData(chart.data, chart.chart_type);
+					const transformedData = transformChartData(
+						chart.data,
+						chart.chart_type
+					);
 					const dropdownOptions = processDropdownOptions(chart.config);
 
 					console.log(`✅ Transformed chart data:`, {
 						title: chart.display_name,
 						type: chart.chart_type,
 						dataPoints: transformedData.length,
-						dropdownOptions: dropdownOptions.length
+						dropdownOptions: dropdownOptions.length,
 					});
 
 					metrics.push({
@@ -385,7 +409,8 @@ class MUIDashboardService {
 							has_dropdown: dropdownOptions.length > 0,
 							source: "standardized",
 						},
-						calculated_at: llmAnalysis.metadata?.generated_at || new Date().toISOString(),
+						calculated_at:
+							llmAnalysis.metadata?.generated_at || new Date().toISOString(),
 					});
 				}
 			}
@@ -406,7 +431,8 @@ class MUIDashboardService {
 							subtitle: `Data table with ${table.data?.length || 0} rows`,
 							source: "standardized",
 						},
-						calculated_at: llmAnalysis.metadata?.generated_at || new Date().toISOString(),
+						calculated_at:
+							llmAnalysis.metadata?.generated_at || new Date().toISOString(),
 					});
 				}
 			}
@@ -414,9 +440,9 @@ class MUIDashboardService {
 			console.log(
 				`🔄 Converted standardized format: ${
 					llmAnalysis.kpis?.length || 0
-				} KPIs + ${llmAnalysis.charts?.length || 0} charts + ${llmAnalysis.tables?.length || 0} tables = ${
-					metrics.length
-				} legacy metrics`
+				} KPIs + ${llmAnalysis.charts?.length || 0} charts + ${
+					llmAnalysis.tables?.length || 0
+				} tables = ${metrics.length} legacy metrics`
 			);
 			return metrics;
 		} catch (error) {
@@ -448,7 +474,9 @@ class MUIDashboardService {
 			});
 
 			// Map trend direction from backend to frontend format
-			const mapTrendDirection = (direction: string): "up" | "down" | "neutral" => {
+			const mapTrendDirection = (
+				direction: string
+			): "up" | "down" | "neutral" => {
 				switch (direction.toLowerCase()) {
 					case "up":
 					case "increasing":
@@ -466,19 +494,19 @@ class MUIDashboardService {
 			// Format trend value based on the trend data from response
 			const formatTrendValue = (trend: any): string => {
 				if (!trend) return "0%";
-				
+
 				// If trend.value is already formatted (like "0%"), use it directly
-				if (typeof trend.value === 'string' && trend.value.includes('%')) {
+				if (typeof trend.value === "string" && trend.value.includes("%")) {
 					return trend.value;
 				}
-				
+
 				// If trend.percentage exists, format it
 				if (trend.percentage !== undefined) {
 					if (trend.percentage === 0) return "0%";
 					const sign = trend.percentage > 0 ? "+" : "";
 					return `${sign}${trend.percentage}%`;
 				}
-				
+
 				return "0%";
 			};
 
@@ -486,19 +514,18 @@ class MUIDashboardService {
 			const trendValue = formatTrendValue(trend);
 			const trendDirection = mapTrendDirection(trend?.direction || "stable");
 
-			console.log(
-				`🎯 Final KPI result for "${metric.metric_name}":`, {
-					value: value,
-					trendValue: trendValue,
-					trendDirection: trendDirection,
-					trendData: trend
-				}
-			);
+			console.log(`🎯 Final KPI result for "${metric.metric_name}":`, {
+				value: value,
+				trendValue: trendValue,
+				trendDirection: trendDirection,
+				trendData: trend,
+			});
 
 			// Generate realistic trend data based on the actual value
 			const baseValue = parseFloat(value?.replace(/[$,]/g, "") || "0") || 100;
-			const trendPercentage = parseFloat(trend?.percentage?.toString() || "0") || 0;
-			
+			const trendPercentage =
+				parseFloat(trend?.percentage?.toString() || "0") || 0;
+
 			const trendData = Array.from({ length: 30 }, (_, i) => {
 				// Create realistic progression over 30 days
 				const dailyChange = 1 + (trendPercentage / 100) * (i / 30);
@@ -555,7 +582,9 @@ class MUIDashboardService {
 			const chartType = metric.metric_value.chart_type || "";
 			const muiChartType = MUI_CHART_MAP[chartType] || "BarChart";
 
-			console.log(`📊 Processing chart: "${metric.metric_value.title}" - Type: ${chartType} -> MUI: ${muiChartType}`);
+			console.log(
+				`📊 Processing chart: "${metric.metric_value.title}" - Type: ${chartType} -> MUI: ${muiChartType}`
+			);
 			console.log(`📊 Chart data:`, metric.metric_value.data);
 
 			const chartData: MUIChartData = {
@@ -609,7 +638,9 @@ class MUIDashboardService {
 	// Convert backend table metrics to MUI table format
 	convertToMUITables(metrics: BackendMetric[]): MUITableData[] {
 		const tableMetrics = metrics.filter((m) => m.metric_type === "table");
-		console.log(`📋 Converting ${tableMetrics.length} table metrics to MUI format`);
+		console.log(
+			`📋 Converting ${tableMetrics.length} table metrics to MUI format`
+		);
 
 		return tableMetrics.map((metric) => {
 			console.log(`📊 Processing table: "${metric.metric_name}"`, {
@@ -633,8 +664,11 @@ class MUIDashboardService {
 	}
 
 	// Extract business insights from the response
-	extractBusinessInsights(standardizedResponse: any): MUIBusinessInsights | undefined {
-		const businessAnalysis = standardizedResponse.llm_analysis?.business_analysis;
+	extractBusinessInsights(
+		standardizedResponse: any
+	): MUIBusinessInsights | undefined {
+		const businessAnalysis =
+			standardizedResponse.llm_analysis?.business_analysis;
 		if (!businessAnalysis) {
 			console.log("⚠️ No business analysis found in response");
 			return undefined;
@@ -903,7 +937,9 @@ class MUIDashboardService {
 			console.log("🚨 CRITICAL DEBUG - Raw metrics received:", {
 				totalMetrics: metrics.length,
 				hasOriginalResponse: !!originalResponse,
-				originalResponseKeys: originalResponse ? Object.keys(originalResponse) : []
+				originalResponseKeys: originalResponse
+					? Object.keys(originalResponse)
+					: [],
 			});
 
 			if (metrics.length === 0) {
@@ -913,33 +949,41 @@ class MUIDashboardService {
 
 			// Debug each metric type
 			const kpiMetrics = metrics.filter((m) => m.metric_type === "kpi");
-			const chartMetrics = metrics.filter((m) => m.metric_type === "chart_data");
+			const chartMetrics = metrics.filter(
+				(m) => m.metric_type === "chart_data"
+			);
 			const tableMetrics = metrics.filter((m) => m.metric_type === "table");
 
 			console.log("🚨 CRITICAL DEBUG - Metric breakdown:", {
 				kpis: kpiMetrics.length,
 				charts: chartMetrics.length,
-				tables: tableMetrics.length
+				tables: tableMetrics.length,
 			});
 
 			// Debug KPI metrics
 			if (kpiMetrics.length > 0) {
-				console.log("🚨 CRITICAL DEBUG - KPI Metrics:", kpiMetrics.map(kpi => ({
-					id: kpi.metric_id,
-					name: kpi.metric_name,
-					value: kpi.metric_value.value,
-					trend: kpi.metric_value.trend
-				})));
+				console.log(
+					"🚨 CRITICAL DEBUG - KPI Metrics:",
+					kpiMetrics.map((kpi) => ({
+						id: kpi.metric_id,
+						name: kpi.metric_name,
+						value: kpi.metric_value.value,
+						trend: kpi.metric_value.trend,
+					}))
+				);
 			}
 
 			// Debug Chart metrics
 			if (chartMetrics.length > 0) {
-				console.log("🚨 CRITICAL DEBUG - Chart Metrics:", chartMetrics.map(chart => ({
-					id: chart.metric_id,
-					name: chart.metric_name,
-					type: chart.metric_value.chart_type,
-					dataLength: chart.metric_value.data?.length || 0
-				})));
+				console.log(
+					"🚨 CRITICAL DEBUG - Chart Metrics:",
+					chartMetrics.map((chart) => ({
+						id: chart.metric_id,
+						name: chart.metric_name,
+						type: chart.metric_value.chart_type,
+						dataLength: chart.metric_value.data?.length || 0,
+					}))
+				);
 			}
 
 			const kpis = this.convertToStatCards(metrics);

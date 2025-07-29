@@ -40,6 +40,52 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ==================== TEMPLATE PRE-GENERATION ====================
+
+async def _pre_generate_templates_for_client(client_id: str):
+    """Pre-generate templates for a client after data upload - runs in background"""
+    try:
+        logger.info(f"🎨 Starting template pre-generation for client {client_id}")
+        
+        # Import here to avoid circular imports
+        from dashboard_orchestrator import dashboard_orchestrator
+        import uuid
+        
+        # Generate LLM analysis and cache it
+        client_data = await dashboard_orchestrator.ai_analyzer.get_client_data(client_id)
+        if not client_data:
+            logger.warning(f"⚠️ No data found for client {client_id}, skipping template generation")
+            return
+        
+        # Pre-run the expensive LLM analysis to cache it
+        logger.info(f"🤖 Pre-generating LLM analysis for client {client_id}")
+        business_insights = await dashboard_orchestrator._generate_ai_business_context(
+            uuid.UUID(client_id), client_data
+        )
+        
+        if business_insights and "error" not in business_insights:
+            logger.info(f"✅ Pre-generated LLM analysis cached for client {client_id}")
+            
+            # Also pre-generate the main dashboard template
+            try:
+                logger.info(f"🎯 Pre-generating main dashboard template for client {client_id}")
+                dashboard_config = await dashboard_orchestrator.generate_dashboard(
+                    client_id=client_id,
+                    template_type="main",
+                    force_regenerate=False
+                )
+                if dashboard_config and not hasattr(dashboard_config, 'error'):
+                    logger.info(f"✅ Main dashboard template pre-generated for client {client_id}")
+                else:
+                    logger.warning(f"⚠️ Main dashboard template generation had issues for client {client_id}")
+            except Exception as template_error:
+                logger.warning(f"⚠️ Dashboard template pre-generation failed for client {client_id}: {template_error}")
+        else:
+            logger.warning(f"⚠️ LLM analysis failed for client {client_id}, templates not pre-generated")
+            
+    except Exception as e:
+        logger.error(f"❌ Template pre-generation failed for client {client_id}: {e}")
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Analytics AI Dashboard API", 
@@ -1153,13 +1199,23 @@ async def upload_client_data(upload_data: CreateSchemaRequest):
         
         logger.info(f"✅ Schema created AND DATA STORED for client {upload_data.client_id}: {ai_result.data_type} with {rows_inserted} rows")
         
+        # 🚀 PRE-GENERATE TEMPLATES AFTER DATA UPLOAD
+        try:
+            logger.info(f"🎨 Pre-generating dashboard templates for client {upload_data.client_id}")
+            # Run template generation in background to avoid blocking the response
+            asyncio.create_task(_pre_generate_templates_for_client(upload_data.client_id))
+            logger.info(f"✅ Template pre-generation started for client {upload_data.client_id}")
+        except Exception as template_error:
+            logger.warning(f"⚠️ Template pre-generation failed for client {upload_data.client_id}: {template_error}")
+            # Don't block the upload response if template generation fails
+        
         return CreateSchemaResponse(
             success=True,
             table_name=ai_result.table_schema.table_name,
             table_schema=ai_result.table_schema,
             ai_analysis=ai_result,
             rows_inserted=rows_inserted,  # NOW RETURNS ACTUAL COUNT!
-            message=f"Schema analyzed and {rows_inserted} rows of data stored successfully!"
+            message=f"Schema analyzed and {rows_inserted} rows of data stored successfully! Templates generating in background."
         )
         
     except Exception as e:
@@ -1452,40 +1508,62 @@ async def get_dashboard_config(token: str = Depends(security)):
 @app.get("/api/dashboard/metrics")
 async def get_dashboard_metrics(
     token: str = Depends(security),
-    fast_mode: bool = False
+    fast_mode: bool = True,  # DEFAULT TO FAST MODE TO PREVENT TIMEOUTS
+    force_llm: bool = False  # Only use LLM if explicitly requested
 ):
-    """Get dashboard metrics in exact LLM-generated format for the authenticated client"""
+    """Get dashboard metrics - OPTIMIZED for speed, uses cache by default"""
     try:
         # Verify client token
         token_data = verify_token(token.credentials)
+        client_id = str(token_data.client_id)
         
         # Get client data and extract LLM insights directly
         from ai_analyzer import ai_analyzer
         from dashboard_orchestrator import dashboard_orchestrator
+        from llm_cache_manager import llm_cache_manager
         
         # Get client data
-        client_data = await ai_analyzer.get_client_data_optimized(str(token_data.client_id))
+        client_data = await ai_analyzer.get_client_data_optimized(client_id)
         if not client_data:
             raise HTTPException(status_code=404, detail="No data found for this client")
         
-        # Use fast mode if requested (no LLM, immediate response)
-        if fast_mode:
-            logger.info(f"🚀 Fast mode enabled - using cached/fallback insights")
+        # 🚀 PRIORITY 1: Check cache first (instant response)
+        cached_insights = await llm_cache_manager.get_cached_llm_response(
+            uuid.UUID(client_id), client_data
+        )
+        if cached_insights and not force_llm:
+            logger.info(f"⚡ Using cached LLM insights for client {client_id} - instant response!")
+            return {
+                "client_id": client_id,
+                "data_type": client_data.get('data_type', 'unknown'),
+                "schema_type": client_data.get('schema', {}).get('type', 'unknown'),
+                "total_records": len(client_data.get('data', [])),
+                "llm_analysis": cached_insights,
+                "cached": True,
+                "response_time": "instant"
+            }
+        
+        # 🚀 PRIORITY 2: Use fast mode for immediate response (no LLM)
+        if fast_mode and not force_llm:
+            logger.info(f"🚀 Fast mode - using fallback insights for client {client_id}")
             insights = await dashboard_orchestrator._extract_fallback_insights(
                 client_data.get('data', []), 
                 client_data.get('data_type', 'unknown')
             )
         else:
-            # Extract LLM-powered insights directly (same as test-llm-analysis)
+            # Only use expensive LLM if explicitly requested
+            logger.info(f"🤖 LLM analysis requested for client {client_id}")
             insights = await dashboard_orchestrator._extract_business_insights_from_data(client_data)
         
         # Return the exact same format as /api/test-llm-analysis
         return {
-            "client_id": str(token_data.client_id),
+            "client_id": client_id,
             "data_type": client_data.get('data_type', 'unknown'),
             "schema_type": client_data.get('schema', {}).get('type', 'unknown'),
             "total_records": len(client_data.get('data', [])),
-            "llm_analysis": insights
+            "llm_analysis": insights,
+            "cached": False,
+            "fast_mode": fast_mode
         }
         
     except HTTPException:
@@ -3743,6 +3821,333 @@ async def debug_client_cache(client_id: str, token: str = Depends(security)):
             "success": False,
             "error": f"Failed to debug cache: {str(e)}"
         }
+
+from models import CustomTemplateRequest, CustomTemplateResponse
+
+@app.post("/api/dashboard/generate-custom")
+async def generate_custom_dashboard_templates(
+    template_count: int = 3,
+    force_regenerate: bool = False,
+    business_context_override: str = None,
+    token: str = Depends(security)
+):
+    """Generate custom intelligent templates using AI-powered business DNA analysis"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        client_id = token_data.client_id
+        
+        logger.info(f"🎨 Starting custom template generation for client {client_id}")
+        
+        # Create custom template request
+        request = CustomTemplateRequest(
+            client_id=client_id,
+            template_count=template_count,
+            force_regenerate=force_regenerate,
+            business_context_override=business_context_override,
+            template_preferences={}
+        )
+        
+        # Generate custom templates using new system
+        result = await dashboard_orchestrator.generate_custom_templates(request)
+        
+        if result.success:
+            logger.info(f"✅ Custom templates generated successfully for client {client_id}")
+            
+            # Return enhanced response with business intelligence
+            return {
+                "success": True,
+                "message": result.message,
+                "templates": [
+                    {
+                        "template_id": config.template_id if hasattr(config, 'template_id') else f"template_{i}",
+                        "name": config.title,
+                        "description": config.subtitle,
+                        "type": "custom_intelligent",
+                        "theme": config.theme,
+                        "customization_level": getattr(config, 'customization_level', 'intelligent'),
+                        "business_context": {
+                            "business_model": result.business_dna.business_model.value if result.business_dna else "general",
+                            "industry": result.business_dna.industry_sector if result.business_dna else "technology",
+                            "confidence_score": result.business_dna.confidence_score if result.business_dna else 0.7
+                        },
+                        "components": {
+                            "kpi_count": len(config.kpi_widgets),
+                            "chart_count": len(config.chart_widgets),
+                            "intelligent_features": getattr(config, 'intelligent_components', [])
+                        }
+                    }
+                    for i, config in enumerate(result.generated_templates)
+                ],
+                "business_intelligence": {
+                    "business_model": result.business_dna.business_model.value if result.business_dna else None,
+                    "industry_sector": result.business_dna.industry_sector if result.business_dna else None,
+                    "maturity_level": result.business_dna.maturity_level.value if result.business_dna else None,
+                    "unique_characteristics": result.business_dna.unique_characteristics if result.business_dna else [],
+                    "data_story": result.business_dna.data_story if result.business_dna else None,
+                    "primary_workflows": [w.name for w in result.business_dna.primary_workflows] if result.business_dna else [],
+                    "success_metrics": result.business_dna.success_metrics if result.business_dna else []
+                },
+                "ecosystem": {
+                    "navigation_available": result.template_ecosystem is not None,
+                    "cross_template_features": result.template_ecosystem.cross_template_features if result.template_ecosystem else [],
+                    "shared_filters": result.template_ecosystem.shared_filters if result.template_ecosystem else []
+                },
+                "generation_metadata": {
+                    "generation_time": result.generation_time,
+                    "template_count": len(result.generated_templates),
+                    "confidence_scores": result.generation_metadata.get('confidence_scores', {}),
+                    "version": "custom-intelligent-1.0"
+                }
+            }
+        else:
+            logger.error(f"❌ Custom template generation failed for client {client_id}: {result.message}")
+            raise HTTPException(status_code=500, detail=result.message)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Custom template generation endpoint failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Custom template generation failed: {str(e)}")
+
+@app.get("/api/dashboard/custom-templates")
+async def get_custom_templates(token: str = Depends(security)):
+    """Get existing custom templates with business intelligence data"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        client_id = token_data.client_id
+        
+        logger.info(f"📊 Retrieving custom templates for client {client_id}")
+        
+        # Get custom templates
+        custom_templates = await dashboard_orchestrator.get_custom_templates(client_id)
+        
+        if custom_templates:
+            return {
+                "success": True,
+                "message": f"Found {len(custom_templates)} custom templates",
+                "templates": [
+                    {
+                        "template_id": getattr(config, 'template_id', f"template_{i}"),
+                        "name": config.title,
+                        "description": config.subtitle,
+                        "type": "custom_intelligent",
+                        "theme": config.theme,
+                        "customization_level": getattr(config, 'customization_level', 'intelligent'),
+                        "last_generated": config.last_generated.isoformat(),
+                        "version": config.version,
+                        "business_context": {
+                            "business_model": config.business_dna.business_model.value if config.business_dna else None,
+                            "industry": config.business_dna.industry_sector if config.business_dna else None,
+                            "confidence_score": config.business_dna.confidence_score if config.business_dna else None
+                        } if hasattr(config, 'business_dna') and config.business_dna else {},
+                        "intelligent_features": {
+                            "smart_naming": hasattr(config, 'smart_name') and config.smart_name is not None,
+                            "custom_theming": hasattr(config, 'custom_theme') and config.custom_theme is not None,
+                            "ecosystem_navigation": hasattr(config, 'ecosystem_config') and config.ecosystem_config is not None,
+                            "adaptive_components": len(getattr(config, 'intelligent_components', []))
+                        }
+                    }
+                    for i, config in enumerate(custom_templates)
+                ],
+                "business_intelligence_available": any(hasattr(config, 'business_dna') for config in custom_templates)
+            }
+        else:
+            return {
+                "success": True,
+                "message": "No custom templates found",
+                "templates": [],
+                "business_intelligence_available": False
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to retrieve custom templates: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve custom templates: {str(e)}")
+
+@app.get("/api/dashboard/business-intelligence/{client_id}")
+async def get_business_intelligence(client_id: str, token: str = Depends(security)):
+    """Get comprehensive business intelligence analysis for a client"""
+    try:
+        # Verify client token and permissions
+        token_data = verify_token(token.credentials)
+        
+        # Check if requesting client's own data or if admin
+        if str(token_data.client_id) != client_id and not token_data.is_admin:
+            raise HTTPException(status_code=403, detail="Access denied to business intelligence data")
+        
+        logger.info(f"🧬 Retrieving business intelligence for client {client_id}")
+        
+        # Get business DNA from database
+        db_client = get_admin_client()
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        # Get business DNA
+        dna_response = db_client.table('client_business_dna').select('*').eq('client_id', client_id).execute()
+        
+        if dna_response.data:
+            dna_data = dna_response.data[0]
+            
+            return {
+                "success": True,
+                "business_intelligence": {
+                    "business_model": dna_data['business_model'],
+                    "industry_sector": dna_data['industry_sector'],
+                    "maturity_level": dna_data['maturity_level'],
+                    "data_sophistication": dna_data['data_sophistication'],
+                    "primary_workflows": dna_data['primary_workflows'],
+                    "success_metrics": dna_data['success_metrics'],
+                    "key_relationships": dna_data['key_relationships'],
+                    "business_personality": dna_data['business_personality'],
+                    "unique_characteristics": dna_data['unique_characteristics'],
+                    "data_story": dna_data['data_story'],
+                    "confidence_score": dna_data['confidence_score'],
+                    "analysis_timestamp": dna_data['analysis_timestamp'],
+                    "version": dna_data['version']
+                },
+                "recommendations": {
+                    "suggested_templates": await _get_template_recommendations(dna_data),
+                    "optimization_opportunities": await _get_optimization_opportunities(dna_data),
+                    "business_insights": await _extract_business_insights(dna_data)
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "No business intelligence analysis found. Generate custom templates first to create business DNA profile.",
+                "business_intelligence": None,
+                "recommendations": {}
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to retrieve business intelligence: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve business intelligence: {str(e)}")
+
+@app.get("/api/dashboard/template-ecosystem/{client_id}")
+async def get_template_ecosystem(client_id: str, token: str = Depends(security)):
+    """Get template ecosystem and navigation structure"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        
+        if str(token_data.client_id) != client_id and not token_data.is_admin:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        logger.info(f"🌐 Retrieving template ecosystem for client {client_id}")
+        
+        # Get ecosystem data from database
+        db_client = get_admin_client()
+        ecosystem_response = db_client.table('template_ecosystems').select('*').eq('client_id', client_id).execute()
+        
+        if ecosystem_response.data:
+            ecosystem_data = ecosystem_response.data[0]
+            
+            return {
+                "success": True,
+                "ecosystem": {
+                    "ecosystem_id": ecosystem_data['ecosystem_id'],
+                    "primary_template_id": ecosystem_data['primary_template_id'],
+                    "template_hierarchy": ecosystem_data['template_hierarchy'],
+                    "navigation_structure": ecosystem_data['breadcrumb_structure'],
+                    "shared_features": {
+                        "filters": ecosystem_data['shared_filters'],
+                        "synchronized_states": ecosystem_data['synchronized_states']
+                    },
+                    "cross_references": ecosystem_data['cross_references'],
+                    "ecosystem_features": [
+                        "intelligent_navigation",
+                        "shared_filtering",
+                        "cross_template_insights",
+                        "unified_theming"
+                    ]
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "No template ecosystem found",
+                "ecosystem": None
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to retrieve template ecosystem: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve template ecosystem: {str(e)}")
+
+# Helper functions for business intelligence endpoint
+async def _get_template_recommendations(dna_data: Dict[str, Any]) -> List[str]:
+    """Get template recommendations based on business DNA"""
+    recommendations = []
+    
+    business_model = dna_data.get('business_model', '')
+    
+    if business_model == 'b2b_saas':
+        recommendations = [
+            "SaaS Revenue Analytics - Focus on MRR and churn metrics",
+            "Customer Success Dashboard - Track user adoption and health scores", 
+            "Growth Analytics - Monitor acquisition and expansion metrics"
+        ]
+    elif business_model == 'b2c_ecommerce':
+        recommendations = [
+            "E-commerce Performance - Revenue, orders, and conversion tracking",
+            "Customer Analytics - Behavior analysis and segmentation",
+            "Product Intelligence - Top products and category performance"
+        ]
+    else:
+        recommendations = [
+            "Executive Overview - High-level business performance",
+            "Operational Analytics - Process efficiency and monitoring",
+            "Performance Intelligence - Advanced metrics and insights"
+        ]
+    
+    return recommendations
+
+async def _get_optimization_opportunities(dna_data: Dict[str, Any]) -> List[str]:
+    """Get optimization opportunities based on business DNA"""
+    opportunities = []
+    
+    confidence_score = dna_data.get('confidence_score', 0)
+    data_sophistication = dna_data.get('data_sophistication', 'basic')
+    
+    if confidence_score < 0.8:
+        opportunities.append("Improve data quality and standardization for better insights")
+    
+    if data_sophistication == 'basic':
+        opportunities.append("Implement advanced analytics and predictive modeling")
+        
+    if len(dna_data.get('success_metrics', [])) < 5:
+        opportunities.append("Identify and track additional key performance indicators")
+    
+    opportunities.append("Implement automated alerting and anomaly detection")
+    opportunities.append("Add cross-functional dashboard integration")
+    
+    return opportunities
+
+async def _extract_business_insights(dna_data: Dict[str, Any]) -> List[str]:
+    """Extract key business insights from DNA data"""
+    insights = []
+    
+    workflows = dna_data.get('primary_workflows', [])
+    unique_characteristics = dna_data.get('unique_characteristics', [])
+    
+    if workflows:
+        insights.append(f"Primary business focus: {workflows[0].get('name', 'Business Operations')}")
+    
+    if unique_characteristics:
+        insights.append(f"Business differentiators: {', '.join(unique_characteristics)}")
+    
+    maturity = dna_data.get('maturity_level', 'growth')
+    insights.append(f"Business maturity indicates {maturity}-stage optimization opportunities")
+    
+    data_story = dna_data.get('data_story', '')
+    if data_story:
+        insights.append(f"Data narrative: {data_story}")
+    
+    return insights
 
 if __name__ == "__main__":
     import uvicorn
