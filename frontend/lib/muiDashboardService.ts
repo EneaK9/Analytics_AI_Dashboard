@@ -111,17 +111,25 @@ export interface MUIDashboardData {
 
 // Simple mapping for available MUI chart types
 const MUI_CHART_MAP: Record<string, string> = {
-	// Backend chart types to MUI chart types
+	// Primary chart types to MUI chart types
 	pie: "PieChart",
-	bar: "BarChart",
+	bar: "BarChart", 
 	line: "LineChart",
 	area: "AreaChart",
 	radar: "RadarChart",
 	radial: "RadialChart",
+	scatter: "ScatterChart",
+	heatmap: "HeatmapChart",
+	donut: "PieChart", // Donut is a variant of pie
 
-	// Legacy chart types
+	// Component-based chart types (direct mapping)
+	PieChart: "PieChart",
 	BarChartOne: "BarChart",
 	LineChartOne: "LineChart",
+	RadarChart: "RadarChart",
+	RadialChart: "RadialChart",
+	ScatterChart: "ScatterChart",
+	HeatmapChart: "HeatmapChart",
 };
 
 class MUIDashboardService {
@@ -304,7 +312,7 @@ class MUIDashboardService {
 						dataSample: chart.data?.slice(0, 2),
 					});
 
-					// Map chart types to MUI chart types
+					// Map chart types to MUI chart types - ALL CHART TYPES SUPPORTED
 					const mapChartType = (chartType: string): string => {
 						switch (chartType.toLowerCase()) {
 							case "pie":
@@ -315,12 +323,41 @@ class MUIDashboardService {
 								return "LineChart";
 							case "area":
 								return "AreaChart";
+							case "radar":
+								return "RadarChart";
+							case "scatter":
+								return "ScatterChart";
+							case "heatmap":
+								return "HeatmapChart";
+							case "radial":
+								return "RadialChart";
+							case "donut":
+								return "PieChart"; // Donut is a variant of pie
+							// Component-based mapping (direct from backend)
+							case "piechartone":
+							case "piechart":
+								return "PieChart";
+							case "barchartone":
+							case "barchart":
+								return "BarChart";
+							case "linechartone":
+							case "linechart":
+								return "LineChart";
+							case "radarchart":
+								return "RadarChart";
+							case "scatterchart":
+								return "ScatterChart";
+							case "heatmapchart":
+								return "HeatmapChart";
+							case "radialchart":
+								return "RadialChart";
 							default:
+								console.warn(`⚠️ Unknown chart type: ${chartType}, defaulting to BarChart`);
 								return "BarChart"; // Default fallback
 						}
 					};
 
-					// Transform chart data to MUI format
+					// Transform chart data to MUI format - ALL CHART TYPES SUPPORTED
 					const transformChartData = (
 						data: any[],
 						chartType: string
@@ -334,7 +371,9 @@ class MUIDashboardService {
 							`🔄 Transforming ${data.length} data points for ${chartType} chart`
 						);
 
-						if (chartType.toLowerCase() === "pie") {
+						const type = chartType.toLowerCase();
+
+						if (type === "pie" || type === "donut") {
 							return data.map((item, index) => ({
 								id: index,
 								value: Number(item.value) || 0,
@@ -342,18 +381,60 @@ class MUIDashboardService {
 								name: item.name || `Item ${index}`,
 								color: this.extractColor(`color-${index}`, index),
 							}));
-						} else if (chartType.toLowerCase() === "bar") {
+						} else if (type === "bar") {
 							return data.map((item, index) => ({
 								name: item.name || `Item ${index}`,
 								value: Number(item.value) || 0,
 								id: index,
 							}));
-						} else if (chartType.toLowerCase() === "line") {
+						} else if (type === "line") {
 							return data.map((item, index) => ({
 								name: item.name || `Month ${index}`,
 								value: Number(item.value) || 0,
 								id: index,
 							}));
+						} else if (type === "radar") {
+							// Radar charts need multiple dimensions
+							return data.map((item, index) => ({
+								name: item.name || `Metric ${index}`,
+								value: Number(item.value) || 0,
+								id: index,
+							}));
+						} else if (type === "scatter") {
+							// Scatter charts need x,y coordinates
+							return data.map((item, index) => ({
+								x: Number(item.x) || Number(item.value) || index,
+								y: Number(item.y) || Number(item.value) || Math.random() * 100,
+								name: item.name || `Point ${index}`,
+								id: index,
+							}));
+						} else if (type === "heatmap") {
+							// Heatmap charts need x,y,value structure
+							return data.map((item, index) => ({
+								x: item.x || item.name || `X${index}`,
+								y: item.y || item.category || `Y${index}`,
+								value: Number(item.value) || 0,
+								id: index,
+							}));
+						} else if (type === "radial") {
+							// Radial charts: Pass raw values to let the component calculate percentages
+							console.log("🔄 MUIService processing radial data:", data);
+							
+							return data.map((item, index) => {
+								const rawValue = Number(item.value) || 0;
+								
+								console.log(`🔄 MUIService radial item ${index}:`, {
+									name: item.name,
+									originalValue: item.value,
+									rawValue: rawValue
+								});
+								
+								return {
+									name: item.name || `Metric ${index}`,
+									value: rawValue, // Pass raw value to let RadialChart calculate percentage
+									id: index,
+								};
+							});
 						} else {
 							// Default transformation for other chart types
 							return data.map((item, index) => ({
@@ -552,6 +633,8 @@ class MUIDashboardService {
 		radarCharts: MUIChartData[];
 		radialCharts: MUIChartData[];
 		areaCharts: MUIChartData[];
+		scatterCharts: MUIChartData[];
+		heatmapCharts: MUIChartData[];
 	} {
 		const chartMetrics = metrics.filter((m) => m.metric_type === "chart_data");
 		console.log(
@@ -576,6 +659,8 @@ class MUIDashboardService {
 			radarCharts: [] as MUIChartData[],
 			radialCharts: [] as MUIChartData[],
 			areaCharts: [] as MUIChartData[],
+			scatterCharts: [] as MUIChartData[],
+			heatmapCharts: [] as MUIChartData[],
 		};
 
 		chartMetrics.forEach((metric) => {
@@ -620,6 +705,12 @@ class MUIDashboardService {
 			} else if (muiChartType === "RadialChart") {
 				categorizedCharts.radialCharts.push(chartData);
 				console.log(`✅ Added to radialCharts: ${chartData.title}`);
+			} else if (muiChartType === "ScatterChart") {
+				categorizedCharts.scatterCharts.push(chartData);
+				console.log(`✅ Added to scatterCharts: ${chartData.title}`);
+			} else if (muiChartType === "HeatmapChart") {
+				categorizedCharts.heatmapCharts.push(chartData);
+				console.log(`✅ Added to heatmapCharts: ${chartData.title}`);
 			}
 		});
 
@@ -630,6 +721,8 @@ class MUIDashboardService {
 			areaCharts: categorizedCharts.areaCharts.length,
 			radarCharts: categorizedCharts.radarCharts.length,
 			radialCharts: categorizedCharts.radialCharts.length,
+			scatterCharts: categorizedCharts.scatterCharts.length,
+			heatmapCharts: categorizedCharts.heatmapCharts.length,
 		});
 
 		return categorizedCharts;

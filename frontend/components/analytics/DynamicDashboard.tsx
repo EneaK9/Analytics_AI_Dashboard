@@ -67,12 +67,17 @@ export default function DynamicDashboard({
 	const [error, setError] = useState<string | null>(null);
 	const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-	// 🧠 AI-POWERED CHART COMPONENT SELECTOR - MUI CHARTS ONLY
+	// 🧠 AI-POWERED CHART COMPONENT SELECTOR - ALL AVAILABLE CHARTS
 	const getMuiComponent = (componentName: string) => {
 		const componentMap = {
-			// Available MUI Charts
+			// Primary Chart Components
 			BarChartOne: Charts.BarChartOne,
 			LineChartOne: Charts.LineChartOne,
+			PieChart: Charts.PieChart,
+			RadarChart: Charts.RadarChart,
+			ScatterChart: Charts.ScatterChart,
+			HeatmapChart: Charts.HeatmapChart,
+			RadialChart: Charts.RadialChart,
 		};
 
 		const component = componentMap[componentName as keyof typeof componentMap];
@@ -113,7 +118,7 @@ export default function DynamicDashboard({
 
 			let processedData: any[] = [];
 
-			// 🚀 Process data for MUI chart types
+			// 🚀 Process data for ALL chart types
 			switch (component) {
 				// Line Charts - Time Series Data
 				case "LineChartOne":
@@ -125,6 +130,29 @@ export default function DynamicDashboard({
 					processedData = processCategoricalData(rawData, real_data_columns);
 					break;
 
+				// Pie Charts - Proportional Data
+				case "PieChart":
+					processedData = processPieChartData(rawData, real_data_columns);
+					break;
+
+				// Radar Charts - Multi-dimensional Data
+				case "RadarChart":
+					processedData = processRadarChartData(rawData, real_data_columns);
+					break;
+
+				// Scatter Charts - Correlation Data
+				case "ScatterChart":
+					processedData = processScatterChartData(rawData, real_data_columns);
+					break;
+
+				// Heatmap Charts - Matrix Data
+				case "HeatmapChart":
+					processedData = processHeatmapChartData(rawData, real_data_columns);
+					break;
+
+				// Radial Charts - Progress/Percentage Data
+				case "RadialChart":
+					processedData = processRadialChartData(rawData, real_data_columns);
 					break;
 
 				default:
@@ -349,39 +377,7 @@ export default function DynamicDashboard({
 			.slice(0, 6);
 	};
 
-	// 📊 Radial Chart Data Processing - NEW FOR RADIAL CHARTS
-	const processRadialData = (data: any[], columns: string[]): any[] => {
-		console.log("🔍 Processing radial data:", {
-			data: data.slice(0, 3),
-			columns,
-		});
-
-		const [categoryCol, valueCol] = columns;
-
-		// Calculate progress/percentage values for radial charts
-		const groupedData: { [key: string]: number } = {};
-
-		data.forEach((item) => {
-			const category = String(item[categoryCol] || "Unknown");
-			const value = Number(item[valueCol]) || 0;
-			groupedData[category] = (groupedData[category] || 0) + value;
-		});
-
-		const maxValue = Math.max(...Object.values(groupedData));
-
-		// Convert to radial format with percentage calculations
-		return Object.entries(groupedData)
-			.map(([category, value]) => ({
-				name: category,
-				value: value,
-				percentage: Math.round((value / maxValue) * 100),
-				fill: `hsl(var(--chart-${
-					(Object.keys(groupedData).indexOf(category) % 5) + 1
-				}))`,
-			}))
-			.sort((a, b) => b.value - a.value)
-			.slice(0, 5); // Limit to 5 for radial charts
-	};
+	// 📊 Radial Chart Data Processing - DEPRECATED (USE processRadialChartData instead)
 
 	// 📈 Multi-Series Data Processing - ENHANCED for real Shopify data
 	const processMultiSeriesData = (data: any[], columns: string[]): any[] => {
@@ -466,6 +462,137 @@ export default function DynamicDashboard({
 
 		// Fallback
 		return data.slice(0, 20);
+	};
+
+	// 🎯 Radar Chart Data Processing - Multi-dimensional analysis
+	const processRadarChartData = (data: any[], columns: string[]): any[] => {
+		console.log("🔍 Processing radar chart data:", {
+			data: data.slice(0, 3),
+			columns,
+		});
+
+		// For radar charts, we need multiple metrics per category
+		if (columns.length === 1) {
+			// Single column - group by categories
+			const groupedData: { [key: string]: number } = {};
+			data.forEach((item) => {
+				const category = String(item[columns[0]] || "Unknown");
+				groupedData[category] = (groupedData[category] || 0) + 1;
+			});
+
+			return Object.entries(groupedData)
+				.map(([name, value]) => ({ name, value }))
+				.sort((a, b) => b.value - a.value)
+				.slice(0, 6);
+		}
+
+		// Multiple columns - create multi-dimensional data
+		const [categoryCol, ...valueColumns] = columns;
+		const result = data.slice(0, 10).map(item => {
+			const dataPoint: any = { name: String(item[categoryCol] || "Unknown") };
+			valueColumns.forEach(col => {
+				dataPoint[col] = Number(item[col]) || 0;
+			});
+			return dataPoint;
+		});
+
+		return result;
+	};
+
+	// 📍 Scatter Chart Data Processing - Correlation analysis
+	const processScatterChartData = (data: any[], columns: string[]): any[] => {
+		console.log("🔍 Processing scatter chart data:", {
+			data: data.slice(0, 3),
+			columns,
+		});
+
+		if (columns.length < 2) {
+			return []; // Need at least 2 columns for scatter plot
+		}
+
+		const [xCol, yCol] = columns;
+		return data
+			.filter(item => item[xCol] !== null && item[yCol] !== null)
+			.map(item => ({
+				x: Number(item[xCol]) || 0,
+				y: Number(item[yCol]) || 0,
+				name: String(item[xCol]) || "Point"
+			}))
+			.slice(0, 50); // Limit for performance
+	};
+
+	// 🔥 Heatmap Chart Data Processing - Matrix visualization
+	const processHeatmapChartData = (data: any[], columns: string[]): any[] => {
+		console.log("🔍 Processing heatmap chart data:", {
+			data: data.slice(0, 3),
+			columns,
+		});
+
+		if (columns.length < 2) {
+			return []; // Need at least 2 columns for heatmap
+		}
+
+		const [xCol, yCol, valueCol] = columns;
+		
+		if (valueCol) {
+			// Three columns: x, y, value format
+			return data.map(item => ({
+				x: String(item[xCol] || "Unknown"),
+				y: String(item[yCol] || "Unknown"),
+				value: Number(item[valueCol]) || 0
+			})).slice(0, 100);
+		} else {
+			// Two columns: create frequency heatmap
+			const heatmapData: { [key: string]: { [key: string]: number } } = {};
+			
+			data.forEach(item => {
+				const x = String(item[xCol] || "Unknown");
+				const y = String(item[yCol] || "Unknown");
+				
+				if (!heatmapData[y]) heatmapData[y] = {};
+				heatmapData[y][x] = (heatmapData[y][x] || 0) + 1;
+			});
+
+			const result: any[] = [];
+			Object.entries(heatmapData).forEach(([y, xData]) => {
+				Object.entries(xData).forEach(([x, value]) => {
+					result.push({ x, y, value });
+				});
+			});
+
+			return result.slice(0, 100);
+		}
+	};
+
+	// ⭕ Radial Chart Data Processing - Progress/percentage visualization
+	const processRadialChartData = (data: any[], columns: string[]): any[] => {
+		console.log("🔍 DynamicDashboard processing radial chart data:", {
+			data: data.slice(0, 3),
+			columns,
+		});
+
+		const [categoryCol, valueCol] = columns;
+		const groupedData: { [key: string]: number } = {};
+
+		data.forEach((item) => {
+			const category = String(item[categoryCol] || "Unknown");
+			const value = Number(item[valueCol]) || 0;
+			groupedData[category] = (groupedData[category] || 0) + value;
+		});
+
+		console.log("🔍 DynamicDashboard grouped data:", groupedData);
+
+		// Return raw values for RadialChart component to calculate percentages
+		return Object.entries(groupedData)
+			.map(([name, rawValue]) => {
+				console.log(`🔍 DynamicDashboard radial item: ${name} = ${rawValue}`);
+				return {
+					name,
+					value: rawValue, // Pass raw value to RadialChart component
+				};
+			})
+			.sort((a, b) => (b.value || 0) - (a.value || 0)) // Sort by raw values
+			.slice(0, 5); // Limit to 5 for radial charts
 	};
 
 	// 📅 Date Formatter for Charts

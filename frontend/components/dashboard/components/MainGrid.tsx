@@ -853,6 +853,111 @@ function OriginalMainGrid({
 									</Grid>
 								);
 
+							case "radar":
+								return (
+									<Grid key={index} size={{ xs: 12, md: 6 }}>
+										<Card>
+											<CardHeader
+												title={chart.display_name}
+												subtitle="Multi-dimensional performance analysis"
+											/>
+											<CardContent>
+												<Box sx={{ height: 300 }}>
+													<Charts.RadarChart
+														data={filteredData}
+														title={chart.display_name}
+													/>
+												</Box>
+											</CardContent>
+										</Card>
+									</Grid>
+								);
+
+							case "scatter":
+								return (
+									<Grid key={index} size={{ xs: 12, md: 6 }}>
+										<Card>
+											<CardHeader
+												title={chart.display_name}
+												subtitle="Correlation and relationship analysis"
+											/>
+											<CardContent>
+												<Box sx={{ height: 300 }}>
+													<Charts.ScatterChart
+														data={filteredData}
+														title={chart.display_name}
+														xAxisLabel={chart.config?.x_axis?.display_name || "X Axis"}
+														yAxisLabel={chart.config?.y_axis?.display_name || "Y Axis"}
+													/>
+												</Box>
+											</CardContent>
+										</Card>
+									</Grid>
+								);
+
+							case "heatmap":
+								return (
+									<Grid key={index} size={{ xs: 12, md: 8 }}>
+										<Card>
+											<CardHeader
+												title={chart.display_name}
+												subtitle="Pattern and intensity visualization"
+											/>
+											<CardContent>
+												<Box sx={{ height: 300 }}>
+													<Charts.HeatmapChart
+														data={filteredData}
+														title={chart.display_name}
+														xAxisLabel={chart.config?.x_axis?.display_name || "Categories"}
+														yAxisLabel={chart.config?.y_axis?.display_name || "Metrics"}
+													/>
+												</Box>
+											</CardContent>
+										</Card>
+									</Grid>
+								);
+
+							case "radial":
+								return (
+									<Grid key={index} size={{ xs: 12, md: 4 }}>
+										<Card>
+											<CardHeader
+												title={chart.display_name}
+												subtitle="Progress and completion tracking"
+											/>
+											<CardContent>
+												<Box sx={{ height: 300 }}>
+													<Charts.RadialChart
+														data={filteredData}
+														title={chart.display_name}
+													/>
+												</Box>
+											</CardContent>
+										</Card>
+									</Grid>
+								);
+
+							case "donut":
+								return (
+									<Grid key={index} size={{ xs: 12, md: 4 }}>
+										<Card>
+											<CardHeader
+												title={chart.display_name}
+												subtitle="Donut chart visualization"
+											/>
+											<CardContent>
+												<Box sx={{ height: 300 }}>
+													<Charts.PieChart
+														data={filteredData}
+														title={chart.display_name}
+														chartType="donut"
+													/>
+												</Box>
+											</CardContent>
+										</Card>
+									</Grid>
+								);
+
 							default:
 								console.warn(`⚠️ Unknown chart type: ${chart.chart_type}`);
 								return null;

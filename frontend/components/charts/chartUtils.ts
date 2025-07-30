@@ -8,6 +8,29 @@ export interface BaseChartProps {
 	minimal?: boolean;
 }
 
+export interface RadarChartProps extends BaseChartProps {
+	showLabels?: boolean;
+}
+
+export interface ScatterChartProps extends BaseChartProps {
+	xAxisLabel?: string;
+	yAxisLabel?: string;
+}
+
+export interface HeatmapChartProps extends BaseChartProps {
+	xAxisLabel?: string;
+	yAxisLabel?: string;
+}
+
+export interface RadialChartProps extends BaseChartProps {
+	showLabels?: boolean;
+}
+
+export interface PieChartProps extends BaseChartProps {
+	showLegend?: boolean;
+	chartType?: 'pie' | 'donut';
+}
+
 /**
  * Ensures all chart components receive consistent data structure
  */
@@ -16,6 +39,67 @@ export function processChartData(data: any[], fallbackData: any[] = []): any[] {
 		return fallbackData;
 	}
 	return data;
+}
+
+/**
+ * Validates chart data for specific chart types
+ */
+export function validateChartData(data: any[], chartType: string): boolean {
+	if (!data || data.length === 0) return false;
+	
+	switch (chartType) {
+		case 'RadarChart':
+			return data.every(item => item.hasOwnProperty('name') && item.hasOwnProperty('value'));
+		case 'ScatterChart':
+			return data.every(item => item.hasOwnProperty('x') && item.hasOwnProperty('y'));
+		case 'HeatmapChart':
+			return data.every(item => item.hasOwnProperty('x') && item.hasOwnProperty('y') && item.hasOwnProperty('value'));
+		case 'RadialChart':
+		case 'PieChart':
+			return data.every(item => item.hasOwnProperty('name') && item.hasOwnProperty('value'));
+		default:
+			return true;
+	}
+}
+
+/**
+ * Formats data for specific chart types
+ */
+export function formatDataForChart(data: any[], chartType: string): any[] {
+	if (!data || data.length === 0) return [];
+	
+	switch (chartType) {
+		case 'RadarChart':
+			return data.map(item => ({
+				name: String(item.name || item.category || 'Unknown'),
+				value: Number(item.value) || 0
+			}));
+		case 'ScatterChart':
+			return data.map(item => ({
+				x: Number(item.x) || 0,
+				y: Number(item.y) || 0,
+				name: String(item.name || 'Point')
+			}));
+		case 'HeatmapChart':
+			return data.map(item => ({
+				x: String(item.x || 'X'),
+				y: String(item.y || 'Y'),
+				value: Number(item.value) || 0
+			}));
+		case 'RadialChart':
+			// Pass raw values to RadialChart component for percentage calculation
+			return data.map(item => ({
+				name: String(item.name || item.category || 'Unknown'),
+				value: Number(item.value) || 0 // Pass raw value
+			}));
+		case 'PieChart':
+			return data.map(item => ({
+				name: String(item.name || item.category || 'Unknown'),
+				value: Number(item.value) || 0
+			}));
+		default:
+			return data;
+	}
 }
 
 /**
