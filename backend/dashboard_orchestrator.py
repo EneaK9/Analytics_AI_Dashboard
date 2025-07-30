@@ -3983,8 +3983,12 @@ class DashboardOrchestrator:
 
             logger.info(f"📊 Data type: {data_type}, Schema type: {schema_type}")
 
-            # Sample the data for LLM analysis (first 3 records to avoid token limits)
-            sample_data = data_records[:3] if len(data_records) > 3 else data_records
+            # 🔧 CRITICAL FIX: Flatten nested data structures before LLM analysis
+            flattened_data = self._flatten_nested_data_for_llm(data_records)
+            logger.info(f"📊 Flattened {len(data_records)} records with nested structures for LLM analysis")
+
+            # Sample the flattened data for LLM analysis (first 3 records to avoid token limits)
+            sample_data = flattened_data[:3] if len(flattened_data) > 3 else flattened_data
 
             logger.info(
                 f"📊 Sample data keys: {list(sample_data[0].keys()) if sample_data else 'No data'}"
@@ -4004,7 +4008,7 @@ class DashboardOrchestrator:
             logger.info(f"🤖 LLM response preview: {llm_response[:200]}...")
 
             # Parse LLM response into structured format
-            structured_insights = self._parse_llm_insights(llm_response, data_records)
+            structured_insights = self._parse_llm_insights(llm_response, flattened_data)
 
             logger.info(f"✅ LLM analysis completed successfully")
             return structured_insights
@@ -4012,10 +4016,80 @@ class DashboardOrchestrator:
         except Exception as e:
             logger.error(f"❌ LLM analysis failed: {e}")
             logger.error(f"❌ Error traceback: {traceback.format_exc()}")
-            # Fallback to basic analysis
+            # Fallback to basic analysis with flattened data
             return await self._extract_fallback_insights(
-                data_records, client_data.get("data_type", "unknown")
+                flattened_data, client_data.get("data_type", "unknown")
             )
+
+    def _flatten_nested_data_for_llm(self, data_records: List[Dict]) -> List[Dict]:
+        """
+        Flatten nested data structures (dicts, lists) to make them LLM-analyzable
+        Extracts meaningful values from complex nested business data
+        """
+        try:
+            flattened_records = []
+            
+            for record in data_records:
+                flat_record = {}
+                
+                for key, value in record.items():
+                    if isinstance(value, dict):
+                        # Extract key metrics from nested dicts
+                        if value:  # Non-empty dict
+                            # Add dict size info
+                            flat_record[f"{key}_fields_count"] = len(value)
+                            
+                            # Extract specific valuable fields
+                            for nested_key, nested_value in value.items():
+                                if isinstance(nested_value, (str, int, float, bool)) and nested_value is not None:
+                                    flat_record[f"{key}_{nested_key}"] = nested_value
+                                    
+                            # Add summary representation
+                            flat_record[f"{key}_summary"] = str(value)[:200]
+                        else:
+                            flat_record[f"{key}_empty"] = True
+                            
+                    elif isinstance(value, list):
+                        # Extract metrics from lists
+                        if value:  # Non-empty list
+                            flat_record[f"{key}_count"] = len(value)
+                            
+                            # If list contains dicts, extract sample values
+                            if value and isinstance(value[0], dict):
+                                sample_item = value[0]
+                                for nested_key, nested_value in sample_item.items():
+                                    if isinstance(nested_value, (str, int, float, bool)) and nested_value is not None:
+                                        flat_record[f"{key}_sample_{nested_key}"] = nested_value
+                                        
+                            # If list contains simple values, get sample
+                            elif value and isinstance(value[0], (str, int, float)):
+                                flat_record[f"{key}_sample"] = value[0]
+                                if len(value) > 1:
+                                    flat_record[f"{key}_sample_2"] = value[1]
+                                    
+                            # Add summary
+                            flat_record[f"{key}_summary"] = str(value)[:200]
+                        else:
+                            flat_record[f"{key}_empty"] = True
+                            
+                    elif isinstance(value, (str, int, float, bool)) and value is not None:
+                        # Keep simple values as-is
+                        flat_record[key] = value
+                    else:
+                        # Handle other types
+                        flat_record[f"{key}_type"] = str(type(value).__name__)
+                        if value is not None:
+                            flat_record[f"{key}_string"] = str(value)[:100]
+                
+                flattened_records.append(flat_record)
+            
+            logger.info(f"🔧 Flattened {len(data_records)} records: {len(flattened_records[0].keys()) if flattened_records else 0} total fields")
+            return flattened_records
+            
+        except Exception as e:
+            logger.error(f"❌ Data flattening failed: {e}")
+            # Return original data if flattening fails
+            return data_records
 
     def _create_llm_analysis_prompt(
         self,
@@ -4265,10 +4339,22 @@ Return ONLY the JSON response, no additional text or explanations.
     ) -> Dict[str, Any]:
         """Parse and structure LLM response into standardized format"""
         try:
-            logger.info(f"🔄 Parsing LLM response ({len(llm_response)} characters)")
+            import json
 
-            # Clean up the response
-            cleaned_response = self._fix_malformed_json(llm_response)
+            # Clean the response (remove markdown if present)
+            logger.info(f"🔍 Raw LLM response starts with: {repr(llm_response[:50])}")
+            
+            cleaned_response = llm_response
+            if llm_response.startswith("```json"):
+                cleaned_response = llm_response.split("```json")[1].split("```")[0]
+                logger.info(f"🔧 Removed ```json wrapper")
+            elif llm_response.startswith("```"):
+                cleaned_response = llm_response.split("```")[1]
+                logger.info(f"🔧 Removed ``` wrapper")
+            else:
+                logger.info(f"🔍 No markdown wrapper found")
+                
+            logger.info(f"🔍 Cleaned response starts with: {repr(cleaned_response[:50])}")
 
             # Parse JSON response
             parsed_data = json.loads(cleaned_response.strip())
@@ -4406,9 +4492,17 @@ Return ONLY the JSON response, no additional text or explanations.
                     for i, record in enumerate(data_records[:5]):
                         row = [f"Record {i+1}"]
                         for key, value in record.items():
-                            if isinstance(value, (str, int, float, bool)):
+                            if isinstance(value, (str, int, float, bool)) and value is not None:
+                                # Show actual values for simple types
                                 row.append(str(value))
+                            elif isinstance(value, dict) and value:
+                                # Show summary for non-empty dicts
+                                row.append(f"dict({len(value)} fields)")
+                            elif isinstance(value, list) and value:
+                                # Show summary for non-empty lists
+                                row.append(f"list({len(value)} items)")
                             else:
+                                # Show type for other cases
                                 row.append(str(type(value).__name__))
                         table_data.append(row)
 
@@ -4423,7 +4517,28 @@ Return ONLY the JSON response, no additional text or explanations.
                         }
                     ]
 
+            # Generate basic business analysis for fallback
+            business_analysis = {
+                "business_type": "unknown",
+                "industry_sector": "general",
+                "business_model": "unknown",
+                "data_characteristics": [f"{data_type}_data", "fallback_analysis"],
+                "business_insights": [
+                    f"Data contains {len(data_records)} records of {data_type} information",
+                    "This is a basic analysis - enable LLM analysis for detailed insights",
+                    "Consider using force_llm=true for comprehensive business intelligence"
+                ],
+                "recommendations": [
+                    "Upload more data for better analysis",
+                    "Enable LLM analysis for detailed insights",
+                    "Review data quality and structure"
+                ],
+                "data_quality_score": 0.5,
+                "confidence_level": 0.3
+            }
+
             return {
+                "business_analysis": business_analysis,
                 "kpis": kpis,
                 "charts": charts,
                 "tables": tables,
