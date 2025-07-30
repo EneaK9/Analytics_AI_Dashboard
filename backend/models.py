@@ -256,16 +256,26 @@ class CreateSchemaResponse(BaseModel):
 
 from enum import Enum
 
-# Chart Type Constants - MUI COMPONENTS ONLY
+# Chart Type Constants - ALL AVAILABLE CHART COMPONENTS
 class ChartType(str, Enum):
-	# Available MUI Charts
+	# Primary Chart Components
 	BAR_CHART_ONE = "BarChartOne"
 	LINE_CHART_ONE = "LineChartOne"
+	PIE_CHART = "PieChart"
+	RADAR_CHART = "RadarChart"
+	SCATTER_CHART = "ScatterChart"
+	HEATMAP_CHART = "HeatmapChart"
+	RADIAL_CHART = "RadialChart"
 	
-	# Legacy aliases for compatibility - all map to available MUI components
+	# Legacy aliases for compatibility
 	line = "LineChartOne"
 	bar = "BarChartOne"
-	pie = "BarChartOne"  # Default to bar chart since no pie available
+	pie = "PieChart"
+	radar = "RadarChart"
+	scatter = "ScatterChart"
+	heatmap = "HeatmapChart"
+	radial = "RadialChart"
+	donut = "PieChart"  # Donut is a variant of pie chart
 
 class KPIWidget(BaseModel):
     """Configuration for a KPI widget"""

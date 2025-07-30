@@ -57,28 +57,34 @@ from models import TemplateEcosystemConfig
 
 logger = logging.getLogger(__name__)
 
-# Chart type mapping based on data characteristics - MUI CHARTS ONLY
+# Chart type mapping based on data characteristics - ALL AVAILABLE CHARTS
 CHART_TYPE_MAPPING = {
     # Time series data
-    "time_series": ["LineChartOne"],
+    "time_series": ["LineChartOne", "HeatmapChart"],
     # Categorical data
-    "categorical": ["BarChartOne"],
+    "categorical": ["BarChartOne", "PieChart", "RadialChart"],
     # Comparison data
-    "comparison": ["BarChartOne"],
+    "comparison": ["BarChartOne", "RadarChart", "HeatmapChart"],
     # Multi-dimensional analysis
-    "correlation": ["BarChartOne"],
+    "correlation": ["ScatterChart", "HeatmapChart", "RadarChart"],
     # Performance metrics
-    "performance": ["BarChartOne", "LineChartOne"],
+    "performance": ["RadarChart", "RadialChart", "BarChartOne", "LineChartOne"],
     # Distribution analysis
-    "distribution": ["BarChartOne"],
+    "distribution": ["PieChart", "BarChartOne", "HeatmapChart"],
     # Percentage/proportion data
-    "percentage": ["BarChartOne"],
+    "percentage": ["PieChart", "RadialChart", "BarChartOne"],
     # Trend analysis
-    "trends": ["LineChartOne"],
+    "trends": ["LineChartOne", "HeatmapChart"],
+    # Relationship analysis
+    "relationships": ["ScatterChart", "HeatmapChart"],
+    # Quality metrics
+    "quality": ["RadarChart", "RadialChart"],
+    # Efficiency metrics
+    "efficiency": ["RadarChart", "RadialChart", "BarChartOne"],
     # Simple comparison
-    "simple": ["BarChartOne"],
+    "simple": ["BarChartOne", "PieChart"],
     # Default
-    "default": ["BarChartOne"],
+    "default": ["BarChartOne", "LineChartOne"],
 }
 
 
@@ -4074,7 +4080,7 @@ First, analyze the data to determine the business type, then generate comprehens
                 "id": "unique-chart-id",
                 "display_name": "Human readable chart name",
                 "technical_name": "chart_technical_name",
-                "chart_type": "bar|pie|line",
+                "chart_type": "bar|pie|line|radar|scatter|heatmap|radial",
                 "data": [
                     {{
                         "name": "category name",
@@ -4139,12 +4145,14 @@ COMPREHENSIVE ANALYSIS REQUIREMENTS:
    - Customer metrics (customer count, satisfaction, retention)
    - Financial metrics (profit margins, costs, growth rates)
    - Inventory metrics (stock levels, turnover, availability)
-3. Generate 4-6 relevant charts with appropriate chart types:
-   - Distribution charts (pie, bar) for categories and segments
-   - Trend charts (line) for time-based data
-   - Comparison charts (bar) for performance metrics
-   - Correlation charts for relationships between variables
-4. Generate 3-4 comprehensive tables with actionable data:
+3. Generate 6-8 DIVERSE charts with strategic chart type selection:
+   - Distribution charts (pie, radial) for market share and proportions
+   - Trend charts (line, heatmap) for time-based patterns and performance over time
+   - Comparison charts (bar, radar) for competitive analysis and benchmarking
+   - Correlation charts (scatter, heatmap) for relationships between variables
+   - Performance charts (radar, radial) for multi-dimensional KPI analysis
+   - Quality/efficiency charts (radar, heatmap) for operational excellence
+4. Generate 3-8 comprehensive tables with actionable data:
    - Top performers (products, customers, regions)
    - Detailed breakdowns with multiple columns
    - Comparative analysis tables
@@ -4166,6 +4174,21 @@ DETAILED ANALYSIS GUIDELINES:
 - For SaaS data: Focus on MRR, churn, customer acquisition, feature usage, subscription metrics
 - For manufacturing data: Focus on production efficiency, quality metrics, supply chain, inventory management
 - For healthcare data: Focus on patient outcomes, operational efficiency, resource utilization, quality metrics
+
+CHART TYPE SELECTION GUIDELINES:
+- BAR CHARTS: Use for categorical comparisons, rankings, and simple metric comparisons
+- PIE CHARTS: Use for market share, budget allocation, distribution percentages (ensure data adds to 100%)
+- LINE CHARTS: Use for trends over time, growth patterns, performance tracking
+- RADAR CHARTS: Use for multi-dimensional performance analysis (3-8 metrics), competitive analysis, skill assessments
+- SCATTER CHARTS: Use for correlation analysis, relationship exploration between two variables
+- HEATMAP CHARTS: Use for time-based patterns, performance matrices, geographical data, intensity visualization
+- RADIAL CHARTS: Use for progress indicators, completion rates, satisfaction scores (percentage-based data)
+
+DATA STRUCTURE REQUIREMENTS BY CHART TYPE:
+- Radar charts: Need 3-8 performance dimensions with scores 0-100
+- Scatter charts: Need x,y coordinate pairs showing relationships
+- Heatmap charts: Need matrix data (categories vs time periods or metrics)  
+- Radial charts: Need raw values that will be converted to percentages (value/total * 100%)
 
 BUSINESS TYPE DETECTION:
 Analyze the data structure and content to determine:
@@ -4240,23 +4263,19 @@ Return ONLY the JSON response, no additional text or explanations.
     def _parse_llm_insights(
         self, llm_response: str, data_records: List[Dict]
     ) -> Dict[str, Any]:
-        """Parse LLM response into structured insights format"""
+        """Parse and structure LLM response into standardized format"""
         try:
-            import json
+            logger.info(f"🔄 Parsing LLM response ({len(llm_response)} characters)")
 
-            # Clean the response (remove markdown if present)
-            cleaned_response = llm_response
-            if llm_response.startswith("```json"):
-                cleaned_response = llm_response.split("```json")[1].split("```")[0]
-            elif llm_response.startswith("```"):
-                cleaned_response = llm_response.split("```")[1]
+            # Clean up the response
+            cleaned_response = self._fix_malformed_json(llm_response)
 
             # Parse JSON response
             parsed_data = json.loads(cleaned_response.strip())
 
             # Check if it's the new standardized format
             if "dashboard_data" in parsed_data:
-                # New standardized format - extract from dashboard_data
+                # New standardized format - extract from dashboard_data and flatten for compatibility
                 dashboard_data = parsed_data.get("dashboard_data", {})
                 business_analysis = parsed_data.get("business_analysis", {})
                 kpis = dashboard_data.get("kpis", [])
@@ -4272,6 +4291,7 @@ Return ONLY the JSON response, no additional text or explanations.
                     f"🏢 Business type detected: {business_analysis.get('business_type', 'unknown')}"
                 )
 
+                # 🔧 CRITICAL FIX: Return flattened structure for dashboard/metrics compatibility
                 return {
                     "business_analysis": business_analysis,
                     "kpis": kpis,
@@ -4325,7 +4345,6 @@ Return ONLY the JSON response, no additional text or explanations.
 
             except Exception as fix_error:
                 logger.warning(f"⚠️ JSON fix also failed: {fix_error}")
-                logger.warning(f"⚠️ Using fallback analysis due to JSON issues")
                 raise e  # This will trigger fallback analysis
 
         except Exception as e:
