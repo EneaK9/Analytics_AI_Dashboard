@@ -41,7 +41,6 @@ interface DashboardOption {
 	template_type: string;
 	color: string;
 	isActive: boolean;
-	customTemplateData?: any; // For AI-generated custom templates
 }
 
 interface SelectContentProps {
@@ -71,91 +70,19 @@ export default function SelectContent({
 		}
 
 		try {
-			console.log(
-				`🎨 Generating CUSTOM dashboard options for client ${user.client_id}`
-			);
+			console.log(`🎨 Loading dashboard options for client ${user.client_id}`);
 
-			// 🚀 NEW: Generate custom intelligent templates
-			const customTemplatesResponse = await api.post(
-				"/dashboard/generate-custom",
-				{
-					template_count: 3,
-					force_regenerate: false,
-					business_context_override: null,
-				}
-			);
-
-			console.log(
-				"🤖 Custom templates response:",
-				customTemplatesResponse.data
-			);
-
-			if (
-				customTemplatesResponse.data.success &&
-				customTemplatesResponse.data.templates
-			) {
-				// Create dashboard options from AI-generated custom templates
-				const customTemplates = await generateCustomDashboardOptions(
-					customTemplatesResponse.data.templates,
-					customTemplatesResponse.data.business_intelligence,
-					user.company_name
-				);
-				setDashboardOptions(customTemplates);
-			} else {
-				// Fallback to old template system if custom generation fails
-				console.warn("⚠️ Custom template generation failed, using fallback");
-				const fallbackOptions = createFallbackDashboards(user.company_name);
-				setDashboardOptions(fallbackOptions);
-			}
+			// Use the predefined fallback dashboards as the main template system
+			const dashboards = createFallbackDashboards(user.company_name);
+			setDashboardOptions(dashboards);
 			setLoading(false);
 		} catch (error) {
-			console.error("Failed to generate custom dashboard options:", error);
-			// Create fallback options
+			console.error("Failed to load dashboard options:", error);
 			const fallbackOptions = createFallbackDashboards(user.company_name);
 			setDashboardOptions(fallbackOptions);
 			setLoading(false);
 		}
 	}, [user?.client_id, user?.company_name]);
-
-	// 🚀 NEW: Generate dashboard options from AI-generated custom templates
-	const generateCustomDashboardOptions = async (
-		customTemplates: any[],
-		businessDNA: any,
-		companyName: string
-	): Promise<DashboardOption[]> => {
-		const templates: DashboardOption[] = [];
-
-		// Main dashboard (always present - but now AI-enhanced)
-		templates.push({
-			id: "0",
-			title: companyName || "Analytics Dashboard",
-			subtitle: "AI-Enhanced Overview",
-			icon: <DashboardIcon />,
-			template_type: "main",
-			color: "primary.main",
-			isActive: true,
-		});
-
-		// Add AI-generated custom templates
-		customTemplates.forEach((template, index) => {
-			templates.push({
-				id: (index + 1).toString(),
-				title: template.name || `Custom Template ${index + 1}`,
-				subtitle: template.description || "AI-Generated Dashboard",
-				icon: index === 0 ? <AssessmentIcon /> : <InsightsIcon />,
-				template_type: `custom_${index + 1}`,
-				color: index === 0 ? "success.main" : "info.main",
-				isActive: false,
-				// Store custom template data for later use
-				customTemplateData: template,
-			});
-		});
-
-		console.log(
-			`🎨 Generated ${templates.length} dashboard options with AI intelligence`
-		);
-		return templates;
-	};
 
 	// Create fallback dashboards when API fails
 	const createFallbackDashboards = (companyName: string): DashboardOption[] => {

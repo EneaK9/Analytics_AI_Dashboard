@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Form, UploadFile, File
+﻿from fastapi import FastAPI, HTTPException, Depends, Form, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 import os
@@ -40,51 +40,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ==================== TEMPLATE PRE-GENERATION ====================
 
-async def _pre_generate_templates_for_client(client_id: str):
-    """Pre-generate templates for a client after data upload - runs in background"""
-    try:
-        logger.info(f"🎨 Starting template pre-generation for client {client_id}")
-        
-        # Import here to avoid circular imports
-        from dashboard_orchestrator import dashboard_orchestrator
-        import uuid
-        
-        # Generate LLM analysis and cache it
-        client_data = await dashboard_orchestrator.ai_analyzer.get_client_data(client_id)
-        if not client_data:
-            logger.warning(f"⚠️ No data found for client {client_id}, skipping template generation")
-            return
-        
-        # Pre-run the expensive LLM analysis to cache it
-        logger.info(f"🤖 Pre-generating LLM analysis for client {client_id}")
-        business_insights = await dashboard_orchestrator._generate_ai_business_context(
-            uuid.UUID(client_id), client_data
-        )
-        
-        if business_insights and "error" not in business_insights:
-            logger.info(f"✅ Pre-generated LLM analysis cached for client {client_id}")
-            
-            # Also pre-generate the main dashboard template
-            try:
-                logger.info(f"🎯 Pre-generating main dashboard template for client {client_id}")
-                dashboard_config = await dashboard_orchestrator.generate_dashboard(
-                    client_id=client_id,
-                    template_type="main",
-                    force_regenerate=False
-                )
-                if dashboard_config and not hasattr(dashboard_config, 'error'):
-                    logger.info(f"✅ Main dashboard template pre-generated for client {client_id}")
-                else:
-                    logger.warning(f"⚠️ Main dashboard template generation had issues for client {client_id}")
-            except Exception as template_error:
-                logger.warning(f"⚠️ Dashboard template pre-generation failed for client {client_id}: {template_error}")
-        else:
-            logger.warning(f"⚠️ LLM analysis failed for client {client_id}, templates not pre-generated")
-            
-    except Exception as e:
-        logger.error(f"❌ Template pre-generation failed for client {client_id}: {e}")
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -150,7 +106,7 @@ def verify_token(token: str):
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 DEBUG = os.getenv("DEBUG", "true").lower() == "true"
 
-logger.info(f"🚀 Starting Analytics AI Dashboard API in {ENVIRONMENT} mode")
+logger.info(f"ðŸš€ Starting Analytics AI Dashboard API in {ENVIRONMENT} mode")
 
 # ==================== BASIC ENDPOINTS ====================
 
@@ -255,7 +211,7 @@ async def superadmin_diagnostics(token: str = Depends(security)):
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
-        logger.error(f"❌ Diagnostics failed: {e}")
+        logger.error(f"âŒ Diagnostics failed: {e}")
         return {
             "status": "error", 
             "message": "Diagnostics failed",
@@ -302,7 +258,7 @@ async def superadmin_login(admin_data: SuperAdminLogin):
             data={"admin_id": "superadmin", "username": admin_data.username, "role": "superadmin"}
         )
         
-        logger.info(f"✅ Superadmin logged in: {admin_data.username}")
+        logger.info(f"âœ… Superadmin logged in: {admin_data.username}")
         
         return Token(
             access_token=access_token,
@@ -313,26 +269,26 @@ async def superadmin_login(admin_data: SuperAdminLogin):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Superadmin login failed: {e}")
+        logger.error(f"âŒ Superadmin login failed: {e}")
         raise HTTPException(status_code=500, detail="Login failed")
 
 def verify_superadmin_token(token: str):
     """Verify superadmin JWT token"""
     try:
-        logger.info(f"🔍 Verifying superadmin token: {token[:20]}...")
+        logger.info(f"ðŸ” Verifying superadmin token: {token[:20]}...")
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        logger.info(f"🔍 Token payload: {payload}")
+        logger.info(f"ðŸ” Token payload: {payload}")
         role = payload.get("role")
         if role != "superadmin":
-            logger.error(f"❌ Invalid role: {role}, expected 'superadmin'")
+            logger.error(f"âŒ Invalid role: {role}, expected 'superadmin'")
             raise HTTPException(status_code=403, detail="Superadmin access required")
-        logger.info(f"✅ Superadmin token verified successfully")
+        logger.info(f"âœ… Superadmin token verified successfully")
         return payload
     except jwt.ExpiredSignatureError:
-        logger.error(f"❌ Token expired")
+        logger.error(f"âŒ Token expired")
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.JWTError as e:
-        logger.error(f"❌ JWT Error: {str(e)}")
+        logger.error(f"âŒ JWT Error: {str(e)}")
         raise HTTPException(status_code=401, detail="Invalid token")
 
 # ==================== AUTHENTICATION ====================
@@ -362,7 +318,7 @@ async def login(client_data: ClientLogin):
             data={"client_id": client['client_id'], "email": client['email']}
         )
         
-        logger.info(f"✅ Client logged in: {client['email']}")
+        logger.info(f"âœ… Client logged in: {client['email']}")
         
         return Token(
             access_token=access_token,
@@ -373,7 +329,7 @@ async def login(client_data: ClientLogin):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Login failed: {e}")
+        logger.error(f"âŒ Login failed: {e}")
         raise HTTPException(status_code=500, detail="Login failed")
 
 @app.get("/api/auth/me")
@@ -397,7 +353,7 @@ async def get_current_user(token: str = Depends(security)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get current user: {e}")
+        logger.error(f"âŒ Failed to get current user: {e}")
         raise HTTPException(status_code=500, detail="Failed to get user info")
 
 # ==================== CLIENT MANAGEMENT ====================
@@ -423,13 +379,13 @@ async def create_client(client_data: ClientCreate):
         
         if response.data:
             client = response.data[0]
-            logger.info(f"✅ Created client: {client['email']}")
+            logger.info(f"âœ… Created client: {client['email']}")
             return ClientResponse(**client)
         else:
             raise HTTPException(status_code=400, detail="Failed to create client")
             
     except Exception as e:
-        logger.error(f"❌ Client creation failed: {e}")
+        logger.error(f"âŒ Client creation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Client creation failed: {str(e)}")
 
 @app.get("/api/admin/clients")
@@ -444,7 +400,7 @@ async def list_clients():
         return {"clients": response.data}
         
     except Exception as e:
-        logger.error(f"❌ Failed to list clients: {e}")
+        logger.error(f"âŒ Failed to list clients: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== SUPERADMIN CLIENT MANAGEMENT ====================
@@ -490,11 +446,11 @@ async def create_client_superadmin(
             
         client = response.data[0]
         client_id = client['client_id']
-        logger.info(f"✅ Client created INSTANTLY: {email}")
+        logger.info(f"âœ… Client created INSTANTLY: {email}")
         
         # MOVE AI DASHBOARD GENERATION TO AFTER DATA STORAGE IS COMPLETE!
         
-        # 🚀 DIRECT DATA STORAGE - NO AI BULLSHIT!
+        # ðŸš€ DIRECT DATA STORAGE - NO AI BULLSHIT!
         if (input_method == "paste" and data_content) or (input_method == "upload" and uploaded_file):
             try:
                 raw_data = ""
@@ -504,7 +460,7 @@ async def create_client_superadmin(
                     file_content = await uploaded_file.read()
                     raw_data = file_content.decode('utf-8')
                 
-                # 🔥 UNIVERSAL DATA PARSING - ALL FORMATS → JSON with BATCH PROCESSING
+                # ðŸ”¥ UNIVERSAL DATA PARSING - ALL FORMATS â†’ JSON with BATCH PROCESSING
                 if raw_data:
                     # Simple schema entry
                     db_client.table("client_schemas").insert({
@@ -521,7 +477,7 @@ async def create_client_superadmin(
                         parsed_records = universal_parser.parse_to_json(raw_data, data_type)
                         
                         if parsed_records:
-                            logger.info(f"🔄 {data_type.upper()} parsed to {len(parsed_records)} JSON records")
+                            logger.info(f"ðŸ”„ {data_type.upper()} parsed to {len(parsed_records)} JSON records")
                             
                             # BATCH INSERT - Same logic for ALL formats!
                             batch_rows = []
@@ -537,17 +493,17 @@ async def create_client_superadmin(
                             # OPTIMIZED BATCH INSERT for ALL formats with retry logic
                             if batch_rows:
                                 total_inserted = await improved_batch_insert(db_client, batch_rows, data_type)
-                                logger.info(f"🚀 TOTAL {data_type.upper()}: {total_inserted} rows inserted successfully!")
+                                logger.info(f"ðŸš€ TOTAL {data_type.upper()}: {total_inserted} rows inserted successfully!")
                                 
-                                # 📊 PERFORMANCE MONITORING for large datasets
+                                # ðŸ“Š PERFORMANCE MONITORING for large datasets
                                 if len(parsed_records) > 10000:  # Track performance for large uploads
                                     success_rate = (total_inserted/len(parsed_records)*100)
-                                    logger.info(f"📊 LARGE DATASET PERFORMANCE REPORT:")
-                                    logger.info(f"   📋 Dataset: {len(parsed_records)} total records")
-                                    logger.info(f"   ✅ Inserted: {total_inserted} records")
-                                    logger.info(f"   📈 Success Rate: {success_rate:.1f}%")
-                                    logger.info(f"   ⏱️  Processing: Optimized chunking with retry logic")
-                                    logger.info(f"   🎯 Client: {email}")
+                                    logger.info(f"ðŸ“Š LARGE DATASET PERFORMANCE REPORT:")
+                                    logger.info(f"   ðŸ“‹ Dataset: {len(parsed_records)} total records")
+                                    logger.info(f"   âœ… Inserted: {total_inserted} records")
+                                    logger.info(f"   ðŸ“ˆ Success Rate: {success_rate:.1f}%")
+                                    logger.info(f"   â±ï¸  Processing: Optimized chunking with retry logic")
+                                    logger.info(f"   ðŸŽ¯ Client: {email}")
                                     
                                     # Record performance metrics for monitoring
                                     try:
@@ -560,28 +516,28 @@ async def create_client_superadmin(
                                             "data_type": data_type,
                                             "timestamp": datetime.utcnow().isoformat()
                                         }).execute()
-                                        logger.info(f"📊 Performance metrics recorded for {email}")
+                                        logger.info(f"ðŸ“Š Performance metrics recorded for {email}")
                                     except Exception as metrics_error:
-                                        logger.warning(f"⚠️ Could not record performance metrics: {metrics_error}")
+                                        logger.warning(f"âš ï¸ Could not record performance metrics: {metrics_error}")
                                 
                         else:
                             raise ValueError(f"{data_type.upper()} parsing returned no records")
                             
                     except Exception as parse_error:
-                        logger.error(f"❌ {data_type.upper()} parsing failed: {parse_error}")
+                        logger.error(f"âŒ {data_type.upper()} parsing failed: {parse_error}")
                         # Fallback: store as raw text (old behavior)
                         db_client.table("client_data").insert({
                             "client_id": client_id,
                             "table_name": f"client_{client_id.replace('-', '_')}_data",
                             "data": {"raw_content": raw_data, "type": data_type}
                         }).execute()
-                        logger.info(f"⚠️  {data_type.upper()} stored as fallback raw text")
+                        logger.info(f"âš ï¸  {data_type.upper()} stored as fallback raw text")
                     
-                    logger.info(f"⚡ Data stored DIRECTLY for {email} - NOW TRIGGER AI!")
+                    logger.info(f"âš¡ Data stored DIRECTLY for {email} - NOW TRIGGER AI!")
                     
-                    # 🎯 NOW TRIGGER AI DASHBOARD GENERATION AFTER DATA IS SAFELY STORED
+                    # ðŸŽ¯ NOW TRIGGER AI DASHBOARD GENERATION AFTER DATA IS SAFELY STORED
                     try:
-                        logger.info(f"🚀 NOW triggering AI dashboard generation for {email} (data is ready!)")
+                        logger.info(f"ðŸš€ NOW triggering AI dashboard generation for {email} (data is ready!)")
                         
                         # IMPROVED: Better error handling and more robust generation
                         async def robust_dashboard_generation():
@@ -590,30 +546,30 @@ async def create_client_superadmin(
                                 # Wait a moment to ensure data is committed
                                 await asyncio.sleep(1)
                                 
-                                logger.info(f"🤖 AI dashboard generation starting for {email} (data confirmed!)")
+                                logger.info(f"ðŸ¤– AI dashboard generation starting for {email} (data confirmed!)")
                                 
                                 # Import here to avoid circular imports (with error handling)
                                 try:
                                     from dashboard_orchestrator import dashboard_orchestrator
-                                    logger.info(f"✅ Dashboard orchestrator imported successfully for {email}")
+                                    logger.info(f"âœ… Dashboard orchestrator imported successfully for {email}")
                                 except Exception as import_error:
-                                    logger.error(f"❌ Failed to import dashboard_orchestrator: {import_error}")
+                                    logger.error(f"âŒ Failed to import dashboard_orchestrator: {import_error}")
                                     return
                                 
-                                # 💾 PRE-CACHE LLM ANALYSIS DURING CLIENT CREATION (PERFORMANCE BOOST!)
+                                # ðŸ’¾ PRE-CACHE LLM ANALYSIS DURING CLIENT CREATION (PERFORMANCE BOOST!)
                                 try:
-                                    logger.info(f"🧠 Pre-caching LLM analysis for {email} to avoid future delays...")
+                                    logger.info(f"ðŸ§  Pre-caching LLM analysis for {email} to avoid future delays...")
                                     
                                     # Get client data and run LLM analysis once
                                     client_data = await dashboard_orchestrator.ai_analyzer.get_client_data_optimized(client_id)
                                     if client_data and client_data.get('data'):
                                         # This will cache the results automatically
                                         await dashboard_orchestrator._extract_business_insights_from_data(client_data)
-                                        logger.info(f"✅ LLM analysis pre-cached for {email}!")
+                                        logger.info(f"âœ… LLM analysis pre-cached for {email}!")
                                     else:
-                                        logger.warning(f"⚠️ No data found for LLM pre-caching for {email}")
+                                        logger.warning(f"âš ï¸ No data found for LLM pre-caching for {email}")
                                 except Exception as cache_error:
-                                    logger.warning(f"⚠️ LLM analysis pre-caching failed for {email}: {cache_error}")
+                                    logger.warning(f"âš ï¸ LLM analysis pre-caching failed for {email}: {cache_error}")
                                     # Continue with dashboard generation even if caching fails
                                 
                                 # Generate dashboard with detailed error handling
@@ -624,19 +580,19 @@ async def create_client_superadmin(
                                     )
                                     
                                     if generation_response.success:
-                                        logger.info(f"✅ AI Dashboard completed successfully for {email}!")
-                                        logger.info(f"📊 Generated {generation_response.metrics_generated} metrics for {email}")
+                                        logger.info(f"âœ… AI Dashboard completed successfully for {email}!")
+                                        logger.info(f"ðŸ“Š Generated {generation_response.metrics_generated} metrics for {email}")
                                     else:
-                                        logger.error(f"❌ AI Dashboard failed for {email}: {generation_response.message}")
+                                        logger.error(f"âŒ AI Dashboard failed for {email}: {generation_response.message}")
                                         
                                 except Exception as gen_error:
-                                    logger.error(f"❌ Dashboard generation threw exception for {email}: {type(gen_error).__name__}: {str(gen_error)}")
+                                    logger.error(f"âŒ Dashboard generation threw exception for {email}: {type(gen_error).__name__}: {str(gen_error)}")
                                     # Log full traceback for debugging
                                     import traceback
                                     logger.error(f"Full traceback: {traceback.format_exc()}")
                                     
                             except Exception as outer_error:
-                                logger.error(f"❌ Outer AI dashboard generation error for {email}: {type(outer_error).__name__}: {str(outer_error)}")
+                                logger.error(f"âŒ Outer AI dashboard generation error for {email}: {type(outer_error).__name__}: {str(outer_error)}")
                                 import traceback
                                 logger.error(f"Full outer traceback: {traceback.format_exc()}")
                         
@@ -644,30 +600,30 @@ async def create_client_superadmin(
                         try:
                             task = asyncio.create_task(robust_dashboard_generation())
                             # Don't await the task - let it run in background
-                            logger.info(f"🎯 AI Dashboard generation task created successfully for {email}")
+                            logger.info(f"ðŸŽ¯ AI Dashboard generation task created successfully for {email}")
                         except Exception as task_error:
-                            logger.error(f"❌ Failed to create background task for {email}: {task_error}")
+                            logger.error(f"âŒ Failed to create background task for {email}: {task_error}")
                         
                     except Exception as ai_trigger_error:
-                        logger.error(f"⚠️  Failed to trigger AI generation for {email}: {type(ai_trigger_error).__name__}: {str(ai_trigger_error)}")
+                        logger.error(f"âš ï¸  Failed to trigger AI generation for {email}: {type(ai_trigger_error).__name__}: {str(ai_trigger_error)}")
                         # Log full traceback for better debugging
                         import traceback
                         logger.error(f"Full AI trigger traceback: {traceback.format_exc()}")
                         # Don't let this break client creation
                         logger.info(f"Client {email} created successfully even though AI generation failed")
             except Exception as storage_error:
-                logger.warning(f"⚠️ Direct storage failed: {storage_error} - client created anyway")
+                logger.warning(f"âš ï¸ Direct storage failed: {storage_error} - client created anyway")
         
         # Return client response immediately - dashboard generates in background AFTER data storage
         client_response = ClientResponse(**client)
-        logger.info(f"🎯 INSTANT: Client {email} created! Dashboard will generate after data is ready...")
+        logger.info(f"ðŸŽ¯ INSTANT: Client {email} created! Dashboard will generate after data is ready...")
         
         return client_response
             
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Superadmin client creation failed: {e}")
+        logger.error(f"âŒ Superadmin client creation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Client creation failed: {str(e)}")
 
 # REMOVED: No more background AI processing - direct storage only!
@@ -676,7 +632,7 @@ async def create_client_superadmin(
 async def list_clients_superadmin(token: str = Depends(security)):
     """Superadmin: SUPER FAST client list - NO AI, JUST DATABASE"""
     try:
-        logger.info(f"⚡ LIGHTNING FAST superadmin clients request")
+        logger.info(f"âš¡ LIGHTNING FAST superadmin clients request")
         # Verify superadmin token
         verify_superadmin_token(token.credentials)
         
@@ -688,7 +644,7 @@ async def list_clients_superadmin(token: str = Depends(security)):
         clients_response = db_client.table("clients").select("*").order("created_at", desc=True).execute()
         
         if not clients_response.data:
-            logger.info(f"✅ No clients found")
+            logger.info(f"âœ… No clients found")
             return {"clients": [], "total": 0}
         
         # FAST BASIC RESPONSES - NO HEAVY QUERIES
@@ -715,7 +671,7 @@ async def list_clients_superadmin(token: str = Depends(security)):
                             all_data_response = db_client.table("client_data").select("client_id").eq("client_id", client['client_id']).limit(10000).execute()
                             data_count = len(all_data_response.data) if all_data_response.data else 0
                     except Exception as count_error:
-                        logger.warning(f"⚠️  Count query failed, trying manual count: {count_error}")
+                        logger.warning(f"âš ï¸  Count query failed, trying manual count: {count_error}")
                         # Final fallback: manual count
                         try:
                             manual_count_response = db_client.table("client_data").select("client_id").eq("client_id", client['client_id']).limit(10000).execute()
@@ -724,7 +680,7 @@ async def list_clients_superadmin(token: str = Depends(security)):
                             data_count = 0
             except Exception as e:
                 # If anything fails, just continue with defaults
-                logger.warning(f"⚠️  Failed to get data count for client {client['client_id']}: {e}")
+                logger.warning(f"âš ï¸  Failed to get data count for client {client['client_id']}: {e}")
                 pass
             
             basic_clients.append({
@@ -744,7 +700,7 @@ async def list_clients_superadmin(token: str = Depends(security)):
                 } if schema_exists else None
             })
             
-        logger.info(f"⚡ LIGHTNING FAST: {len(basic_clients)} clients loaded")
+        logger.info(f"âš¡ LIGHTNING FAST: {len(basic_clients)} clients loaded")
         
         return {
             "clients": basic_clients,
@@ -756,7 +712,7 @@ async def list_clients_superadmin(token: str = Depends(security)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to list clients: {e}")
+        logger.error(f"âŒ Failed to list clients: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/superadmin/clients/{client_id}")
@@ -774,7 +730,7 @@ async def delete_client_superadmin(client_id: str, token: str = Depends(security
         response = db_client.table("clients").delete().eq("client_id", client_id).execute()
         
         if response.data:
-            logger.info(f"✅ Superadmin deleted client: {client_id}")
+            logger.info(f"âœ… Superadmin deleted client: {client_id}")
             return {"message": "Client deleted successfully"}
         else:
             raise HTTPException(status_code=404, detail="Client not found")
@@ -782,7 +738,7 @@ async def delete_client_superadmin(client_id: str, token: str = Depends(security
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to delete client: {e}")
+        logger.error(f"âŒ Failed to delete client: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== API INTEGRATIONS ====================
@@ -842,7 +798,7 @@ async def create_client_with_api_integration(
             
         client = response.data[0]
         client_id = client['client_id']
-        logger.info(f"✅ Client created for API integration: {email}")
+        logger.info(f"âœ… Client created for API integration: {email}")
         
         # Prepare API credentials based on platform type
         credentials = {}
@@ -893,7 +849,7 @@ async def create_client_with_api_integration(
             raise HTTPException(status_code=400, detail="Failed to store API credentials")
         
         credential_id = creds_response.data[0]['credential_id']
-        logger.info(f"✅ API credentials stored: {credential_id}")
+        logger.info(f"âœ… API credentials stored: {credential_id}")
         
         # Test API connection and fetch initial data
         try:
@@ -912,7 +868,7 @@ async def create_client_with_api_integration(
                 return ClientResponse(**client, message=f"Client created but API connection failed: {message}")
             
             # Connection successful, fetch initial data
-            logger.info(f"🔗 API connection successful, fetching initial data for {platform_type}")
+            logger.info(f"ðŸ”— API connection successful, fetching initial data for {platform_type}")
             
             # Fetch data from API
             all_data = await api_data_fetcher.fetch_all_data(platform_type, credentials)
@@ -968,7 +924,7 @@ async def create_client_with_api_integration(
                 "data_types_synced": list(all_data.keys())
             }).execute()
             
-            logger.info(f"✅ API integration complete: {total_records} records from {platform_type}")
+            logger.info(f"âœ… API integration complete: {total_records} records from {platform_type}")
             
             # Trigger dashboard generation in background
             try:
@@ -981,14 +937,14 @@ async def create_client_with_api_integration(
                     )
                 
                 asyncio.create_task(generate_dashboard_bg())
-                logger.info(f"🎯 Dashboard generation triggered for API integration")
+                logger.info(f"ðŸŽ¯ Dashboard generation triggered for API integration")
             except Exception as bg_error:
-                logger.warning(f"⚠️ Background dashboard generation failed: {bg_error}")
+                logger.warning(f"âš ï¸ Background dashboard generation failed: {bg_error}")
             
             return ClientResponse(**client)
             
         except Exception as api_error:
-            logger.error(f"❌ API integration failed: {api_error}")
+            logger.error(f"âŒ API integration failed: {api_error}")
             # Update status to error but don't delete client
             db_client.table("client_api_credentials").update({
                 "status": "error",
@@ -1000,7 +956,7 @@ async def create_client_with_api_integration(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ API integration client creation failed: {e}")
+        logger.error(f"âŒ API integration client creation failed: {e}")
         raise HTTPException(status_code=500, detail=f"API integration failed: {str(e)}")
 
 @app.get("/api/superadmin/api-platforms")
@@ -1023,7 +979,7 @@ async def get_api_platforms(token: str = Depends(security)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get API platforms: {e}")
+        logger.error(f"âŒ Failed to get API platforms: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/superadmin/test-api-connection")
@@ -1052,7 +1008,7 @@ async def test_api_connection(
         }
         
     except Exception as e:
-        logger.error(f"❌ API connection test failed: {e}")
+        logger.error(f"âŒ API connection test failed: {e}")
         return {
             "success": False,
             "message": f"Connection test failed: {str(e)}",
@@ -1108,7 +1064,7 @@ async def test_sftp_connection(
         }
         
     except Exception as e:
-        logger.error(f"❌ SFTP connection test failed: {e}")
+        logger.error(f"âŒ SFTP connection test failed: {e}")
         return {
             "success": False,
             "message": f"SFTP connection test failed: {str(e)}",
@@ -1162,7 +1118,7 @@ async def create_client_with_sftp_integration(
             
         client = response.data[0]
         client_id = client['client_id']
-        logger.info(f"✅ Client created for SFTP integration: {email}")
+        logger.info(f"âœ… Client created for SFTP integration: {email}")
         
         # Store SFTP configuration (encrypt password)
         import base64
@@ -1227,6 +1183,11 @@ async def create_client_with_sftp_integration(
                 
                 for filename, file_content in download_result["files"].items():
                     try:
+                        # Skip binary files that can't be processed as data
+                        if filename.lower().endswith(('.bak', '.db', '.log', '.tmp', '.exe', '.dll', '.zip', '.tar', '.gz')):
+                            logger.info(f"â­ï¸ Skipping binary file: {filename}")
+                            continue
+                        
                         # Detect file format
                         if filename.lower().endswith('.csv'):
                             data_format = 'csv'
@@ -1240,11 +1201,16 @@ async def create_client_with_sftp_integration(
                             data_format = 'csv'  # Default to CSV
                         
                         # Parse file content to JSON
-                        file_str = file_content.decode('utf-8') if isinstance(file_content, bytes) else file_content
+                        try:
+                            file_str = file_content.decode('utf-8') if isinstance(file_content, bytes) else file_content
+                        except UnicodeDecodeError:
+                            logger.warning(f"âš ï¸ Cannot decode {filename} as UTF-8, skipping...")
+                            continue
+                            
                         parsed_records = universal_parser.parse_to_json(file_str, data_format)
                         
                         if parsed_records:
-                            logger.info(f"🔄 SFTP file {filename} parsed to {len(parsed_records)} JSON records")
+                            logger.info(f"ðŸ”„ SFTP file {filename} parsed to {len(parsed_records)} JSON records")
                             
                             # Store records in database
                             batch_rows = []
@@ -1263,10 +1229,10 @@ async def create_client_with_sftp_integration(
                                 db_client.table("client_data").insert(batch_rows).execute()
                                 total_records += len(batch_rows)
                                 files_processed += 1
-                                logger.info(f"✅ Stored {len(batch_rows)} records from {filename}")
+                                logger.info(f"âœ… Stored {len(batch_rows)} records from {filename}")
                         
                     except Exception as file_error:
-                        logger.error(f"❌ Failed to process SFTP file {filename}: {file_error}")
+                        logger.error(f"âŒ Failed to process SFTP file {filename}: {file_error}")
                         continue
                 
                 # Create schema entry
@@ -1282,7 +1248,7 @@ async def create_client_with_sftp_integration(
                     }
                 }).execute()
                 
-                logger.info(f"✅ SFTP integration complete: {files_processed} files, {total_records} records")
+                logger.info(f"âœ… SFTP integration complete: {files_processed} files, {total_records} records")
         
         # Log SFTP sync
         db_client.table("sftp_sync_logs").insert({
@@ -1300,11 +1266,12 @@ async def create_client_with_sftp_integration(
             company_name=company_name,
             email=email,
             subscription_tier="basic",
-            created_at=client['created_at']
+            created_at=client['created_at'],
+            updated_at=client.get('updated_at', client['created_at'])  # Use created_at as fallback
         )
         
     except Exception as e:
-        logger.error(f"❌ Failed to create SFTP client: {e}")
+        logger.error(f"âŒ Failed to create SFTP client: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create SFTP client: {str(e)}")
 
 # ==================== MASSIVE DATA PROCESSING ====================
@@ -1315,7 +1282,7 @@ async def _handle_massive_dataset_upload(client_id: str, df, quality_report):
         import asyncio
         from concurrent.futures import ThreadPoolExecutor
         
-        logger.info(f"🚀 MASSIVE DATA PROCESSING: {len(df)} rows for client {client_id}")
+        logger.info(f"ðŸš€ MASSIVE DATA PROCESSING: {len(df)} rows for client {client_id}")
         
         # Convert to JSON records in parallel chunks
         chunk_size = 5000
@@ -1339,7 +1306,7 @@ async def _handle_massive_dataset_upload(client_id: str, df, quality_report):
         for chunk_records in processed_chunks:
             all_records.extend(chunk_records)
         
-        logger.info(f"✅ PARALLEL PROCESSING complete: {len(all_records)} records ready")
+        logger.info(f"âœ… PARALLEL PROCESSING complete: {len(all_records)} records ready")
         
         # Use optimized batch insert
         db_client = get_admin_client()
@@ -1347,14 +1314,14 @@ async def _handle_massive_dataset_upload(client_id: str, df, quality_report):
         
         return {
             "success": True,
-            "message": f"🚀 MASSIVE UPLOAD SUCCESS: {total_inserted} records processed",
+            "message": f"ðŸš€ MASSIVE UPLOAD SUCCESS: {total_inserted} records processed",
             "records_processed": total_inserted,
             "processing_mode": "PARALLEL_MASSIVE",
             "quality_score": quality_report.overall_score if hasattr(quality_report, 'overall_score') else 95.0
         }
         
     except Exception as e:
-        logger.error(f"❌ Massive dataset processing failed: {e}")
+        logger.error(f"âŒ Massive dataset processing failed: {e}")
         raise HTTPException(status_code=500, detail=f"Massive dataset processing failed: {str(e)}")
 
 # ==================== DATA UPLOAD & ANALYSIS ====================
@@ -1363,10 +1330,10 @@ async def _handle_massive_dataset_upload(client_id: str, df, quality_report):
 async def upload_client_data(upload_data: CreateSchemaRequest):
     """Super Admin: Upload data for a client and create their schema - ENHANCED VERSION"""
     try:
-        logger.info(f"🔄 Processing data upload for client {upload_data.client_id}")
+        logger.info(f"ðŸ”„ Processing data upload for client {upload_data.client_id}")
         
-        # 🔥 STEP 1: Use SIMPLE reliable CSV parser - ALL CSV ROWS → JSON
-        logger.info(f"🔄 Parsing {upload_data.data_format} with RELIABLE CSV-to-JSON conversion...")
+        # ðŸ”¥ STEP 1: Use SIMPLE reliable CSV parser - ALL CSV ROWS â†’ JSON
+        logger.info(f"ðŸ”„ Parsing {upload_data.data_format} with RELIABLE CSV-to-JSON conversion...")
         
         try:
             # Use simple CSV parser that works without dependencies
@@ -1381,7 +1348,7 @@ async def upload_client_data(upload_data: CreateSchemaRequest):
                 if not standardized_data:
                     raise ValueError("Failed to parse CSV data")
                     
-                logger.info(f"✅ CSV→JSON conversion complete: {len(standardized_data)} records")
+                logger.info(f"âœ… CSVâ†’JSON conversion complete: {len(standardized_data)} records")
                 
                 # Extract column info from first record
                 if standardized_data:
@@ -1435,20 +1402,20 @@ async def upload_client_data(upload_data: CreateSchemaRequest):
                                     'type': type(value).__name__ if value is not None else 'str'
                                 })
                     
-                    logger.info(f"✅ JSON parsing complete: {len(standardized_data)} records")
+                    logger.info(f"âœ… JSON parsing complete: {len(standardized_data)} records")
                     
                 except json.JSONDecodeError as e:
                     raise ValueError(f"Invalid JSON format: {e}")
             
         except Exception as parse_error:
-            logger.error(f"❌ Parsing failed: {parse_error}")
+            logger.error(f"âŒ Parsing failed: {parse_error}")
             raise HTTPException(status_code=400, detail=f"Data parsing failed: {str(parse_error)}")
         
-        logger.info(f"📊 Successfully parsed {len(standardized_data)} records from {format_type}")
-        logger.info(f"📋 Detected columns: {[col['name'] for col in columns_info]}")
+        logger.info(f"ðŸ“Š Successfully parsed {len(standardized_data)} records from {format_type}")
+        logger.info(f"ðŸ“‹ Detected columns: {[col['name'] for col in columns_info]}")
         
         # STEP 2: Generate AI analysis using standardized JSON data
-        logger.info("🤖 Starting AI analysis of standardized JSON data...")
+        logger.info("ðŸ¤– Starting AI analysis of standardized JSON data...")
         ai_result = await ai_analyzer.analyze_data(
             json.dumps(standardized_data[:100]),  # Send first 100 records as JSON string
             upload_data.data_format, 
@@ -1468,8 +1435,8 @@ async def upload_client_data(upload_data: CreateSchemaRequest):
                 "quality_score": quality_score
             }).execute()
         
-        # 🔥 STEP 4: Store ALL standardized JSON records in database
-        logger.info(f"💾 Storing {len(standardized_data)} standardized JSON records...")
+        # ðŸ”¥ STEP 4: Store ALL standardized JSON records in database
+        logger.info(f"ðŸ’¾ Storing {len(standardized_data)} standardized JSON records...")
         rows_inserted = 0
         
         for index, json_record in enumerate(standardized_data):
@@ -1487,25 +1454,17 @@ async def upload_client_data(upload_data: CreateSchemaRequest):
                 
                 # Progress logging
                 if rows_inserted % 50 == 0:
-                    logger.info(f"📈 Inserted {rows_inserted}/{len(standardized_data)} JSON records...")
+                    logger.info(f"ðŸ“ˆ Inserted {rows_inserted}/{len(standardized_data)} JSON records...")
                     
             except Exception as row_error:
-                logger.warning(f"⚠️  Failed to store JSON record {index}: {row_error}")
+                logger.warning(f"âš ï¸  Failed to store JSON record {index}: {row_error}")
                 continue
         
-        logger.info(f"✅ Successfully stored {rows_inserted}/{len(standardized_data)} standardized JSON records!")
+        logger.info(f"âœ… Successfully stored {rows_inserted}/{len(standardized_data)} standardized JSON records!")
         
-        logger.info(f"✅ Schema created AND DATA STORED for client {upload_data.client_id}: {ai_result.data_type} with {rows_inserted} rows")
+        logger.info(f"âœ… Schema created AND DATA STORED for client {upload_data.client_id}: {ai_result.data_type} with {rows_inserted} rows")
         
-        # 🚀 PRE-GENERATE TEMPLATES AFTER DATA UPLOAD
-        try:
-            logger.info(f"🎨 Pre-generating dashboard templates for client {upload_data.client_id}")
-            # Run template generation in background to avoid blocking the response
-            asyncio.create_task(_pre_generate_templates_for_client(upload_data.client_id))
-            logger.info(f"✅ Template pre-generation started for client {upload_data.client_id}")
-        except Exception as template_error:
-            logger.warning(f"⚠️ Template pre-generation failed for client {upload_data.client_id}: {template_error}")
-            # Don't block the upload response if template generation fails
+
         
         return CreateSchemaResponse(
             success=True,
@@ -1517,19 +1476,19 @@ async def upload_client_data(upload_data: CreateSchemaRequest):
         )
         
     except Exception as e:
-        logger.error(f"❌ Data upload failed: {e}")
+        logger.error(f"âŒ Data upload failed: {e}")
         raise HTTPException(status_code=500, detail=f"Data upload failed: {str(e)}")
 
 @app.get("/api/data/{client_id}")
 async def get_client_data(client_id: str, limit: int = 100):
     """Get client-specific data - REAL DATA FROM DATABASE"""
     try:
-        logger.info(f"📊 Instant data request for client {client_id}")
+        logger.info(f"ðŸ“Š Instant data request for client {client_id}")
         
         # Get REAL data from database instead of fake samples
         db_client = get_admin_client()
         if not db_client:
-            logger.error("❌ Database not configured")
+            logger.error("âŒ Database not configured")
             raise HTTPException(status_code=503, detail="Database not configured")
         
         try:
@@ -1537,7 +1496,7 @@ async def get_client_data(client_id: str, limit: int = 100):
             response = db_client.table("client_data").select("*").eq("client_id", client_id).order("created_at", desc=True).limit(limit).execute()
             
             if not response.data:
-                logger.warning(f"⚠️  No real data found for client {client_id}")
+                logger.warning(f"âš ï¸  No real data found for client {client_id}")
                 # Return empty but valid structure
                 return {
                     "client_id": client_id,
@@ -1566,17 +1525,17 @@ async def get_client_data(client_id: str, limit: int = 100):
                             parsed_data = json.loads(record['data'])
                         else:
                             # Unknown format, skip
-                            logger.warning(f"⚠️  Unknown data format for record: {type(record['data'])}")
+                            logger.warning(f"âš ï¸  Unknown data format for record: {type(record['data'])}")
                             continue
                         
                         real_data.append(parsed_data)
                         if not table_name:
                             table_name = record.get('table_name', f"client_{client_id.replace('-', '_')}_data")
                     except json.JSONDecodeError:
-                        logger.warning(f"⚠️  Failed to parse data record: {record.get('data', '')[:100]}...")
+                        logger.warning(f"âš ï¸  Failed to parse data record: {record.get('data', '')[:100]}...")
                         continue
                     except Exception as e:
-                        logger.warning(f"⚠️  Error processing data record: {e}")
+                        logger.warning(f"âš ï¸  Error processing data record: {e}")
                         continue
             
             # Get schema information
@@ -1587,7 +1546,7 @@ async def get_client_data(client_id: str, limit: int = 100):
                 data_type = schema_data.get('data_type', 'general')
                 table_name = schema_data.get('table_name', table_name)
             
-            logger.info(f"✅ Retrieved {len(real_data)} REAL records for client {client_id}")
+            logger.info(f"âœ… Retrieved {len(real_data)} REAL records for client {client_id}")
             
             return {
                 "client_id": client_id,
@@ -1600,7 +1559,7 @@ async def get_client_data(client_id: str, limit: int = 100):
             }
             
         except Exception as db_error:
-            logger.error(f"❌ Database error getting real data: {db_error}")
+            logger.error(f"âŒ Database error getting real data: {db_error}")
             # Still return valid structure but with error message
             return {
                 "client_id": client_id,
@@ -1613,7 +1572,7 @@ async def get_client_data(client_id: str, limit: int = 100):
             }
         
     except Exception as e:
-        logger.error(f"❌ Failed to get client data: {e}")
+        logger.error(f"âŒ Failed to get client data: {e}")
         # Always return working structure
         return {
             "client_id": client_id,
@@ -1643,13 +1602,13 @@ async def generate_dashboard(request: DashboardGenerationRequest, token: str = D
             force_regenerate=request.force_regenerate
         )
         
-        logger.info(f"✅ Dashboard generation completed for client {token_data.client_id}")
+        logger.info(f"âœ… Dashboard generation completed for client {token_data.client_id}")
         return result
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Dashboard generation failed: {e}")
+        logger.error(f"âŒ Dashboard generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Dashboard generation failed: {str(e)}")
 
 @app.post("/api/dashboard/generate-template")
@@ -1658,20 +1617,21 @@ async def generate_template_dashboard(
     force_regenerate: bool = False,
     token: str = Depends(security)
 ):
-    """Generate a simple template-based dashboard - just return client data"""
+    """Generate template-based dashboard - uses stored custom templates or predefined fallbacks"""
     try:
         # Verify client token
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
+        client_uuid = token_data.client_id
         
-        logger.info(f"🎨 Getting data for {template_type} dashboard for client {client_id}")
+        logger.info(f"ðŸŽ¨ Generating {template_type} dashboard for client {client_id}")
         
         # Get client data from database
         db_client = get_admin_client()
         if not db_client:
             raise HTTPException(status_code=503, detail="Database not configured")
         
-        # Get client data
+        # Get client data for template generation
         data_response = db_client.table("client_data").select("data").eq("client_id", client_id).limit(100).execute()
         
         client_data = []
@@ -1686,27 +1646,132 @@ async def generate_template_dashboard(
                 except:
                     continue
         
-        # Get data columns for analysis
-        data_columns = []
-        if client_data:
-            data_columns = list(client_data[0].keys())
+        # Import dashboard orchestrator
+        from dashboard_orchestrator import dashboard_orchestrator
         
-        logger.info(f"✅ Found {len(client_data)} records with {len(data_columns)} columns for {template_type}")
+        dashboard_config = None
         
+        # Handle custom templates (custom_1, custom_2, custom_3)
+        # Custom templates removed - skipping to predefined templates
+        if False:  # template_type.startswith("custom_"):
+            try:
+                logger.info(f"ðŸ” Looking for stored custom template: {template_type}")
+                
+                # Get stored custom templates from database
+                templates_response = db_client.table("client_dashboard_configs").select("dashboard_config").eq("client_id", client_id).execute()
+                
+                logger.info(f"ðŸ” Database response: {len(templates_response.data) if templates_response.data else 0} records found")
+                
+                if templates_response.data and templates_response.data[0].get('dashboard_config'):
+                    stored_config = templates_response.data[0]['dashboard_config']
+                    logger.info(f"ðŸ” Stored config keys: {list(stored_config.keys()) if stored_config else 'None'}")
+                    
+                    # Extract specific template based on template_type
+                    template_index = int(template_type.split("_")[1]) - 1  # custom_1 -> 0, custom_2 -> 1, etc.
+                    logger.info(f"ðŸ” Looking for template index {template_index} (for {template_type})")
+                    
+                    if 'custom_templates' in stored_config:
+                        custom_templates = stored_config['custom_templates']
+                        logger.info(f"ðŸ” Found {len(custom_templates)} custom templates in storage")
+                        
+                        if len(custom_templates) > template_index:
+                            template_data = custom_templates[template_index]
+                            logger.info(f"âœ… Found stored custom template {template_type}: {template_data.get('title', 'Unknown')}")
+                            
+                            # Convert stored template to DashboardConfig format
+                            dashboard_config = {
+                                "client_id": client_id,
+                                "title": template_data.get('title', f'Custom Template {template_index + 1}'),
+                                "subtitle": template_data.get('subtitle', 'AI-generated custom dashboard'),
+                                "layout": template_data.get('layout', {"grid_cols": 4, "grid_rows": 6, "gap": 4, "responsive": True}),
+                                "kpi_widgets": template_data.get('kpi_widgets', []),
+                                "chart_widgets": template_data.get('chart_widgets', []),
+                                "theme": template_data.get('theme', 'custom'),
+                                "last_generated": datetime.utcnow().isoformat(),
+                                "version": template_data.get('version', 'stored-custom-v1.0')
+                            }
+                            
+                            logger.info(f"ðŸŽ¯ Using stored custom template {template_type} with {len(dashboard_config['kpi_widgets'])} KPIs and {len(dashboard_config['chart_widgets'])} charts")
+                        else:
+                            logger.warning(f"âš ï¸ Template index {template_index} out of range (only {len(custom_templates)} templates available)")
+                    else:
+                        logger.warning(f"âš ï¸ 'custom_templates' key not found in stored config")
+                else:
+                    logger.warning(f"âš ï¸ No stored dashboard config found for client {client_id}")
+                    
+            except Exception as custom_error:
+                logger.error(f"âŒ Failed to retrieve custom template {template_type}: {custom_error}")
+                import traceback
+                logger.error(f"âŒ Full traceback: {traceback.format_exc()}")
+        
+        # Handle predefined templates or fallback for custom templates
+        if not dashboard_config:
+            try:
+                logger.info(f"ðŸŽ¯ Using predefined template fallback for {template_type}")
+                
+                # Map template types to predefined templates
+                predefined_type = template_type
+                if template_type == "custom_1":
+                    predefined_type = "main"
+                elif template_type == "custom_2":
+                    predefined_type = "business"  
+                elif template_type == "custom_3":
+                    predefined_type = "performance"
+                elif template_type == "main":
+                    predefined_type = "main"
+                elif template_type == "business":
+                    predefined_type = "business"
+                elif template_type == "performance":
+                    predefined_type = "performance"
+                else:
+                    predefined_type = "main"  # Default fallback
+                
+                # Generate template-based dashboard using the existing method
+                from dashboard_templates import DashboardTemplateType
+                
+                # Map template type string to enum
+                template_type_enum = None
+                if predefined_type == "main":
+                    template_type_enum = DashboardTemplateType.MAIN
+                elif predefined_type == "business":
+                    template_type_enum = DashboardTemplateType.BUSINESS
+                elif predefined_type == "performance":
+                    template_type_enum = DashboardTemplateType.PERFORMANCE
+                else:
+                    template_type_enum = DashboardTemplateType.MAIN
+                
+                # Generate the template dashboard
+                generation_response = await dashboard_orchestrator.generate_template_based_dashboard(
+                    client_uuid, template_type_enum, force_regenerate=False
+                )
+                
+                if not generation_response.success:
+                    raise Exception(f"Template generation failed: {generation_response.message}")
+                
+                # Use the generated dashboard config
+                dashboard_config = generation_response.dashboard_config
+                
+                logger.info(f"âœ… Generated predefined {predefined_type} template with {len(dashboard_config['kpi_widgets'])} KPIs and {len(dashboard_config['chart_widgets'])} charts")
+                
+            except Exception as predefined_error:
+                logger.error(f"âŒ Failed to generate predefined template: {predefined_error}")
+                raise HTTPException(status_code=500, detail=f"Template generation failed: {str(predefined_error)}")
+        
+        # Return the dashboard configuration
         return {
             "success": True,
             "template_type": template_type,
+            "dashboard_config": dashboard_config,
             "client_data": client_data,
-            "data_columns": data_columns,
             "total_records": len(client_data),
-            "message": f"Data retrieved for {template_type} template"
+            "message": f"Dashboard template {template_type} generated successfully"
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Template data retrieval failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Template data retrieval failed: {str(e)}")
+        logger.error(f"âŒ Template generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Template generation failed: {str(e)}")
 
 @app.get("/api/dashboard/templates")
 async def get_available_templates(token: str = Depends(security)):
@@ -1716,7 +1781,7 @@ async def get_available_templates(token: str = Depends(security)):
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        logger.info(f"📋 Getting available templates for client {client_id}")
+        logger.info(f"ðŸ“‹ Getting available templates for client {client_id}")
         
         # Get client data to determine best templates
         db_client = get_admin_client()
@@ -1751,7 +1816,7 @@ async def get_available_templates(token: str = Depends(security)):
             business_context=None
         )
         
-        logger.info(f"✅ Found {len(available_templates)} templates, recommended: {recommended_template}")
+        logger.info(f"âœ… Found {len(available_templates)} templates, recommended: {recommended_template}")
         
         return {
             "available_templates": available_templates,
@@ -1763,7 +1828,7 @@ async def get_available_templates(token: str = Depends(security)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get available templates: {e}")
+        logger.error(f"âŒ Failed to get available templates: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get available templates: {str(e)}")
 
 @app.get("/api/dashboard/config")
@@ -1774,7 +1839,7 @@ async def get_dashboard_config(token: str = Depends(security)):
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        logger.info(f"🔍 Getting dashboard config for client {client_id}")
+        logger.info(f"ðŸ” Getting dashboard config for client {client_id}")
         
         db_client = get_admin_client()
         if not db_client:
@@ -1785,14 +1850,14 @@ async def get_dashboard_config(token: str = Depends(security)):
         
         if not response.data:
             # No dashboard config found
-            logger.warning(f"❌ No dashboard config found for client {client_id}")
+            logger.warning(f"âŒ No dashboard config found for client {client_id}")
             raise HTTPException(status_code=404, detail="Dashboard config not found. Please generate your dashboard first.")
         
         config_record = response.data[0]
         dashboard_config = config_record["dashboard_config"]
         
-        logger.info(f"✅ Dashboard config found for client {client_id}")
-        logger.info(f"📊 Config has {len(dashboard_config.get('chart_widgets', []))} charts")
+        logger.info(f"âœ… Dashboard config found for client {client_id}")
+        logger.info(f"ðŸ“Š Config has {len(dashboard_config.get('chart_widgets', []))} charts")
         
         # Return the dashboard config directly (not wrapped in another object)
         return dashboard_config
@@ -1800,7 +1865,7 @@ async def get_dashboard_config(token: str = Depends(security)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get dashboard config: {e}")
+        logger.error(f"âŒ Failed to get dashboard config: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get dashboard config: {str(e)}")
 
 @app.get("/api/dashboard/metrics")
@@ -1825,12 +1890,12 @@ async def get_dashboard_metrics(
         if not client_data:
             raise HTTPException(status_code=404, detail="No data found for this client")
         
-        # 🚀 PRIORITY 1: Check cache first (instant response)
+        # ðŸš€ PRIORITY 1: Check cache first (instant response)
         cached_insights = await llm_cache_manager.get_cached_llm_response(
             uuid.UUID(client_id), client_data
         )
         if cached_insights and not force_llm:
-            logger.info(f"⚡ Using cached LLM insights for client {client_id} - instant response!")
+            logger.info(f"âš¡ Using cached LLM insights for client {client_id} - instant response!")
             return {
                 "client_id": client_id,
                 "data_type": client_data.get('data_type', 'unknown'),
@@ -1841,16 +1906,16 @@ async def get_dashboard_metrics(
                 "response_time": "instant"
             }
         
-        # 🚀 PRIORITY 2: Use fast mode for immediate response (no LLM)
+        # ðŸš€ PRIORITY 2: Use fast mode for immediate response (no LLM)
         if fast_mode and not force_llm:
-            logger.info(f"🚀 Fast mode - using fallback insights for client {client_id}")
+            logger.info(f"ðŸš€ Fast mode - using fallback insights for client {client_id}")
             insights = await dashboard_orchestrator._extract_fallback_insights(
                 client_data.get('data', []), 
                 client_data.get('data_type', 'unknown')
             )
         else:
             # Only use expensive LLM if explicitly requested
-            logger.info(f"🤖 LLM analysis requested for client {client_id}")
+            logger.info(f"ðŸ¤– LLM analysis requested for client {client_id}")
             insights = await dashboard_orchestrator._extract_business_insights_from_data(client_data)
         
         # Return the exact same format as /api/test-llm-analysis
@@ -1867,7 +1932,7 @@ async def get_dashboard_metrics(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get dashboard metrics: {e}")
+        logger.error(f"âŒ Failed to get dashboard metrics: {e}")
         return {
             "error": f"Failed to get dashboard metrics: {str(e)}"
         }
@@ -1905,7 +1970,7 @@ async def get_dashboard_status(token: str = Depends(security)):
                     metrics_count=0
                 )
         except Exception as e:
-            logger.warning(f"⚠️  Dashboard tables not found, returning default status: {e}")
+            logger.warning(f"âš ï¸  Dashboard tables not found, returning default status: {e}")
             # Return default status if tables don't exist yet
             return DashboardStatusResponse(
                 client_id=token_data.client_id,
@@ -1918,7 +1983,7 @@ async def get_dashboard_status(token: str = Depends(security)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get dashboard status: {e}")
+        logger.error(f"âŒ Failed to get dashboard status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/dashboard/generate-now")
@@ -1928,7 +1993,7 @@ async def generate_dashboard_now(token: str = Depends(security)):
         # Verify client token
         token_data = verify_token(token.credentials)
         
-        logger.info(f"🚀 Manual dashboard generation requested for client {token_data.client_id}")
+        logger.info(f"ðŸš€ Manual dashboard generation requested for client {token_data.client_id}")
         
         # Import dashboard orchestrator
         from dashboard_orchestrator import dashboard_orchestrator
@@ -1944,7 +2009,7 @@ async def generate_dashboard_now(token: str = Depends(security)):
         )
         
         if generation_response.success:
-            logger.info(f"✅ Manual dashboard generation completed for client {token_data.client_id}")
+            logger.info(f"âœ… Manual dashboard generation completed for client {token_data.client_id}")
             return {
                 "success": True,
                 "message": "Dashboard generated successfully",
@@ -1953,13 +2018,13 @@ async def generate_dashboard_now(token: str = Depends(security)):
                 "generation_time": generation_response.generation_time
             }
         else:
-            logger.error(f"❌ Manual dashboard generation failed for client {token_data.client_id}: {generation_response.message}")
+            logger.error(f"âŒ Manual dashboard generation failed for client {token_data.client_id}: {generation_response.message}")
             raise HTTPException(status_code=500, detail=generation_response.message)
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to generate dashboard manually: {e}")
+        logger.error(f"âŒ Failed to generate dashboard manually: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate dashboard: {str(e)}")
 
 @app.get("/api/dashboard/test-orchestrator")
@@ -2009,7 +2074,7 @@ async def test_orchestrator_health(token: str = Depends(security)):
         }
         
     except Exception as e:
-        logger.error(f"❌ Orchestrator health check failed: {e}")
+        logger.error(f"âŒ Orchestrator health check failed: {e}")
         return {
             "status": "unhealthy", 
             "error": str(e),
@@ -2063,15 +2128,15 @@ async def refresh_dashboard_metrics(token: str = Depends(security)):
             data_analysis
         )
         
-        # 🗑️ INVALIDATE LLM CACHE SINCE METRICS WERE REFRESHED
+        # ðŸ—‘ï¸ INVALIDATE LLM CACHE SINCE METRICS WERE REFRESHED
         try:
             from llm_cache_manager import llm_cache_manager
             await llm_cache_manager.invalidate_cache(str(token_data.client_id))
-            logger.info(f"🗑️ Invalidated LLM cache for client {token_data.client_id} after metrics refresh")
+            logger.info(f"ðŸ—‘ï¸ Invalidated LLM cache for client {token_data.client_id} after metrics refresh")
         except Exception as cache_error:
-            logger.warning(f"⚠️ Failed to invalidate cache after metrics refresh: {cache_error}")
+            logger.warning(f"âš ï¸ Failed to invalidate cache after metrics refresh: {cache_error}")
         
-        logger.info(f"✅ Dashboard metrics refreshed for client {token_data.client_id}")
+        logger.info(f"âœ… Dashboard metrics refreshed for client {token_data.client_id}")
         
         return {
             "success": True,
@@ -2082,7 +2147,7 @@ async def refresh_dashboard_metrics(token: str = Depends(security)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to refresh dashboard metrics: {e}")
+        logger.error(f"âŒ Failed to refresh dashboard metrics: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to refresh metrics: {str(e)}")
 
 # ==================== AUTOMATIC GENERATION & RETRY ENDPOINTS ====================
@@ -2117,7 +2182,7 @@ async def trigger_automatic_generation(request: AutoGenerationRequest, token: st
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Manual generation trigger failed: {e}")
+        logger.error(f"âŒ Manual generation trigger failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/dashboard/generation-status/{client_id}")
@@ -2164,7 +2229,7 @@ async def get_generation_status(client_id: str, token: str = Depends(security)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get generation status: {e}")
+        logger.error(f"âŒ Failed to get generation status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/admin/process-retries")
@@ -2199,7 +2264,7 @@ async def process_pending_retries(token: str = Depends(security)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to process retries: {e}")
+        logger.error(f"âŒ Failed to process retries: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/admin/generation-overview")
@@ -2257,7 +2322,7 @@ async def get_generation_overview(token: str = Depends(security)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get generation overview: {e}")
+        logger.error(f"âŒ Failed to get generation overview: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/admin/background-retry-processor")
@@ -2269,13 +2334,13 @@ async def background_retry_processor():
         
         from dashboard_orchestrator import dashboard_orchestrator
         
-        logger.info("🔄 Background retry processor started")
+        logger.info("ðŸ”„ Background retry processor started")
         results = await dashboard_orchestrator.process_pending_retries()
         
         successful_retries = [r for r in results if r.success]
         failed_retries = [r for r in results if not r.success]
         
-        logger.info(f"✅ Background retry processor completed: {len(successful_retries)} successful, {len(failed_retries)} failed")
+        logger.info(f"âœ… Background retry processor completed: {len(successful_retries)} successful, {len(failed_retries)} failed")
         
         return {
             "success": True,
@@ -2287,7 +2352,7 @@ async def background_retry_processor():
         }
         
     except Exception as e:
-        logger.error(f"❌ Background retry processor failed: {e}")
+        logger.error(f"âŒ Background retry processor failed: {e}")
         return {
             "success": False,
             "timestamp": datetime.now().isoformat(),
@@ -2300,43 +2365,43 @@ async def background_retry_processor():
 @app.on_event("startup")
 async def startup_event():
     """Application startup event"""
-    logger.info("🚀 Analytics AI Dashboard API starting up...")
+    logger.info("ðŸš€ Analytics AI Dashboard API starting up...")
     
     # ULTRA-MINIMAL startup - just test basic imports
     try:
-        logger.info("🔧 Testing dashboard orchestrator import...")
+        logger.info("ðŸ”§ Testing dashboard orchestrator import...")
         from dashboard_orchestrator import dashboard_orchestrator
-        logger.info("✅ Dashboard orchestrator imported successfully")
+        logger.info("âœ… Dashboard orchestrator imported successfully")
         
-        logger.info("🔧 Testing database client creation...")
+        logger.info("ðŸ”§ Testing database client creation...")
         try:
             db_client = get_admin_client()
-            logger.info("✅ Database client created successfully")
+            logger.info("âœ… Database client created successfully")
             
-            logger.info("🔧 Testing simple database query...")
+            logger.info("ðŸ”§ Testing simple database query...")
             # Try the most basic query possible
             try:
                 response = db_client.table("clients").select("client_id").limit(1).execute()
-                logger.info("✅ Basic database query successful")
+                logger.info("âœ… Basic database query successful")
             except Exception as db_error:
-                logger.error(f"❌ Database query failed: {type(db_error).__name__}: {db_error}")
+                logger.error(f"âŒ Database query failed: {type(db_error).__name__}: {db_error}")
                 # Log the full error details
                 import traceback
                 logger.error(f"Full database error: {traceback.format_exc()}")
                 
         except Exception as client_error:
-            logger.error(f"❌ Database client creation failed: {type(client_error).__name__}: {client_error}")
+            logger.error(f"âŒ Database client creation failed: {type(client_error).__name__}: {client_error}")
             # Log the full error details
             import traceback
             logger.error(f"Full client error: {traceback.format_exc()}")
             
     except Exception as e:
-        logger.error(f"❌ Startup test failed: {type(e).__name__}: {str(e)}")
+        logger.error(f"âŒ Startup test failed: {type(e).__name__}: {str(e)}")
         # Log the full error details to find the root cause
         import traceback
         logger.error(f"Full startup error: {traceback.format_exc()}")
         
-    logger.info("✅ Startup complete - app is ready")
+    logger.info("âœ… Startup complete - app is ready")
 
 
 # AI Analysis Endpoints for Frontend Integration
@@ -2491,11 +2556,11 @@ async def create_api_key(
             "message": "API key created successfully",
             "api_key": api_key,  # Only shown once!
             "key_info": key_response.dict(),
-            "warning": "⚠️ Store this API key securely. It will not be shown again."
+            "warning": "âš ï¸ Store this API key securely. It will not be shown again."
         }
         
     except Exception as e:
-        logger.error(f"❌ Failed to create API key: {e}")
+        logger.error(f"âŒ Failed to create API key: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create API key: {str(e)}")
 
 @app.get("/api/auth/api-keys", response_model=List[APIKeyResponse])
@@ -2507,7 +2572,7 @@ async def list_api_keys(auth_data: dict = Depends(authenticate_request)):
         return keys
         
     except Exception as e:
-        logger.error(f"❌ Failed to list API keys: {e}")
+        logger.error(f"âŒ Failed to list API keys: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list API keys: {str(e)}")
 
 @app.delete("/api/auth/api-keys/{key_id}")
@@ -2530,7 +2595,7 @@ async def revoke_api_key(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid key ID format")
     except Exception as e:
-        logger.error(f"❌ Failed to revoke API key: {e}")
+        logger.error(f"âŒ Failed to revoke API key: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to revoke API key: {str(e)}")
 
 # ==================== ENHANCED DATA UPLOAD ENDPOINTS ====================
@@ -2585,12 +2650,12 @@ async def upload_data_enhanced(
         # Generate data quality report
         quality_report = await parser.generate_data_quality_report(df)
         
-        # 🚀 PARALLEL PROCESSING for massive datasets
+        # ðŸš€ PARALLEL PROCESSING for massive datasets
         if len(df) > 10000:
-            logger.info(f"🔥 MASSIVE DATASET detected ({len(df)} rows) - using PARALLEL processing")
+            logger.info(f"ðŸ”¥ MASSIVE DATASET detected ({len(df)} rows) - using PARALLEL processing")
             return await _handle_massive_dataset_upload(client_id, df, quality_report)
         else:
-            logger.info(f"📊 Standard dataset ({len(df)} rows) - using normal processing")
+            logger.info(f"ðŸ“Š Standard dataset ({len(df)} rows) - using normal processing")
         
         # Use enhanced AI analyzer
         from ai_analyzer import ai_analyzer
@@ -2659,7 +2724,7 @@ async def upload_data_enhanced(
         db_client.table("client_schemas").insert(schema_record).execute()
         db_client.table("data_uploads").insert(upload_record).execute()
         
-        logger.info(f"✅ Enhanced upload completed: {rows_inserted} rows, quality score: {quality_report.quality_score:.2f}")
+        logger.info(f"âœ… Enhanced upload completed: {rows_inserted} rows, quality score: {quality_report.quality_score:.2f}")
         
         return {
             "success": True,
@@ -2688,7 +2753,7 @@ async def upload_data_enhanced(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Enhanced upload failed: {e}")
+        logger.error(f"âŒ Enhanced upload failed: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @app.post("/api/data/validate")
@@ -2731,7 +2796,7 @@ async def validate_data_format(
         }
         
     except Exception as e:
-        logger.error(f"❌ Data validation failed: {e}")
+        logger.error(f"âŒ Data validation failed: {e}")
         return {
             "success": False,
             "error": str(e),
@@ -2885,7 +2950,7 @@ async def get_data_quality_report(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get quality report: {e}")
+        logger.error(f"âŒ Failed to get quality report: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== API KEY DOCUMENTATION ENDPOINT ====================
@@ -2942,7 +3007,7 @@ async def generate_dashboard_for_client(client_id: str, token: str = Depends(sec
         # Verify superadmin token
         verify_superadmin_token(token.credentials)
         
-        logger.info(f"🚀 Superadmin requested dashboard generation for client {client_id}")
+        logger.info(f"ðŸš€ Superadmin requested dashboard generation for client {client_id}")
         
         # Import and generate dashboard directly
         from dashboard_orchestrator import dashboard_orchestrator
@@ -2954,7 +3019,7 @@ async def generate_dashboard_for_client(client_id: str, token: str = Depends(sec
         )
         
         if generation_response.success:
-            logger.info(f"✅ Dashboard generated successfully for client {client_id}")
+            logger.info(f"âœ… Dashboard generated successfully for client {client_id}")
             return {
                 "success": True,
                 "message": "Dashboard generated successfully",
@@ -2964,7 +3029,7 @@ async def generate_dashboard_for_client(client_id: str, token: str = Depends(sec
                 "generation_time": generation_response.generation_time
             }
         else:
-            logger.error(f"❌ Dashboard generation failed for client {client_id}: {generation_response.message}")
+            logger.error(f"âŒ Dashboard generation failed for client {client_id}: {generation_response.message}")
             return {
                 "success": False,
                 "message": generation_response.message,
@@ -2972,7 +3037,7 @@ async def generate_dashboard_for_client(client_id: str, token: str = Depends(sec
             }
         
     except Exception as e:
-        logger.error(f"❌ Superadmin dashboard generation failed: {e}")
+        logger.error(f"âŒ Superadmin dashboard generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Dashboard generation failed: {str(e)}")
 
 # ==================== FAST DASHBOARD GENERATION ENDPOINTS ====================
@@ -2984,7 +3049,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
         # Verify superadmin token
         verify_superadmin_token(token.credentials)
         
-        logger.info(f"🚀 FAST dashboard generation for client {client_id}")
+        logger.info(f"ðŸš€ FAST dashboard generation for client {client_id}")
         start_time = datetime.utcnow()
         
         # Get client data
@@ -2998,7 +3063,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
         if not data_response.data:
             raise HTTPException(status_code=404, detail="No data found for client")
         
-        logger.info(f"📊 Processing {len(data_response.data)} records for fast generation")
+        logger.info(f"ðŸ“Š Processing {len(data_response.data)} records for fast generation")
         
         # Quick data analysis
         sample_data = []
@@ -3274,7 +3339,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
         
         generation_time = (datetime.utcnow() - start_time).total_seconds()
         
-        logger.info(f"✅ FAST dashboard generated in {generation_time:.2f}s for client {client_id}")
+        logger.info(f"âœ… FAST dashboard generated in {generation_time:.2f}s for client {client_id}")
         
         return {
             "success": True,
@@ -3289,7 +3354,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Fast dashboard generation failed: {e}")
+        logger.error(f"âŒ Fast dashboard generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Fast generation failed: {str(e)}")
 
 @app.post("/api/dashboard/fast-generate")
@@ -3300,7 +3365,7 @@ async def fast_generate_dashboard_for_client(token: str = Depends(security)):
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        logger.info(f"🚀 FAST dashboard generation for client {client_id}")
+        logger.info(f"ðŸš€ FAST dashboard generation for client {client_id}")
         start_time = datetime.utcnow()
         
         # Get client data
@@ -3314,7 +3379,7 @@ async def fast_generate_dashboard_for_client(token: str = Depends(security)):
         if not data_response.data:
             raise HTTPException(status_code=404, detail="No data found for client")
         
-        logger.info(f"📊 Processing {len(data_response.data)} records for fast generation")
+        logger.info(f"ðŸ“Š Processing {len(data_response.data)} records for fast generation")
         
         # Quick data analysis
         sample_data = []
@@ -3453,7 +3518,7 @@ async def fast_generate_dashboard_for_client(token: str = Depends(security)):
         
         generation_time = (datetime.utcnow() - start_time).total_seconds()
         
-        logger.info(f"✅ FAST dashboard generated in {generation_time:.2f}s for client {client_id}")
+        logger.info(f"âœ… FAST dashboard generated in {generation_time:.2f}s for client {client_id}")
         
         return {
             "success": True,
@@ -3467,7 +3532,7 @@ async def fast_generate_dashboard_for_client(token: str = Depends(security)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Fast dashboard generation failed: {e}")
+        logger.error(f"âŒ Fast dashboard generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Fast generation failed: {str(e)}")
 
 # ==================== DEBUG ENDPOINTS ====================
@@ -3519,9 +3584,9 @@ async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: st
     if not batch_rows:
         return 0
     
-    logger.info(f"🚀 OPTIMIZED BATCH inserting {len(batch_rows)} {data_type.upper()} rows")
+    logger.info(f"ðŸš€ OPTIMIZED BATCH inserting {len(batch_rows)} {data_type.upper()} rows")
     
-    # 🚀 MASSIVE THROUGHPUT SETTINGS for Supabase
+    # ðŸš€ MASSIVE THROUGHPUT SETTINGS for Supabase
     chunk_size = 1000  # Increased for massive data uploads
     max_retries = 3
     base_delay = 0.1  # Reduced delay - Supabase can handle it
@@ -3544,7 +3609,7 @@ async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: st
                 
                 if response.data:
                     total_inserted += len(response.data)
-                    logger.info(f"⚡ {data_type.upper()} CHUNK {chunk_num}: {len(response.data)} rows inserted!")
+                    logger.info(f"âš¡ {data_type.upper()} CHUNK {chunk_num}: {len(response.data)} rows inserted!")
                     chunk_inserted = True
                 else:
                     raise Exception("No data returned from insert")
@@ -3557,21 +3622,21 @@ async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: st
                     if retry_count <= max_retries:
                         # Exponential backoff for timeouts
                         delay = base_delay * (2 ** retry_count)
-                        logger.warning(f"⏱️ {data_type.upper()} chunk {chunk_num} timeout (attempt {retry_count}/{max_retries + 1}). Retrying in {delay}s...")
+                        logger.warning(f"â±ï¸ {data_type.upper()} chunk {chunk_num} timeout (attempt {retry_count}/{max_retries + 1}). Retrying in {delay}s...")
                         await asyncio.sleep(delay)
                     else:
-                        logger.error(f"❌ {data_type.upper()} chunk {chunk_num} failed after {max_retries + 1} attempts: {chunk_error}")
+                        logger.error(f"âŒ {data_type.upper()} chunk {chunk_num} failed after {max_retries + 1} attempts: {chunk_error}")
                         failed_chunks.append(chunk)
                         break
                 else:
                     # Non-timeout error - don't retry
-                    logger.error(f"❌ {data_type.upper()} chunk {chunk_num} failed with non-timeout error: {chunk_error}")
+                    logger.error(f"âŒ {data_type.upper()} chunk {chunk_num} failed with non-timeout error: {chunk_error}")
                     failed_chunks.append(chunk)
                     break
     
     # Handle failed chunks with smaller batch sizes
     if failed_chunks:
-        logger.info(f"🔄 Retrying {len(failed_chunks)} failed chunks with smaller batches...")
+        logger.info(f"ðŸ”„ Retrying {len(failed_chunks)} failed chunks with smaller batches...")
         small_chunk_size = 20  # Even smaller for problem chunks
         
         for failed_chunk in failed_chunks:
@@ -3582,9 +3647,9 @@ async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: st
                     response = db_client.table("client_data").insert(small_chunk).execute()
                     if response.data:
                         total_inserted += len(response.data)
-                        logger.info(f"🔧 Recovered {len(response.data)} rows with smaller batch")
+                        logger.info(f"ðŸ”§ Recovered {len(response.data)} rows with smaller batch")
                 except Exception as final_error:
-                    logger.error(f"💥 Final attempt failed for {len(small_chunk)} rows: {final_error}")
+                    logger.error(f"ðŸ’¥ Final attempt failed for {len(small_chunk)} rows: {final_error}")
                     # Last resort: individual inserts with delays
                     for row in small_chunk:
                         try:
@@ -3595,7 +3660,7 @@ async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: st
                             continue  # Skip problematic individual rows
     
     success_rate = (total_inserted / len(batch_rows)) * 100
-    logger.info(f"🎯 BATCH COMPLETE: {total_inserted}/{len(batch_rows)} rows inserted ({success_rate:.1f}% success)")
+    logger.info(f"ðŸŽ¯ BATCH COMPLETE: {total_inserted}/{len(batch_rows)} rows inserted ({success_rate:.1f}% success)")
     
     return total_inserted
 
@@ -3649,7 +3714,7 @@ async def debug_data_type_detection(client_id: str):
         }
         
     except Exception as e:
-        logger.error(f"❌ Debug data type detection failed: {e}")
+        logger.error(f"âŒ Debug data type detection failed: {e}")
         return {"error": f"Debug failed: {str(e)}"}
 
 @app.get("/api/test-llm-analysis/{client_id}")
@@ -3673,7 +3738,7 @@ async def test_llm_analysis(client_id: str):
         }
         
     except Exception as e:
-        logger.error(f"❌ LLM analysis test failed: {e}")
+        logger.error(f"âŒ LLM analysis test failed: {e}")
         return {"error": f"LLM analysis test failed: {str(e)}"}
 
 @app.get("/api/debug/llm-analysis/{client_id}")
@@ -3738,7 +3803,7 @@ async def debug_llm_analysis(client_id: str):
         }
         
     except Exception as e:
-        logger.error(f"❌ Debug LLM analysis failed: {e}")
+        logger.error(f"âŒ Debug LLM analysis failed: {e}")
         return {"error": f"Debug LLM analysis failed: {str(e)}"}
 
 @app.get("/api/debug/env-check")
@@ -4045,7 +4110,7 @@ async def get_cache_stats(token: str = Depends(security)):
             "message": "Cache statistics retrieved successfully"
         }
     except Exception as e:
-        logger.error(f"❌ Failed to get cache stats: {e}")
+        logger.error(f"âŒ Failed to get cache stats: {e}")
         return {
             "success": False,
             "error": f"Failed to get cache stats: {str(e)}"
@@ -4062,7 +4127,7 @@ async def invalidate_client_cache(client_id: str, token: str = Depends(security)
             "message": f"Cache invalidated for client {client_id}" if success else f"Failed to invalidate cache for client {client_id}"
         }
     except Exception as e:
-        logger.error(f"❌ Failed to invalidate cache for client {client_id}: {e}")
+        logger.error(f"âŒ Failed to invalidate cache for client {client_id}: {e}")
         return {
             "success": False,
             "error": f"Failed to invalidate cache: {str(e)}"
@@ -4080,7 +4145,7 @@ async def cleanup_expired_cache(max_age_days: int = 7, token: str = Depends(secu
             "message": f"Cleaned up {cleaned_count} expired cache entries (older than {max_age_days} days)"
         }
     except Exception as e:
-        logger.error(f"❌ Failed to cleanup expired cache: {e}")
+        logger.error(f"âŒ Failed to cleanup expired cache: {e}")
         return {
             "success": False,
             "error": f"Failed to cleanup expired cache: {str(e)}"
@@ -4121,338 +4186,11 @@ async def debug_client_cache(client_id: str, token: str = Depends(security)):
             }
             
     except Exception as e:
-        logger.error(f"❌ Failed to debug cache for client {client_id}: {e}")
+        logger.error(f"âŒ Failed to debug cache for client {client_id}: {e}")
         return {
             "success": False,
             "error": f"Failed to debug cache: {str(e)}"
         }
-
-from models import CustomTemplateRequest, CustomTemplateResponse
-
-@app.post("/api/dashboard/generate-custom")
-async def generate_custom_dashboard_templates(
-    template_count: int = 3,
-    force_regenerate: bool = False,
-    business_context_override: str = None,
-    token: str = Depends(security)
-):
-    """Generate custom intelligent templates using AI-powered business DNA analysis"""
-    try:
-        # Verify client token
-        token_data = verify_token(token.credentials)
-        client_id = token_data.client_id
-        
-        logger.info(f"🎨 Starting custom template generation for client {client_id}")
-        
-        # Create custom template request
-        request = CustomTemplateRequest(
-            client_id=client_id,
-            template_count=template_count,
-            force_regenerate=force_regenerate,
-            business_context_override=business_context_override,
-            template_preferences={}
-        )
-        
-        # Generate custom templates using new system
-        result = await dashboard_orchestrator.generate_custom_templates(request)
-        
-        if result.success:
-            logger.info(f"✅ Custom templates generated successfully for client {client_id}")
-            
-            # Return enhanced response with business intelligence
-            return {
-                "success": True,
-                "message": result.message,
-                "templates": [
-                    {
-                        "template_id": config.template_id if hasattr(config, 'template_id') else f"template_{i}",
-                        "name": config.title,
-                        "description": config.subtitle,
-                        "type": "custom_intelligent",
-                        "theme": config.theme,
-                        "customization_level": getattr(config, 'customization_level', 'intelligent'),
-                        "business_context": {
-                            "business_model": result.business_dna.business_model.value if result.business_dna else "general",
-                            "industry": result.business_dna.industry_sector if result.business_dna else "technology",
-                            "confidence_score": result.business_dna.confidence_score if result.business_dna else 0.7
-                        },
-                        "components": {
-                            "kpi_count": len(config.kpi_widgets),
-                            "chart_count": len(config.chart_widgets),
-                            "intelligent_features": getattr(config, 'intelligent_components', [])
-                        }
-                    }
-                    for i, config in enumerate(result.generated_templates)
-                ],
-                "business_intelligence": {
-                    "business_model": result.business_dna.business_model.value if result.business_dna else None,
-                    "industry_sector": result.business_dna.industry_sector if result.business_dna else None,
-                    "maturity_level": result.business_dna.maturity_level.value if result.business_dna else None,
-                    "unique_characteristics": result.business_dna.unique_characteristics if result.business_dna else [],
-                    "data_story": result.business_dna.data_story if result.business_dna else None,
-                    "primary_workflows": [w.name for w in result.business_dna.primary_workflows] if result.business_dna else [],
-                    "success_metrics": result.business_dna.success_metrics if result.business_dna else []
-                },
-                "ecosystem": {
-                    "navigation_available": result.template_ecosystem is not None,
-                    "cross_template_features": result.template_ecosystem.cross_template_features if result.template_ecosystem else [],
-                    "shared_filters": result.template_ecosystem.shared_filters if result.template_ecosystem else []
-                },
-                "generation_metadata": {
-                    "generation_time": result.generation_time,
-                    "template_count": len(result.generated_templates),
-                    "confidence_scores": result.generation_metadata.get('confidence_scores', {}),
-                    "version": "custom-intelligent-1.0"
-                }
-            }
-        else:
-            logger.error(f"❌ Custom template generation failed for client {client_id}: {result.message}")
-            raise HTTPException(status_code=500, detail=result.message)
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Custom template generation endpoint failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Custom template generation failed: {str(e)}")
-
-@app.get("/api/dashboard/custom-templates")
-async def get_custom_templates(token: str = Depends(security)):
-    """Get existing custom templates with business intelligence data"""
-    try:
-        # Verify client token
-        token_data = verify_token(token.credentials)
-        client_id = token_data.client_id
-        
-        logger.info(f"📊 Retrieving custom templates for client {client_id}")
-        
-        # Get custom templates
-        custom_templates = await dashboard_orchestrator.get_custom_templates(client_id)
-        
-        if custom_templates:
-            return {
-                "success": True,
-                "message": f"Found {len(custom_templates)} custom templates",
-                "templates": [
-                    {
-                        "template_id": getattr(config, 'template_id', f"template_{i}"),
-                        "name": config.title,
-                        "description": config.subtitle,
-                        "type": "custom_intelligent",
-                        "theme": config.theme,
-                        "customization_level": getattr(config, 'customization_level', 'intelligent'),
-                        "last_generated": config.last_generated.isoformat(),
-                        "version": config.version,
-                        "business_context": {
-                            "business_model": config.business_dna.business_model.value if config.business_dna else None,
-                            "industry": config.business_dna.industry_sector if config.business_dna else None,
-                            "confidence_score": config.business_dna.confidence_score if config.business_dna else None
-                        } if hasattr(config, 'business_dna') and config.business_dna else {},
-                        "intelligent_features": {
-                            "smart_naming": hasattr(config, 'smart_name') and config.smart_name is not None,
-                            "custom_theming": hasattr(config, 'custom_theme') and config.custom_theme is not None,
-                            "ecosystem_navigation": hasattr(config, 'ecosystem_config') and config.ecosystem_config is not None,
-                            "adaptive_components": len(getattr(config, 'intelligent_components', []))
-                        }
-                    }
-                    for i, config in enumerate(custom_templates)
-                ],
-                "business_intelligence_available": any(hasattr(config, 'business_dna') for config in custom_templates)
-            }
-        else:
-            return {
-                "success": True,
-                "message": "No custom templates found",
-                "templates": [],
-                "business_intelligence_available": False
-            }
-            
-    except Exception as e:
-        logger.error(f"❌ Failed to retrieve custom templates: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve custom templates: {str(e)}")
-
-@app.get("/api/dashboard/business-intelligence/{client_id}")
-async def get_business_intelligence(client_id: str, token: str = Depends(security)):
-    """Get comprehensive business intelligence analysis for a client"""
-    try:
-        # Verify client token and permissions
-        token_data = verify_token(token.credentials)
-        
-        # Check if requesting client's own data or if admin
-        if str(token_data.client_id) != client_id and not token_data.is_admin:
-            raise HTTPException(status_code=403, detail="Access denied to business intelligence data")
-        
-        logger.info(f"🧬 Retrieving business intelligence for client {client_id}")
-        
-        # Get business DNA from database
-        db_client = get_admin_client()
-        if not db_client:
-            raise HTTPException(status_code=503, detail="Database not configured")
-        
-        # Get business DNA
-        dna_response = db_client.table('client_business_dna').select('*').eq('client_id', client_id).execute()
-        
-        if dna_response.data:
-            dna_data = dna_response.data[0]
-            
-            return {
-                "success": True,
-                "business_intelligence": {
-                    "business_model": dna_data['business_model'],
-                    "industry_sector": dna_data['industry_sector'],
-                    "maturity_level": dna_data['maturity_level'],
-                    "data_sophistication": dna_data['data_sophistication'],
-                    "primary_workflows": dna_data['primary_workflows'],
-                    "success_metrics": dna_data['success_metrics'],
-                    "key_relationships": dna_data['key_relationships'],
-                    "business_personality": dna_data['business_personality'],
-                    "unique_characteristics": dna_data['unique_characteristics'],
-                    "data_story": dna_data['data_story'],
-                    "confidence_score": dna_data['confidence_score'],
-                    "analysis_timestamp": dna_data['analysis_timestamp'],
-                    "version": dna_data['version']
-                },
-                "recommendations": {
-                    "suggested_templates": await _get_template_recommendations(dna_data),
-                    "optimization_opportunities": await _get_optimization_opportunities(dna_data),
-                    "business_insights": await _extract_business_insights(dna_data)
-                }
-            }
-        else:
-            return {
-                "success": False,
-                "message": "No business intelligence analysis found. Generate custom templates first to create business DNA profile.",
-                "business_intelligence": None,
-                "recommendations": {}
-            }
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to retrieve business intelligence: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve business intelligence: {str(e)}")
-
-@app.get("/api/dashboard/template-ecosystem/{client_id}")
-async def get_template_ecosystem(client_id: str, token: str = Depends(security)):
-    """Get template ecosystem and navigation structure"""
-    try:
-        # Verify client token
-        token_data = verify_token(token.credentials)
-        
-        if str(token_data.client_id) != client_id and not token_data.is_admin:
-            raise HTTPException(status_code=403, detail="Access denied")
-        
-        logger.info(f"🌐 Retrieving template ecosystem for client {client_id}")
-        
-        # Get ecosystem data from database
-        db_client = get_admin_client()
-        ecosystem_response = db_client.table('template_ecosystems').select('*').eq('client_id', client_id).execute()
-        
-        if ecosystem_response.data:
-            ecosystem_data = ecosystem_response.data[0]
-            
-            return {
-                "success": True,
-                "ecosystem": {
-                    "ecosystem_id": ecosystem_data['ecosystem_id'],
-                    "primary_template_id": ecosystem_data['primary_template_id'],
-                    "template_hierarchy": ecosystem_data['template_hierarchy'],
-                    "navigation_structure": ecosystem_data['breadcrumb_structure'],
-                    "shared_features": {
-                        "filters": ecosystem_data['shared_filters'],
-                        "synchronized_states": ecosystem_data['synchronized_states']
-                    },
-                    "cross_references": ecosystem_data['cross_references'],
-                    "ecosystem_features": [
-                        "intelligent_navigation",
-                        "shared_filtering",
-                        "cross_template_insights",
-                        "unified_theming"
-                    ]
-                }
-            }
-        else:
-            return {
-                "success": False,
-                "message": "No template ecosystem found",
-                "ecosystem": None
-            }
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to retrieve template ecosystem: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve template ecosystem: {str(e)}")
-
-# Helper functions for business intelligence endpoint
-async def _get_template_recommendations(dna_data: Dict[str, Any]) -> List[str]:
-    """Get template recommendations based on business DNA"""
-    recommendations = []
-    
-    business_model = dna_data.get('business_model', '')
-    
-    if business_model == 'b2b_saas':
-        recommendations = [
-            "SaaS Revenue Analytics - Focus on MRR and churn metrics",
-            "Customer Success Dashboard - Track user adoption and health scores", 
-            "Growth Analytics - Monitor acquisition and expansion metrics"
-        ]
-    elif business_model == 'b2c_ecommerce':
-        recommendations = [
-            "E-commerce Performance - Revenue, orders, and conversion tracking",
-            "Customer Analytics - Behavior analysis and segmentation",
-            "Product Intelligence - Top products and category performance"
-        ]
-    else:
-        recommendations = [
-            "Executive Overview - High-level business performance",
-            "Operational Analytics - Process efficiency and monitoring",
-            "Performance Intelligence - Advanced metrics and insights"
-        ]
-    
-    return recommendations
-
-async def _get_optimization_opportunities(dna_data: Dict[str, Any]) -> List[str]:
-    """Get optimization opportunities based on business DNA"""
-    opportunities = []
-    
-    confidence_score = dna_data.get('confidence_score', 0)
-    data_sophistication = dna_data.get('data_sophistication', 'basic')
-    
-    if confidence_score < 0.8:
-        opportunities.append("Improve data quality and standardization for better insights")
-    
-    if data_sophistication == 'basic':
-        opportunities.append("Implement advanced analytics and predictive modeling")
-        
-    if len(dna_data.get('success_metrics', [])) < 5:
-        opportunities.append("Identify and track additional key performance indicators")
-    
-    opportunities.append("Implement automated alerting and anomaly detection")
-    opportunities.append("Add cross-functional dashboard integration")
-    
-    return opportunities
-
-async def _extract_business_insights(dna_data: Dict[str, Any]) -> List[str]:
-    """Extract key business insights from DNA data"""
-    insights = []
-    
-    workflows = dna_data.get('primary_workflows', [])
-    unique_characteristics = dna_data.get('unique_characteristics', [])
-    
-    if workflows:
-        insights.append(f"Primary business focus: {workflows[0].get('name', 'Business Operations')}")
-    
-    if unique_characteristics:
-        insights.append(f"Business differentiators: {', '.join(unique_characteristics)}")
-    
-    maturity = dna_data.get('maturity_level', 'growth')
-    insights.append(f"Business maturity indicates {maturity}-stage optimization opportunities")
-    
-    data_story = dna_data.get('data_story', '')
-    if data_story:
-        insights.append(f"Data narrative: {data_story}")
-    
-    return insights
 
 if __name__ == "__main__":
     import uvicorn

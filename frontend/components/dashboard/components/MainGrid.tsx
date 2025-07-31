@@ -1,7 +1,7 @@
 import * as React from "react";
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
+// Removed unused Stack import
 import Typography from "@mui/material/Typography";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -11,20 +11,15 @@ import InputLabel from "@mui/material/InputLabel";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import Copyright from "../internals/components/Copyright";
-import ChartUserByCountry from "./ChartUserByCountry";
+// Removed unused ChartUserByCountry import
 import BusinessDataTable from "./BusinessDataTable";
-import HighlightedCard from "./HighlightedCard";
-import RevenueTrendsChart from "./RevenueTrendsChart";
-import SalesCategoryChart from "./SalesCategoryChart";
-import StatCard, { StatCardProps } from "./StatCard";
+// Removed unused HighlightedCard import
+// Removed unused RevenueTrendsChart import
+// Removed unused SalesCategoryChart import
+import StatCard from "./StatCard";
 import { DateRange } from "./CustomDatePicker";
 import api from "../../../lib/axios";
-import {
-	muiDashboardService,
-	MUIDashboardData,
-	BackendMetric,
-	MUITableData,
-} from "../../../lib/muiDashboardService";
+// Removed unused muiDashboardService imports
 
 // Import various chart components
 import * as Charts from "../../charts";
@@ -33,40 +28,7 @@ import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { ResponsiveRadar } from "@nivo/radar";
 
-// Default data for main dashboard (fallback when no dynamic data is provided)
-const defaultData: StatCardProps[] = [
-	{
-		title: "Users",
-		value: "14k",
-		interval: "Last 30 days",
-		trend: "up",
-		data: [
-			200, 24, 220, 260, 240, 380, 100, 240, 280, 240, 300, 340, 320, 360, 340,
-			380, 360, 400, 380, 420, 400, 640, 340, 460, 440, 480, 460, 600, 880, 920,
-		],
-	},
-	{
-		title: "Conversions",
-		value: "325",
-		interval: "Last 30 days",
-		trend: "down",
-		data: [
-			1640, 1250, 970, 1130, 1050, 900, 720, 1080, 900, 450, 920, 820, 840, 600,
-			820, 780, 800, 760, 380, 740, 660, 620, 840, 500, 520, 480, 400, 360, 300,
-			220,
-		],
-	},
-	{
-		title: "Event count",
-		value: "200k",
-		interval: "Last 30 days",
-		trend: "neutral",
-		data: [
-			500, 400, 510, 530, 520, 600, 530, 520, 510, 730, 520, 510, 530, 620, 510,
-			530, 520, 410, 530, 520, 610, 530, 520, 610, 530, 420, 510, 430, 520, 510,
-		],
-	},
-];
+// Removed unused defaultData
 
 interface MainGridProps {
 	dashboardData?: {
@@ -90,33 +52,7 @@ interface MainGridProps {
 	dateRange?: DateRange;
 }
 
-interface DashboardConfig {
-	title: string;
-	subtitle: string;
-	kpi_widgets: KPIWidget[];
-	chart_widgets: ChartWidget[];
-}
-
-interface KPIWidget {
-	id: string;
-	title: string;
-	value: string;
-	subtitle: string;
-	trend: "up" | "down" | "stable";
-	data: number[];
-	position: { row: number; col: number };
-	size: { width: number; height: number };
-}
-
-interface ChartWidget {
-	id: string;
-	title: string;
-	subtitle: string;
-	chart_type: string;
-	position: { row: number; col: number };
-	size: { width: number; height: number };
-	config: any;
-}
+// Removed unused interfaces - using existing types from imports
 
 export default function MainGrid({
 	dashboardData,
@@ -142,15 +78,14 @@ export default function MainGrid({
 
 // Original Main Dashboard Component - Uses REAL BACKEND DATA
 function OriginalMainGrid({
-	dashboardData,
 	user,
 }: {
 	dashboardData?: MainGridProps["dashboardData"];
 	user?: { client_id: string; company_name: string; email: string };
 }) {
 	const [llmAnalysis, setLlmAnalysis] = React.useState<any>(null);
-	const [clientData, setClientData] = React.useState<any[]>([]);
-	const [dataColumns, setDataColumns] = React.useState<any[]>([]);
+	const [, setClientData] = React.useState<any[]>([]);
+	const [, setDataColumns] = React.useState<any[]>([]);
 	const [loading, setLoading] = React.useState(true);
 	const [error, setError] = React.useState<string | null>(null);
 
@@ -180,7 +115,6 @@ function OriginalMainGrid({
 		if (!trend || !trend.direction) return null;
 
 		const direction = trend.direction.toLowerCase();
-		const percentage = trend.percentage || "0%";
 
 		switch (direction) {
 			case "up":
@@ -215,10 +149,8 @@ function OriginalMainGrid({
 		try {
 			setLoading(true);
 
-			// Use the SAME API call as template dashboard
-			const clientDataResponse = await api.post(
-				`/dashboard/generate-template?template_type=main&force_regenerate=false`
-			);
+			// Load standard dashboard metrics (no template generation)
+			const clientDataResponse = await api.get("/dashboard/metrics");
 
 			if (clientDataResponse.data.success) {
 				setClientData(clientDataResponse.data.client_data || []);
@@ -257,18 +189,14 @@ function OriginalMainGrid({
 		}
 	}, [user?.client_id]);
 
-	// Fetch REAL BACKEND DATA for main dashboard with AI-POWERED CUSTOM TEMPLATES
+	// Fetch real backend data for main dashboard with standard predefined templates
 	React.useEffect(() => {
 		const fetchRealData = async () => {
 			try {
-				console.log(
-					"🚀 Loading AI-POWERED custom dashboard with intelligent analysis"
-				);
+				console.log("📊 Loading dashboard metrics with standard templates");
 
-				// 🚀 NEW: Use AI-powered metrics with full LLM analysis (not fast mode)
-				const response = await api.get(
-					"/dashboard/metrics?fast_mode=false&force_llm=true"
-				);
+				// Fetch standard dashboard metrics (no AI template generation)
+				const response = await api.get("/dashboard/metrics");
 
 				if (response.data && response.data.llm_analysis) {
 					const analysis = response.data.llm_analysis;
@@ -529,7 +457,7 @@ function OriginalMainGrid({
 			{llmAnalysis?.kpis && llmAnalysis.kpis.length > 0 && (
 				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
 					{llmAnalysis.kpis.map((kpi: any, index: number) => {
-						const trendDisplay = getTrendDisplay(kpi.trend);
+						getTrendDisplay(kpi.trend); // Call but don't store unused result
 
 						return (
 							<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
@@ -886,8 +814,12 @@ function OriginalMainGrid({
 													<Charts.ScatterChart
 														data={filteredData}
 														title={chart.display_name}
-														xAxisLabel={chart.config?.x_axis?.display_name || "X Axis"}
-														yAxisLabel={chart.config?.y_axis?.display_name || "Y Axis"}
+														xAxisLabel={
+															chart.config?.x_axis?.display_name || "X Axis"
+														}
+														yAxisLabel={
+															chart.config?.y_axis?.display_name || "Y Axis"
+														}
 													/>
 												</Box>
 											</CardContent>
@@ -908,8 +840,12 @@ function OriginalMainGrid({
 													<Charts.HeatmapChart
 														data={filteredData}
 														title={chart.display_name}
-														xAxisLabel={chart.config?.x_axis?.display_name || "Categories"}
-														yAxisLabel={chart.config?.y_axis?.display_name || "Metrics"}
+														xAxisLabel={
+															chart.config?.x_axis?.display_name || "Categories"
+														}
+														yAxisLabel={
+															chart.config?.y_axis?.display_name || "Metrics"
+														}
 													/>
 												</Box>
 											</CardContent>
@@ -1067,9 +1003,8 @@ function OriginalMainGrid({
 
 // Template Dashboard Component (for non-main dashboards)
 function TemplateDashboard({
-	dashboardData,
 	user,
-	dashboardType,
+	dashboardType = "main",
 	dateRange,
 }: MainGridProps) {
 	const [loading, setLoading] = React.useState(true);
@@ -1159,10 +1094,8 @@ function TemplateDashboard({
 		try {
 			setLoading(true);
 
-			// Fetch real client data with proper query parameters
-			const clientDataResponse = await api.post(
-				`/dashboard/generate-template?template_type=${dashboardType}&force_regenerate=false`
-			);
+			// Load standard dashboard metrics (no template generation)
+			const clientDataResponse = await api.get("/dashboard/metrics");
 
 			if (clientDataResponse.data.success) {
 				setClientData(clientDataResponse.data.client_data || []);
@@ -1235,7 +1168,7 @@ function TemplateDashboard({
 				loading: false,
 			});
 		}
-	}, [user?.client_id, dashboardType]);
+	}, [user?.client_id, dashboardType]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Load data on mount and when dependencies change
 	React.useEffect(() => {
@@ -1273,15 +1206,7 @@ function TemplateDashboard({
 		return chartMetric?.metric_value || null;
 	};
 
-	// Helper function to get AI-generated KPI data
-	const getAIKPI = (kpiName: string) => {
-		const kpiMetric = aiMetrics.find(
-			(metric) =>
-				metric.metric_type === "kpi" &&
-				metric.metric_name.toLowerCase().includes(kpiName.toLowerCase())
-		);
-		return kpiMetric?.metric_value || null;
-	};
+	// Removed unused getAIKPI function
 
 	// Helper function to create chart data from any data structure
 	const createDynamicChartData = (
@@ -1322,7 +1247,7 @@ function TemplateDashboard({
 		const totalRecords = filteredData.length;
 
 		// Handle AI-generated custom templates
-		if (dashboardType.startsWith("custom_")) {
+		if (dashboardType && dashboardType.startsWith("custom_")) {
 			const templateIndex = parseInt(dashboardType.replace("custom_", "")) - 1;
 			return {
 				title: `${user?.company_name} AI-Generated Template ${
