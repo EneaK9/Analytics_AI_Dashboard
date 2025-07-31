@@ -48,6 +48,8 @@ const DashboardPage: React.FC = () => {
 			console.log("🔥 Loading REAL AI analysis data from backend...");
 
 			// First, try to get dashboard metrics
+			// Note: This page should use the MainGrid component for dashboard switching
+			// For now, keeping default endpoint
 			const response = await api.get("/dashboard/metrics");
 			console.log("📊 Backend metrics response:", response.data);
 

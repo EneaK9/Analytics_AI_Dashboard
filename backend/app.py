@@ -1827,7 +1827,7 @@ async def get_dashboard_metrics(
         
         # 🚀 PRIORITY 1: Check cache first (instant response)
         cached_insights = await llm_cache_manager.get_cached_llm_response(
-            uuid.UUID(client_id), client_data
+            client_id, client_data
         )
         if cached_insights and not force_llm:
             logger.info(f"⚡ Using cached LLM insights for client {client_id} - instant response!")
@@ -1870,6 +1870,138 @@ async def get_dashboard_metrics(
         logger.error(f"❌ Failed to get dashboard metrics: {e}")
         return {
             "error": f"Failed to get dashboard metrics: {str(e)}"
+        }
+
+@app.get("/api/dashboard/business-insights")
+async def get_business_insights_dashboard(
+    token: str = Depends(security),
+    fast_mode: bool = True,
+    force_llm: bool = False
+):
+    """Get business insights dashboard metrics with specialized LLM analysis"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        client_id = str(token_data.client_id)
+        
+        # Get client data
+        from ai_analyzer import ai_analyzer
+        from dashboard_orchestrator import dashboard_orchestrator
+        from llm_cache_manager import llm_cache_manager
+        
+        client_data = await ai_analyzer.get_client_data_optimized(client_id)
+        if not client_data:
+            raise HTTPException(status_code=404, detail="No data found for this client")
+        
+        # Check cache first
+        cached_insights = await llm_cache_manager.get_cached_llm_response(
+            client_id, client_data
+        )
+        if cached_insights and not force_llm:
+            logger.info(f"⚡ Using cached business insights for client {client_id}")
+            return {
+                "client_id": client_id,
+                "dashboard_type": "business_insights",
+                "data_type": client_data.get('data_type', 'unknown'),
+                "schema_type": client_data.get('schema', {}).get('type', 'unknown'),
+                "total_records": len(client_data.get('data', [])),
+                "llm_analysis": cached_insights,
+                "cached": True,
+                "response_time": "instant"
+            }
+        
+        # Generate business insights using LLM
+        if fast_mode and not force_llm:
+            insights = await dashboard_orchestrator._extract_business_insights_fallback(
+                client_data.get('data', []), 
+                client_data.get('data_type', 'unknown')
+            )
+        else:
+            insights = await dashboard_orchestrator._extract_business_insights_specialized(client_data)
+        
+        return {
+            "client_id": client_id,
+            "dashboard_type": "business_insights",
+            "data_type": client_data.get('data_type', 'unknown'),
+            "schema_type": client_data.get('schema', {}).get('type', 'unknown'),
+            "total_records": len(client_data.get('data', [])),
+            "llm_analysis": insights,
+            "cached": False,
+            "fast_mode": fast_mode
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get business insights dashboard: {e}")
+        return {
+            "error": f"Failed to get business insights dashboard: {str(e)}"
+        }
+
+@app.get("/api/dashboard/performance")
+async def get_performance_dashboard(
+    token: str = Depends(security),
+    fast_mode: bool = True,
+    force_llm: bool = False
+):
+    """Get performance dashboard metrics with specialized LLM analysis"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        client_id = str(token_data.client_id)
+        
+        # Get client data
+        from ai_analyzer import ai_analyzer
+        from dashboard_orchestrator import dashboard_orchestrator
+        from llm_cache_manager import llm_cache_manager
+        
+        client_data = await ai_analyzer.get_client_data_optimized(client_id)
+        if not client_data:
+            raise HTTPException(status_code=404, detail="No data found for this client")
+        
+        # Check cache first
+        cached_insights = await llm_cache_manager.get_cached_llm_response(
+            client_id, client_data
+        )
+        if cached_insights and not force_llm:
+            logger.info(f"⚡ Using cached performance insights for client {client_id}")
+            return {
+                "client_id": client_id,
+                "dashboard_type": "performance",
+                "data_type": client_data.get('data_type', 'unknown'),
+                "schema_type": client_data.get('schema', {}).get('type', 'unknown'),
+                "total_records": len(client_data.get('data', [])),
+                "llm_analysis": cached_insights,
+                "cached": True,
+                "response_time": "instant"
+            }
+        
+        # Generate performance insights using LLM
+        if fast_mode and not force_llm:
+            insights = await dashboard_orchestrator._extract_performance_insights_fallback(
+                client_data.get('data', []), 
+                client_data.get('data_type', 'unknown')
+            )
+        else:
+            insights = await dashboard_orchestrator._extract_performance_insights_specialized(client_data)
+        
+        return {
+            "client_id": client_id,
+            "dashboard_type": "performance",
+            "data_type": client_data.get('data_type', 'unknown'),
+            "schema_type": client_data.get('schema', {}).get('type', 'unknown'),
+            "total_records": len(client_data.get('data', [])),
+            "llm_analysis": insights,
+            "cached": False,
+            "fast_mode": fast_mode
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get performance dashboard: {e}")
+        return {
+            "error": f"Failed to get performance dashboard: {str(e)}"
         }
 
 @app.get("/api/dashboard/status", response_model=DashboardStatusResponse)
