@@ -92,12 +92,12 @@ export default function SelectContent({
 
 			if (
 				customTemplatesResponse.data.success &&
-				customTemplatesResponse.data.generated_templates
+				customTemplatesResponse.data.templates
 			) {
 				// Create dashboard options from AI-generated custom templates
 				const customTemplates = await generateCustomDashboardOptions(
-					customTemplatesResponse.data.generated_templates,
-					customTemplatesResponse.data.business_dna,
+					customTemplatesResponse.data.templates,
+					customTemplatesResponse.data.business_intelligence,
 					user.company_name
 				);
 				setDashboardOptions(customTemplates);
@@ -140,9 +140,8 @@ export default function SelectContent({
 		customTemplates.forEach((template, index) => {
 			templates.push({
 				id: (index + 1).toString(),
-				title:
-					template.smart_name?.primary_name || `Custom Template ${index + 1}`,
-				subtitle: template.smart_name?.description || "AI-Generated Dashboard",
+				title: template.name || `Custom Template ${index + 1}`,
+				subtitle: template.description || "AI-Generated Dashboard",
 				icon: index === 0 ? <AssessmentIcon /> : <InsightsIcon />,
 				template_type: `custom_${index + 1}`,
 				color: index === 0 ? "success.main" : "info.main",

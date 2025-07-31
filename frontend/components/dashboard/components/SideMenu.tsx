@@ -31,9 +31,16 @@ interface SideMenuProps {
 		client_id: string;
 	};
 	onDashboardChange?: (dashboardType: string) => void;
+	selectedSection?: string;
+	onSectionChange?: (section: string) => void;
 }
 
-export default function SideMenu({ user, onDashboardChange }: SideMenuProps) {
+export default function SideMenu({
+	user,
+	onDashboardChange,
+	selectedSection,
+	onSectionChange,
+}: SideMenuProps) {
 	return (
 		<Drawer
 			variant="permanent"
@@ -58,7 +65,10 @@ export default function SideMenu({ user, onDashboardChange }: SideMenuProps) {
 					height: "100%",
 					pb: 8,
 				}}>
-				<MenuContent />
+				<MenuContent
+					selectedSection={selectedSection}
+					onSectionChange={onSectionChange}
+				/>
 			</Box>
 			<Stack
 				direction="row"

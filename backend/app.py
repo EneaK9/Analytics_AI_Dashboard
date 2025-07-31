@@ -1059,6 +1059,304 @@ async def test_api_connection(
             "platform_type": platform_type
         }
 
+# ==================== SFTP INTEGRATION ENDPOINTS ====================
+
+@app.post("/api/superadmin/test-sftp-connection")
+async def test_sftp_connection(
+    token: str = Depends(security),
+    sftp_host: str = Form(...),
+    sftp_username: str = Form(...),
+    sftp_password: str = Form(...),
+    sftp_port: int = Form(22),
+    sftp_remote_path: str = Form("/"),
+    sftp_file_pattern: str = Form("*.*")
+):
+    """Test SFTP connection and return file list"""
+    try:
+        verify_superadmin_token(token.credentials)
+        
+        from sftp_manager import sftp_manager, SFTPCredentials
+        
+        # Create credentials object
+        credentials = SFTPCredentials(
+            host=sftp_host,
+            username=sftp_username,
+            password=sftp_password,
+            port=sftp_port,
+            remote_path=sftp_remote_path,
+            file_pattern=sftp_file_pattern
+        )
+        
+        # Test connection
+        success, message, files = sftp_manager.test_connection(credentials)
+        
+        # Format file list for response
+        files_data = []
+        for file_info in files:
+            if not file_info.is_directory:  # Only include files, not directories
+                files_data.append({
+                    "filename": file_info.filename,
+                    "size": file_info.size,
+                    "modified_time": file_info.modified_time
+                })
+        
+        return {
+            "success": success,
+            "message": message,
+            "files_found": len(files_data),
+            "files": files_data
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ SFTP connection test failed: {e}")
+        return {
+            "success": False,
+            "message": f"SFTP connection test failed: {str(e)}",
+            "files_found": 0,
+            "files": []
+        }
+
+@app.post("/api/superadmin/clients/sftp-integration", response_model=ClientResponse)
+async def create_client_with_sftp_integration(
+    token: str = Depends(security),
+    company_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    sftp_host: str = Form(...),
+    sftp_username: str = Form(...),
+    sftp_password: str = Form(...),
+    sftp_port: int = Form(22),
+    sftp_remote_path: str = Form("/"),
+    sftp_file_pattern: str = Form("*.*"),
+    auto_sync_enabled: bool = Form(False),
+    sync_frequency_hours: int = Form(24),
+    selected_files: str = Form(default="")  # JSON string of selected files
+):
+    """Superadmin: Create a new client with SFTP integration"""
+    try:
+        # Verify superadmin token
+        verify_superadmin_token(token.credentials)
+        
+        db_client = get_admin_client()
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        # Check if client already exists
+        existing = db_client.table("clients").select("email").eq("email", email).execute()
+        if existing.data:
+            raise HTTPException(status_code=400, detail="Client with this email already exists")
+        
+        # Hash password
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        # Insert client into database
+        response = db_client.table("clients").insert({
+            "company_name": company_name,
+            "email": email,
+            "password_hash": password_hash,
+            "subscription_tier": "basic"
+        }).execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=400, detail="Failed to create client")
+            
+        client = response.data[0]
+        client_id = client['client_id']
+        logger.info(f"✅ Client created for SFTP integration: {email}")
+        
+        # Store SFTP configuration (encrypt password)
+        import base64
+        import hashlib
+        
+        # Simple encryption for password (in production, use proper encryption)
+        password_encrypted = base64.b64encode(sftp_password.encode()).decode()
+        
+        sftp_config = {
+            "client_id": client_id,
+            "host": sftp_host,
+            "username": sftp_username,
+            "password_encrypted": password_encrypted,
+            "port": sftp_port,
+            "remote_path": sftp_remote_path,
+            "file_pattern": sftp_file_pattern,
+            "auto_sync_enabled": auto_sync_enabled,
+            "sync_frequency_hours": sync_frequency_hours,
+            "created_at": "NOW()"
+        }
+        
+        # Store SFTP config in database
+        db_client.table("client_sftp_configs").insert(sftp_config).execute()
+        
+        # Download and process initial files
+        from sftp_manager import sftp_manager, SFTPCredentials
+        import json
+        
+        credentials = SFTPCredentials(
+            host=sftp_host,
+            username=sftp_username,
+            password=sftp_password,
+            port=sftp_port,
+            remote_path=sftp_remote_path,
+            file_pattern=sftp_file_pattern
+        )
+        
+        # Get files to download
+        files_to_download = []
+        if selected_files:
+            try:
+                files_to_download = json.loads(selected_files)
+            except:
+                files_to_download = []
+        
+        # If no specific files selected, download all matching files
+        if not files_to_download:
+            success, files, message = sftp_manager.test_connection(credentials)
+            if success:
+                files_to_download = [f.filename for f in files if not f.is_directory]
+        
+        total_records = 0
+        files_processed = 0
+        
+        if files_to_download:
+            # Download files
+            download_result = sftp_manager.download_multiple_files(credentials, files_to_download)
+            
+            if download_result["downloaded_count"] > 0:
+                # Process each downloaded file
+                from universal_data_parser import universal_parser
+                
+                for filename, file_content in download_result["files"].items():
+                    try:
+                        # Detect file format
+                        if filename.lower().endswith('.csv'):
+                            data_format = 'csv'
+                        elif filename.lower().endswith(('.xlsx', '.xls')):
+                            data_format = 'excel'
+                        elif filename.lower().endswith('.json'):
+                            data_format = 'json'
+                        elif filename.lower().endswith('.xml'):
+                            data_format = 'xml'
+                        else:
+                            data_format = 'csv'  # Default to CSV
+                        
+                        # Parse file content to JSON
+                        file_str = file_content.decode('utf-8') if isinstance(file_content, bytes) else file_content
+                        parsed_records = universal_parser.parse_to_json(file_str, data_format)
+                        
+                        if parsed_records:
+                            logger.info(f"🔄 SFTP file {filename} parsed to {len(parsed_records)} JSON records")
+                            
+                            # Store records in database
+                            batch_rows = []
+                            for record in parsed_records:
+                                # Remove metadata fields before storing
+                                clean_record = {k: v for k, v in record.items() if not k.startswith('_')}
+                                batch_rows.append({
+                                    "client_id": client_id,
+                                    "table_name": f"client_{client_id.replace('-', '_')}_data",
+                                    "data": clean_record,
+                                    "source_file": filename,
+                                    "source_type": "sftp"
+                                })
+                            
+                            if batch_rows:
+                                db_client.table("client_data").insert(batch_rows).execute()
+                                total_records += len(batch_rows)
+                                files_processed += 1
+                                logger.info(f"✅ Stored {len(batch_rows)} records from {filename}")
+                        
+                    except Exception as file_error:
+                        logger.error(f"❌ Failed to process SFTP file {filename}: {file_error}")
+                        continue
+                
+                # Create schema entry
+                db_client.table("client_schemas").insert({
+                    "client_id": client_id,
+                    "table_name": f"client_{client_id.replace('-', '_')}_data",
+                    "data_type": "sftp_multi_format",
+                    "schema_definition": {
+                        "type": "sftp_data",
+                        "files_processed": files_processed,
+                        "total_records": total_records,
+                        "source": "sftp"
+                    }
+                }).execute()
+                
+                logger.info(f"✅ SFTP integration complete: {files_processed} files, {total_records} records")
+        
+        # Log SFTP sync
+        db_client.table("sftp_sync_logs").insert({
+            "client_id": client_id,
+            "files_downloaded": files_processed,
+            "records_processed": total_records,
+            "status": "success" if files_processed > 0 else "no_files",
+            "sync_started_at": "NOW()",
+            "sync_completed_at": "NOW()"
+        }).execute()
+        
+        # Return client response
+        return ClientResponse(
+            client_id=client_id,
+            company_name=company_name,
+            email=email,
+            subscription_tier="basic",
+            created_at=client['created_at']
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to create SFTP client: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create SFTP client: {str(e)}")
+
+# ==================== MASSIVE DATA PROCESSING ====================
+
+async def _handle_massive_dataset_upload(client_id: str, df, quality_report):
+    """Handle massive datasets with parallel processing and optimized batching"""
+    try:
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+        
+        logger.info(f"🚀 MASSIVE DATA PROCESSING: {len(df)} rows for client {client_id}")
+        
+        # Convert to JSON records in parallel chunks
+        chunk_size = 5000
+        df_chunks = [df[i:i + chunk_size] for i in range(0, len(df), chunk_size)]
+        
+        # Process chunks in parallel
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            chunk_tasks = []
+            for i, chunk in enumerate(df_chunks):
+                task = asyncio.get_event_loop().run_in_executor(
+                    executor, 
+                    lambda c=chunk: c.to_dict('records')
+                )
+                chunk_tasks.append(task)
+            
+            # Wait for all chunks to be processed
+            processed_chunks = await asyncio.gather(*chunk_tasks)
+        
+        # Flatten all chunks into single list
+        all_records = []
+        for chunk_records in processed_chunks:
+            all_records.extend(chunk_records)
+        
+        logger.info(f"✅ PARALLEL PROCESSING complete: {len(all_records)} records ready")
+        
+        # Use optimized batch insert
+        db_client = get_admin_client()
+        total_inserted = await improved_batch_insert(db_client, all_records, "MASSIVE_DATA")
+        
+        return {
+            "success": True,
+            "message": f"🚀 MASSIVE UPLOAD SUCCESS: {total_inserted} records processed",
+            "records_processed": total_inserted,
+            "processing_mode": "PARALLEL_MASSIVE",
+            "quality_score": quality_report.overall_score if hasattr(quality_report, 'overall_score') else 95.0
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Massive dataset processing failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Massive dataset processing failed: {str(e)}")
+
 # ==================== DATA UPLOAD & ANALYSIS ====================
 
 @app.post("/api/admin/upload-data", response_model=CreateSchemaResponse)
@@ -2287,6 +2585,13 @@ async def upload_data_enhanced(
         # Generate data quality report
         quality_report = await parser.generate_data_quality_report(df)
         
+        # 🚀 PARALLEL PROCESSING for massive datasets
+        if len(df) > 10000:
+            logger.info(f"🔥 MASSIVE DATASET detected ({len(df)} rows) - using PARALLEL processing")
+            return await _handle_massive_dataset_upload(client_id, df, quality_report)
+        else:
+            logger.info(f"📊 Standard dataset ({len(df)} rows) - using normal processing")
+        
         # Use enhanced AI analyzer
         from ai_analyzer import ai_analyzer
         
@@ -3216,10 +3521,10 @@ async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: st
     
     logger.info(f"🚀 OPTIMIZED BATCH inserting {len(batch_rows)} {data_type.upper()} rows")
     
-    # OPTIMIZED SETTINGS for Supabase
-    chunk_size = 100  # Reduced from 1000 - optimal for Supabase
+    # 🚀 MASSIVE THROUGHPUT SETTINGS for Supabase
+    chunk_size = 1000  # Increased for massive data uploads
     max_retries = 3
-    base_delay = 0.5  # Start with 500ms delay
+    base_delay = 0.1  # Reduced delay - Supabase can handle it
     total_inserted = 0
     failed_chunks = []
     
@@ -3231,9 +3536,9 @@ async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: st
         
         while retry_count <= max_retries and not chunk_inserted:
             try:
-                # Add small delay between chunks to avoid overwhelming Supabase
-                if i > 0:  # Skip delay for first chunk
-                    await asyncio.sleep(0.2)  # 200ms delay between chunks
+                # Minimal delay - Supabase can handle rapid inserts
+                if i > 0 and i % 5000 == 0:  # Only delay every 5000 rows
+                    await asyncio.sleep(0.05)  # 50ms delay every 5K rows
                 
                 response = db_client.table("client_data").insert(chunk).execute()
                 

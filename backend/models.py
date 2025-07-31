@@ -222,7 +222,7 @@ class ClientCreateAdmin(BaseModel):
     password: str = Field(..., min_length=8)
     # subscription_tier: SubscriptionTier = SubscriptionTier.BASIC
     data_type: Optional[str] = "json"
-    input_method: Optional[str] = "paste"  # paste, upload, api
+    input_method: Optional[str] = "paste"  # paste, upload, api, sftp
     data_content: Optional[str] = ""
     
     # API Integration fields
@@ -230,6 +230,15 @@ class ClientCreateAdmin(BaseModel):
     api_credentials: Optional[Dict[str, Any]] = None
     connection_name: Optional[str] = None
     sync_frequency_hours: Optional[int] = 24
+    
+    # SFTP Integration fields
+    sftp_host: Optional[str] = None
+    sftp_username: Optional[str] = None
+    sftp_password: Optional[str] = None
+    sftp_port: Optional[int] = 22
+    sftp_remote_path: Optional[str] = "/"
+    sftp_file_pattern: Optional[str] = "*.*"
+    auto_sync_enabled: Optional[bool] = False
 
 class ClientListResponse(BaseModel):
     clients: List[ClientResponse]
@@ -610,11 +619,11 @@ class EnhancedDataUpload(BaseModel):
     encoding: str = "utf-8"
     delimiter: Optional[str] = None  # For CSV/TSV
     sheet_name: Optional[str] = None  # For Excel
-    max_rows: Optional[int] = Field(None, ge=1, le=1000000)  # Limit for large files
+    max_rows: Optional[int] = Field(None, ge=1, le=10000000)  # 10M rows - MASSIVE data support
 
 class DataUploadConfig(BaseModel):
     """Configuration for data upload processing"""
-    max_file_size_mb: int = 100
+    max_file_size_mb: int = 500  # 5x larger files supported
     allowed_formats: List[DataFormat] = [
         DataFormat.JSON, DataFormat.CSV, DataFormat.EXCEL, 
         DataFormat.XML, DataFormat.TSV, DataFormat.PARQUET
@@ -622,7 +631,7 @@ class DataUploadConfig(BaseModel):
     auto_detect_encoding: bool = True
     validate_data_quality: bool = True
     generate_preview: bool = True
-    chunk_size: int = 1000  # For large file processing
+    chunk_size: int = 5000  # 5x larger chunks for massive data
 
 # ==================== SECURITY AND VALIDATION MODELS ====================
 
@@ -853,4 +862,52 @@ class BusinessPatternLibrary:
             "optimization_rules": "jsonb",
             "created_at": "timestamp DEFAULT NOW()",
             "updated_at": "timestamp DEFAULT NOW()"
-        } 
+        }
+
+# ==================== SFTP INTEGRATION MODELS ====================
+
+class SFTPCredentials(BaseModel):
+    """SFTP connection credentials"""
+    host: str = Field(..., min_length=1, max_length=255)
+    username: str = Field(..., min_length=1, max_length=255)
+    password: str = Field(..., min_length=1)
+    port: int = Field(default=22, ge=1, le=65535)
+    remote_path: str = Field(default="/", max_length=500)
+    file_pattern: str = Field(default="*.*", max_length=100)
+
+class SFTPTestResult(BaseModel):
+    """Result of SFTP connection test"""
+    success: bool
+    message: str
+    files_found: int = 0
+    files: List[Dict[str, Any]] = []
+
+class SFTPFileInfo(BaseModel):
+    """Information about a file on SFTP server"""
+    filename: str
+    size: int
+    modified_time: str
+    is_directory: bool = False
+
+class ClientSFTPConfig(BaseModel):
+    """Client SFTP configuration stored in database"""
+    client_id: str
+    host: str
+    username: str
+    password_encrypted: str  # Will be encrypted before storage
+    port: int = 22
+    remote_path: str = "/"
+    file_pattern: str = "*.*"
+    auto_sync_enabled: bool = False
+    sync_frequency_hours: int = 24
+    last_sync_at: Optional[datetime] = None
+
+class SFTPSyncLog(BaseModel):
+    """Log entry for SFTP sync operations"""
+    client_id: str
+    files_downloaded: int = 0
+    records_processed: int = 0
+    status: str  # success, error, partial
+    error_message: Optional[str] = None
+    sync_started_at: datetime
+    sync_completed_at: Optional[datetime] = None 

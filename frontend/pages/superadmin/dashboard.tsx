@@ -50,12 +50,21 @@ interface CreateClientForm {
 	// subscription_tier: string;
 	data_type: string;
 	data_content: string;
-	input_method: "paste" | "upload" | "api";
+	input_method: "paste" | "upload" | "api" | "sftp";
 	uploaded_file: File | null;
 
 	// API Integration fields
 	platform_type: "manual" | "shopify" | "amazon" | "woocommerce";
 	connection_name: string;
+
+	// SFTP Integration fields
+	sftp_host: string;
+	sftp_username: string;
+	sftp_password: string;
+	sftp_port: number;
+	sftp_remote_path: string;
+	sftp_file_pattern: string;
+	auto_sync_enabled: boolean;
 
 	// Shopify fields
 	shop_domain: string;
@@ -131,11 +140,29 @@ const SuperAdminDashboard: React.FC = () => {
 		woo_consumer_secret: "",
 		woo_version: "wc/v3",
 
+		// SFTP fields
+		sftp_host: "",
+		sftp_username: "",
+		sftp_password: "",
+		sftp_port: 22,
+		sftp_remote_path: "/",
+		sftp_file_pattern: "*.*",
+		auto_sync_enabled: false,
+
 		sync_frequency_hours: 24,
 	});
 	const [formLoading, setFormLoading] = useState(false);
 	const [error, setError] = useState("");
 	const router = useRouter();
+
+	// SFTP state
+	const [sftpConnectionTest, setSftpConnectionTest] = useState<{
+		success: boolean;
+		message: string;
+		tested: boolean;
+		files: any[];
+	}>({ success: false, message: "", tested: false, files: [] });
+	const [selectedSftpFiles, setSelectedSftpFiles] = useState<string[]>([]);
 
 	// Check authentication and load data
 	useEffect(() => {
@@ -211,7 +238,9 @@ const SuperAdminDashboard: React.FC = () => {
 		if (error) setError("");
 	};
 
-	const handleInputMethodChange = (method: "paste" | "upload" | "api") => {
+	const handleInputMethodChange = (
+		method: "paste" | "upload" | "api" | "sftp"
+	) => {
 		setFormData((prev) => ({
 			...prev,
 			input_method: method,
@@ -224,6 +253,15 @@ const SuperAdminDashboard: React.FC = () => {
 		// Reset connection test when changing input method
 		if (method !== "api") {
 			setConnectionTestResult({ success: false, message: "", tested: false });
+		}
+		if (method !== "sftp") {
+			setSftpConnectionTest({
+				success: false,
+				message: "",
+				tested: false,
+				files: [],
+			});
+			setSelectedSftpFiles([]);
 		}
 	};
 
@@ -318,6 +356,74 @@ const SuperAdminDashboard: React.FC = () => {
 		}
 	};
 
+	const testSFTPConnection = async () => {
+		if (formData.input_method !== "sftp") {
+			return;
+		}
+
+		setFormLoading(true);
+		setSftpConnectionTest({
+			success: false,
+			message: "Testing SFTP connection...",
+			tested: false,
+			files: [],
+		});
+
+		try {
+			const testData = new FormData();
+			testData.append("sftp_host", formData.sftp_host);
+			testData.append("sftp_username", formData.sftp_username);
+			testData.append("sftp_password", formData.sftp_password);
+			testData.append("sftp_port", formData.sftp_port.toString());
+			testData.append("sftp_remote_path", formData.sftp_remote_path);
+			testData.append("sftp_file_pattern", formData.sftp_file_pattern);
+
+			const response = await api.post(
+				"/superadmin/test-sftp-connection",
+				testData,
+				{
+					headers: {
+						"Content-Type": "multipart/form-data",
+					},
+				}
+			);
+
+			setSftpConnectionTest({
+				success: response.data.success,
+				message: response.data.message,
+				tested: true,
+				files: response.data.files || [],
+			});
+
+			if (response.data.success) {
+				// Auto-select all files by default
+				setSelectedSftpFiles(response.data.files.map((f: any) => f.filename));
+			}
+		} catch (error: any) {
+			console.error("SFTP connection test failed:", error);
+
+			let errorMessage = "SFTP connection test failed";
+
+			if (error.response?.status === 401) {
+				errorMessage =
+					"Authentication failed - please refresh the page and try again";
+			} else if (error.response?.data?.message) {
+				errorMessage = error.response.data.message;
+			} else if (error.response?.data?.detail) {
+				errorMessage = error.response.data.detail;
+			}
+
+			setSftpConnectionTest({
+				success: false,
+				message: errorMessage,
+				tested: true,
+				files: [],
+			});
+		} finally {
+			setFormLoading(false);
+		}
+	};
+
 	const handleCreateClient = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setFormLoading(true);
@@ -381,6 +487,36 @@ const SuperAdminDashboard: React.FC = () => {
 						"Content-Type": "multipart/form-data",
 					},
 				});
+			} else if (formData.input_method === "sftp") {
+				// SFTP Integration
+				submitData.append("sftp_host", formData.sftp_host);
+				submitData.append("sftp_username", formData.sftp_username);
+				submitData.append("sftp_password", formData.sftp_password);
+				submitData.append("sftp_port", formData.sftp_port.toString());
+				submitData.append("sftp_remote_path", formData.sftp_remote_path);
+				submitData.append("sftp_file_pattern", formData.sftp_file_pattern);
+				submitData.append(
+					"auto_sync_enabled",
+					formData.auto_sync_enabled.toString()
+				);
+				submitData.append(
+					"sync_frequency_hours",
+					formData.sync_frequency_hours.toString()
+				);
+
+				// Add selected files if any
+				if (selectedSftpFiles.length > 0) {
+					submitData.append(
+						"selected_files",
+						JSON.stringify(selectedSftpFiles)
+					);
+				}
+
+				await api.post("/superadmin/clients/sftp-integration", submitData, {
+					headers: {
+						"Content-Type": "multipart/form-data",
+					},
+				});
 			} else {
 				// Manual data upload (existing logic)
 				submitData.append("data_type", formData.data_type);
@@ -431,10 +567,26 @@ const SuperAdminDashboard: React.FC = () => {
 				woo_consumer_secret: "",
 				woo_version: "wc/v3",
 
+				// SFTP fields
+				sftp_host: "",
+				sftp_username: "",
+				sftp_password: "",
+				sftp_port: 22,
+				sftp_remote_path: "/",
+				sftp_file_pattern: "*.*",
+				auto_sync_enabled: false,
+
 				sync_frequency_hours: 24,
 			});
 			setShowCreateForm(false);
 			setConnectionTestResult({ success: false, message: "", tested: false });
+			setSftpConnectionTest({
+				success: false,
+				message: "",
+				tested: false,
+				files: [],
+			});
+			setSelectedSftpFiles([]);
 			await loadClients();
 		} catch (err: any) {
 			setError(err.response?.data?.detail || "Failed to create client");
@@ -836,7 +988,7 @@ id,name,email,age,department
 										<label className="block text-sm font-medium text-black mb-2">
 											Data Source
 										</label>
-										<div className="grid grid-cols-3 gap-2">
+										<div className="grid grid-cols-4 gap-2">
 											<button
 												type="button"
 												onClick={() => handleInputMethodChange("paste")}
@@ -874,6 +1026,19 @@ id,name,email,age,department
 												<div className="flex flex-col items-center space-y-1">
 													<Cloud className="h-4 w-4" />
 													<span>API</span>
+												</div>
+											</button>
+											<button
+												type="button"
+												onClick={() => handleInputMethodChange("sftp")}
+												className={`px-3 py-2 rounded-lg border transition-colors text-sm ${
+													formData.input_method === "sftp"
+														? "bg-primary text-white border-primary"
+														: "bg-white text-body border-stroke hover:bg-gray-1"
+												}`}>
+												<div className="flex flex-col items-center space-y-1">
+													<Package className="h-4 w-4" />
+													<span>SFTP</span>
 												</div>
 											</button>
 										</div>
@@ -922,7 +1087,7 @@ id,name,email,age,department
 												</p>
 											)}
 										</div>
-									) : (
+									) : formData.input_method === "api" ? (
 										/* API Integration Forms */
 										<div className="space-y-4">
 											{/* Platform Selection */}
@@ -1247,7 +1412,252 @@ id,name,email,age,department
 												</select>
 											</div>
 										</div>
-									)}
+									) : formData.input_method === "sftp" ? (
+										/* SFTP Integration Forms */
+										<div className="space-y-4">
+											{/* SFTP Connection Details */}
+											<div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+												<h4 className="text-sm font-medium text-blue-800 mb-3 flex items-center">
+													<Package className="h-4 w-4 mr-2" />
+													SFTP Server Configuration
+												</h4>
+												<div className="grid grid-cols-2 gap-3">
+													{/* Host */}
+													<div>
+														<label className="block text-xs font-medium text-black mb-1">
+															SFTP Host
+														</label>
+														<input
+															type="text"
+															name="sftp_host"
+															value={formData.sftp_host}
+															onChange={handleFormChange}
+															placeholder="sftp.yardiaspxtl1.com"
+															className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-white focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+															required
+														/>
+													</div>
+
+													{/* Port */}
+													<div>
+														<label className="block text-xs font-medium text-black mb-1">
+															Port
+														</label>
+														<input
+															type="number"
+															name="sftp_port"
+															value={formData.sftp_port}
+															onChange={handleFormChange}
+															placeholder="22"
+															min="1"
+															max="65535"
+															className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-white focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+															required
+														/>
+													</div>
+
+													{/* Username */}
+													<div>
+														<label className="block text-xs font-medium text-black mb-1">
+															Username
+														</label>
+														<input
+															type="text"
+															name="sftp_username"
+															value={formData.sftp_username}
+															onChange={handleFormChange}
+															placeholder="88927ftp"
+															className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-white focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+															required
+														/>
+													</div>
+
+													{/* Password */}
+													<div>
+														<label className="block text-xs font-medium text-black mb-1">
+															Password
+														</label>
+														<input
+															type="password"
+															name="sftp_password"
+															value={formData.sftp_password}
+															onChange={handleFormChange}
+															placeholder="Enter SFTP password"
+															className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-white focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+															required
+														/>
+													</div>
+
+													{/* Remote Path */}
+													<div>
+														<label className="block text-xs font-medium text-black mb-1">
+															Remote Path
+														</label>
+														<input
+															type="text"
+															name="sftp_remote_path"
+															value={formData.sftp_remote_path}
+															onChange={handleFormChange}
+															placeholder="/"
+															className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-white focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+														/>
+													</div>
+
+													{/* File Pattern */}
+													<div>
+														<label className="block text-xs font-medium text-black mb-1">
+															File Pattern
+														</label>
+														<input
+															type="text"
+															name="sftp_file_pattern"
+															value={formData.sftp_file_pattern}
+															onChange={handleFormChange}
+															placeholder="*.csv, *.xlsx, *.*"
+															className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-white focus:ring-1 focus:ring-primary focus:border-transparent outline-none"
+														/>
+													</div>
+												</div>
+
+												{/* Test Connection Button */}
+												<div className="mt-3">
+													<button
+														type="button"
+														onClick={testSFTPConnection}
+														disabled={
+															formLoading ||
+															!formData.sftp_host ||
+															!formData.sftp_username ||
+															!formData.sftp_password
+														}
+														className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">
+														{formLoading
+															? "Testing..."
+															: "Test SFTP Connection"}
+													</button>
+												</div>
+
+												{/* Connection Test Result */}
+												{sftpConnectionTest.tested && (
+													<div className="mt-3">
+														<div
+															className={`p-3 rounded-lg border text-sm ${
+																sftpConnectionTest.success
+																	? "bg-green-50 border-green-200 text-green-700"
+																	: "bg-red-50 border-red-200 text-red-700"
+															}`}>
+															<div className="flex items-center space-x-2">
+																{sftpConnectionTest.success ? (
+																	<CheckCircle className="h-3 w-3 text-green-600" />
+																) : (
+																	<AlertTriangle className="h-3 w-3 text-red-600" />
+																)}
+																<span className="font-medium">
+																	{sftpConnectionTest.success
+																		? "Connection Successful!"
+																		: "Connection Failed"}
+																</span>
+															</div>
+															<p className="text-xs mt-1">
+																{sftpConnectionTest.message}
+															</p>
+
+															{/* File Selection */}
+															{sftpConnectionTest.success &&
+																sftpConnectionTest.files.length > 0 && (
+																	<div className="mt-3">
+																		<h5 className="text-xs font-medium mb-2">
+																			Available Files (
+																			{sftpConnectionTest.files.length} found):
+																		</h5>
+																		<div className="max-h-32 overflow-y-auto space-y-1">
+																			{sftpConnectionTest.files.map(
+																				(file: any, index: number) => (
+																					<label
+																						key={index}
+																						className="flex items-center space-x-2 text-xs">
+																						<input
+																							type="checkbox"
+																							checked={selectedSftpFiles.includes(
+																								file.filename
+																							)}
+																							onChange={(e) => {
+																								if (e.target.checked) {
+																									setSelectedSftpFiles([
+																										...selectedSftpFiles,
+																										file.filename,
+																									]);
+																								} else {
+																									setSelectedSftpFiles(
+																										selectedSftpFiles.filter(
+																											(f) => f !== file.filename
+																										)
+																									);
+																								}
+																							}}
+																							className="rounded border-gray-300"
+																						/>
+																						<span className="flex-1">
+																							{file.filename}
+																						</span>
+																						<span className="text-gray-500">
+																							{file.size
+																								? `${(file.size / 1024).toFixed(
+																										1
+																								  )} KB`
+																								: ""}
+																						</span>
+																					</label>
+																				)
+																			)}
+																		</div>
+																		<p className="text-xs text-gray-600 mt-2">
+																			Selected: {selectedSftpFiles.length} of{" "}
+																			{sftpConnectionTest.files.length} files
+																		</p>
+																	</div>
+																)}
+														</div>
+													</div>
+												)}
+											</div>
+
+											{/* Auto-sync Settings */}
+											<div>
+												<div className="flex items-center space-x-2 mb-2">
+													<input
+														type="checkbox"
+														name="auto_sync_enabled"
+														checked={formData.auto_sync_enabled}
+														onChange={handleFormChange}
+														className="rounded border-gray-300"
+													/>
+													<label className="text-sm font-medium text-black">
+														Enable automatic synchronization
+													</label>
+												</div>
+
+												{formData.auto_sync_enabled && (
+													<div>
+														<label className="block text-xs font-medium text-black mb-1">
+															Sync Frequency
+														</label>
+														<select
+															name="sync_frequency_hours"
+															value={formData.sync_frequency_hours}
+															onChange={handleFormChange}
+															className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-white focus:ring-1 focus:ring-primary focus:border-transparent outline-none">
+															<option value={1}>Every Hour</option>
+															<option value={6}>Every 6 Hours</option>
+															<option value={12}>Every 12 Hours</option>
+															<option value={24}>Daily</option>
+															<option value={168}>Weekly</option>
+														</select>
+													</div>
+												)}
+											</div>
+										</div>
+									) : null}
 
 									{/* Form Actions */}
 								</form>

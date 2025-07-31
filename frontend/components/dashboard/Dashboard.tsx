@@ -11,6 +11,7 @@ import AppNavbar from "./components/AppNavbar";
 import Header from "./components/Header";
 import MainGrid from "./components/MainGrid";
 import SideMenu from "./components/SideMenu";
+import ExcelDataView from "./components/ExcelDataView";
 import AppTheme from "../shared-theme/AppTheme";
 import { DateRange } from "./components/CustomDatePicker";
 import {
@@ -54,6 +55,8 @@ export default function Dashboard({
 	onRefreshAIData,
 	onLogout,
 }: DashboardProps) {
+	// State for sidebar section selection
+	const [selectedSection, setSelectedSection] = React.useState("home");
 	const [currentDashboardType, setCurrentDashboardType] =
 		React.useState<string>("main");
 	const [dateRange, setDateRange] = React.useState<DateRange>({
@@ -98,7 +101,12 @@ export default function Dashboard({
 			themeComponents={xThemeComponents}>
 			<CssBaseline enableColorScheme />
 			<Box sx={{ display: "flex" }}>
-				<SideMenu user={user} onDashboardChange={handleDashboardChange} />
+				<SideMenu
+					user={user}
+					onDashboardChange={handleDashboardChange}
+					selectedSection={selectedSection}
+					onSectionChange={setSelectedSection}
+				/>
 				<AppNavbar
 					dashboardData={dashboardData}
 					user={user}
@@ -123,13 +131,26 @@ export default function Dashboard({
 							pb: 5,
 							mt: { xs: 8, md: 0 },
 						}}>
-						<Header onDateRangeChange={handleDateRangeChange} />
-						<MainGrid
-							dashboardData={dashboardData}
-							user={user}
-							dashboardType={currentDashboardType}
-							dateRange={dateRange}
-						/>
+						{selectedSection === "data-tables" ? (
+							<>
+								<Box sx={{ width: "100%", mb: 2 }}>
+									<Header onDateRangeChange={handleDateRangeChange} />
+								</Box>
+								<Box sx={{ width: "100%", height: "calc(100vh - 200px)" }}>
+									<ExcelDataView user={user} />
+								</Box>
+							</>
+						) : (
+							<>
+								<Header onDateRangeChange={handleDateRangeChange} />
+								<MainGrid
+									dashboardData={dashboardData}
+									user={user}
+									dashboardType={currentDashboardType}
+									dateRange={dateRange}
+								/>
+							</>
+						)}
 					</Stack>
 				</Box>
 			</Box>

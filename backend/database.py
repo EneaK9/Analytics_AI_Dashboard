@@ -26,10 +26,10 @@ class PerformanceOptimizedDatabaseManager:
         self.supabase_key = os.getenv("SUPABASE_KEY")
         self.supabase_service_key = os.getenv("SUPABASE_SERVICE_KEY")
         
-        # Connection pool
+        # 🚀 MASSIVE CONNECTION POOL for high throughput
         self.client_pool: List[Client] = []
         self.admin_pool: List[Client] = []
-        self.pool_size = 10  # Maintain 10 connections in pool
+        self.pool_size = 25  # Maintain 25 connections in pool
         
         # Caching
         self.cache = {}
@@ -37,11 +37,11 @@ class PerformanceOptimizedDatabaseManager:
         self.cache_lock = threading.Lock()
         self.default_cache_duration = 300  # 5 minutes
         
-        # Batch processing
+        # 🚀 HIGH-SPEED BATCH PROCESSING
         self.batch_queue = defaultdict(list)
         self.batch_lock = threading.Lock()
-        self.batch_size = 50
-        self.batch_timeout = 2  # seconds
+        self.batch_size = 500  # 10x larger batches
+        self.batch_timeout = 1  # Faster timeout for rapid processing
         
         # Thread pool for async operations
         self.executor = ThreadPoolExecutor(max_workers=5)
