@@ -3983,9 +3983,9 @@ class DashboardOrchestrator:
 
             logger.info(f"📊 Data type: {data_type}, Schema type: {schema_type}")
 
-            # 🔧 CRITICAL FIX: Flatten nested data structures before LLM analysis
-            flattened_data = self._flatten_nested_data_for_llm(data_records)
-            logger.info(f"📊 Flattened {len(data_records)} records with nested structures for LLM analysis")
+            # 🔧 CRITICAL FIX: Extract business entities from nested data structures
+            flattened_data = self._extract_business_entities_for_llm(data_records)
+            logger.info(f"📊 Extracted {len(flattened_data)} business entity records from {len(data_records)} complex structures for LLM analysis")
 
             # Sample the flattened data for LLM analysis (first 3 records to avoid token limits)
             sample_data = flattened_data[:3] if len(flattened_data) > 3 else flattened_data
@@ -4016,10 +4016,138 @@ class DashboardOrchestrator:
         except Exception as e:
             logger.error(f"❌ LLM analysis failed: {e}")
             logger.error(f"❌ Error traceback: {traceback.format_exc()}")
-            # Fallback to basic analysis with flattened data
+            # Fallback to basic analysis with extracted entities
             return await self._extract_fallback_insights(
                 flattened_data, client_data.get("data_type", "unknown")
             )
+
+    def _extract_business_entities_for_llm(self, data_records: List[Dict]) -> List[Dict]:
+        """
+        Extract individual business entities (transactions, customers, products) from complex nested business data
+        Converts nested business structures into individual records for LLM analysis
+        """
+        try:
+            all_entities = []
+            
+            for record in data_records:
+                # Check if this is a complex business data structure
+                if self._is_business_data_structure(record):
+                    entities = self._extract_entities_from_business_structure(record)
+                    all_entities.extend(entities)
+                else:
+                    # Use regular flattening for simple structures
+                    flattened = self._flatten_simple_record(record)
+                    all_entities.append(flattened)
+            
+            logger.info(f"🔧 Extracted {len(all_entities)} total business entities for LLM analysis")
+            return all_entities if all_entities else data_records
+            
+        except Exception as e:
+            logger.error(f"❌ Business entity extraction failed: {e}")
+            # Fallback to simple flattening
+            return self._flatten_nested_data_for_llm(data_records)
+
+    def _is_business_data_structure(self, record: Dict) -> bool:
+        """Check if record has complex business data structure"""
+        business_keys = [
+            'business_info', 'sales_transactions', 'customer_data', 
+            'product_inventory', 'monthly_summary', 'performance_metrics'
+        ]
+        return any(key in record for key in business_keys)
+
+    def _extract_entities_from_business_structure(self, record: Dict) -> List[Dict]:
+        """Extract individual business entities from nested structure"""
+        entities = []
+        
+        # Extract business context
+        business_context = {}
+        if 'business_info' in record:
+            business_info = record['business_info']
+            business_context.update({
+                'company_name': business_info.get('company_name'),
+                'industry': business_info.get('industry'),
+                'headquarters': business_info.get('headquarters'),
+                'employees': business_info.get('employees')
+            })
+        
+        # Extract performance metrics context
+        performance_context = {}
+        if 'performance_metrics' in record:
+            performance_context = record['performance_metrics']
+        
+        # Extract individual transactions
+        if 'sales_transactions' in record and record['sales_transactions']:
+            for transaction in record['sales_transactions']:
+                entity = {
+                    'entity_type': 'transaction',
+                    **business_context,
+                    **transaction,
+                    'performance_metrics': performance_context
+                }
+                entities.append(entity)
+        
+        # Extract individual customers
+        if 'customer_data' in record and record['customer_data']:
+            for customer in record['customer_data']:
+                entity = {
+                    'entity_type': 'customer',
+                    **business_context,
+                    **customer,
+                    'performance_metrics': performance_context
+                }
+                entities.append(entity)
+        
+        # Extract individual products
+        if 'product_inventory' in record and record['product_inventory']:
+            for product in record['product_inventory']:
+                entity = {
+                    'entity_type': 'product',
+                    **business_context,
+                    **product,
+                    'performance_metrics': performance_context
+                }
+                entities.append(entity)
+        
+        # Extract monthly summaries
+        if 'monthly_summary' in record and record['monthly_summary']:
+            for month_data in record['monthly_summary']:
+                entity = {
+                    'entity_type': 'monthly_summary',
+                    **business_context,
+                    **month_data,
+                    'performance_metrics': performance_context
+                }
+                entities.append(entity)
+        
+        # If no entities found, create one combined record
+        if not entities:
+            entities.append({
+                'entity_type': 'business_overview',
+                **business_context,
+                **performance_context
+            })
+        
+        logger.info(f"🔧 Extracted {len(entities)} entities from business structure")
+        return entities
+
+    def _flatten_simple_record(self, record: Dict) -> Dict:
+        """Flatten a simple record (non-business structure)"""
+        flat_record = {}
+        
+        for key, value in record.items():
+            if isinstance(value, (str, int, float, bool)) and value is not None:
+                flat_record[key] = value
+            elif isinstance(value, dict) and value:
+                # Flatten nested dicts
+                for nested_key, nested_value in value.items():
+                    if isinstance(nested_value, (str, int, float, bool)) and nested_value is not None:
+                        flat_record[f"{key}_{nested_key}"] = nested_value
+            elif isinstance(value, list) and value:
+                flat_record[f"{key}_count"] = len(value)
+                if value and isinstance(value[0], (str, int, float)):
+                    flat_record[f"{key}_sample"] = value[0]
+        
+        return flat_record
 
     def _flatten_nested_data_for_llm(self, data_records: List[Dict]) -> List[Dict]:
         """
