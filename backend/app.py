@@ -1959,9 +1959,9 @@ async def get_performance_dashboard(
         if not client_data:
             raise HTTPException(status_code=404, detail="No data found for this client")
         
-        # Check cache first
+        # Check cache first with dashboard type
         cached_insights = await llm_cache_manager.get_cached_llm_response(
-            client_id, client_data
+            client_id, client_data, "performance"
         )
         if cached_insights and not force_llm:
             logger.info(f"⚡ Using cached performance insights for client {client_id}")

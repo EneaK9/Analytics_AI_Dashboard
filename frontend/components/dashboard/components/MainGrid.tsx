@@ -947,10 +947,27 @@ function OriginalMainGrid({
 												subtitle="Progress and completion tracking"
 											/>
 											<CardContent>
-												<Box sx={{ height: 300 }}>
-													<Charts.RadialChart
-														data={filteredData}
-														title={chart.display_name}
+												<Box sx={{ height: 300, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+													<PieChart
+														series={[{
+															data: filteredData.slice(0, 6).map((item: any, i: number) => {
+																const value = Number(item.value || item.count || item.total || 0);
+																return {
+																	id: i,
+																	value: isNaN(value) ? 0 : value,
+																	label: String(item.name || item.label || item.category || `Item ${i + 1}`)
+																};
+															}).filter((item: any) => item.value > 0),
+															highlightScope: { fade: 'global', highlight: 'item' } as const,
+															innerRadius: 50,
+															outerRadius: 100,
+														}]}
+														height={280}
+														width={400}
+														skipAnimation={true}
+														slotProps={{
+															noDataOverlay: { message: 'No data available' }
+														}}
 													/>
 												</Box>
 											</CardContent>
@@ -1900,6 +1917,32 @@ function TemplateDashboard({
 									/>
 								</div>
 															)}
+
+															{chartData.type === 'radial' && (
+																<div style={{ width: '100%', height: '200px', display: 'flex', justifyContent: 'center' }}>
+																	<PieChart
+																		series={[{
+																			data: chartData.labels.map((label: string, i: number) => {
+																				const value = Number(chartData.data[i]);
+																				return {
+																					id: i,
+																					value: isNaN(value) ? 0 : value,
+																					label: String(label || `Item ${i + 1}`)
+																				};
+																			}).filter((item: any) => item.value > 0),
+																			highlightScope: { fade: 'global', highlight: 'item' } as const,
+																			innerRadius: 50,
+																			outerRadius: 90,
+																		}]}
+																		height={200}
+																		width={400}
+																		skipAnimation={true}
+																		slotProps={{
+																			noDataOverlay: { message: 'No data available' }
+																		}}
+																	/>
+																</div>
+															)}
 															
 															{chartData.type === 'bar' && (
 																<div style={{ width: '100%', height: '200px' }}>
@@ -2306,8 +2349,58 @@ function TemplateDashboard({
 														</div>
 													)}
 
+													{chartData.type === 'pie' && (
+														<div style={{ width: '100%', height: '200px', display: 'flex', justifyContent: 'center' }}>
+															<PieChart
+																series={[{
+																	data: chartData.labels.map((label: string, i: number) => {
+																		const value = Number(chartData.data[i]);
+																		return {
+																			id: i,
+																			value: isNaN(value) ? 0 : value,
+																			label: String(label || `Item ${i + 1}`)
+																		};
+																	}).filter((item: any) => item.value > 0),
+																	highlightScope: { fade: 'global', highlight: 'item' } as const,
+																}]}
+																height={200}
+																width={400}
+																skipAnimation={true}
+																slotProps={{
+																	noDataOverlay: { message: 'No data available' }
+																}}
+															/>
+														</div>
+													)}
+
+													{chartData.type === 'radial' && (
+														<div style={{ width: '100%', height: '200px', display: 'flex', justifyContent: 'center' }}>
+															<PieChart
+																series={[{
+																	data: chartData.labels.map((label: string, i: number) => {
+																		const value = Number(chartData.data[i]);
+																		return {
+																			id: i,
+																			value: isNaN(value) ? 0 : value,
+																			label: String(label || `Item ${i + 1}`)
+																		};
+																	}).filter((item: any) => item.value > 0),
+																	highlightScope: { fade: 'global', highlight: 'item' } as const,
+																	innerRadius: 40,
+																	outerRadius: 80,
+																}]}
+																height={200}
+																width={400}
+																skipAnimation={true}
+																slotProps={{
+																	noDataOverlay: { message: 'No data available' }
+																}}
+															/>
+														</div>
+													)}
+
 													{/* Handle special chart types that might cause offsetY errors */}
-													{(chartData.type === 'radar' || chartData.type === 'heatmap' || chartData.type === 'radial') && (
+													{(chartData.type === 'radar' || chartData.type === 'heatmap') && (
 														<Box sx={{ 
 															display: 'flex', 
 															alignItems: 'center', 
@@ -2403,8 +2496,58 @@ function TemplateDashboard({
 																	/>
 																</div>
 															)}
+
+															{chartData.type === 'pie' && (
+																<div style={{ width: '100%', height: '200px', display: 'flex', justifyContent: 'center' }}>
+																	<PieChart
+																		series={[{
+																			data: chartData.labels.map((label: string, i: number) => {
+																				const value = Number(chartData.data[i]);
+																				return {
+																					id: i,
+																					value: isNaN(value) ? 0 : value,
+																					label: String(label || `Item ${i + 1}`)
+																				};
+																			}).filter((item: any) => item.value > 0),
+																			highlightScope: { fade: 'global', highlight: 'item' } as const,
+																		}]}
+																		height={200}
+																		width={400}
+																		skipAnimation={true}
+																		slotProps={{
+																			noDataOverlay: { message: 'No data available' }
+																		}}
+																	/>
+																</div>
+															)}
+
+															{chartData.type === 'radial' && (
+																<div style={{ width: '100%', height: '200px', display: 'flex', justifyContent: 'center' }}>
+																	<PieChart
+																		series={[{
+																			data: chartData.labels.map((label: string, i: number) => {
+																				const value = Number(chartData.data[i]);
+																				return {
+																					id: i,
+																					value: isNaN(value) ? 0 : value,
+																					label: String(label || `Item ${i + 1}`)
+																				};
+																			}).filter((item: any) => item.value > 0),
+																			highlightScope: { fade: 'global', highlight: 'item' } as const,
+																			innerRadius: 40,
+																			outerRadius: 80,
+																		}]}
+																		height={200}
+																		width={400}
+																		skipAnimation={true}
+																		slotProps={{
+																			noDataOverlay: { message: 'No data available' }
+																		}}
+																	/>
+																</div>
+															)}
 															
-															{(chartData.type === 'radar' || chartData.type === 'radial') && (
+															{chartData.type === 'radar' && (
 																<div style={{ width: '100%', height: '200px' }}>
 																	<Charts.RadarChart
 																		data={chartData.labels.map((label: string, i: number) => {

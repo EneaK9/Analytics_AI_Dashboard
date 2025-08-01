@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from database import get_admin_client
 import uuid
 
+# Set up logger
 logger = logging.getLogger(__name__)
 
 class LLMCacheManager:
@@ -30,9 +31,14 @@ class LLMCacheManager:
             logger.error(f"❌ Failed to calculate data hash: {e}")
             return "unknown"
     
-    async def get_cached_llm_response(self, client_id: str, client_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def get_cached_llm_response(self, client_id: str, client_data: Dict[str, Any], dashboard_type: str = "default") -> Optional[Dict[str, Any]]:
         """
         Get cached LLM response if data hasn't changed
+        
+        Args:
+            client_id: Client identifier
+            client_data: Client data for hashing
+            dashboard_type: Type of dashboard (business, performance, etc.) for separate caching
         
         Returns:
             - Cached response if data unchanged
@@ -42,7 +48,8 @@ class LLMCacheManager:
             # Calculate current data hash
             current_hash = self._calculate_data_hash(client_data)
             
-            # Check for cached response
+            # Check for cached response using client_id only 
+            # Note: Current schema allows only one cache entry per client
             response = self.db_client.table("llm_response_cache").select("*").eq("client_id", client_id).limit(1).execute()
             
             if response.data:
@@ -53,7 +60,7 @@ class LLMCacheManager:
                 
                 # Check if data hash matches (data hasn't changed)
                 if cached_hash == current_hash and cached_response:
-                    logger.info(f"✅ Cache HIT for client {client_id} - data unchanged")
+                    logger.info(f"✅ Cache HIT for client {client_id} ({dashboard_type}) - data unchanged")
                     
                                     # Check if cache is still valid (not too old)
                 try:
@@ -76,26 +83,32 @@ class LLMCacheManager:
                     if cache_age.days < 7:  # Cache valid for 7 days
                         return json.loads(cached_response)
                     else:
-                        logger.info(f"⚠️ Cache expired for client {client_id} (age: {cache_age.days} days)")
+                        logger.info(f"⚠️ Cache expired for client {client_id} ({dashboard_type}) (age: {cache_age.days} days)")
                         return None
                 except Exception as time_error:
-                    logger.warning(f"⚠️ Failed to parse cache timestamp for client {client_id}: {time_error}")
+                    logger.warning(f"⚠️ Failed to parse cache timestamp for client {client_id} ({dashboard_type}): {time_error}")
                     # If we can't parse the timestamp, assume cache is valid
                     return json.loads(cached_response)
                 else:
-                    logger.info(f"🔄 Cache MISS for client {client_id} - data changed or no cache")
+                    logger.info(f"🔄 Cache MISS for client {client_id} ({dashboard_type}) - data changed or no cache")
                     return None
             else:
-                logger.info(f"🔄 No cache found for client {client_id}")
+                logger.info(f"🔄 No cache found for client {client_id} ({dashboard_type})")
                 return None
                 
         except Exception as e:
-            logger.error(f"❌ Error checking cache for client {client_id}: {e}")
+            logger.error(f"❌ Error checking cache for client {client_id} ({dashboard_type}): {e}")
             return None
     
-    async def store_cached_llm_response(self, client_id: str, client_data: Dict[str, Any], llm_response: Dict[str, Any]) -> bool:
+    async def store_cached_llm_response(self, client_id: str, client_data: Dict[str, Any], llm_response: Dict[str, Any], dashboard_type: str = "default") -> bool:
         """
         Store LLM response in cache with data hash
+        
+        Args:
+            client_id: Client identifier
+            client_data: Client data for hashing
+            llm_response: LLM response to cache
+            dashboard_type: Type of dashboard for separate caching
         
         Returns:
             - True if stored successfully
@@ -105,32 +118,33 @@ class LLMCacheManager:
             # Calculate data hash
             data_hash = self._calculate_data_hash(client_data)
             
-            # Prepare cache record
+            # Prepare cache record - use actual client_id UUID, store dashboard_type in data_type
             cache_record = {
-                "client_id": client_id,
+                "client_id": client_id,  # Use actual UUID, not concatenated string
                 "data_hash": data_hash,
                 "llm_response": json.dumps(llm_response),
-                "data_type": client_data.get("data_type", "unknown"),
+                "data_type": dashboard_type,  # Store dashboard type here
                 "total_records": client_data.get("total_records", 0),
                 "created_at": datetime.now().isoformat(),
                 "updated_at": datetime.now().isoformat()
             }
             
             # Upsert cache record (update if exists, insert if not)
+            # Note: Current schema has UNIQUE(client_id), so this will overwrite existing cache for the client
             response = self.db_client.table("llm_response_cache").upsert(
                 cache_record, 
                 on_conflict="client_id"
             ).execute()
             
             if response.data:
-                logger.info(f"✅ Cached LLM response for client {client_id} (hash: {data_hash[:8]}...)")
+                logger.info(f"✅ Cached LLM response for client {client_id} ({dashboard_type}) (hash: {data_hash[:8]}...)")
                 return True
             else:
-                logger.error(f"❌ Failed to cache LLM response for client {client_id}")
+                logger.error(f"❌ Failed to cache LLM response for client {client_id} ({dashboard_type})")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Error storing cache for client {client_id}: {e}")
+            logger.error(f"❌ Error storing cache for client {client_id} ({dashboard_type}): {e}")
             return False
     
     async def invalidate_cache(self, client_id: str) -> bool:
