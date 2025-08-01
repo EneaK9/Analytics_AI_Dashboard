@@ -1,4 +1,4 @@
-import json
+﻿import json
 import pandas as pd
 import os
 from typing import Dict, List, Any, Optional, Tuple
@@ -29,10 +29,7 @@ from models import (
     StandardizedTable,
     FieldMapping,
     TrendInfo,
-    CustomTemplateRequest,
-    CustomTemplateResponse,
-    EnhancedDashboardConfig,
-    TemplateGenerationMetadata,
+
 )
 import re
 import logging
@@ -49,11 +46,7 @@ from openai import OpenAI, AsyncOpenAI
 from dashboard_templates import DashboardTemplateManager, DashboardTemplateType
 from field_mapper import field_mapper
 import traceback
-from business_dna_analyzer import BusinessDNAAnalyzer, BusinessDNA, BusinessModel, BusinessMaturity, DataSophistication
-from dynamic_template_orchestrator import DynamicTemplateOrchestrator, TemplateArchitecture
-from intelligent_component_system import IntelligentComponentFactory, ComponentPerformanceAnalyzer, IntelligentComponentConfig
-from template_ecosystem_manager import TemplateEcosystemManager
-from models import TemplateEcosystemConfig
+
 
 logger = logging.getLogger(__name__)
 
@@ -94,28 +87,20 @@ class DashboardOrchestrator:
     def __init__(self):
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         if not self.openai_api_key:
-            raise Exception("❌ OpenAI API key REQUIRED - no fallbacks allowed")
+            raise Exception("âŒ OpenAI API key REQUIRED - no fallbacks allowed")
 
         self.ai_analyzer = AIDataAnalyzer()
         self.template_manager = DashboardTemplateManager()  # Keep existing template manager for compatibility
         
-        # NEW: Custom template system components
-        self.business_dna_analyzer = BusinessDNAAnalyzer()
-        self.dynamic_template_orchestrator = DynamicTemplateOrchestrator()
-        self.intelligent_component_factory = IntelligentComponentFactory()
-        self.template_ecosystem_manager = TemplateEcosystemManager(self.openai_api_key)
-        self.component_performance_analyzer = ComponentPerformanceAnalyzer()
-        
-        logger.info("✅ OpenAI API key configured for Dashboard Orchestrator")
-        logger.info("🚀 Custom template system initialized")
+        logger.info("âœ… OpenAI API key configured for Dashboard Orchestrator")
         
         # Performance optimization
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
 
-        # 💾 SIMPLE IN-MEMORY CACHE FOR LLM ANALYSIS (NO DB CHANGES NEEDED)
+        # ðŸ’¾ SIMPLE IN-MEMORY CACHE FOR LLM ANALYSIS (NO DB CHANGES NEEDED)
         self._llm_analysis_cache = {}
 
-        # 🔒 PROPER ASYNC LOCKS TO PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT
+        # ðŸ”’ PROPER ASYNC LOCKS TO PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT
         self._llm_analysis_locks = {}
         self._client_locks = {}
 
@@ -218,14 +203,14 @@ class DashboardOrchestrator:
             if response.data:
                 generation_id = response.data[0]["generation_id"]
                 logger.info(
-                    f"✅ Generation tracking initialized for client {client_id}: {generation_id}"
+                    f"âœ… Generation tracking initialized for client {client_id}: {generation_id}"
                 )
                 return uuid.UUID(generation_id)
             else:
                 raise Exception("Failed to initialize generation tracking")
 
         except Exception as e:
-            logger.error(f"❌ Failed to initialize generation tracking: {e}")
+            logger.error(f"âŒ Failed to initialize generation tracking: {e}")
             # Return a dummy ID if tracking fails
             return uuid.uuid4()
 
@@ -270,11 +255,11 @@ class DashboardOrchestrator:
             )
 
             logger.info(
-                f"📊 Generation tracking updated: {generation_id} -> {status.value}"
+                f"ðŸ“Š Generation tracking updated: {generation_id} -> {status.value}"
             )
 
         except Exception as e:
-            logger.error(f"❌ Failed to update generation tracking: {e}")
+            logger.error(f"âŒ Failed to update generation tracking: {e}")
 
     async def generate_dashboard_with_retry(
         self, request: AutoGenerationRequest
@@ -285,7 +270,7 @@ class DashboardOrchestrator:
         max_retries = 20  # Aggressive retry count
         retry_count = 0
 
-        logger.info(f"🎨 Starting dashboard generation for client {request.client_id}")
+        logger.info(f"ðŸŽ¨ Starting dashboard generation for client {request.client_id}")
 
         # Initialize generation tracking
         await self._init_generation_tracking(request.client_id, request.generation_type)
@@ -294,7 +279,7 @@ class DashboardOrchestrator:
             try:
                 retry_count += 1
                 logger.info(
-                    f"🔄 Dashboard generation attempt {retry_count} for client {request.client_id}"
+                    f"ðŸ”„ Dashboard generation attempt {retry_count} for client {request.client_id}"
                 )
 
                 # Update status to processing
@@ -309,7 +294,7 @@ class DashboardOrchestrator:
                     )
                     if existing_dashboard:
                         logger.info(
-                            f"📊 Dashboard already exists for client {request.client_id}"
+                            f"ðŸ“Š Dashboard already exists for client {request.client_id}"
                         )
                         await self._update_generation_tracking(
                             generation_id, GenerationStatus.COMPLETED
@@ -336,14 +321,14 @@ class DashboardOrchestrator:
                         generation_id, GenerationStatus.COMPLETED
                     )
                     logger.info(
-                        f"✅ Dashboard generated successfully for client {request.client_id}"
+                        f"âœ… Dashboard generated successfully for client {request.client_id}"
                     )
                     return result
 
             except Exception as e:
                 wait_time = min(retry_count * 5, 120)  # Progressive wait, max 2 minutes
                 logger.warning(
-                    f"⚠️  Dashboard generation attempt {retry_count} failed: {e}"
+                    f"âš ï¸  Dashboard generation attempt {retry_count} failed: {e}"
                 )
 
                 if retry_count >= max_retries:
@@ -355,7 +340,7 @@ class DashboardOrchestrator:
                         str(e),
                     )
                     logger.error(
-                        f"❌ Dashboard generation failed after {max_retries} attempts: {e}"
+                        f"âŒ Dashboard generation failed after {max_retries} attempts: {e}"
                     )
                     return GenerationResult(
                         success=False,
@@ -367,7 +352,7 @@ class DashboardOrchestrator:
                         attempt_number=retry_count,
                     )
 
-                logger.info(f"🔄 Retrying in {wait_time} seconds...")
+                logger.info(f"ðŸ”„ Retrying in {wait_time} seconds...")
                 await asyncio.sleep(wait_time)
 
         # This should never be reached due to the max_retries check above
@@ -380,7 +365,7 @@ class DashboardOrchestrator:
         start_time = time.time()
 
         logger.info(
-            f"⚡ TURBO dashboard generation for {client_id} (concurrent processing)"
+            f"âš¡ TURBO dashboard generation for {client_id} (concurrent processing)"
         )
 
         # Step 1: Get REAL client data - no fallbacks
@@ -390,7 +375,7 @@ class DashboardOrchestrator:
             raise Exception(f"No real data found for client {client_id}")
 
         # Step 2: Run data analysis and business context generation CONCURRENTLY
-        logger.info("🚀 Running parallel AI analysis for maximum speed")
+        logger.info("ðŸš€ Running parallel AI analysis for maximum speed")
 
         analysis_task = asyncio.create_task(
             self._analyze_real_client_data(client_id, client_data)
@@ -467,7 +452,7 @@ class DashboardOrchestrator:
         generation_time = time.time() - start_time
 
         logger.info(
-            f"🚀 TURBO dashboard generation completed in {generation_time:.3f}s - {metrics_generated} metrics"
+            f"ðŸš€ TURBO dashboard generation completed in {generation_time:.3f}s - {metrics_generated} metrics"
         )
 
         return GenerationResult(
@@ -484,7 +469,7 @@ class DashboardOrchestrator:
         self, client_id: uuid.UUID, client_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Analyze REAL client data with ENHANCED CSV column detection"""
-        # 🔧 FIX: Handle nested data structures (lists, dicts) from API integrations
+        # ðŸ”§ FIX: Handle nested data structures (lists, dicts) from API integrations
         raw_data = client_data["data"]
 
         # Flatten nested structures to make DataFrame-compatible
@@ -523,7 +508,7 @@ class DashboardOrchestrator:
         if df.empty:
             raise Exception(f"Client {client_id} has empty dataset")
 
-        logger.info(f"📊 Analyzing {len(df)} rows of REAL data for client {client_id}")
+        logger.info(f"ðŸ“Š Analyzing {len(df)} rows of REAL data for client {client_id}")
 
         # ENHANCED column type detection for CSV data
         numeric_columns = []
@@ -544,7 +529,7 @@ class DashboardOrchestrator:
                     numeric_columns.append(col)
                     # Actually convert the column
                     df[col] = numeric_values
-                    logger.info(f"✅ Converted column '{col}' to numeric")
+                    logger.info(f"âœ… Converted column '{col}' to numeric")
                     continue
             except:
                 pass
@@ -564,7 +549,7 @@ class DashboardOrchestrator:
                     # If most values look like dates
                     if date_patterns >= len(sample_values) * 0.6:
                         date_columns.append(col)
-                        logger.info(f"✅ Detected date column: '{col}'")
+                        logger.info(f"âœ… Detected date column: '{col}'")
                         continue
             except:
                 pass
@@ -591,13 +576,13 @@ class DashboardOrchestrator:
                         if numeric_test.notna().sum() > len(col_data) * 0.5:
                             numeric_columns.append(col)
                             df[col] = numeric_test
-                            logger.info(f"🔧 Force-converted column '{col}' to numeric")
+                            logger.info(f"ðŸ”§ Force-converted column '{col}' to numeric")
                             break
                     except:
                         continue
 
         logger.info(
-            f"🔍 Column detection results: {len(numeric_columns)} numeric, {len(categorical_columns)} categorical, {len(date_columns)} date"
+            f"ðŸ” Column detection results: {len(numeric_columns)} numeric, {len(categorical_columns)} categorical, {len(date_columns)} date"
         )
 
         # Analyze REAL data characteristics
@@ -648,7 +633,7 @@ class DashboardOrchestrator:
             "LineChartOne",
         ]
 
-        # 🎲 Add randomization factor to ensure diversity even with same data
+        # ðŸŽ² Add randomization factor to ensure diversity even with same data
         import random
         import hashlib
 
@@ -663,7 +648,7 @@ class DashboardOrchestrator:
             try:
                 retry_count += 1
                 logger.info(
-                    f"🤖 AI business context analysis (attempt {retry_count}) with SMART BATCHING"
+                    f"ðŸ¤– AI business context analysis (attempt {retry_count}) with SMART BATCHING"
                 )
 
                 # ULTRA-MINIMAL data summary for AI (CRITICAL TOKEN REDUCTION)
@@ -719,11 +704,11 @@ class DashboardOrchestrator:
                 - NO generic insights - be specific about what the data shows
 
                 CHART RECOMMENDATIONS - CHOOSE DIVERSE TYPES:
-                📊 AREA CHARTS: LineChartOne, LineChartOne, LineChartOne, LineChartOne, LineChartOne
-                📈 BAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
-                🥧 PIE CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
-                🎯 RADAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
-                📉 RADIAL CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
+                ðŸ“Š AREA CHARTS: LineChartOne, LineChartOne, LineChartOne, LineChartOne, LineChartOne
+                ðŸ“ˆ BAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
+                ðŸ¥§ PIE CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
+                ðŸŽ¯ RADAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
+                ðŸ“‰ RADIAL CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
                 
                             CHART LABELING REQUIREMENTS:
             - Generate SPECIFIC tooltip labels based on the actual data columns
@@ -744,8 +729,8 @@ class DashboardOrchestrator:
                 Available charts: {shuffled_charts}
                 
             TITLE EXAMPLES - CONCISE & IMPACTFUL:
-            ✅ GOOD: "Sales", "Growth", "Performance", "Analytics", "Insights", "Trends", "Distribution"
-            ❌ BAD: "Sales Performance Dashboard", "Monthly Revenue Analysis Chart", "Customer Data Visualization"
+            âœ… GOOD: "Sales", "Growth", "Performance", "Analytics", "Insights", "Trends", "Distribution"
+            âŒ BAD: "Sales Performance Dashboard", "Monthly Revenue Analysis Chart", "Customer Data Visualization"
             
                 RANDOMIZATION NOTE: Charts are presented in randomized order to encourage variety.
 
@@ -789,7 +774,7 @@ class DashboardOrchestrator:
 
                 if not raw_content or raw_content.strip() == "":
                     logger.warning(
-                        f"⚠️  Empty AI response received (attempt {retry_count})"
+                        f"âš ï¸  Empty AI response received (attempt {retry_count})"
                     )
                     raise json.JSONDecodeError("Empty AI response", "", 0)
 
@@ -810,7 +795,7 @@ class DashboardOrchestrator:
 
                 if start_brace == -1 or end_brace == -1:
                     logger.warning(
-                        f"⚠️  No JSON structure in AI response: {clean_content[:100]}..."
+                        f"âš ï¸  No JSON structure in AI response: {clean_content[:100]}..."
                     )
                     raise json.JSONDecodeError(
                         "No JSON structure found", clean_content, 0
@@ -843,7 +828,7 @@ class DashboardOrchestrator:
                 ]  # Ensure we get 12-15 charts for creative dashboards
 
                 logger.info(
-                    f"✅ AI business context generated with batching: {ai_response.get('business_type', 'general')}"
+                    f"âœ… AI business context generated with batching: {ai_response.get('business_type', 'general')}"
                 )
 
                 # Convert to BusinessContext
@@ -875,20 +860,20 @@ class DashboardOrchestrator:
 
             except json.JSONDecodeError as e:
                 logger.warning(
-                    f"⚠️  AI response parsing failed (attempt {retry_count}): {e}"
+                    f"âš ï¸  AI response parsing failed (attempt {retry_count}): {e}"
                 )
                 if retry_count < max_retries:
                     await asyncio.sleep(1)
                     continue
             except Exception as e:
-                logger.warning(f"⚠️  AI analysis failed (attempt {retry_count}): {e}")
+                logger.warning(f"âš ï¸  AI analysis failed (attempt {retry_count}): {e}")
                 if retry_count < max_retries:
                     await asyncio.sleep(1)
                     continue
 
         # If all attempts fail, use heuristic fallback
         logger.warning(
-            f"⚠️  AI analysis failed after {max_retries} attempts, using heuristic fallback"
+            f"âš ï¸  AI analysis failed after {max_retries} attempts, using heuristic fallback"
         )
         return self._heuristic_business_context(data_analysis)
 
@@ -898,13 +883,13 @@ class DashboardOrchestrator:
         start_time = datetime.now()  # Add missing start_time variable
 
         try:
-            logger.info(f"🎨 Starting dashboard generation for client {client_id}")
+            logger.info(f"ðŸŽ¨ Starting dashboard generation for client {client_id}")
 
             # Step 1: Check if dashboard already exists
             if not force_regenerate:
                 existing_dashboard = await self._get_existing_dashboard(client_id)
                 if existing_dashboard:
-                    logger.info(f"📊 Dashboard already exists for client {client_id}")
+                    logger.info(f"ðŸ“Š Dashboard already exists for client {client_id}")
                     return DashboardGenerationResponse(
                         success=True,
                         client_id=client_id,
@@ -980,7 +965,7 @@ class DashboardOrchestrator:
 
             generation_time = (datetime.now() - start_time).total_seconds()
             logger.info(
-                f"✅ Dashboard generated successfully for client {client_id} in {generation_time:.2f}s"
+                f"âœ… Dashboard generated successfully for client {client_id} in {generation_time:.2f}s"
             )
 
             return DashboardGenerationResponse(
@@ -993,7 +978,7 @@ class DashboardOrchestrator:
             )
 
         except Exception as e:
-            logger.error(f"❌ Dashboard generation failed for client {client_id}: {e}")
+            logger.error(f"âŒ Dashboard generation failed for client {client_id}: {e}")
             return DashboardGenerationResponse(
                 success=False,
                 client_id=client_id,
@@ -1072,7 +1057,7 @@ class DashboardOrchestrator:
                 response_content = response.choices[0].message.content
                 if not response_content or not response_content.strip():
                     logger.warning(
-                        "⚠️  Empty response from OpenAI, falling back to heuristic analysis"
+                        "âš ï¸  Empty response from OpenAI, falling back to heuristic analysis"
                     )
                     return self._heuristic_business_context(data_analysis)
 
@@ -1091,15 +1076,15 @@ class DashboardOrchestrator:
                     ai_response = json.loads(response_content)
                 except json.JSONDecodeError as json_error:
                     logger.warning(
-                        f"⚠️  Invalid JSON from OpenAI: {json_error}. Response: {response_content[:200]}..."
+                        f"âš ï¸  Invalid JSON from OpenAI: {json_error}. Response: {response_content[:200]}..."
                     )
-                    logger.warning("🔄 Falling back to heuristic analysis")
+                    logger.warning("ðŸ”„ Falling back to heuristic analysis")
                     return self._heuristic_business_context(data_analysis)
 
                 # Validate that we have the expected structure
                 if not isinstance(ai_response, dict):
                     logger.warning(
-                        "⚠️  OpenAI response is not a dictionary, falling back to heuristic analysis"
+                        "âš ï¸  OpenAI response is not a dictionary, falling back to heuristic analysis"
                     )
                     return self._heuristic_business_context(data_analysis)
 
@@ -1129,7 +1114,7 @@ class DashboardOrchestrator:
             )
 
         except Exception as e:
-            logger.error(f"❌ AI business context analysis failed: {e}")
+            logger.error(f"âŒ AI business context analysis failed: {e}")
             raise Exception(
                 f"Failed to generate business context: {str(e)}"
             )  # No fallbacks!
@@ -1367,7 +1352,7 @@ class DashboardOrchestrator:
         """Save dashboard configuration using OPTIMIZED database operations"""
         try:
             logger.info(
-                f"⚡ Fast dashboard config save for client {dashboard_config.client_id}"
+                f"âš¡ Fast dashboard config save for client {dashboard_config.client_id}"
             )
 
             # Convert dashboard config to dict with proper UUID handling
@@ -1383,12 +1368,12 @@ class DashboardOrchestrator:
             )
 
             if success:
-                logger.info(f"✅ Dashboard config saved with high performance")
+                logger.info(f"âœ… Dashboard config saved with high performance")
             else:
                 raise Exception("Dashboard config save returned false")
 
         except Exception as e:
-            logger.error(f"❌ Failed to save dashboard config: {e}")
+            logger.error(f"âŒ Failed to save dashboard config: {e}")
             raise
 
     async def _generate_and_save_metrics(
@@ -1456,7 +1441,7 @@ class DashboardOrchestrator:
             return metrics_generated
 
         except Exception as e:
-            logger.error(f"❌ Failed to generate and save metrics: {e}")
+            logger.error(f"âŒ Failed to generate and save metrics: {e}")
             return 0
 
     # Removed old _generate_chart_data method - replaced with AI-powered _generate_real_chart_data
@@ -1566,7 +1551,7 @@ class DashboardOrchestrator:
     ) -> Optional[DashboardConfig]:
         """Get existing dashboard configuration using OPTIMIZED cached lookup"""
         try:
-            logger.info(f"⚡ Fast dashboard lookup for client {client_id}")
+            logger.info(f"âš¡ Fast dashboard lookup for client {client_id}")
 
             # Use optimized cached check first
             from database import get_db_manager
@@ -1588,13 +1573,13 @@ class DashboardOrchestrator:
 
             if response.data:
                 config_data = response.data[0]["dashboard_config"]
-                logger.info(f"✅ Dashboard config retrieved from cache")
+                logger.info(f"âœ… Dashboard config retrieved from cache")
                 return DashboardConfig(**config_data)
 
             return None
 
         except Exception as e:
-            logger.error(f"❌ Failed to get existing dashboard: {e}")
+            logger.error(f"âŒ Failed to get existing dashboard: {e}")
             return None
 
     async def process_pending_retries(self) -> List[GenerationResult]:
@@ -1612,7 +1597,7 @@ class DashboardOrchestrator:
             if not response.data:
                 return results
 
-            logger.info(f"🔄 Processing {len(response.data)} pending dashboard retries")
+            logger.info(f"ðŸ”„ Processing {len(response.data)} pending dashboard retries")
 
             for retry_data in response.data:
                 client_id = uuid.UUID(retry_data["client_id"])
@@ -1620,7 +1605,7 @@ class DashboardOrchestrator:
                 attempt_count = retry_data["attempt_count"] + 1
 
                 logger.info(
-                    f"🔄 Retrying dashboard generation for client {client_id} (attempt {attempt_count})"
+                    f"ðŸ”„ Retrying dashboard generation for client {client_id} (attempt {attempt_count})"
                 )
 
                 try:
@@ -1638,12 +1623,12 @@ class DashboardOrchestrator:
                         await self._update_generation_tracking(
                             generation_id, GenerationStatus.COMPLETED
                         )
-                        logger.info(f"✅ Retry successful for client {client_id}")
+                        logger.info(f"âœ… Retry successful for client {client_id}")
 
                     results.append(result)
 
                 except Exception as e:
-                    logger.error(f"❌ Retry failed for client {client_id}: {e}")
+                    logger.error(f"âŒ Retry failed for client {client_id}: {e}")
 
                     # Classify error and determine next action
                     error_type = self._classify_error(e)
@@ -1662,7 +1647,7 @@ class DashboardOrchestrator:
                             next_retry_time,
                         )
                         logger.warning(
-                            f"🔄 Will retry again for client {client_id} in {retry_info.retry_delay_seconds//60} minutes"
+                            f"ðŸ”„ Will retry again for client {client_id} in {retry_info.retry_delay_seconds//60} minutes"
                         )
                     else:
                         await self._update_generation_tracking(
@@ -1673,7 +1658,7 @@ class DashboardOrchestrator:
                             str(e),
                         )
                         logger.error(
-                            f"❌ Giving up on client {client_id}: {retry_info.reason}"
+                            f"âŒ Giving up on client {client_id}: {retry_info.reason}"
                         )
 
                     results.append(
@@ -1692,7 +1677,7 @@ class DashboardOrchestrator:
             return results
 
         except Exception as e:
-            logger.error(f"❌ Failed to process pending retries: {e}")
+            logger.error(f"âŒ Failed to process pending retries: {e}")
             return results
 
     async def _generate_real_kpi_widgets(
@@ -1708,7 +1693,7 @@ class DashboardOrchestrator:
         mean_values = data_analysis["data_summary"]["mean_values"]
 
         logger.info(
-            f"🔢 Generating KPIs from {len(numeric_columns)} numeric columns in REAL data"
+            f"ðŸ”¢ Generating KPIs from {len(numeric_columns)} numeric columns in REAL data"
         )
 
         # Generate KPIs based on actual business context and real data with REAL COLUMN NAMES
@@ -1993,9 +1978,9 @@ class DashboardOrchestrator:
                                 str(last_date).replace("Z", "+00:00")
                             ).strftime("%b %Y")
                             if start_date != end_date:
-                                date_range = f" • {start_date} to {end_date}"
+                                date_range = f" â€¢ {start_date} to {end_date}"
                             else:
-                                date_range = f" • {start_date}"
+                                date_range = f" â€¢ {start_date}"
                         except:
                             pass
             except:
@@ -2003,13 +1988,13 @@ class DashboardOrchestrator:
 
         # Generate subtitle with real data insights
         if business_context.business_type == "ecommerce":
-            return f"Real-time insights from {total_records:,} transactions{date_range} • {columns_count} data points"
+            return f"Real-time insights from {total_records:,} transactions{date_range} â€¢ {columns_count} data points"
         elif business_context.business_type == "saas":
-            return f"AI-powered analysis of {total_records:,} data records{date_range} • {columns_count} metrics"
+            return f"AI-powered analysis of {total_records:,} data records{date_range} â€¢ {columns_count} metrics"
         elif business_context.business_type == "financial":
-            return f"Financial insights from {total_records:,} records{date_range} • {columns_count} indicators"
+            return f"Financial insights from {total_records:,} records{date_range} â€¢ {columns_count} indicators"
         else:
-            return f"Custom analytics dashboard • {total_records:,} records{date_range} • {columns_count} data fields"
+            return f"Custom analytics dashboard â€¢ {total_records:,} records{date_range} â€¢ {columns_count} data fields"
 
     async def _generate_real_chart_widgets(
         self,
@@ -2017,7 +2002,7 @@ class DashboardOrchestrator:
         business_context: BusinessContext,
         data_analysis: Dict[str, Any],
     ) -> List[ChartWidget]:
-        """🧠 INTELLIGENT chart generation using 100% REAL client data with smart column analysis"""
+        """ðŸ§  INTELLIGENT chart generation using 100% REAL client data with smart column analysis"""
         try:
             start_time = time.time()
             total_records = data_analysis["total_records"]
@@ -2026,29 +2011,29 @@ class DashboardOrchestrator:
             categorical_cols = data_analysis["categorical_cols"]
 
             logger.info(
-                f"🧠 INTELLIGENT chart generation: {len(numeric_cols)} numeric, {len(categorical_cols)} categorical, {len(date_cols)} date columns from {total_records} REAL records"
+                f"ðŸ§  INTELLIGENT chart generation: {len(numeric_cols)} numeric, {len(categorical_cols)} categorical, {len(date_cols)} date columns from {total_records} REAL records"
             )
 
             if total_records == 0:
-                logger.warning(f"❌ No real data available for charts")
+                logger.warning(f"âŒ No real data available for charts")
                 return []
 
-            # 🧠 SMART DATA ANALYSIS: Understand what each column represents
+            # ðŸ§  SMART DATA ANALYSIS: Understand what each column represents
             smart_columns = await self._analyze_column_meanings(
                 client_id, numeric_cols, categorical_cols, date_cols
             )
-            logger.info(f"🔍 Smart column analysis: {smart_columns}")
+            logger.info(f"ðŸ” Smart column analysis: {smart_columns}")
 
             chart_widgets = []
             widget_id_counter = 1
 
-            # 🎯 USE AI RECOMMENDATIONS: Generate charts based on AI's diverse selections!
+            # ðŸŽ¯ USE AI RECOMMENDATIONS: Generate charts based on AI's diverse selections!
             ai_recommended_charts = business_context.recommended_charts
             logger.info(
-                f"🤖 AI recommended {len(ai_recommended_charts)} chart types: {[str(chart) for chart in ai_recommended_charts]}"
+                f"ðŸ¤– AI recommended {len(ai_recommended_charts)} chart types: {[str(chart) for chart in ai_recommended_charts]}"
             )
 
-            # 🎲 CREATIVE & RANDOMIZED CHART GENERATION - Each client gets unique dashboard
+            # ðŸŽ² CREATIVE & RANDOMIZED CHART GENERATION - Each client gets unique dashboard
             import random
             import hashlib
 
@@ -2056,11 +2041,11 @@ class DashboardOrchestrator:
             client_seed = int(hashlib.md5(str(client_id).encode()).hexdigest()[:8], 16)
             random.seed(client_seed)
 
-            # 🎲 FORCE MINIMUM 12 CHARTS - Be creative even with limited data!
+            # ðŸŽ² FORCE MINIMUM 12 CHARTS - Be creative even with limited data!
             min_charts = 12
             max_charts = 15
 
-            # 🔥 CREATIVE CHART TYPE SELECTION - Mix AI recommendations with forced variety
+            # ðŸ”¥ CREATIVE CHART TYPE SELECTION - Mix AI recommendations with forced variety
             selected_chart_types = []
 
             # Start with AI recommendations but ensure variety
@@ -2069,7 +2054,7 @@ class DashboardOrchestrator:
                     ai_recommended_charts[:8]
                 )  # Take up to 8 AI picks
 
-            # 🎨 FORCE VARIETY: Add different chart types if we don't have enough
+            # ðŸŽ¨ FORCE VARIETY: Add different chart types if we don't have enough
             all_available_charts = [
                 # Area Charts
                 "LineChartOne",
@@ -2116,7 +2101,7 @@ class DashboardOrchestrator:
                 "BarChartOne",
             ]
 
-            # 🎲 Add more random charts to reach minimum
+            # ðŸŽ² Add more random charts to reach minimum
             random.shuffle(all_available_charts)
             for chart_type in all_available_charts:
                 if len(selected_chart_types) >= max_charts:
@@ -2125,10 +2110,10 @@ class DashboardOrchestrator:
                     selected_chart_types.append(chart_type)
 
             logger.info(
-                f"🎨 CREATIVE DASHBOARD: Generating {len(selected_chart_types)} diverse charts for client {client_id}"
+                f"ðŸŽ¨ CREATIVE DASHBOARD: Generating {len(selected_chart_types)} diverse charts for client {client_id}"
             )
 
-            # 🤖 AI-GENERATED CHART TITLES - Smart, contextual, and data-driven
+            # ðŸ¤– AI-GENERATED CHART TITLES - Smart, contextual, and data-driven
             chart_titles = await self._generate_ai_chart_titles(
                 client_id, business_context, selected_chart_types, smart_columns
             )
@@ -2185,15 +2170,15 @@ class DashboardOrchestrator:
 
                 title, subtitle, ai_labels = chart_titles[i]
 
-                # 🎨 CREATIVE DATA COLUMN SELECTION - Each chart gets unique data perspective!
+                # ðŸŽ¨ CREATIVE DATA COLUMN SELECTION - Each chart gets unique data perspective!
                 data_cols = []
 
                 # Ensure we have real columns available
                 if not (categorical_cols or numeric_cols):
-                    logger.warning(f"❌ No real data columns available for chart {i+1}")
+                    logger.warning(f"âŒ No real data columns available for chart {i+1}")
                     continue  # Skip this chart if no real data
 
-                # 🎲 CREATIVE DATA COMBINATIONS - Different approaches for each chart
+                # ðŸŽ² CREATIVE DATA COMBINATIONS - Different approaches for each chart
                 creative_combinations = []
 
                 # Build multiple creative data combinations
@@ -2221,7 +2206,7 @@ class DashboardOrchestrator:
                     for cat_col in categorical_cols:
                         creative_combinations.append([cat_col, "count"])
 
-                # 🎯 SELECT UNIQUE COMBINATION for this chart
+                # ðŸŽ¯ SELECT UNIQUE COMBINATION for this chart
                 if creative_combinations:
                     # Use chart index + some randomization to pick different combinations
                     combination_index = (i * 3 + random.randint(0, 2)) % len(
@@ -2249,13 +2234,13 @@ class DashboardOrchestrator:
                         continue  # Skip if no real data combinations possible
 
                 logger.info(
-                    f"🎨 Chart {i+1} ({recommended_chart}): Using creative data combo [{data_cols[0]} x {data_cols[1]}]"
+                    f"ðŸŽ¨ Chart {i+1} ({recommended_chart}): Using creative data combo [{data_cols[0]} x {data_cols[1]}]"
                 )
 
                 # Final validation - ensure we have real data columns
                 if not data_cols or len(data_cols) < 2:
                     logger.warning(
-                        f"❌ Could not determine real data columns for chart {i+1}"
+                        f"âŒ Could not determine real data columns for chart {i+1}"
                     )
                     continue  # Skip this chart
 
@@ -2295,14 +2280,14 @@ class DashboardOrchestrator:
                 )
                 widget_id_counter += 1
 
-            # ✅ All charts generated using AI recommendations above
+            # âœ… All charts generated using AI recommendations above
 
-            logger.info(f"🎨 Generated {len(chart_widgets)} AI-recommended charts")
+            logger.info(f"ðŸŽ¨ Generated {len(chart_widgets)} AI-recommended charts")
 
-            # 🚨 EMERGENCY FALLBACK: If we have NO charts after validation, create guaranteed working charts
+            # ðŸš¨ EMERGENCY FALLBACK: If we have NO charts after validation, create guaranteed working charts
             if len(chart_widgets) == 0:
                 logger.error(
-                    "🚨 NO CHARTS PASSED VALIDATION! Creating emergency fallback charts..."
+                    "ðŸš¨ NO CHARTS PASSED VALIDATION! Creating emergency fallback charts..."
                 )
 
                 # Emergency Chart 1: Simple count of records by first categorical column
@@ -2337,13 +2322,13 @@ class DashboardOrchestrator:
                         priority=1,
                     )
                     chart_widgets.append(emergency_chart_1)
-                    logger.info("🚨 Created emergency bar chart for data distribution")
+                    logger.info("ðŸš¨ Created emergency bar chart for data distribution")
 
                 # Emergency Chart 2: Simple numeric data if available
                 if numeric_cols and data_analysis.get("sample_data"):
                     emergency_chart_2 = ChartWidget(
                         id="emergency_chart_2",
-                        title="📈 Numeric Overview",
+                        title="ðŸ“ˆ Numeric Overview",
                         subtitle="Overview of your numeric data",
                         chart_type=ChartType.LINE_CHART_ONE,
                         data_source="client_data",
@@ -2361,24 +2346,24 @@ class DashboardOrchestrator:
                         priority=2,
                     )
                     chart_widgets.append(emergency_chart_2)
-                    logger.info("🚨 Created emergency line chart for numeric data")
+                    logger.info("ðŸš¨ Created emergency line chart for numeric data")
 
                 if len(chart_widgets) == 0:
                     logger.error(
-                        "🚨 CRITICAL: Could not create any charts even with emergency fallbacks!"
+                        "ðŸš¨ CRITICAL: Could not create any charts even with emergency fallbacks!"
                     )
                 else:
                     logger.info(
-                        f"🚨 Created {len(chart_widgets)} emergency fallback charts"
+                        f"ðŸš¨ Created {len(chart_widgets)} emergency fallback charts"
                     )
 
             # Log completion
             generation_time = time.time() - start_time
             logger.info(
-                f"✅ Generated {len(chart_widgets)} beautiful charts in {generation_time:.2f}s"
+                f"âœ… Generated {len(chart_widgets)} beautiful charts in {generation_time:.2f}s"
             )
 
-            # 🔍 FINAL VALIDATION: Ensure all charts have valid data columns and remove any problematic ones
+            # ðŸ” FINAL VALIDATION: Ensure all charts have valid data columns and remove any problematic ones
             validated_charts = []
             for chart in chart_widgets:
                 # Validate that all required data columns exist in the dataset
@@ -2397,7 +2382,7 @@ class DashboardOrchestrator:
 
                 if missing_cols:
                     logger.warning(
-                        f"⚠️ Removing chart '{chart.title}' - missing columns: {missing_cols}"
+                        f"âš ï¸ Removing chart '{chart.title}' - missing columns: {missing_cols}"
                     )
                     continue
 
@@ -2424,29 +2409,29 @@ class DashboardOrchestrator:
                 # For 'count' columns, we don't need to check sample data since it's computed
                 if "count" not in required_cols and not has_meaningful_data:
                     logger.warning(
-                        f"⚠️ Removing chart '{chart.title}' - no meaningful data in columns: {required_cols}"
+                        f"âš ï¸ Removing chart '{chart.title}' - no meaningful data in columns: {required_cols}"
                     )
                     continue
 
                 # Chart passed validation
                 validated_charts.append(chart)
                 logger.info(
-                    f"✅ Chart validated: '{chart.title}' with columns {required_cols}"
+                    f"âœ… Chart validated: '{chart.title}' with columns {required_cols}"
                 )
 
             chart_widgets = validated_charts
 
-            # 🚨 EMERGENCY FALLBACK: If we have NO charts after validation, create guaranteed working charts
+            # ðŸš¨ EMERGENCY FALLBACK: If we have NO charts after validation, create guaranteed working charts
             if len(chart_widgets) == 0:
                 logger.error(
-                    "🚨 NO CHARTS PASSED VALIDATION! Creating emergency fallback charts..."
+                    "ðŸš¨ NO CHARTS PASSED VALIDATION! Creating emergency fallback charts..."
                 )
 
                 # Emergency Chart 1: Simple count of records by first categorical column
                 if categorical_cols and data_analysis.get("sample_data"):
                     emergency_chart_1 = ChartWidget(
                         id="emergency_chart_1",
-                        title="📊 Data Distribution",
+                        title="ðŸ“Š Data Distribution",
                         subtitle="Distribution of your data records",
                         chart_type=ChartType.BAR_CHART_ONE,
                         data_source="client_data",
@@ -2464,13 +2449,13 @@ class DashboardOrchestrator:
                         priority=1,
                     )
                     chart_widgets.append(emergency_chart_1)
-                    logger.info("🚨 Created emergency bar chart for data distribution")
+                    logger.info("ðŸš¨ Created emergency bar chart for data distribution")
 
                 # Emergency Chart 2: Simple numeric data if available
                 if numeric_cols and data_analysis.get("sample_data"):
                     emergency_chart_2 = ChartWidget(
                         id="emergency_chart_2",
-                        title="📈 Numeric Overview",
+                        title="ðŸ“ˆ Numeric Overview",
                         subtitle="Overview of your numeric data",
                         chart_type=ChartType.LINE_CHART_ONE,
                         data_source="client_data",
@@ -2488,21 +2473,21 @@ class DashboardOrchestrator:
                         priority=2,
                     )
                     chart_widgets.append(emergency_chart_2)
-                    logger.info("🚨 Created emergency line chart for numeric data")
+                    logger.info("ðŸš¨ Created emergency line chart for numeric data")
 
                 if len(chart_widgets) == 0:
                     logger.error(
-                        "🚨 CRITICAL: Could not create any charts even with emergency fallbacks!"
+                        "ðŸš¨ CRITICAL: Could not create any charts even with emergency fallbacks!"
                     )
                 else:
                     logger.info(
-                        f"🚨 Created {len(chart_widgets)} emergency fallback charts"
+                        f"ðŸš¨ Created {len(chart_widgets)} emergency fallback charts"
                     )
 
             return chart_widgets
 
         except Exception as e:
-            logger.error(f"❌ Failed to generate chart widgets: {e}")
+            logger.error(f"âŒ Failed to generate chart widgets: {e}")
             return []
 
     async def _generate_ai_chart_titles(
@@ -2512,10 +2497,10 @@ class DashboardOrchestrator:
         chart_types: List[str],
         smart_columns: Dict[str, List[str]],
     ) -> List[tuple]:
-        """🤖 Generate AI-powered, contextual chart titles based on actual data and business context"""
+        """ðŸ¤– Generate AI-powered, contextual chart titles based on actual data and business context"""
         try:
             logger.info(
-                f"🤖 Generating AI-powered chart titles for {len(chart_types)} charts"
+                f"ðŸ¤– Generating AI-powered chart titles for {len(chart_types)} charts"
             )
 
             # Prepare context for AI
@@ -2619,7 +2604,7 @@ class DashboardOrchestrator:
                 response_content = response_content[:-3]
             response_content = response_content.strip()
 
-            logger.info(f"🤖 AI response preview: {response_content[:100]}...")
+            logger.info(f"ðŸ¤– AI response preview: {response_content[:100]}...")
             ai_titles = json.loads(response_content)
 
             # Convert to enhanced tuple format with AI-generated labels
@@ -2644,11 +2629,11 @@ class DashboardOrchestrator:
                     )
                 )
 
-            logger.info(f"✅ Generated {len(chart_titles)} AI-powered chart titles")
+            logger.info(f"âœ… Generated {len(chart_titles)} AI-powered chart titles")
             return chart_titles[: len(chart_types)]  # Ensure exact match
 
         except Exception as e:
-            logger.error(f"❌ AI title generation failed: {e}")
+            logger.error(f"âŒ AI title generation failed: {e}")
             # Fallback to concise, AI-style titles based on chart type
             fallback_titles = []
             bar_count = area_count = pie_count = radar_count = radial_count = (
@@ -2736,7 +2721,7 @@ class DashboardOrchestrator:
         categorical_cols: List[str],
         date_cols: List[str],
     ) -> Dict[str, Dict]:
-        """🧠 Analyze what each column represents to make intelligent chart decisions"""
+        """ðŸ§  Analyze what each column represents to make intelligent chart decisions"""
         try:
             # Fetch a sample of real data to understand column content
             from database import get_db_manager
@@ -2749,7 +2734,7 @@ class DashboardOrchestrator:
             )
 
             if not sample_data_result or not sample_data_result.get("data"):
-                logger.warning(f"🔍 No sample data available for column analysis")
+                logger.warning(f"ðŸ” No sample data available for column analysis")
                 return {}
 
             # Get sample records from the data result
@@ -2758,10 +2743,10 @@ class DashboardOrchestrator:
             ]  # Take first 5 records for analysis
 
             if not sample_records:
-                logger.warning(f"🔍 No sample records available for analysis")
+                logger.warning(f"ðŸ” No sample records available for analysis")
                 return {}
 
-            # 🧠 INTELLIGENT COLUMN ANALYSIS
+            # ðŸ§  INTELLIGENT COLUMN ANALYSIS
             smart_analysis = {
                 "price_columns": [],
                 "count_columns": [],
@@ -2828,12 +2813,12 @@ class DashboardOrchestrator:
             smart_analysis["date_columns"] = date_cols
 
             logger.info(
-                f"🧠 Smart analysis complete: {sum(len(v) for v in smart_analysis.values())} columns categorized"
+                f"ðŸ§  Smart analysis complete: {sum(len(v) for v in smart_analysis.values())} columns categorized"
             )
             return smart_analysis
 
         except Exception as e:
-            logger.error(f"❌ Column analysis failed: {e}")
+            logger.error(f"âŒ Column analysis failed: {e}")
             return {}
 
     async def _generate_and_save_real_metrics(
@@ -2845,7 +2830,7 @@ class DashboardOrchestrator:
         """Generate and save dashboard metrics from REAL data using OPTIMIZED batch processing"""
         try:
             logger.info(
-                f"⚡ High-performance metrics generation for client {client_id}"
+                f"âš¡ High-performance metrics generation for client {client_id}"
             )
 
             # Collect all metrics for batch processing
@@ -2857,7 +2842,7 @@ class DashboardOrchestrator:
                     {
                         "metric_id": str(uuid.uuid4()),
                         "client_id": str(client_id),
-                        "metric_name": kpi.title,  # ✅ USE TITLE, NOT ID!
+                        "metric_name": kpi.title,  # âœ… USE TITLE, NOT ID!
                         "metric_value": {
                             "value": kpi.value,
                             "title": kpi.title,
@@ -2916,39 +2901,39 @@ class DashboardOrchestrator:
             metrics_generated = await manager.fast_dashboard_metrics_save(all_metrics)
 
             logger.info(
-                f"✅ Generated {metrics_generated} metrics with high performance"
+                f"âœ… Generated {metrics_generated} metrics with high performance"
             )
             return metrics_generated
 
         except Exception as e:
-            logger.error(f"❌ Failed to generate and save real metrics: {e}")
+            logger.error(f"âŒ Failed to generate and save real metrics: {e}")
             return 0
 
     async def _generate_real_chart_data(
         self, chart_widget: ChartWidget, data_analysis: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """💎 Generate PERFECT chart data from REAL financial trading data with DROPDOWN OPTIONS"""
+        """ðŸ’Ž Generate PERFECT chart data from REAL financial trading data with DROPDOWN OPTIONS"""
         try:
             # Get the data configuration properly
             real_data_columns = chart_widget.config.get("real_data_columns", [])
             sample_data = data_analysis.get("sample_data", [])
 
-            logger.info(f"🔍 Generating FINANCIAL chart data for {chart_widget.title}")
-            logger.info(f"📊 Real data columns: {real_data_columns}")
-            logger.info(f"📊 Sample data length: {len(sample_data)}")
+            logger.info(f"ðŸ” Generating FINANCIAL chart data for {chart_widget.title}")
+            logger.info(f"ðŸ“Š Real data columns: {real_data_columns}")
+            logger.info(f"ðŸ“Š Sample data length: {len(sample_data)}")
 
             # Validate we have everything we need
             if not real_data_columns or len(real_data_columns) < 2:
                 logger.warning(
-                    f"❌ No real data columns available for {chart_widget.title}"
+                    f"âŒ No real data columns available for {chart_widget.title}"
                 )
                 return {"data": [], "dropdown_options": []}
 
             if not sample_data:
-                logger.warning(f"❌ No sample data available for {chart_widget.title}")
+                logger.warning(f"âŒ No sample data available for {chart_widget.title}")
                 return {"data": [], "dropdown_options": []}
 
-            # 💰 FINANCIAL DATA PROCESSING - Smart handling for trading data
+            # ðŸ’° FINANCIAL DATA PROCESSING - Smart handling for trading data
             name_key = real_data_columns[
                 0
             ]  # Categorical column (symbol, exchange, broker_name, etc.)
@@ -2956,12 +2941,12 @@ class DashboardOrchestrator:
                 1
             ]  # Numeric column (price, quantity, total_value)
 
-            logger.info(f"💼 Processing FINANCIAL data: {name_key} x {data_key}")
+            logger.info(f"ðŸ’¼ Processing FINANCIAL data: {name_key} x {data_key}")
 
             result = []
             dropdown_options = []
 
-            # 🎯 GENERATE DROPDOWN OPTIONS FROM REAL DATA
+            # ðŸŽ¯ GENERATE DROPDOWN OPTIONS FROM REAL DATA
             # For interactive charts, generate dropdown options based on data categories
             unique_categories = set()
             date_periods = set()
@@ -3026,7 +3011,7 @@ class DashboardOrchestrator:
                 dropdown_options = [{"value": "all", "label": "All Data"}]
 
             logger.info(
-                f"🎛️ Generated {len(dropdown_options)} dropdown options for {chart_widget.title}"
+                f"ðŸŽ›ï¸ Generated {len(dropdown_options)} dropdown options for {chart_widget.title}"
             )
 
             if data_key == "count":
@@ -3138,10 +3123,10 @@ class DashboardOrchestrator:
 
                 if valid_result:
                     logger.info(
-                        f"✅ Generated {len(valid_result)} REAL financial data points for {chart_widget.title}"
+                        f"âœ… Generated {len(valid_result)} REAL financial data points for {chart_widget.title}"
                     )
                     logger.info(
-                        f"📈 Sample data: {valid_result[0] if valid_result else 'None'}"
+                        f"ðŸ“ˆ Sample data: {valid_result[0] if valid_result else 'None'}"
                     )
                     return {
                         "data": valid_result,
@@ -3156,13 +3141,13 @@ class DashboardOrchestrator:
                     }
 
             logger.warning(
-                f"❌ No valid financial data generated for {chart_widget.title}"
+                f"âŒ No valid financial data generated for {chart_widget.title}"
             )
             return {"data": [], "dropdown_options": dropdown_options}
 
         except Exception as e:
             logger.error(
-                f"❌ Failed to generate financial chart data for {chart_widget.title}: {str(e)}"
+                f"âŒ Failed to generate financial chart data for {chart_widget.title}: {str(e)}"
             )
             return {"data": [], "dropdown_options": []}
 
@@ -3246,7 +3231,7 @@ class DashboardOrchestrator:
             )
 
         except Exception as e:
-            logger.error(f"❌ Heuristic fallback failed: {e}")
+            logger.error(f"âŒ Heuristic fallback failed: {e}")
             # Ultimate fallback
             return BusinessContext(
                 industry="General Business",
@@ -3281,7 +3266,7 @@ class DashboardOrchestrator:
 
         try:
             logger.info(
-                f"🏗️ Starting template-based dashboard generation for client {client_id}"
+                f"ðŸ—ï¸ Starting template-based dashboard generation for client {client_id}"
             )
 
             # Step 1: Get client data first
@@ -3300,14 +3285,14 @@ class DashboardOrchestrator:
                 template_type = self.template_manager.detect_best_template(
                     data_analysis.get("columns", []), business_context=None
                 )
-                logger.info(f"🎯 Auto-detected template type: {template_type.value}")
+                logger.info(f"ðŸŽ¯ Auto-detected template type: {template_type.value}")
 
             # Step 4: Get template configuration
             template = self.template_manager.get_template(template_type)
             if not template:
                 raise Exception(f"Template type {template_type.value} not found")
 
-            logger.info(f"📋 Using template: {template.title}")
+            logger.info(f"ðŸ“‹ Using template: {template.title}")
 
             # Step 5: Generate template-specific components
             kpi_widgets = await self._generate_template_kpi_widgets(
@@ -3348,7 +3333,7 @@ class DashboardOrchestrator:
 
             generation_time = (datetime.now() - start_time).total_seconds()
             logger.info(
-                f"✅ Template dashboard generated successfully for client {client_id} in {generation_time:.2f}s"
+                f"âœ… Template dashboard generated successfully for client {client_id} in {generation_time:.2f}s"
             )
 
             return DashboardGenerationResponse(
@@ -3362,7 +3347,7 @@ class DashboardOrchestrator:
 
         except Exception as e:
             logger.error(
-                f"❌ Template dashboard generation failed for client {client_id}: {e}"
+                f"âŒ Template dashboard generation failed for client {client_id}: {e}"
             )
             return DashboardGenerationResponse(
                 success=False,
@@ -3388,7 +3373,7 @@ class DashboardOrchestrator:
             if comp.component_type.value == "kpi_card"
         ]
 
-        logger.info(f"🔢 Generating {len(kpi_components)} template KPI widgets")
+        logger.info(f"ðŸ”¢ Generating {len(kpi_components)} template KPI widgets")
 
         for i, component in enumerate(kpi_components[:4]):  # Limit to 4 KPIs
             # Find best matching column for this KPI
@@ -3483,7 +3468,7 @@ class DashboardOrchestrator:
             in ["line_chart", "bar_chart", "pie_chart", "area_chart"]
         ]
 
-        logger.info(f"📊 Generating {len(chart_components)} template chart widgets")
+        logger.info(f"ðŸ“Š Generating {len(chart_components)} template chart widgets")
 
         for i, component in enumerate(chart_components):
             # Map component chart type to MUI chart type
@@ -3666,7 +3651,7 @@ class DashboardOrchestrator:
             return metrics_generated
 
         except Exception as e:
-            logger.error(f"❌ Failed to generate and save template metrics: {e}")
+            logger.error(f"âŒ Failed to generate and save template metrics: {e}")
             return 0
 
     async def _generate_template_chart_data(
@@ -3705,7 +3690,7 @@ class DashboardOrchestrator:
             return processed_data[:15]  # Return top 15 items
 
         except Exception as e:
-            logger.error(f"❌ Failed to generate template chart data: {e}")
+            logger.error(f"âŒ Failed to generate template chart data: {e}")
             return []
 
     def get_available_templates(self) -> Dict[str, Dict[str, Any]]:
@@ -3739,7 +3724,7 @@ class DashboardOrchestrator:
         """Generate dashboard data in standardized format from actual business data"""
         try:
             logger.info(
-                f"🔄 Generating standardized dashboard data for client {client_id}"
+                f"ðŸ”„ Generating standardized dashboard data for client {client_id}"
             )
 
             # Get client data
@@ -3803,7 +3788,7 @@ class DashboardOrchestrator:
             standardized_tables = []
             for table in business_insights.get("tables", []):
                 try:
-                    logger.info(f"🔄 Processing table: {table.get('id', 'unknown')}")
+                    logger.info(f"ðŸ”„ Processing table: {table.get('id', 'unknown')}")
 
                     # Use the data as-is since the model now accepts both formats
                     standardized_table = StandardizedTable(
@@ -3816,14 +3801,14 @@ class DashboardOrchestrator:
                     )
                     standardized_tables.append(standardized_table)
                     logger.info(
-                        f"✅ Successfully created StandardizedTable: {table['id']}"
+                        f"âœ… Successfully created StandardizedTable: {table['id']}"
                     )
 
                 except Exception as e:
                     logger.error(
-                        f"❌ Failed to process table {table.get('id', 'unknown')}: {e}"
+                        f"âŒ Failed to process table {table.get('id', 'unknown')}: {e}"
                     )
-                    logger.error(f"❌ Table data: {table}")
+                    logger.error(f"âŒ Table data: {table}")
                     # Skip this table and continue with others
                     continue
 
@@ -3874,12 +3859,12 @@ class DashboardOrchestrator:
             )
 
             logger.info(
-                f"✅ Generated standardized dashboard with {len(standardized_kpis)} KPIs, {len(standardized_charts)} charts, and {len(standardized_tables)} tables"
+                f"âœ… Generated standardized dashboard with {len(standardized_kpis)} KPIs, {len(standardized_charts)} charts, and {len(standardized_tables)} tables"
             )
             return standardized_response
 
         except Exception as e:
-            logger.error(f"❌ Failed to generate standardized dashboard data: {e}")
+            logger.error(f"âŒ Failed to generate standardized dashboard data: {e}")
             # Return error response
             return StandardizedDashboardResponse(
                 success=False,
@@ -3903,14 +3888,14 @@ class DashboardOrchestrator:
     ) -> Dict[str, Any]:
         """Extract meaningful business insights from client data and format them for dashboard"""
         try:
-            logger.info(f"🔍 Extracting business insights from client data")
+            logger.info(f"ðŸ” Extracting business insights from client data")
 
             # Get the actual business data
             data_records = client_data.get("data", [])
             if not data_records:
                 return {"error": "No data found"}
 
-            # 🚀 CHECK DATABASE CACHE FIRST - AVOID UNNECESSARY LLM CALLS
+            # ðŸš€ CHECK DATABASE CACHE FIRST - AVOID UNNECESSARY LLM CALLS
             client_id = client_data.get("client_id")
             if client_id:
                 # Import cache manager
@@ -3921,10 +3906,10 @@ class DashboardOrchestrator:
                     client_id, client_data
                 )
                 if cached_response:
-                    logger.info(f"✅ Using cached LLM response for client {client_id} - data unchanged")
+                    logger.info(f"âœ… Using cached LLM response for client {client_id} - data unchanged")
                     return cached_response
 
-            # 🔒 PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT with proper async locks
+            # ðŸ”’ PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT with proper async locks
             if client_id:
                 # Get or create async lock for this client
                 if client_id not in self._client_locks:
@@ -3937,35 +3922,35 @@ class DashboardOrchestrator:
                         client_id, client_data
                     )
                     if cached_result:
-                        logger.info(f"✅ Using cached LLM response for client {client_id} (after lock)")
+                        logger.info(f"âœ… Using cached LLM response for client {client_id} (after lock)")
                         return cached_result
 
                     # Only run LLM analysis if no cache exists
                     logger.info(
-                        f"🤖 No cached response found, running LLM analysis for client {client_id}"
+                        f"ðŸ¤– No cached response found, running LLM analysis for client {client_id}"
                     )
                     llm_results = await self._extract_llm_powered_insights(
                         client_data, data_records
                     )
 
-                    # 💾 CACHE THE RESULTS IN DATABASE FOR FUTURE USE
+                    # ðŸ’¾ CACHE THE RESULTS IN DATABASE FOR FUTURE USE
                     if client_id and "error" not in llm_results:
                         cache_success = await llm_cache_manager.store_cached_llm_response(
                             client_id, client_data, llm_results
                         )
                         if cache_success:
-                            logger.info(f"💾 Cached LLM response in database for client {client_id}")
+                            logger.info(f"ðŸ’¾ Cached LLM response in database for client {client_id}")
                         else:
-                            logger.warning(f"⚠️ Failed to cache LLM response for client {client_id}")
+                            logger.warning(f"âš ï¸ Failed to cache LLM response for client {client_id}")
 
                     return llm_results
             else:
                 # If no client_id, run without locking
-                logger.info("🤖 Running LLM analysis without client-specific caching")
+                logger.info("ðŸ¤– Running LLM analysis without client-specific caching")
                 return await self._extract_llm_powered_insights(client_data, data_records)
 
         except Exception as e:
-            logger.error(f"❌ Failed to extract business insights: {e}")
+            logger.error(f"âŒ Failed to extract business insights: {e}")
             return {"error": f"Failed to extract insights: {str(e)}"}
 
     async def _extract_llm_powered_insights(
@@ -3974,24 +3959,24 @@ class DashboardOrchestrator:
         """Use LLM to intelligently analyze any data type and generate consistent insights"""
         try:
             logger.info(
-                f"🤖 Using LLM-powered analysis for {len(data_records)} records"
+                f"ðŸ¤– Using LLM-powered analysis for {len(data_records)} records"
             )
 
             # Prepare data for LLM analysis
             data_type = client_data.get("data_type", "unknown")
             schema_type = client_data.get("schema", {}).get("type", "unknown")
 
-            logger.info(f"📊 Data type: {data_type}, Schema type: {schema_type}")
+            logger.info(f"ðŸ“Š Data type: {data_type}, Schema type: {schema_type}")
 
-            # 🔧 CRITICAL FIX: Extract business entities from nested data structures
+            # ðŸ”§ CRITICAL FIX: Extract business entities from nested data structures
             flattened_data = self._extract_business_entities_for_llm(data_records)
-            logger.info(f"📊 Extracted {len(flattened_data)} business entity records from {len(data_records)} complex structures for LLM analysis")
+            logger.info(f"ðŸ“Š Extracted {len(flattened_data)} business entity records from {len(data_records)} complex structures for LLM analysis")
 
             # Sample the flattened data for LLM analysis (first 3 records to avoid token limits)
             sample_data = flattened_data[:3] if len(flattened_data) > 3 else flattened_data
 
             logger.info(
-                f"📊 Sample data keys: {list(sample_data[0].keys()) if sample_data else 'No data'}"
+                f"ðŸ“Š Sample data keys: {list(sample_data[0].keys()) if sample_data else 'No data'}"
             )
 
             # Create LLM prompt for intelligent analysis
@@ -3999,23 +3984,23 @@ class DashboardOrchestrator:
                 data_type, schema_type, sample_data, len(data_records)
             )
 
-            logger.info(f"📝 LLM prompt length: {len(llm_prompt)} characters")
+            logger.info(f"ðŸ“ LLM prompt length: {len(llm_prompt)} characters")
 
             # Get LLM analysis
             llm_response = await self._get_llm_analysis(llm_prompt)
 
-            logger.info(f"🤖 LLM response received: {len(llm_response)} characters")
-            logger.info(f"🤖 LLM response preview: {llm_response[:200]}...")
+            logger.info(f"ðŸ¤– LLM response received: {len(llm_response)} characters")
+            logger.info(f"ðŸ¤– LLM response preview: {llm_response[:200]}...")
 
             # Parse LLM response into structured format
             structured_insights = self._parse_llm_insights(llm_response, flattened_data)
 
-            logger.info(f"✅ LLM analysis completed successfully")
+            logger.info(f"âœ… LLM analysis completed successfully")
             return structured_insights
 
         except Exception as e:
-            logger.error(f"❌ LLM analysis failed: {e}")
-            logger.error(f"❌ Error traceback: {traceback.format_exc()}")
+            logger.error(f"âŒ LLM analysis failed: {e}")
+            logger.error(f"âŒ Error traceback: {traceback.format_exc()}")
             # Fallback to basic analysis with extracted entities
             return await self._extract_fallback_insights(
                 flattened_data, client_data.get("data_type", "unknown")
@@ -4039,11 +4024,11 @@ class DashboardOrchestrator:
                     flattened = self._flatten_simple_record(record)
                     all_entities.append(flattened)
             
-            logger.info(f"🔧 Extracted {len(all_entities)} total business entities for LLM analysis")
+            logger.info(f"ðŸ”§ Extracted {len(all_entities)} total business entities for LLM analysis")
             return all_entities if all_entities else data_records
             
         except Exception as e:
-            logger.error(f"❌ Business entity extraction failed: {e}")
+            logger.error(f"âŒ Business entity extraction failed: {e}")
             # Fallback to simple flattening
             return self._flatten_nested_data_for_llm(data_records)
 
@@ -4127,7 +4112,7 @@ class DashboardOrchestrator:
                 **performance_context
             })
         
-        logger.info(f"🔧 Extracted {len(entities)} entities from business structure")
+        logger.info(f"ðŸ”§ Extracted {len(entities)} entities from business structure")
         return entities
 
     def _flatten_simple_record(self, record: Dict) -> Dict:
@@ -4211,11 +4196,11 @@ class DashboardOrchestrator:
                 
                 flattened_records.append(flat_record)
             
-            logger.info(f"🔧 Flattened {len(data_records)} records: {len(flattened_records[0].keys()) if flattened_records else 0} total fields")
+            logger.info(f"ðŸ”§ Flattened {len(data_records)} records: {len(flattened_records[0].keys()) if flattened_records else 0} total fields")
             return flattened_records
             
         except Exception as e:
-            logger.error(f"❌ Data flattening failed: {e}")
+            logger.error(f"âŒ Data flattening failed: {e}")
             # Return original data if flattening fails
             return data_records
 
@@ -4420,14 +4405,14 @@ Return ONLY the JSON response, no additional text or explanations.
             # Check if API key is available
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
-                logger.error("❌ OpenAI API key not found in environment variables")
+                logger.error("âŒ OpenAI API key not found in environment variables")
                 raise Exception("OpenAI API key not configured")
 
             # Initialize OpenAI client
             client = AsyncOpenAI(api_key=api_key)
 
-            logger.info(f"🤖 Sending prompt to LLM for analysis")
-            logger.info(f"🤖 Using model: gpt-4o")
+            logger.info(f"ðŸ¤– Sending prompt to LLM for analysis")
+            logger.info(f"ðŸ¤– Using model: gpt-4o")
 
             # Call OpenAI API
             response = await client.chat.completions.create(
@@ -4444,22 +4429,22 @@ Return ONLY the JSON response, no additional text or explanations.
             )
 
             llm_response = response.choices[0].message.content.strip()
-            logger.info(f"✅ LLM response received: {len(llm_response)} characters")
+            logger.info(f"âœ… LLM response received: {len(llm_response)} characters")
 
             return llm_response
 
         except openai.AuthenticationError as e:
-            logger.error(f"❌ OpenAI authentication failed: {e}")
+            logger.error(f"âŒ OpenAI authentication failed: {e}")
             raise Exception(f"OpenAI authentication failed: {e}")
         except openai.RateLimitError as e:
-            logger.error(f"❌ OpenAI rate limit exceeded: {e}")
+            logger.error(f"âŒ OpenAI rate limit exceeded: {e}")
             raise Exception(f"OpenAI rate limit exceeded: {e}")
         except openai.APIError as e:
-            logger.error(f"❌ OpenAI API error: {e}")
+            logger.error(f"âŒ OpenAI API error: {e}")
             raise Exception(f"OpenAI API error: {e}")
         except Exception as e:
-            logger.error(f"❌ LLM analysis failed: {e}")
-            logger.error(f"❌ Error type: {type(e).__name__}")
+            logger.error(f"âŒ LLM analysis failed: {e}")
+            logger.error(f"âŒ Error type: {type(e).__name__}")
             raise e
 
     def _parse_llm_insights(
@@ -4470,19 +4455,19 @@ Return ONLY the JSON response, no additional text or explanations.
             import json
 
             # Clean the response (remove markdown if present)
-            logger.info(f"🔍 Raw LLM response starts with: {repr(llm_response[:50])}")
+            logger.info(f"ðŸ” Raw LLM response starts with: {repr(llm_response[:50])}")
             
             cleaned_response = llm_response
             if llm_response.startswith("```json"):
                 cleaned_response = llm_response.split("```json")[1].split("```")[0]
-                logger.info(f"🔧 Removed ```json wrapper")
+                logger.info(f"ðŸ”§ Removed ```json wrapper")
             elif llm_response.startswith("```"):
                 cleaned_response = llm_response.split("```")[1]
-                logger.info(f"🔧 Removed ``` wrapper")
+                logger.info(f"ðŸ”§ Removed ``` wrapper")
             else:
-                logger.info(f"🔍 No markdown wrapper found")
+                logger.info(f"ðŸ” No markdown wrapper found")
                 
-            logger.info(f"🔍 Cleaned response starts with: {repr(cleaned_response[:50])}")
+            logger.info(f"ðŸ” Cleaned response starts with: {repr(cleaned_response[:50])}")
 
             # Parse JSON response
             parsed_data = json.loads(cleaned_response.strip())
@@ -4499,13 +4484,13 @@ Return ONLY the JSON response, no additional text or explanations.
                 metadata = dashboard_data.get("metadata", {})
 
                 logger.info(
-                    f"📊 Parsed standardized LLM insights: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables"
+                    f"ðŸ“Š Parsed standardized LLM insights: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables"
                 )
                 logger.info(
-                    f"🏢 Business type detected: {business_analysis.get('business_type', 'unknown')}"
+                    f"ðŸ¢ Business type detected: {business_analysis.get('business_type', 'unknown')}"
                 )
 
-                # 🔧 CRITICAL FIX: Return flattened structure for dashboard/metrics compatibility
+                # ðŸ”§ CRITICAL FIX: Return flattened structure for dashboard/metrics compatibility
                 return {
                     "business_analysis": business_analysis,
                     "kpis": kpis,
@@ -4523,7 +4508,7 @@ Return ONLY the JSON response, no additional text or explanations.
                 data_analysis = parsed_data.get("data_analysis", {})
 
                 logger.info(
-                    f"📊 Parsed legacy LLM insights: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables"
+                    f"ðŸ“Š Parsed legacy LLM insights: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables"
                 )
 
                 return {
@@ -4535,13 +4520,13 @@ Return ONLY the JSON response, no additional text or explanations.
                 }
 
         except json.JSONDecodeError as e:
-            logger.warning(f"⚠️ LLM JSON parsing failed, trying to fix: {e}")
+            logger.warning(f"âš ï¸ LLM JSON parsing failed, trying to fix: {e}")
 
-            # 🔧 TRY TO FIX MALFORMED JSON
+            # ðŸ”§ TRY TO FIX MALFORMED JSON
             try:
                 fixed_json = self._fix_malformed_json(cleaned_response)
                 parsed_data = json.loads(fixed_json)
-                logger.info(f"✅ Successfully fixed and parsed LLM JSON")
+                logger.info(f"âœ… Successfully fixed and parsed LLM JSON")
 
                 # Continue with normal processing
                 business_analysis = parsed_data.get("business_analysis", {})
@@ -4558,11 +4543,11 @@ Return ONLY the JSON response, no additional text or explanations.
                 }
 
             except Exception as fix_error:
-                logger.warning(f"⚠️ JSON fix also failed: {fix_error}")
+                logger.warning(f"âš ï¸ JSON fix also failed: {fix_error}")
                 raise e  # This will trigger fallback analysis
 
         except Exception as e:
-            logger.error(f"❌ Failed to parse LLM insights: {e}")
+            logger.error(f"âŒ Failed to parse LLM insights: {e}")
             raise e
 
     async def _extract_business_insights_specialized(self, client_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -4830,7 +4815,7 @@ Return JSON with this EXACT structure:
     ) -> Dict[str, Any]:
         """Fallback analysis when LLM fails"""
         try:
-            logger.info(f"🔄 Using fallback analysis for {data_type} data")
+            logger.info(f"ðŸ”„ Using fallback analysis for {data_type} data")
 
             # Basic KPIs
             kpis = [
@@ -4934,7 +4919,7 @@ Return JSON with this EXACT structure:
             }
 
         except Exception as e:
-            logger.error(f"❌ Fallback analysis failed: {e}")
+            logger.error(f"âŒ Fallback analysis failed: {e}")
             return {"error": f"Analysis failed: {str(e)}"}
 
     def _fix_malformed_json(self, json_string: str) -> str:
@@ -4983,7 +4968,7 @@ Return JSON with this EXACT structure:
             return fixed_json
 
         except Exception as e:
-            logger.warning(f"⚠️ JSON fixing failed: {e}")
+            logger.warning(f"âš ï¸ JSON fixing failed: {e}")
             return json_string  # Return original if fixing fails
 
     async def _get_cached_llm_analysis(
@@ -4992,7 +4977,7 @@ Return JSON with this EXACT structure:
         """Get cached LLM analysis results from in-memory cache to avoid repeated API calls"""
         try:
             if client_id not in self._llm_analysis_cache:
-                logger.info(f"📝 No cached analysis found for client {client_id}")
+                logger.info(f"ðŸ“ No cached analysis found for client {client_id}")
                 return None
 
             cached_data = self._llm_analysis_cache[client_id]
@@ -5003,7 +4988,7 @@ Return JSON with this EXACT structure:
                 1, current_record_count * 0.1
             ):
                 logger.info(
-                    f"📊 Data changed for client {client_id}: {cached_record_count} -> {current_record_count}, re-analysis needed"
+                    f"ðŸ“Š Data changed for client {client_id}: {cached_record_count} -> {current_record_count}, re-analysis needed"
                 )
                 # Remove stale cache
                 del self._llm_analysis_cache[client_id]
@@ -5015,17 +5000,17 @@ Return JSON with this EXACT structure:
             cached_at = datetime.fromisoformat(cached_data["cached_at"])
             if datetime.now() - cached_at > timedelta(hours=1):
                 logger.info(
-                    f"⏰ Cache expired for client {client_id}, re-analysis needed"
+                    f"â° Cache expired for client {client_id}, re-analysis needed"
                 )
                 # Remove expired cache
                 del self._llm_analysis_cache[client_id]
                 return None
 
-            logger.info(f"✅ Using cached analysis from memory for client {client_id}")
+            logger.info(f"âœ… Using cached analysis from memory for client {client_id}")
             return cached_data["analysis_result"]
 
         except Exception as e:
-            logger.warning(f"⚠️ Failed to get cached analysis: {e}")
+            logger.warning(f"âš ï¸ Failed to get cached analysis: {e}")
             return None
 
     async def _cache_llm_analysis(
@@ -5044,329 +5029,12 @@ Return JSON with this EXACT structure:
             }
 
             logger.info(
-                f"💾 Successfully cached LLM analysis in memory for client {client_id}"
+                f"ðŸ’¾ Successfully cached LLM analysis in memory for client {client_id}"
             )
 
         except Exception as e:
-            logger.warning(f"⚠️ Failed to cache LLM analysis: {e}")
+            logger.warning(f"âš ï¸ Failed to cache LLM analysis: {e}")
             # Don't raise exception - caching failure shouldn't break the flow
-
-    # NEW METHOD: Generate custom intelligent templates
-    async def generate_custom_templates(self, request: CustomTemplateRequest) -> CustomTemplateResponse:
-        """Generate custom, intelligent templates using the new AI-powered system"""
-        start_time = datetime.now()
-        
-        try:
-            logger.info(f"🎨 Starting custom template generation for client {request.client_id}")
-            
-            # Step 1: Get and analyze client data
-            client_data = await self.ai_analyzer.get_client_data_optimized(str(request.client_id))
-            
-            if not client_data.get('data'):
-                raise Exception(f"No real data found for client {request.client_id}")
-            
-            # Step 2: Analyze real client data (existing method)
-            data_analysis = await self._analyze_real_client_data(request.client_id, client_data)
-            
-            # Step 3: NEW - Perform comprehensive business DNA analysis
-            business_dna = await self.business_dna_analyzer.analyze_business_dna(
-                str(request.client_id), 
-                data_analysis
-            )
-            
-            # Step 4: NEW - Generate custom template architectures using LangGraph
-            template_configs = await self.dynamic_template_orchestrator.generate_custom_templates(
-                str(request.client_id), 
-                data_analysis
-            )
-            
-            # 🚀 CRITICAL FIX: Save custom templates to database
-            logger.info(f"💾 Saving {len(template_configs)} custom templates to database")
-            await self._save_custom_templates_to_database(request.client_id, template_configs, business_dna)
-            
-            generation_time = (datetime.now() - start_time).total_seconds()
-            logger.info(f"✅ Custom templates generated and SAVED successfully for client {request.client_id} in {generation_time:.2f}s")
-            
-            # Create response with saved templates
-            return CustomTemplateResponse(
-                success=True,
-                client_id=request.client_id,
-                generated_templates=template_configs,  # These are now saved in DB
-                business_dna=business_dna,
-                template_ecosystem=None,  # Skip ecosystem for now
-                generation_metadata={
-                    "generated_at": datetime.now().isoformat(),
-                    "generation_time": generation_time,
-                    "template_count": len(template_configs),
-                    "method": "data_driven_with_database_save",
-                    "saved_to_database": True
-                },
-                message=f"Generated and saved {len(template_configs)} intelligent custom templates",
-                generation_time=generation_time
-            )
-            
-        except Exception as e:
-            logger.error(f"❌ Custom template generation failed for client {request.client_id}: {e}")
-            
-            # Return error response
-            return CustomTemplateResponse(
-                success=False,
-                client_id=request.client_id,
-                generated_templates=[],
-                business_dna=None,
-                template_ecosystem=None,
-                generation_metadata={"error": str(e)},
-                message=f"Custom template generation failed: {str(e)}",
-                generation_time=0.0
-            )
-
-    # ENHANCED METHOD: Get existing custom templates
-    async def get_custom_templates(self, client_id: uuid.UUID) -> Optional[List[EnhancedDashboardConfig]]:
-        """Get existing custom templates with full intelligence data"""
-        try:
-            db_client = get_admin_client()
-            
-            # Get business DNA
-            dna_response = db_client.table('client_business_dna').select('*').eq('client_id', str(client_id)).execute()
-            business_dna = None
-            
-            if dna_response.data:
-                dna_data = dna_response.data[0]
-                # Reconstruct BusinessDNA object (simplified)
-                business_dna = BusinessDNA(
-                    business_model=BusinessModel(dna_data['business_model']),
-                    industry_sector=dna_data['industry_sector'],
-                    maturity_level=BusinessMaturity(dna_data['maturity_level']),
-                    data_sophistication=DataSophistication(dna_data['data_sophistication']),
-                    success_metrics=dna_data.get('success_metrics', []),
-                    key_relationships=dna_data.get('key_relationships', {}),
-                    business_personality=dna_data.get('business_personality', {}),
-                    confidence_score=dna_data.get('confidence_score', 0.8)
-                )
-            
-            # 🚀 NEW: Get custom templates from single record format
-            templates_response = db_client.table('client_dashboard_configs').select('*').eq('client_id', str(client_id)).execute()
-            
-            if not templates_response.data:
-                logger.info(f"🔍 No custom templates found for client {client_id}")
-                return None
-            
-            # Find the record with custom templates
-            template_record = None
-            for record in templates_response.data:
-                dashboard_config = record.get('dashboard_config', {})
-                if dashboard_config.get('template_type') == 'custom_ai_generated' and dashboard_config.get('is_custom'):
-                    template_record = record
-                    break
-            
-            if not template_record:
-                logger.info(f"🔍 No custom AI templates found for client {client_id}")
-                return None
-            
-            # Extract the custom templates array from the record
-            dashboard_config = template_record.get('dashboard_config', {})
-            custom_templates_data = dashboard_config.get('custom_templates', [])
-            
-            if not custom_templates_data:
-                logger.info(f"🔍 No custom templates found in dashboard_config for client {client_id}")
-                return None
-            
-            # Convert each template back to EnhancedDashboardConfig
-            enhanced_configs = []
-            
-            for template_data in custom_templates_data:
-                # Reconstruct DashboardConfig from stored data
-                layout_data = template_data.get('layout', {})
-                dashboard_layout = DashboardLayout(
-                    grid_cols=layout_data.get('grid_cols', 4),
-                    grid_rows=layout_data.get('grid_rows', 6),
-                    gap=layout_data.get('gap', 4),
-                    responsive=layout_data.get('responsive', True)
-                )
-                
-                # Reconstruct KPI widgets
-                kpi_widgets = []
-                for kpi_data in template_data.get('kpi_widgets', []):
-                    kpi_widget = KPIWidget(
-                        id=kpi_data['id'],
-                        title=kpi_data['title'],
-                        value=kpi_data['value'],
-                        icon=kpi_data['icon'],
-                        icon_color=kpi_data['icon_color'],
-                        icon_bg_color=kpi_data['icon_bg_color'],
-                        trend=kpi_data['trend'],
-                        position=kpi_data['position'],
-                        size=kpi_data['size']
-                    )
-                    kpi_widgets.append(kpi_widget)
-                
-                # Reconstruct Chart widgets
-                chart_widgets = []
-                for chart_data in template_data.get('chart_widgets', []):
-                    chart_widget = ChartWidget(
-                        id=chart_data['id'],
-                        title=chart_data['title'],
-                        subtitle=chart_data['subtitle'],
-                        chart_type=ChartType(chart_data['chart_type']),
-                        data_source=chart_data['data_source'],
-                        config=chart_data['config'],
-                        position=chart_data['position'],
-                        size=chart_data['size']
-                    )
-                    chart_widgets.append(chart_widget)
-                
-                # Create base DashboardConfig
-                base_config = DashboardConfig(
-                    client_id=client_id,
-                    title=template_data['title'],
-                    subtitle=template_data['subtitle'],
-                    layout=dashboard_layout,
-                    kpi_widgets=kpi_widgets,
-                    chart_widgets=chart_widgets,
-                    theme=template_data.get('theme', 'default'),
-                    last_generated=datetime.now(),
-                    version=template_data.get('version', 'v1.0')
-                )
-                
-                # Create EnhancedDashboardConfig using composition
-                enhanced_config = EnhancedDashboardConfig(
-                    base_config=base_config,
-                    business_dna=business_dna,
-                    template_architecture=None,  # Simplified for now
-                    template_theme=None,
-                    smart_name=None,
-                    template_ecosystem=None,
-                    generation_metadata=TemplateGenerationMetadata(
-                        template_id=f"custom_{template_data.get('template_index', 1)}",
-                        client_id=client_id,
-                        generation_timestamp=datetime.now(),
-                        confidence_score=dashboard_config.get('confidence_score', 0.8),
-                        data_analysis_summary=f"Custom template {template_data.get('template_index', 1)}",
-                        business_context_used=dashboard_config.get('business_model', 'unknown'),
-                        generation_method="data_driven_custom"
-                    ),
-                    intelligent_components=[]  # Simplified for now
-                )
-                
-                enhanced_configs.append(enhanced_config)
-            
-            logger.info(f"✅ Retrieved {len(enhanced_configs)} custom templates for client {client_id}")
-            return enhanced_configs
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to get custom templates for client {client_id}: {e}")
-            return None
-
-    async def _save_custom_templates_to_database(
-        self, 
-        client_id: uuid.UUID, 
-        template_configs: List[DashboardConfig], 
-        business_dna: BusinessDNA
-    ) -> None:
-        """Save custom templates to database for persistence"""
-        try:
-            db_client = get_admin_client()
-            
-            # Save business DNA first
-            business_dna_record = {
-                "client_id": str(client_id),
-                "business_model": business_dna.business_model.value,
-                "industry_sector": business_dna.industry_sector,
-                "maturity_level": business_dna.maturity_level.value,
-                "data_sophistication": business_dna.data_sophistication.value,
-                "primary_workflows": [],  # Simplified for now
-                "success_metrics": [],
-                "key_relationships": {},
-                "business_personality": {},
-                "confidence_score": getattr(business_dna, 'confidence_score', 0.8),
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat()
-            }
-            
-            business_dna_response = db_client.table('client_business_dna').upsert(
-                business_dna_record,
-                on_conflict="client_id"
-            ).execute()
-            
-            logger.info(f"💾 Business DNA saved for client {client_id}")
-            
-            # 🚀 NEW: Store all 3 templates in a SINGLE record as an array
-            all_templates_data = []
-            
-            for i, template_config in enumerate(template_configs):
-                template_data = {
-                    "template_index": i + 1,
-                    "title": template_config.title,
-                    "subtitle": template_config.subtitle,
-                    "layout": {
-                        "grid_cols": template_config.layout.grid_cols,
-                        "grid_rows": template_config.layout.grid_rows,
-                        "gap": template_config.layout.gap,
-                        "responsive": template_config.layout.responsive
-                    },
-                    "kpi_widgets": [
-                        {
-                            "id": kpi.id,
-                            "title": kpi.title,
-                            "value": kpi.value,
-                            "icon": kpi.icon,
-                            "icon_color": kpi.icon_color,
-                            "icon_bg_color": kpi.icon_bg_color,
-                            "trend": kpi.trend,
-                            "position": kpi.position,
-                            "size": kpi.size
-                        } for kpi in template_config.kpi_widgets
-                    ],
-                    "chart_widgets": [
-                        {
-                            "id": chart.id,
-                            "title": chart.title,
-                            "subtitle": chart.subtitle,
-                            "chart_type": chart.chart_type.value,
-                            "data_source": chart.data_source,
-                            "config": chart.config,
-                            "position": chart.position,
-                            "size": chart.size
-                        } for chart in template_config.chart_widgets
-                    ],
-                    "theme": template_config.theme,
-                    "version": template_config.version
-                }
-                all_templates_data.append(template_data)
-            
-            # Save as single record with all templates
-            dashboard_record = {
-                "client_id": str(client_id),
-                "is_generated": True,
-                "generation_timestamp": datetime.now().isoformat(),
-                "dashboard_config": {
-                    # All custom data goes in this JSONB field
-                    "template_type": "custom_ai_generated",
-                    "is_custom": True,
-                    "business_model": business_dna.business_model.value,
-                    "industry_sector": business_dna.industry_sector,
-                    "confidence_score": getattr(business_dna, 'confidence_score', 0.8),
-                    "custom_templates": all_templates_data,  # Array of all 3 templates
-                    "generation_metadata": {
-                        "generated_at": datetime.now().isoformat(),
-                        "business_dna_version": "v1.0",
-                        "template_count": len(template_configs),
-                        "data_analysis_summary": f"Generated from {len(template_configs)} unique data-driven templates"
-                    }
-                }
-            }
-            
-            # Upsert single record (this will replace any existing custom templates)
-            dashboard_response = db_client.table('client_dashboard_configs').upsert(
-                dashboard_record,
-                on_conflict="client_id"  # Replace existing record for this client
-            ).execute()
-            
-            logger.info(f"💾 Saved {len(template_configs)} custom templates as single record for client {client_id}")
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to save custom templates to database: {e}")
-            raise
 
 
 # Create global instance

@@ -41,7 +41,6 @@ interface DashboardOption {
 	template_type: string;
 	color: string;
 	isActive: boolean;
-	customTemplateData?: any; // For AI-generated custom templates
 }
 
 interface SelectContentProps {
@@ -65,11 +64,25 @@ export default function SelectContent({
 
 	// Use only the 3 required dashboards: main, business insights, and performance
 	const generateDashboardOptions = React.useCallback(async () => {
-		const companyName = user?.company_name || "Analytics Dashboard";
-		const staticDashboards = createFallbackDashboards(companyName);
-		setDashboardOptions(staticDashboards);
-		setLoading(false);
-	}, [user?.company_name]);
+		if (!user?.client_id) {
+			setLoading(false);
+			return;
+		}
+
+		try {
+			console.log(`🎨 Loading dashboard options for client ${user.client_id}`);
+
+			// Use the predefined fallback dashboards as the main template system
+			const dashboards = createFallbackDashboards(user.company_name);
+			setDashboardOptions(dashboards);
+			setLoading(false);
+		} catch (error) {
+			console.error("Failed to load dashboard options:", error);
+			const fallbackOptions = createFallbackDashboards(user.company_name);
+			setDashboardOptions(fallbackOptions);
+			setLoading(false);
+		}
+	}, [user?.client_id, user?.company_name]);
 
 	// Create fallback dashboards when API fails
 	const createFallbackDashboards = (companyName: string): DashboardOption[] => {

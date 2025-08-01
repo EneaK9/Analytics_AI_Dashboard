@@ -5,7 +5,7 @@ const api = axios.create({
 	baseURL: process.env.NEXT_PUBLIC_API_URL
 		? `${process.env.NEXT_PUBLIC_API_URL}/api`
 		: "http://localhost:8000/api",
-	timeout: 30000, // 30 seconds - increased for metrics processing
+	timeout: 120000, // 120 seconds - increased for large data processing
 	headers: {
 		"Content-Type": "application/json",
 	},
@@ -14,19 +14,19 @@ const api = axios.create({
 // Debug function to test timeout configuration
 export const testTimeoutConfig = async () => {
 	console.log("🧪 Testing timeout configuration...");
-	
+
 	// Test 1: Check default timeout
 	const defaultConfig = api.defaults;
 	console.log("🔧 Default timeout:", defaultConfig.timeout);
-	
+
 	// Test 2: Check request interceptor
-	const testConfig = { url: '/dashboard/metrics', timeout: 15000 };
+	const testConfig = { url: "/dashboard/metrics", timeout: 15000 };
 	const processedConfig = await new Promise((resolve) => {
 		api.interceptors.request.handlers[0].fulfilled(testConfig);
 		resolve(testConfig);
 	});
 	console.log("🔧 Processed config timeout:", processedConfig.timeout);
-	
+
 	return processedConfig;
 };
 
@@ -40,12 +40,17 @@ api.interceptors.request.use(
 		}
 
 		// Set longer timeout for metrics endpoint
-		if (config.url?.includes('/dashboard/metrics')) {
-			config.timeout = 60000; // 60 seconds for metrics
-			console.log("🔧 Setting 60s timeout for metrics endpoint:", config.url);
+		if (config.url?.includes("/dashboard/metrics")) {
+			config.timeout = 180000; // 180 seconds for metrics with large datasets
+			console.log("🔧 Setting 180s timeout for metrics endpoint:", config.url);
 		}
-		
-		console.log("🔧 Request config timeout:", config.timeout, "for URL:", config.url);
+
+		console.log(
+			"🔧 Request config timeout:",
+			config.timeout,
+			"for URL:",
+			config.url
+		);
 
 		return config;
 	},
@@ -78,7 +83,7 @@ api.interceptors.response.use(
 			console.warn("Timeout details:", {
 				url: error.config?.url,
 				timeout: error.config?.timeout,
-				message: error.message
+				message: error.message,
 			});
 		} else if (error.code === "ERR_NETWORK") {
 			console.warn("Network error - server may be down, real data unavailable");

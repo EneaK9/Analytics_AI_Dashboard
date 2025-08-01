@@ -1,0 +1,20 @@
+[33md1a837c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfrontend[m[33m, [m[1;31morigin/frontend[m[33m)[m Fix: Adding excel table in sidebard and fix fallback templates
+[33m458acc5[m small fix
+[33mc177109[m fix small issue
+[33m64ee360[m Fix: added more diverse charts
+[33mf4a471e[m Fix: added more charts
+[33mf2633cd[m Add: Adding dynamic template AI generate
+[33m47ca2a4[m Feature: Add cache to store llm response
+[33mb626ae4[m Fix: Decrease timeout response
+[33me9e20e2[m Fix: fixed ui to display data correctly
+[33m3379f73[m[33m ([m[1;31morigin/ai-dashboard[m[33m)[m Fix: fix critical backend issue
+[33md1a837c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfrontend[m[33m, [m[1;31morigin/frontend[m[33m)[m Fix: Adding excel table in sidebard and fix fallback templates
+[33m458acc5[m small fix
+[33mc177109[m fix small issue
+[33m64ee360[m Fix: added more diverse charts
+[33mf4a471e[m Fix: added more charts
+[33mf2633cd[m Add: Adding dynamic template AI generate
+[33m47ca2a4[m Feature: Add cache to store llm response
+[33mb626ae4[m Fix: Decrease timeout response
+[33me9e20e2[m Fix: fixed ui to display data correctly
+[33m3379f73[m[33m ([m[1;31morigin/ai-dashboard[m[33m)[m Fix: fix critical backend issue
