@@ -34,10 +34,31 @@ import { LineChart } from '@mui/x-charts/LineChart';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { BarChart } from '@mui/x-charts/BarChart';
 
-// Chart data validation function
+// Chart data validation function for LLM response format
 const isValidChartData = (chartData: any) => {
 	if (!chartData) return false;
 	
+	// Check if it's LLM format with data array of objects
+	if (chartData.data && Array.isArray(chartData.data) && chartData.data.length > 0) {
+		// For LLM format: validate that data array contains objects with field values
+		const hasValidDataObjects = chartData.data.every((item: any) => {
+			if (!item || typeof item !== 'object') return false;
+			
+			// Get field names from config or use defaults
+			const xField = chartData.config?.x_axis?.field || "name";
+			const yField = chartData.config?.y_axis?.field || "value";
+			
+			// Check if the item has the required fields
+			const hasXField = item[xField] != null;
+			const hasYField = item[yField] != null && !isNaN(Number(item[yField]));
+			
+			return hasXField && hasYField;
+		});
+		
+		return hasValidDataObjects;
+	}
+	
+	// Legacy format: check for labels and data arrays
 	const hasValidLabels = chartData.labels && 
 		Array.isArray(chartData.labels) && 
 		chartData.labels.length > 0 &&
@@ -144,7 +165,8 @@ export default function MainGrid({
 	dashboardType = "main",
 	dateRange,
 }: MainGridProps) {
-	// If this is the main dashboard, use the original layout
+	// Route to the appropriate dashboard template
+	// Main dashboard uses the original OriginalMainGrid with rich LLM analysis
 	if (dashboardType === "main") {
 		return <OriginalMainGrid dashboardData={dashboardData} user={user} />;
 	}
@@ -182,7 +204,10 @@ function OriginalMainGrid({
 	// Helper function to format KPI values based on format type
 	const formatKPIValue = (value: string, format: string): string => {
 		const numValue = parseFloat(value);
-		if (isNaN(numValue)) return value;
+		if (isNaN(numValue) || numValue === null || numValue === undefined || value === null || value === undefined) {
+			// Return safe string representation if value can't be parsed as number
+			return String(value || "0");
+		}
 
 		switch (format) {
 			case "currency":
@@ -277,6 +302,8 @@ function OriginalMainGrid({
 		}
 	}, [user?.client_id]);
 
+
+
 	// Fetch REAL BACKEND DATA for main dashboard with AI-POWERED CUSTOM TEMPLATES
 	React.useEffect(() => {
 		const fetchRealData = async () => {
@@ -285,9 +312,11 @@ function OriginalMainGrid({
 					"🚀 Loading AI-POWERED custom dashboard with intelligent analysis"
 				);
 
-				// 🚀 NEW: Use AI-powered metrics with full LLM analysis (not fast mode)
-				// For now, keep the original endpoint - dashboard switching will be handled in another function
-				const endpoint = "/dashboard/metrics?fast_mode=false&force_llm=true";
+				// 🚀 Load rich LLM analysis for main dashboard (with fallback)
+				console.log("🔗 Loading main dashboard with rich LLM analysis");
+				
+				// Force rich LLM analysis for main dashboard
+				let endpoint = "/dashboard/metrics?fast_mode=false&force_llm=true";
 				console.log(`🔗 Calling LLM endpoint: ${endpoint}`);
 				const response = await api.get(endpoint);
 
@@ -348,16 +377,16 @@ function OriginalMainGrid({
 						console.warn("⚠️ NO Tables found in llm_analysis!");
 					}
 
-					setLlmAnalysis(analysis);
-					setError(null);
-				} else {
-					console.error("❌ No llm_analysis found in response");
-					setError("No analysis data available");
-					setLlmAnalysis(null);
-				}
+									setLlmAnalysis(analysis);
+				setError(null);
+			} else {
+				console.error("❌ No llm_analysis found in response");
+				setError("No analysis data available");
+				setLlmAnalysis(null);
+			}
 
-				// Load client data using the SAME method as template dashboard
-				await loadClientData();
+			// Load client data using the SAME method as template dashboard
+			await loadClientData();
 			} catch (error) {
 				console.error("❌ CRITICAL ERROR loading dashboard data:", error);
 				setError("Failed to load dashboard data");
@@ -656,11 +685,17 @@ function OriginalMainGrid({
 														series={[
 															{
 																data: filteredData.map(
-																	(item: any, idx: number) => ({
-																		id: item.id || idx,
-																		value: Number(item.value) || 0,
-																		label: item.name || `Item ${idx}`,
-																	})
+																	(item: any, idx: number) => {
+																		// Get the actual field names from chart config
+																		const xField = chart.config?.x_axis?.field || "name";
+																		const yField = chart.config?.y_axis?.field || "value";
+																		
+																		return {
+																			id: item.id || idx,
+																			value: Number(item[yField] || item.value || 0),
+																			label: String(item[xField] || item.name || `Item ${idx}`),
+																		};
+																	}
 																),
 																valueFormatter: (value: any) => {
 																	// Handle case where value might be an object
@@ -737,48 +772,59 @@ function OriginalMainGrid({
 											/>
 											<CardContent>
 												<Box sx={{ height: 300 }}>
-													<BarChart
-														dataset={filteredData}
-														xAxis={[
-															{
-																scaleType: "band",
-																dataKey: "name",
-																tickPlacement: "middle",
-																tickLabelPlacement: "middle",
-															},
-														]}
-														series={[
-															{
-																dataKey: "value",
-																label:
-																	chart.config?.y_axis?.display_name || "Value",
-																valueFormatter: (value: any) => {
-																	// Handle case where value might be an object
-																	const actualValue =
-																		typeof value === "object" && value !== null
-																			? value.value || value
-																			: value;
+																						<BarChart
+										dataset={filteredData.map((item: any) => {
+											// Get the actual field names from chart config
+											const xField = chart.config?.x_axis?.field || "name";
+											const yField = chart.config?.y_axis?.field || "value";
+											
+											// Create normalized object with both original and normalized fields
+											const normalizedItem = { ...item };
+											normalizedItem[xField] = String(item[xField] || item.name || item.id || "Unknown");
+											normalizedItem[yField] = Number(item[yField] || item.value || 0);
+											
+											return normalizedItem;
+										})}
+										xAxis={[
+											{
+												scaleType: "band",
+												dataKey: chart.config?.x_axis?.field || "name",
+												tickPlacement: "middle",
+												tickLabelPlacement: "middle",
+											},
+										]}
+										series={[
+											{
+												dataKey: chart.config?.y_axis?.field || "value",
+												label:
+													chart.config?.y_axis?.display_name || "Value",
+												valueFormatter: (value: any) => {
+													// Handle case where value might be an object
+													const actualValue =
+														typeof value === "object" && value !== null
+															? value.value || value
+															: value;
 
-																	if (actualValue == null) return "0";
-																	if (
-																		typeof actualValue === "number" &&
-																		actualValue > 100
-																	) {
-																		return `$${actualValue.toLocaleString()}`;
-																	}
-																	return actualValue.toString();
-																},
-															},
-														]}
-														width={500}
-														height={300}
-														margin={{
-															top: 20,
-															bottom: 60,
-															left: 70,
-															right: 20,
-														}}
-													/>
+													if (actualValue == null) return "0";
+													if (
+														typeof actualValue === "number" &&
+														actualValue > 100
+													) {
+														return `$${actualValue.toLocaleString()}`;
+													}
+													return actualValue.toString();
+												},
+											},
+										]}
+										width={500}
+										height={300}
+										margin={{
+											top: 20,
+											bottom: 60,
+											left: 70,
+											right: 20,
+										}}
+									/>
 												</Box>
 											</CardContent>
 										</Card>
@@ -828,16 +874,27 @@ function OriginalMainGrid({
 											<CardContent>
 												<Box sx={{ height: 300 }}>
 													<LineChart
-														dataset={filteredData}
+														dataset={filteredData.map((item: any) => {
+															// Get the actual field names from chart config
+															const xField = chart.config?.x_axis?.field || "name";
+															const yField = chart.config?.y_axis?.field || "value";
+															
+															// Create normalized object with both original and normalized fields
+															const normalizedItem = { ...item };
+															normalizedItem[xField] = String(item[xField] || item.name || item.id || "Unknown");
+															normalizedItem[yField] = Number(item[yField] || item.value || 0);
+															
+															return normalizedItem;
+														})}
 														xAxis={[
 															{
 																scaleType: "point",
-																dataKey: "name",
+																dataKey: chart.config?.x_axis?.field || "name",
 															},
 														]}
 														series={[
 															{
-																dataKey: "value",
+																dataKey: chart.config?.y_axis?.field || "value",
 																label:
 																	chart.config?.y_axis?.display_name || "Value",
 																curve: "linear",
@@ -1048,9 +1105,11 @@ function OriginalMainGrid({
 													</tr>
 												</thead>
 												<tbody>
-													{table.data.map((row: any[], rowIndex: number) => (
+													{table.data.map((row: any, rowIndex: number) => (
 														<tr key={rowIndex}>
-															{row.map((cell: any, cellIndex: number) => (
+															{Array.isArray(row) ? (
+																// Handle array format (row is an array)
+																row.map((cell: any, cellIndex: number) => (
 																<td
 																	key={cellIndex}
 																	style={{
@@ -1059,7 +1118,20 @@ function OriginalMainGrid({
 																	}}>
 																	{String(cell || "-")}
 																</td>
-															))}
+																))
+															) : (
+																// Handle object format (row is an object)
+																table.columns.map((column: string, cellIndex: number) => (
+																	<td
+																		key={cellIndex}
+																		style={{
+																			padding: "12px",
+																			borderBottom: "1px solid #eee",
+																		}}>
+																		{String(row[column] || "-")}
+																	</td>
+																))
+															)}
 														</tr>
 													))}
 												</tbody>
@@ -1201,7 +1273,8 @@ function TemplateDashboard({
 			// Use specialized LLM-powered endpoints for business and performance templates
 			if (dashboardType === "business") {
 				console.log("🤖 Loading Business Intelligence data with LLM analysis...");
-				const businessResponse = await api.get("/dashboard/business-insights");
+				// Force fresh LLM analysis for rich business insights
+				const businessResponse = await api.get("/dashboard/business-insights?force_llm=true&fast_mode=false");
 				
 				if (businessResponse.data && businessResponse.data.llm_analysis) {
 					// Process the LLM analysis data directly
@@ -1229,7 +1302,8 @@ function TemplateDashboard({
 				}
 			} else if (dashboardType === "performance") {
 				console.log("⚡ Loading Performance Hub data with LLM analysis...");
-				const performanceResponse = await api.get("/dashboard/performance");
+				// Force fresh LLM analysis for rich performance insights
+				const performanceResponse = await api.get("/dashboard/performance?force_llm=true&fast_mode=false");
 				
 				if (performanceResponse.data && performanceResponse.data.llm_analysis) {
 					// Process the LLM analysis data directly
@@ -1279,9 +1353,9 @@ function TemplateDashboard({
 				// Call appropriate endpoint based on dashboard type
 				let endpoint = "/dashboard/metrics"; // default
 				if (dashboardType === "business") {
-					endpoint = "/dashboard/business-insights";
+					endpoint = "/dashboard/business-insights?force_llm=true&fast_mode=false";
 				} else if (dashboardType === "performance") {
-					endpoint = "/dashboard/performance";
+					endpoint = "/dashboard/performance?force_llm=true&fast_mode=false";
 				}
 				
 				console.log(`🔗 Calling endpoint: ${endpoint} for dashboard type: ${dashboardType}`);
@@ -1433,25 +1507,31 @@ function TemplateDashboard({
 
 		// Handle Business Intelligence template with LLM Analysis
 		if (dashboardType === "business" && specializedData?.llm_analysis?.charts) {
-			// Transform LLM charts to UI format
+			// Transform LLM charts to UI format using actual field names from config
 			const transformedCharts: any = {};
 			if (specializedData.llm_analysis.charts && Array.isArray(specializedData.llm_analysis.charts)) {
 				specializedData.llm_analysis.charts.forEach((chart: any) => {
+					// Get actual field names from chart config
+					const xField = chart.config?.x_axis?.field || "name";
+					const yField = chart.config?.y_axis?.field || "value";
+					
 					if (chart.chart_type === 'pie' || chart.chart_type === 'radial') {
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
-							data: chart.data.map((item: any) => item.value),
-							labels: chart.data.map((item: any) => item.name),
-							insights: chart.insights || `${chart.display_name} analysis from AI`
+							data: chart.data.map((item: any) => item[yField] || item.value || 0),
+							labels: chart.data.map((item: any) => item[xField] || item.name || "Unknown"),
+							insights: chart.insights || `${chart.display_name} analysis from AI`,
+							config: chart.config
 						};
 					} else if (chart.chart_type === 'line' || chart.chart_type === 'bar') {
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
-							data: chart.data.map((item: any) => item.value),
-							labels: chart.data.map((item: any) => item.name),
-							insights: chart.insights || `${chart.display_name} trends from AI analysis`
+							data: chart.data.map((item: any) => item[yField] || item.value || 0),
+							labels: chart.data.map((item: any) => item[xField] || item.name || "Unknown"),
+							insights: chart.insights || `${chart.display_name} trends from AI analysis`,
+							config: chart.config
 						};
 					}
 				});
@@ -1465,7 +1545,7 @@ function TemplateDashboard({
 					value: kpi.value,
 					trend: kpi.trend,
 					change: kpi.trend?.percentage + '%',
-					icon: '📊'
+					icon: '💼'
 				})) || [],
 				showDataTable: true,
 				showCharts: true,
@@ -1483,25 +1563,31 @@ function TemplateDashboard({
 
 		// Handle Performance Hub template with LLM Analysis
 		if (dashboardType === "performance" && specializedData?.llm_analysis?.charts) {
-			// Transform LLM charts to UI format
+			// Transform LLM charts to UI format using actual field names from config
 			const transformedCharts: any = {};
 			if (specializedData.llm_analysis.charts && Array.isArray(specializedData.llm_analysis.charts)) {
 				specializedData.llm_analysis.charts.forEach((chart: any) => {
+					// Get actual field names from chart config
+					const xField = chart.config?.x_axis?.field || "name";
+					const yField = chart.config?.y_axis?.field || "value";
+					
 					if (chart.chart_type === 'pie' || chart.chart_type === 'radial') {
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
-							data: chart.data.map((item: any) => item.value),
-							labels: chart.data.map((item: any) => item.name),
-							insights: chart.insights || `${chart.display_name} performance analysis from AI`
+							data: chart.data.map((item: any) => item[yField] || item.value || 0),
+							labels: chart.data.map((item: any) => item[xField] || item.name || "Unknown"),
+							insights: chart.insights || `${chart.display_name} performance analysis from AI`,
+							config: chart.config
 						};
 					} else if (chart.chart_type === 'line' || chart.chart_type === 'bar' || chart.chart_type === 'radar') {
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
-							data: chart.data.map((item: any) => item.value),
-							labels: chart.data.map((item: any) => item.name),
-							insights: chart.insights || `${chart.display_name} performance trends from AI analysis`
+							data: chart.data.map((item: any) => item[yField] || item.value || 0),
+							labels: chart.data.map((item: any) => item[xField] || item.name || "Unknown"),
+							insights: chart.insights || `${chart.display_name} performance trends from AI analysis`,
+							config: chart.config
 						};
 					}
 				});
@@ -1713,11 +1799,11 @@ function TemplateDashboard({
 													px: 1,
 													py: 0.5,
 													borderRadius: 1,
-													bgcolor: kpi.trend === 'up' ? 'rgba(76, 175, 80, 0.2)' : 
-															 kpi.trend === 'down' ? 'rgba(244, 67, 54, 0.2)' : 'rgba(158, 158, 158, 0.2)'
+													bgcolor: kpi.trend.direction === 'upward' ? 'rgba(76, 175, 80, 0.2)' : 
+															 kpi.trend.direction === 'downward' ? 'rgba(244, 67, 54, 0.2)' : 'rgba(158, 158, 158, 0.2)'
 												}}>
 													<Typography variant="caption" sx={{ fontWeight: 600 }}>
-														{kpi.trend === 'up' ? '↗' : kpi.trend === 'down' ? '↘' : '→'}
+														{kpi.trend.direction === 'upward' ? '↗' : kpi.trend.direction === 'downward' ? '↘' : '→'}
 													</Typography>
 												</Box>
 											)}
@@ -1736,9 +1822,9 @@ function TemplateDashboard({
 												fontWeight: 500,
 												mb: 1
 											}}>
-												{kpi.title}
+												{kpi.display_name || kpi.title}
 											</Typography>
-											{kpi.change && kpi.change !== "N/A" && (
+											{kpi.trend?.percentage && (
 												<Typography 
 													variant="body2" 
 													sx={{ 
@@ -1749,10 +1835,10 @@ function TemplateDashboard({
 													}}
 												>
 													<Box component="span" sx={{ 
-														color: kpi.trend === 'up' ? '#4caf50' : 
-															   kpi.trend === 'down' ? '#f44336' : '#9e9e9e'
+														color: kpi.trend.direction === 'upward' ? '#4caf50' : 
+															   kpi.trend.direction === 'downward' ? '#f44336' : '#9e9e9e'
 													}}>
-														{kpi.change}
+														{kpi.trend.percentage > 0 ? '+' : ''}{kpi.trend.percentage}%
 													</Box>
 													<Box component="span" sx={{ opacity: 0.7, fontSize: '0.75rem' }}>
 														vs last period
@@ -2035,7 +2121,7 @@ function TemplateDashboard({
 								<Grid key={index} size={{ xs: 12 }}>
 									<Card>
 										<CardHeader
-											title={table.title || `Business Analysis ${index + 1}`}
+											title={table.display_name || table.title || `Business Analysis ${index + 1}`}
 											subheader="Data-driven insights from your business metrics"
 										/>
 										<CardContent>
@@ -2065,7 +2151,7 @@ function TemplateDashboard({
 													</Box>
 													
 													{/* Table Data */}
-													{table.data.map((row: any[], rowIndex: number) => (
+													{table.data.map((row: any, rowIndex: number) => (
 														<Box key={rowIndex} sx={{ 
 															display: 'flex', 
 															p: 1, 
@@ -2073,7 +2159,9 @@ function TemplateDashboard({
 															borderColor: 'grey.200',
 															'&:hover': { bgcolor: 'grey.50' }
 														}}>
-															{row.map((cell: any, cellIndex: number) => (
+															{Array.isArray(row) ? (
+																// Handle array format (row is an array)
+																row.map((cell: any, cellIndex: number) => (
 																<Typography 
 																	key={cellIndex} 
 																	variant="body2" 
@@ -2085,7 +2173,23 @@ function TemplateDashboard({
 																>
 																	{cell}
 																</Typography>
-															))}
+																))
+															) : (
+																// Handle object format (row is an object)
+																table.columns.map((column: string, cellIndex: number) => (
+																	<Typography 
+																		key={cellIndex} 
+																		variant="body2" 
+																		sx={{ 
+																			flex: 1,
+																			textAlign: cellIndex === 0 ? 'left' : 'right',
+																			fontWeight: cellIndex === 0 ? 500 : 400
+																		}}
+																	>
+																		{String(row[column] || "-")}
+																	</Typography>
+																))
+															)}
 														</Box>
 													))}
 												</Box>
@@ -2682,7 +2786,7 @@ function TemplateDashboard({
 													</Box>
 													
 													{/* Table Data */}
-													{table.data.map((row: any[], rowIndex: number) => (
+													{table.data.map((row: any, rowIndex: number) => (
 														<Box key={rowIndex} sx={{ 
 															display: 'flex', 
 															p: 1, 
@@ -2690,7 +2794,9 @@ function TemplateDashboard({
 															borderColor: 'grey.200',
 															'&:hover': { bgcolor: 'secondary.50' }
 														}}>
-															{row.map((cell: any, cellIndex: number) => (
+															{Array.isArray(row) ? (
+																// Handle array format (row is an array)
+																row.map((cell: any, cellIndex: number) => (
 																<Typography 
 																	key={cellIndex} 
 																	variant="body2" 
@@ -2702,7 +2808,23 @@ function TemplateDashboard({
 																>
 																	{cell}
 																</Typography>
-															))}
+																))
+															) : (
+																// Handle object format (row is an object)
+																table.columns.map((column: string, cellIndex: number) => (
+																	<Typography 
+																		key={cellIndex} 
+																		variant="body2" 
+																		sx={{ 
+																			flex: 1,
+																			textAlign: cellIndex === 0 ? 'left' : 'right',
+																			fontWeight: cellIndex === 0 ? 500 : 400
+																		}}
+																	>
+																		{String(row[column] || "-")}
+																	</Typography>
+																))
+															)}
 														</Box>
 													))}
 												</Box>

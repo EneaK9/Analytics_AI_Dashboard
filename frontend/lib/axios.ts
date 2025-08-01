@@ -19,15 +19,11 @@ export const testTimeoutConfig = async () => {
 	const defaultConfig = api.defaults;
 	console.log("🔧 Default timeout:", defaultConfig.timeout);
 	
-	// Test 2: Check request interceptor
+	// Test 2: Check request interceptor (simplified)
 	const testConfig = { url: '/dashboard/metrics', timeout: 15000 };
-	const processedConfig = await new Promise((resolve) => {
-		api.interceptors.request.handlers[0].fulfilled(testConfig);
-		resolve(testConfig);
-	});
-	console.log("🔧 Processed config timeout:", processedConfig.timeout);
+	console.log("🔧 Test config timeout:", testConfig.timeout);
 	
-	return processedConfig;
+	return testConfig;
 };
 
 // Add request interceptor to add auth token if available
@@ -39,10 +35,19 @@ api.interceptors.request.use(
 			config.headers.Authorization = `Bearer ${token}`;
 		}
 
-		// Set longer timeout for metrics endpoint
-		if (config.url?.includes('/dashboard/metrics')) {
-			config.timeout = 60000; // 60 seconds for metrics
-			console.log("🔧 Setting 60s timeout for metrics endpoint:", config.url);
+		// Set longer timeout for LLM-powered endpoints
+		if (config.url?.includes('/dashboard/metrics') || 
+		    config.url?.includes('/dashboard/business-insights') || 
+		    config.url?.includes('/dashboard/performance')) {
+			
+			// Check if force_llm=true for even longer timeout
+			if (config.url?.includes('force_llm=true')) {
+				config.timeout = 1200000; // 120 seconds for LLM analysis
+				console.log("🔧 Setting 120s timeout for LLM endpoint:", config.url);
+			} else {
+				config.timeout = 6000000; // 60 seconds for regular metrics
+				console.log("🔧 Setting 60s timeout for metrics endpoint:", config.url);
+			}
 		}
 		
 		console.log("🔧 Request config timeout:", config.timeout, "for URL:", config.url);

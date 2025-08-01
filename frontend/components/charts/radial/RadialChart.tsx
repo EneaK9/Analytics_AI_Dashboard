@@ -256,7 +256,7 @@ export default function RadialChart({
 						<div class="font-semibold text-sm text-gray-800">${displayName}</div>
 						<div class="text-xs mt-1 text-gray-600">
 							<div>Percentage: <span class="font-medium text-blue-600">${percentage}%</span></div>
-							${rawValue !== undefined ? `<div>Raw Value: <span class="font-medium text-gray-800">${rawValue.toLocaleString()}</span></div>` : ''}
+							${rawValue !== undefined && rawValue !== null && typeof rawValue === 'number' ? `<div>Raw Value: <span class="font-medium text-gray-800">${rawValue.toLocaleString()}</span></div>` : ''}
 						</div>
 					</div>
 				`;

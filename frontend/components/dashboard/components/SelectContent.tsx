@@ -70,51 +70,14 @@ export default function SelectContent({
 			return;
 		}
 
-		try {
-			console.log(
-				`🎨 Generating CUSTOM dashboard options for client ${user.client_id}`
-			);
+		console.log(
+			`🎨 Using STANDARD dashboard templates for client ${user.client_id}`
+		);
 
-			// 🚀 NEW: Generate custom intelligent templates
-			const customTemplatesResponse = await api.post(
-				"/dashboard/generate-custom",
-				{
-					template_count: 3,
-					force_regenerate: false,
-					business_context_override: null,
-				}
-			);
-
-			console.log(
-				"🤖 Custom templates response:",
-				customTemplatesResponse.data
-			);
-
-			if (
-				customTemplatesResponse.data.success &&
-				customTemplatesResponse.data.templates
-			) {
-				// Create dashboard options from AI-generated custom templates
-				const customTemplates = await generateCustomDashboardOptions(
-					customTemplatesResponse.data.templates,
-					customTemplatesResponse.data.business_intelligence,
-					user.company_name
-				);
-				setDashboardOptions(customTemplates);
-			} else {
-				// Fallback to old template system if custom generation fails
-				console.warn("⚠️ Custom template generation failed, using fallback");
-				const fallbackOptions = createFallbackDashboards(user.company_name);
-				setDashboardOptions(fallbackOptions);
-			}
-			setLoading(false);
-		} catch (error) {
-			console.error("Failed to generate custom dashboard options:", error);
-			// Create fallback options
-			const fallbackOptions = createFallbackDashboards(user.company_name);
-			setDashboardOptions(fallbackOptions);
-			setLoading(false);
-		}
+		// Always use the standard templates (main, business, performance)
+		const standardOptions = createFallbackDashboards(user.company_name);
+		setDashboardOptions(standardOptions);
+		setLoading(false);
 	}, [user?.client_id, user?.company_name]);
 
 	// 🚀 NEW: Generate dashboard options from AI-generated custom templates

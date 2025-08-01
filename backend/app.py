@@ -1825,10 +1825,18 @@ async def get_dashboard_metrics(
         if not client_data:
             raise HTTPException(status_code=404, detail="No data found for this client")
         
-        # 🚀 PRIORITY 1: Check cache first (instant response)
-        cached_insights = await llm_cache_manager.get_cached_llm_response(
-            uuid.UUID(client_id), client_data
-        )
+        # Clear cache if forced fresh analysis is requested
+        if force_llm:
+            await llm_cache_manager.invalidate_cache(client_id)
+            logger.info(f"🗑️ Cleared LLM cache for fresh analysis - client {client_id}")
+        
+        # 🚀 PRIORITY 1: Check cache first (instant response) - but skip if force_llm
+        cached_insights = None
+        if not force_llm:
+            cached_insights = await llm_cache_manager.get_cached_llm_response(
+                uuid.UUID(client_id), client_data
+            )
+        
         if cached_insights and not force_llm:
             logger.info(f"⚡ Using cached LLM insights for client {client_id} - instant response!")
             return {
@@ -1841,17 +1849,15 @@ async def get_dashboard_metrics(
                 "response_time": "instant"
             }
         
-        # 🚀 PRIORITY 2: Use fast mode for immediate response (no LLM)
-        if fast_mode and not force_llm:
-            logger.info(f"🚀 Fast mode - using fallback insights for client {client_id}")
-            insights = await dashboard_orchestrator._extract_fallback_insights(
-                client_data.get('data', []), 
-                client_data.get('data_type', 'unknown')
-            )
-        else:
-            # Only use expensive LLM if explicitly requested
-            logger.info(f"🤖 LLM analysis requested for client {client_id}")
-            insights = await dashboard_orchestrator._extract_business_insights_from_data(client_data)
+        # ALWAYS use LLM analysis for main dashboard - no fallbacks
+        logger.info(f"🏠 Generating MAIN dashboard with LLM analysis for client {client_id}")
+        
+        try:
+            insights = await dashboard_orchestrator._extract_main_dashboard_insights(client_data)
+            logger.info(f"✅ Main dashboard LLM analysis successful for client {client_id}")
+        except Exception as llm_error:
+            logger.error(f"❌ Main dashboard LLM analysis failed for client {client_id}: {llm_error}")
+            raise HTTPException(status_code=500, detail=f"Main dashboard analysis failed: {str(llm_error)}")
         
         # Return the exact same format as /api/test-llm-analysis
         return {
@@ -1893,10 +1899,18 @@ async def get_business_insights_dashboard(
         if not client_data:
             raise HTTPException(status_code=404, detail="No data found for this client")
         
-        # Check cache first
-        cached_insights = await llm_cache_manager.get_cached_llm_response(
-            client_id, client_data
-        )
+        # Clear cache if forced fresh analysis is requested
+        if force_llm:
+            await llm_cache_manager.invalidate_cache(client_id)
+            logger.info(f"🗑️ Cleared LLM cache for fresh analysis - client {client_id}")
+        
+        # Check cache first - but skip if force_llm is true
+        cached_insights = None
+        if not force_llm:
+            cached_insights = await llm_cache_manager.get_cached_llm_response(
+                client_id, client_data
+            )
+        
         if cached_insights and not force_llm:
             logger.info(f"⚡ Using cached business insights for client {client_id}")
             return {
@@ -1910,14 +1924,15 @@ async def get_business_insights_dashboard(
                 "response_time": "instant"
             }
         
-        # Generate business insights using LLM
-        if fast_mode and not force_llm:
-            insights = await dashboard_orchestrator._extract_business_insights_fallback(
-                client_data.get('data', []), 
-                client_data.get('data_type', 'unknown')
-            )
-        else:
+        # ALWAYS use specialized BUSINESS LLM analysis - no fallbacks
+        logger.info(f"🤖 Generating BUSINESS insights with specialized LLM analysis for client {client_id}")
+        
+        try:
             insights = await dashboard_orchestrator._extract_business_insights_specialized(client_data)
+            logger.info(f"✅ Business insights LLM analysis successful for client {client_id}")
+        except Exception as llm_error:
+            logger.error(f"❌ Business insights LLM analysis failed for client {client_id}: {llm_error}")
+            raise HTTPException(status_code=500, detail=f"Business insights analysis failed: {str(llm_error)}")
         
         return {
             "client_id": client_id,
@@ -1976,14 +1991,15 @@ async def get_performance_dashboard(
                 "response_time": "instant"
             }
         
-        # Generate performance insights using LLM
-        if fast_mode and not force_llm:
-            insights = await dashboard_orchestrator._extract_performance_insights_fallback(
-                client_data.get('data', []), 
-                client_data.get('data_type', 'unknown')
-            )
-        else:
+        # ALWAYS use specialized PERFORMANCE LLM analysis - no fallbacks
+        logger.info(f"⚡ Generating PERFORMANCE insights with specialized LLM analysis for client {client_id}")
+        
+        try:
             insights = await dashboard_orchestrator._extract_performance_insights_specialized(client_data)
+            logger.info(f"✅ Performance insights LLM analysis successful for client {client_id}")
+        except Exception as llm_error:
+            logger.error(f"❌ Performance insights LLM analysis failed for client {client_id}: {llm_error}")
+            raise HTTPException(status_code=500, detail=f"Performance insights analysis failed: {str(llm_error)}")
         
         return {
             "client_id": client_id,
