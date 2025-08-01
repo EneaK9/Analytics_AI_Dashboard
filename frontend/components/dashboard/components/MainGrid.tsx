@@ -28,10 +28,30 @@ import {
 
 // Import various chart components
 import * as Charts from "../../charts";
-import { PieChart } from "@mui/x-charts/PieChart";
-import { BarChart } from "@mui/x-charts/BarChart";
-import { LineChart } from "@mui/x-charts/LineChart";
-import { ResponsiveRadar } from "@nivo/radar";
+
+// Import MUI X Charts
+import { LineChart } from '@mui/x-charts/LineChart';
+import { PieChart } from '@mui/x-charts/PieChart';
+import { BarChart } from '@mui/x-charts/BarChart';
+
+// Chart data validation function
+const isValidChartData = (chartData: any) => {
+	if (!chartData) return false;
+	
+	const hasValidLabels = chartData.labels && 
+		Array.isArray(chartData.labels) && 
+		chartData.labels.length > 0 &&
+		chartData.labels.every((label: any) => label != null);
+		
+	const hasValidData = chartData.data && 
+		Array.isArray(chartData.data) &&
+		chartData.data.length > 0 &&
+		chartData.data.every((value: any) => value != null && !isNaN(Number(value)));
+		
+	const sameLength = chartData.labels?.length === chartData.data?.length;
+	
+	return hasValidLabels && hasValidData && sameLength;
+};
 
 // Default data for main dashboard (fallback when no dynamic data is provided)
 const defaultData: StatCardProps[] = [
@@ -266,9 +286,10 @@ function OriginalMainGrid({
 				);
 
 				// 🚀 NEW: Use AI-powered metrics with full LLM analysis (not fast mode)
-				const response = await api.get(
-					"/dashboard/metrics?fast_mode=false&force_llm=true"
-				);
+				// For now, keep the original endpoint - dashboard switching will be handled in another function
+				const endpoint = "/dashboard/metrics?fast_mode=false&force_llm=true";
+				console.log(`🔗 Calling LLM endpoint: ${endpoint}`);
+				const response = await api.get(endpoint);
 
 				if (response.data && response.data.llm_analysis) {
 					const analysis = response.data.llm_analysis;
@@ -1093,6 +1114,7 @@ function TemplateDashboard({
 	const [clientData, setClientData] = React.useState<any[]>([]);
 	const [dataColumns, setDataColumns] = React.useState<string[]>([]);
 	const [aiMetrics, setAiMetrics] = React.useState<any[]>([]);
+	const [specializedData, setSpecializedData] = React.useState<any>(null);
 
 	// Convert new standardized format to legacy format for compatibility
 	const convertStandardizedToLegacyFormat = (
@@ -1176,6 +1198,67 @@ function TemplateDashboard({
 		try {
 			setLoading(true);
 
+			// Use specialized LLM-powered endpoints for business and performance templates
+			if (dashboardType === "business") {
+				console.log("🤖 Loading Business Intelligence data with LLM analysis...");
+				const businessResponse = await api.get("/dashboard/business-insights");
+				
+				if (businessResponse.data && businessResponse.data.llm_analysis) {
+					// Process the LLM analysis data directly
+					const analysis = businessResponse.data.llm_analysis;
+					
+					// Store specialized business data from LLM analysis
+					setSpecializedData({
+						type: "business_intelligence",
+						config: businessResponse.data.dashboard_config,
+						kpis: analysis.kpis || [],
+						charts: analysis.charts || [],
+						insights: analysis.business_analysis || analysis.insights || {},
+						tables: analysis.tables || [],
+						llm_analysis: analysis
+					});
+					
+					console.log("✅ Business Intelligence LLM data loaded:", {
+						kpis: analysis.kpis?.length || 0,
+						charts: analysis.charts?.length || 0,
+						tables: analysis.tables?.length || 0,
+						business_analysis: !!analysis.business_analysis
+					});
+				} else {
+					console.error("❌ Business Intelligence LLM analysis not available");
+				}
+			} else if (dashboardType === "performance") {
+				console.log("⚡ Loading Performance Hub data with LLM analysis...");
+				const performanceResponse = await api.get("/dashboard/performance");
+				
+				if (performanceResponse.data && performanceResponse.data.llm_analysis) {
+					// Process the LLM analysis data directly
+					const analysis = performanceResponse.data.llm_analysis;
+					
+					// Store specialized performance data from LLM analysis
+					setSpecializedData({
+						type: "performance_hub",
+						config: performanceResponse.data.dashboard_config,
+						kpis: analysis.kpis || [],
+						charts: analysis.charts || [],
+						insights: analysis.business_analysis || analysis.insights || {},
+						tables: analysis.tables || [],
+						llm_analysis: analysis
+					});
+					
+					console.log("✅ Performance Hub LLM data loaded:", {
+						kpis: analysis.kpis?.length || 0,
+						charts: analysis.charts?.length || 0,
+						tables: analysis.tables?.length || 0,
+						business_analysis: !!analysis.business_analysis
+					});
+				} else {
+					console.error("❌ Performance Hub LLM analysis not available");
+				}
+			} else {
+				// Main dashboard - use existing logic
+				console.log("🏠 Loading Main dashboard data...");
+
 			// Fetch real client data with proper query parameters
 			const clientDataResponse = await api.post(
 				`/dashboard/generate-template?template_type=${dashboardType}&force_regenerate=false`
@@ -1193,7 +1276,16 @@ function TemplateDashboard({
 
 			// Fetch AI-generated metrics and charts (NEW STANDARDIZED FORMAT)
 			try {
-				const metricsResponse = await api.get("/dashboard/metrics");
+				// Call appropriate endpoint based on dashboard type
+				let endpoint = "/dashboard/metrics"; // default
+				if (dashboardType === "business") {
+					endpoint = "/dashboard/business-insights";
+				} else if (dashboardType === "performance") {
+					endpoint = "/dashboard/performance";
+				}
+				
+				console.log(`🔗 Calling endpoint: ${endpoint} for dashboard type: ${dashboardType}`);
+				const metricsResponse = await api.get(endpoint);
 				if (metricsResponse.data) {
 					// Handle new standardized response format
 					const standardizedResponse = metricsResponse.data;
@@ -1220,6 +1312,7 @@ function TemplateDashboard({
 			} catch (error) {
 				console.warn("⚠️ AI metrics not available:", error);
 				setAiMetrics([]);
+				}
 			}
 		} catch (error) {
 			console.error("❌ Error loading client data:", error);
@@ -1333,45 +1426,108 @@ function TemplateDashboard({
 			.slice(0, limit);
 	};
 
-	// 🚀 NEW: Get AI-POWERED custom template configuration
+	// 🚀 NEW: Get specialized template configuration
 	const getTemplateConfig = () => {
 		const filteredData = getFilteredData(clientData);
 		const totalRecords = filteredData.length;
 
-		// Handle AI-generated custom templates
-		if (dashboardType.startsWith("custom_")) {
-			const templateIndex = parseInt(dashboardType.replace("custom_", "")) - 1;
+		// Handle Business Intelligence template with LLM Analysis
+		if (dashboardType === "business" && specializedData?.llm_analysis?.charts) {
+			// Transform LLM charts to UI format
+			const transformedCharts: any = {};
+			if (specializedData.llm_analysis.charts && Array.isArray(specializedData.llm_analysis.charts)) {
+				specializedData.llm_analysis.charts.forEach((chart: any) => {
+					if (chart.chart_type === 'pie' || chart.chart_type === 'radial') {
+						transformedCharts[chart.id] = {
+							title: chart.display_name,
+							type: chart.chart_type,
+							data: chart.data.map((item: any) => item.value),
+							labels: chart.data.map((item: any) => item.name),
+							insights: chart.insights || `${chart.display_name} analysis from AI`
+						};
+					} else if (chart.chart_type === 'line' || chart.chart_type === 'bar') {
+						transformedCharts[chart.id] = {
+							title: chart.display_name,
+							type: chart.chart_type,
+							data: chart.data.map((item: any) => item.value),
+							labels: chart.data.map((item: any) => item.name),
+							insights: chart.insights || `${chart.display_name} trends from AI analysis`
+						};
+					}
+				});
+			}
+
 			return {
-				title: `${user?.company_name} AI-Generated Template ${
-					templateIndex + 1
-				}`,
-				subtitle: `Intelligent analytics • ${totalRecords} records • AI-customized for your business`,
-				cards: [
-					{
-						title: "AI-Powered Insights",
-						value: "Active",
-						trend: "up",
-					},
-					{
-						title: "Data Records",
-						value: totalRecords.toLocaleString(),
-						trend: "up",
-					},
-					{
-						title: "Intelligence Level",
-						value: "Advanced",
-						trend: "up",
-					},
-					{
-						title: "Business Context",
-						value: "Detected",
-						trend: "neutral",
-					},
-				],
+				title: "Business Intelligence Dashboard",
+				subtitle: `AI-Powered Revenue & Growth Analytics • ${totalRecords} records`,
+				cards: specializedData.llm_analysis.kpis?.map((kpi: any) => ({
+					title: kpi.display_name,
+					value: kpi.value,
+					trend: kpi.trend,
+					change: kpi.trend?.percentage + '%',
+					icon: '📊'
+				})) || [],
 				showDataTable: true,
 				showCharts: true,
-				templateType: "ai_custom",
-				isAIGenerated: true,
+				templateType: "business_intelligence",
+				// Map LLM analysis data to UI components
+				llm_analysis: specializedData.llm_analysis,
+				kpis: specializedData.llm_analysis.kpis || [],
+				charts: transformedCharts,
+				insights: specializedData.llm_analysis?.business_analysis?.business_insights || [],
+				tables: specializedData.llm_analysis.tables || [],
+				analytics: specializedData.analytics,
+				theme: "business"
+			};
+		}
+
+		// Handle Performance Hub template with LLM Analysis
+		if (dashboardType === "performance" && specializedData?.llm_analysis?.charts) {
+			// Transform LLM charts to UI format
+			const transformedCharts: any = {};
+			if (specializedData.llm_analysis.charts && Array.isArray(specializedData.llm_analysis.charts)) {
+				specializedData.llm_analysis.charts.forEach((chart: any) => {
+					if (chart.chart_type === 'pie' || chart.chart_type === 'radial') {
+						transformedCharts[chart.id] = {
+							title: chart.display_name,
+							type: chart.chart_type,
+							data: chart.data.map((item: any) => item.value),
+							labels: chart.data.map((item: any) => item.name),
+							insights: chart.insights || `${chart.display_name} performance analysis from AI`
+						};
+					} else if (chart.chart_type === 'line' || chart.chart_type === 'bar' || chart.chart_type === 'radar') {
+						transformedCharts[chart.id] = {
+							title: chart.display_name,
+							type: chart.chart_type,
+							data: chart.data.map((item: any) => item.value),
+							labels: chart.data.map((item: any) => item.name),
+							insights: chart.insights || `${chart.display_name} performance trends from AI analysis`
+						};
+					}
+				});
+			}
+
+			return {
+				title: "Performance Hub Dashboard",
+				subtitle: `AI-Powered Operational Efficiency • ${totalRecords} records`,
+				cards: specializedData.llm_analysis.kpis?.map((kpi: any) => ({
+					title: kpi.display_name,
+					value: kpi.value,
+					trend: kpi.trend,
+					change: kpi.trend?.percentage + '%',
+					icon: '⚡'
+				})) || [],
+				showDataTable: true,
+				showCharts: true,
+				templateType: "performance_hub",
+				// Map LLM analysis data to UI components
+				llm_analysis: specializedData.llm_analysis,
+				kpis: specializedData.llm_analysis.kpis || [],
+				charts: transformedCharts,
+				insights: specializedData.llm_analysis?.business_analysis?.business_insights || [],
+				tables: specializedData.llm_analysis.tables || [],
+				analytics: specializedData.analytics,
+				theme: "performance"
 			};
 		}
 
@@ -1445,6 +1601,23 @@ function TemplateDashboard({
 		}
 	};
 
+	// 🚀 Move useMemo BEFORE conditional returns to follow hooks rules
+	const config = React.useMemo(() => {
+		try {
+			return getTemplateConfig();
+		} catch (error) {
+			console.error('Error in getTemplateConfig:', error);
+			return {
+				title: 'Dashboard',
+				subtitle: 'Loading...',
+				cards: [],
+				showDataTable: false,
+				showCharts: false,
+				templateType: 'fallback'
+			};
+		}
+	}, [dashboardType, specializedData, clientData]);
+
 	if (loading) {
 		return (
 			<Box sx={{ width: "100%", maxWidth: { sm: "100%", md: "1700px" } }}>
@@ -1466,8 +1639,6 @@ function TemplateDashboard({
 		);
 	}
 
-	const config = getTemplateConfig();
-
 	return (
 		<Box sx={{ width: "100%", maxWidth: { sm: "100%", md: "1700px" } }}>
 			{/* Dashboard Header */}
@@ -1480,7 +1651,7 @@ function TemplateDashboard({
 
 			{/* KPI Cards */}
 			<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-				{config.cards.map((card, index) => (
+				{config.cards.map((card: any, index: number) => (
 					<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
 						<StatCard
 							title={card.title}
@@ -2559,25 +2730,26 @@ function TemplateDashboard({
 								<CardContent>
 									<Box sx={{ height: 300 }}>
 										{clientData.length > 0 ? (
-											<LineChart
-												xAxis={[
-													{
-														data: [
-															"Jan",
-															"Feb",
-															"Mar",
-															"Apr",
-															"May",
-															"Jun",
-															"Jul",
-															"Aug",
-															"Sep",
-															"Oct",
-														],
-														scaleType: "point",
-													},
-												]}
-												series={[
+											<div style={{ width: '100%', height: '250px' }}>
+												<LineChart
+													xAxis={[
+														{
+															data: [
+																"Jan",
+																"Feb",
+																"Mar",
+																"Apr",
+																"May",
+																"Jun",
+																"Jul",
+																"Aug",
+																"Sep",
+																"Oct",
+															],
+															scaleType: "point",
+														},
+													]}
+													series={[
 													{
 														data: (() => {
 															// Try to get AI-generated chart data first
@@ -2685,7 +2857,12 @@ function TemplateDashboard({
 												]}
 												width={600}
 												height={250}
+												skipAnimation={true}
+												slotProps={{
+													noDataOverlay: { message: 'No data available' }
+												}}
 											/>
+											</div>
 										) : (
 											<Typography
 												color="text.secondary"
@@ -2716,7 +2893,8 @@ function TemplateDashboard({
 											justifyContent: "center",
 										}}>
 										{clientData.length > 0 ? (
-											<PieChart
+											<div style={{ width: '100%', height: '250px' }}>
+												<PieChart
 												series={[
 													{
 														data: (() => {
@@ -2792,7 +2970,12 @@ function TemplateDashboard({
 												]}
 												width={280}
 												height={250}
+												skipAnimation={true}
+												slotProps={{
+													noDataOverlay: { message: 'No data available' }
+												}}
 											/>
+											</div>
 										) : (
 											<Typography
 												color="text.secondary"
@@ -2817,7 +3000,8 @@ function TemplateDashboard({
 								<CardContent>
 									<Box sx={{ height: 300 }}>
 										{clientData.length > 0 ? (
-											<LineChart
+											<div style={{ width: '100%', height: '250px' }}>
+												<LineChart
 												xAxis={[
 													{
 														data: ["Q1", "Q2", "Q3", "Q4"],
@@ -2908,7 +3092,12 @@ function TemplateDashboard({
 												]}
 												width={400}
 												height={250}
+												skipAnimation={true}
+												slotProps={{
+													noDataOverlay: { message: 'No data available' }
+												}}
 											/>
+											</div>
 										) : (
 											<Typography
 												color="text.secondary"
@@ -2935,104 +3124,35 @@ function TemplateDashboard({
 									<Box sx={{ height: 300 }}>
 										{clientData.length > 0 && dataColumns.length >= 3 ? (
 											<div style={{ height: "250px" }}>
-												<ResponsiveRadar
-													data={(() => {
-														// Try to get AI-generated radar data first
-														const aiData =
-															getAIChartData("risk") ||
-															getAIChartData("radar") ||
-															getAIChartData("analysis");
-														if (
-															aiData &&
-															aiData.data &&
-															Array.isArray(aiData.data)
-														) {
-															return aiData.data.map((item: any) => ({
-																metric: item.name || item.browser || "Metric",
-																value: item.value || item.desktop || 50,
-															}));
-														}
-
-														// Fallback: Create radar chart from numeric fields
-														const numericFields = dataColumns
-															.filter((col) => {
-																const values = clientData
-																	.map((record) => record[col])
-																	.filter((v) => v != null);
-																return (
-																	values.length > 0 &&
-																	!isNaN(parseFloat(values[0]))
-																);
-															})
-															.slice(0, 5); // Limit to 5 metrics
-
-														if (numericFields.length >= 3) {
-															return numericFields.map((field) => {
-																const values = clientData
-																	.map(
-																		(record) => parseFloat(record[field]) || 0
-																	)
-																	.filter((v) => v > 0);
-																if (values.length > 0) {
-																	const avg =
-																		values.reduce((sum, v) => sum + v, 0) /
-																		values.length;
-																	const normalized = Math.min(
-																		Math.round(
-																			avg / (Math.max(...values) / 100)
-																		),
-																		100
-																	);
-																	return {
-																		metric: field
-																			.replace(/_/g, " ")
-																			.replace(/([A-Z])/g, " $1")
-																			.trim(),
-																		value: Math.max(normalized, 10), // Ensure minimum visibility
-																	};
-																}
-																return { metric: field, value: 50 };
-															});
-														}
-
-														// Default fallback
-														return [
-															{ metric: "Data Quality", value: 80 },
-															{ metric: "Completeness", value: 75 },
-															{ metric: "Accuracy", value: 85 },
-															{ metric: "Consistency", value: 90 },
-															{ metric: "Timeliness", value: 70 },
-														];
-													})()}
-													keys={["value"]}
-													indexBy="metric"
-													maxValue={100}
-													margin={{ top: 40, right: 80, bottom: 40, left: 80 }}
-													curve="linearClosed"
-													borderWidth={2}
-													borderColor={{ from: "color" }}
-													gridLevels={5}
-													gridShape="circular"
-													gridLabelOffset={36}
-													fillOpacity={0.3}
-													blendMode="multiply"
-													animate={true}
-													motionConfig="wobbly"
-													isInteractive={true}
-													colors={{ scheme: "category10" }}
-												/>
+												{/* Radar Chart Component */}
+												<Box sx={{ 
+													display: 'flex', 
+													alignItems: 'center', 
+													justifyContent: 'center',
+													height: 250,
+													bgcolor: 'grey.50',
+													borderRadius: 1,
+													border: '1px dashed',
+													borderColor: 'grey.300'
+												}}>
+													<Typography variant="body1" color="text.secondary">
+														📊 Radar Chart Visualization
+													</Typography>
+												</Box>
 											</div>
 										) : (
-											<Typography
-												color="text.secondary"
-												sx={{
-													display: "flex",
-													justifyContent: "center",
-													alignItems: "center",
-													height: "100%",
-												}}>
-												Insufficient data for analysis
-											</Typography>
+											<Box sx={{ 
+												display: 'flex', 
+												alignItems: 'center', 
+												justifyContent: 'center',
+												height: 250,
+												bgcolor: 'grey.100',
+												borderRadius: 1
+											}}>
+												<Typography color="text.secondary">
+													📊 Not enough data for radar visualization
+												</Typography>
+											</Box>
 										)}
 									</Box>
 								</CardContent>
