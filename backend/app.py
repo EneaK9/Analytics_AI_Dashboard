@@ -1827,7 +1827,7 @@ async def get_dashboard_metrics(
         
         # 🚀 PRIORITY 1: Check cache first (instant response)
         cached_insights = await llm_cache_manager.get_cached_llm_response(
-            client_id, client_data
+            uuid.UUID(client_id), client_data
         )
         if cached_insights and not force_llm:
             logger.info(f"⚡ Using cached LLM insights for client {client_id} - instant response!")
