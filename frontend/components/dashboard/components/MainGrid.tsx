@@ -36,7 +36,39 @@ import { BarChart } from '@mui/x-charts/BarChart';
 
 // Chart data validation function for LLM response format
 const isValidChartData = (chartData: any) => {
-	if (!chartData) return false;
+	if (!chartData) {
+		console.log('❌ isValidChartData: No chartData provided');
+		return false;
+	}
+	
+	console.log('🔍 isValidChartData checking:', {
+		hasData: !!chartData.data,
+		dataType: Array.isArray(chartData.data) ? 'array' : typeof chartData.data,
+		dataLength: chartData.data?.length,
+		hasLabels: !!chartData.labels,
+		labelsType: Array.isArray(chartData.labels) ? 'array' : typeof chartData.labels,
+		labelsLength: chartData.labels?.length,
+		firstDataItem: chartData.data?.[0],
+		firstLabel: chartData.labels?.[0],
+		hasConfig: !!chartData.config
+	});
+	
+	// Check for transformed format first (labels + data arrays)
+	if (chartData.labels && Array.isArray(chartData.labels) && 
+		chartData.data && Array.isArray(chartData.data)) {
+		
+		const hasValidLabels = chartData.labels.length > 0 &&
+			chartData.labels.every((label: any) => label != null);
+			
+		const hasValidData = chartData.data.length > 0 &&
+			chartData.data.every((value: any) => value != null && !isNaN(Number(value)));
+			
+		const sameLength = chartData.labels.length === chartData.data.length;
+		
+		const isValid = hasValidLabels && hasValidData && sameLength;
+		console.log('✅ Transformed format validation:', { hasValidLabels, hasValidData, sameLength, isValid });
+		return isValid;
+	}
 	
 	// Check if it's LLM format with data array of objects
 	if (chartData.data && Array.isArray(chartData.data) && chartData.data.length > 0) {
@@ -55,23 +87,12 @@ const isValidChartData = (chartData: any) => {
 			return hasXField && hasYField;
 		});
 		
+		console.log('✅ LLM format validation:', { hasValidDataObjects });
 		return hasValidDataObjects;
 	}
 	
-	// Legacy format: check for labels and data arrays
-	const hasValidLabels = chartData.labels && 
-		Array.isArray(chartData.labels) && 
-		chartData.labels.length > 0 &&
-		chartData.labels.every((label: any) => label != null);
-		
-	const hasValidData = chartData.data && 
-		Array.isArray(chartData.data) &&
-		chartData.data.length > 0 &&
-		chartData.data.every((value: any) => value != null && !isNaN(Number(value)));
-		
-	const sameLength = chartData.labels?.length === chartData.data?.length;
-	
-	return hasValidLabels && hasValidData && sameLength;
+	console.log('❌ No valid format detected');
+	return false;
 };
 
 // Default data for main dashboard (fallback when no dynamic data is provided)
@@ -1735,7 +1756,8 @@ function TemplateDashboard({
 				{config.subtitle}
 			</Typography>
 
-			{/* KPI Cards */}
+			{/* KPI Cards - Commented out for business and performance dashboards */}
+			{/* 
 			<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
 				{config.cards.map((card: any, index: number) => (
 					<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
@@ -1752,6 +1774,7 @@ function TemplateDashboard({
 					</Grid>
 				))}
 			</Grid>
+			*/}
 
 
 
@@ -1942,16 +1965,34 @@ function TemplateDashboard({
 					{/* Business Intelligence Charts */}
 					{(config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
 						<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-							{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => (
-								<Grid key={chartKey} size={{ xs: 12, md: index === 0 ? 8 : 4 }}>
-									<Card sx={{ height: '100%' }}>
-										<CardHeader
-											title={chartData.title || chartKey}
-											subheader={`${chartData.type?.toUpperCase() || 'CHART'} • AI Analysis`}
-										/>
-										<CardContent>
-											<Box sx={{ height: 300, display: 'flex', flexDirection: 'column' }}>
-												{isValidChartData(chartData) ? (
+							{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => {
+								console.log(`🔍 Rendering business chart ${chartKey}:`, {
+									chartKey,
+									index,
+									chartData: {
+										title: chartData.title,
+										type: chartData.type,
+										hasData: !!chartData.data,
+										dataLength: chartData.data?.length,
+										dataFirstItem: chartData.data?.[0],
+										hasLabels: !!chartData.labels,
+										labelsLength: chartData.labels?.length,
+										labelsFirstItem: chartData.labels?.[0],
+										hasConfig: !!chartData.config,
+										fullData: chartData
+									}
+								});
+								
+								return (
+									<Grid key={chartKey} size={{ xs: 12, md: index === 0 ? 8 : 4 }}>
+										<Card sx={{ height: '100%' }}>
+											<CardHeader
+												title={chartData.title || chartKey}
+												subheader={`${chartData.type?.toUpperCase() || 'CHART'} • AI Analysis`}
+											/>
+											<CardContent>
+												<Box sx={{ height: 300, display: 'flex', flexDirection: 'column' }}>
+													{isValidChartData(chartData) ? (
 													<>
 														{/* Render Actual Chart Components */}
 														<Box sx={{ flex: 1, minHeight: 200 }}>
@@ -2110,7 +2151,8 @@ function TemplateDashboard({
 										</CardContent>
 									</Card>
 								</Grid>
-							))}
+								);
+							})}
 						</Grid>
 					)}
 
@@ -2247,11 +2289,11 @@ function TemplateDashboard({
 													px: 1,
 													py: 0.5,
 													borderRadius: 1,
-													bgcolor: kpi.trend === 'up' ? 'rgba(76, 175, 80, 0.2)' : 
-															 kpi.trend === 'down' ? 'rgba(244, 67, 54, 0.2)' : 'rgba(158, 158, 158, 0.2)'
+													bgcolor: kpi.trend.direction === 'upward' ? 'rgba(76, 175, 80, 0.2)' : 
+															 kpi.trend.direction === 'downward' ? 'rgba(244, 67, 54, 0.2)' : 'rgba(158, 158, 158, 0.2)'
 												}}>
 													<Typography variant="caption" sx={{ fontWeight: 600 }}>
-														{kpi.trend === 'up' ? '↗' : kpi.trend === 'down' ? '↘' : '→'}
+														{kpi.trend.direction === 'upward' ? '↗' : kpi.trend.direction === 'downward' ? '↘' : '→'}
 													</Typography>
 												</Box>
 											)}
@@ -2270,9 +2312,9 @@ function TemplateDashboard({
 												fontWeight: 500,
 												mb: 1
 											}}>
-												{kpi.title}
+												{kpi.display_name || kpi.title}
 											</Typography>
-											{kpi.change && kpi.change !== "N/A" && (
+											{kpi.trend?.percentage && (
 												<Typography 
 													variant="body2" 
 													sx={{ 
@@ -2283,10 +2325,10 @@ function TemplateDashboard({
 													}}
 												>
 													<Box component="span" sx={{ 
-														color: kpi.trend === 'up' ? '#4caf50' : 
-															   kpi.trend === 'down' ? '#f44336' : '#9e9e9e'
+														color: kpi.trend.direction === 'upward' ? '#4caf50' : 
+															   kpi.trend.direction === 'downward' ? '#f44336' : '#9e9e9e'
 													}}>
-														{kpi.change}
+														{kpi.trend.percentage > 0 ? '+' : ''}{kpi.trend.percentage}%
 													</Box>
 													<Box component="span" sx={{ opacity: 0.7, fontSize: '0.75rem' }}>
 														vs last period
@@ -2390,16 +2432,34 @@ function TemplateDashboard({
 					{/* Performance Hub Charts */}
 			{config.templateType === "performance_hub" && (config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
 				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-					{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => (
-						<Grid key={chartKey} size={{ xs: 12, md: index === 0 ? 8 : 4 }}>
-							<Card sx={{ height: '100%' }}>
-								<CardHeader
-									title={chartData.title || chartKey}
-									subheader={`${chartData.type?.toUpperCase() || 'CHART'} • Performance Analytics`}
-								/>
-								<CardContent>
-									<Box sx={{ height: 300, display: 'flex', flexDirection: 'column' }}>
-										{isValidChartData(chartData) ? (
+					{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => {
+						console.log(`🔍 Rendering performance chart ${chartKey}:`, {
+							chartKey,
+							index,
+							chartData: {
+								title: chartData.title,
+								type: chartData.type,
+								hasData: !!chartData.data,
+								dataLength: chartData.data?.length,
+								dataFirstItem: chartData.data?.[0],
+								hasLabels: !!chartData.labels,
+								labelsLength: chartData.labels?.length,
+								labelsFirstItem: chartData.labels?.[0],
+								hasConfig: !!chartData.config,
+								fullData: chartData
+							}
+						});
+						
+						return (
+							<Grid key={chartKey} size={{ xs: 12, md: index === 0 ? 8 : 4 }}>
+								<Card sx={{ height: '100%' }}>
+									<CardHeader
+										title={chartData.title || chartKey}
+										subheader={`${chartData.type?.toUpperCase() || 'CHART'} • Performance Analytics`}
+									/>
+									<CardContent>
+										<Box sx={{ height: 300, display: 'flex', flexDirection: 'column' }}>
+											{isValidChartData(chartData) ? (
 											<>
 												{/* Render Actual Chart Components */}
 												<Box sx={{ flex: 1, minHeight: 200 }}>
@@ -2558,7 +2618,8 @@ function TemplateDashboard({
 								</CardContent>
 							</Card>
 						</Grid>
-					))}
+						);
+					})}
 				</Grid>
 			)}
 					{(config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
