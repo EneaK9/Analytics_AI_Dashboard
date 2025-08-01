@@ -4987,91 +4987,224 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
             logger.info(f"📊 Performance data fields: {list(sample_data[0].keys()) if sample_data else 'No data'}")
             logger.info(f"📊 Performance sample record: {sample_data[0] if sample_data else 'No data'}")
             
-            # Create performance-focused prompt
+            # Create OPERATIONAL EXCELLENCE prompt - COMPLETELY DIFFERENT from main and business dashboards
             performance_prompt = f"""
-You are a performance analyst creating a PERFORMANCE DASHBOARD. Analyze this data for PERFORMANCE-SPECIFIC insights.
+⚡ OPERATIONAL EXCELLENCE CONSULTANT
+You are a SENIOR OPERATIONS DIRECTOR creating a PERFORMANCE OPTIMIZATION DASHBOARD for OPERATIONAL LEADERSHIP.
 
-Focus on PERFORMANCE METRICS:
-- Operational efficiency indicators
-- Process optimization opportunities
-- Performance benchmarks and targets
-- Quality metrics and standards
-- Speed and productivity analysis
-- Resource utilization patterns
-- Performance trends and forecasts
+🚨 CRITICAL: This dashboard must be COMPLETELY DIFFERENT from general analytics and business strategy. Focus on OPERATIONAL EXCELLENCE and PROCESS OPTIMIZATION.
 
+📊 OPERATIONAL DATA CONTEXT:
 Sample Data: {json.dumps(sample_data)}
 Total Records: {len(data_records)}
 Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
-CONDUCT PERFORMANCE ANALYSIS on the actual client data. Focus on OPERATIONAL EFFICIENCY different from main and business dashboards.
+⚡ OPERATIONAL EXCELLENCE FOCUS AREAS (analyze and choose most relevant):
+1. PROCESS EFFICIENCY & CYCLE TIME OPTIMIZATION
+2. QUALITY MANAGEMENT & DEFECT REDUCTION
+3. CAPACITY UTILIZATION & THROUGHPUT ANALYSIS  
+4. SUPPLY CHAIN PERFORMANCE & LOGISTICS OPTIMIZATION
+5. RESOURCE ALLOCATION & PRODUCTIVITY ENHANCEMENT
+6. OPERATIONAL RISK & RELIABILITY MANAGEMENT
+7. CONTINUOUS IMPROVEMENT & LEAN OPERATIONS
 
-PERFORMANCE ANALYSIS STEPS:
-1. EXAMINE data to identify operational bottlenecks and inefficiencies
-2. MEASURE processing speeds and throughput from actual data patterns
-3. CALCULATE efficiency ratios and utilization metrics from real data
-4. IDENTIFY performance trends and optimization opportunities
-5. ASSESS system capacity and resource allocation patterns
-6. DERIVE operational improvement recommendations from data analysis
-
-Return JSON using ONLY performance insights from actual data analysis:
+🎯 GENERATE OPERATIONAL PERFORMANCE INTELLIGENCE:
 {{
     "business_analysis": {{
-        "business_type": "[performance analysis focus]",
-        "industry_sector": "[operational context from data]",
-        "business_model": "[operational model from data]",
-        "data_characteristics": ["[performance-focused data characteristics]"],
-        "business_insights": ["[5+ operational performance insights from data]"],
-        "recommendations": ["[4+ performance optimization recommendations]"],
-        "data_quality_score": [assess operational data quality],
-        "confidence_level": [performance analysis confidence]
+        "business_type": "[Operational model classification - not business strategy]",
+        "industry_sector": "[Operational context analysis]", 
+        "business_model": "[Process optimization focus]",
+        "data_characteristics": [
+            "Process efficiency: [current operational performance level]",
+            "Quality standards: [operational quality metrics and benchmarks]", 
+            "Capacity utilization: [resource and throughput optimization opportunities]",
+            "Operational reliability: [system stability and performance consistency]"
+        ],
+        "business_insights": [
+            "⚡ Process bottleneck: [specific operational constraint identified from data patterns]",
+            "🎯 Quality opportunity: [defect reduction or quality improvement potential]", 
+            "📈 Efficiency gain: [process optimization opportunity with measurable impact]",
+            "🔧 Resource optimization: [capacity or resource allocation improvement]",
+            "⚠️ Operational risk: [reliability or performance threat requiring attention]"
+        ],
+        "recommendations": [
+            "🏭 Process improvement: [specific operational change with efficiency impact]",
+            "🎯 Quality initiative: [quality enhancement program with measurable outcomes]",
+            "⚡ Efficiency optimization: [process streamlining with time/cost savings]",
+            "📊 Performance monitoring: [KPI tracking system for continuous improvement]"
+        ],
+        "data_quality_score": 9.1,
+        "confidence_level": 0.94
     }},
     "kpis": [
         {{
-            "id": "[performance-metric-id]",
-            "display_name": "[Performance KPI relevant to this data]",
-            "technical_name": "[technical_name]",
-            "value": "[CALCULATE performance metric from actual data]",
-            "trend": {{"percentage": [performance trend], "direction": "[direction]", "description": "[operational context]"}},
-            "format": "[appropriate format]"
+            "id": "overall_equipment_effectiveness",
+            "display_name": "Overall Equipment Effectiveness (OEE)", 
+            "technical_name": "overall_equipment_effectiveness",
+            "value": "[calculate: Availability × Performance × Quality efficiency %]",
+            "trend": {{"percentage": 7, "direction": "upward", "description": "Continuous improvement initiatives driving OEE gains"}},
+            "format": "percentage"
+        }},
+        {{
+            "id": "cycle_time_efficiency",
+            "display_name": "Process Cycle Time Efficiency",
+            "technical_name": "cycle_time_efficiency", 
+            "value": "[calculate: Ideal Time / Actual Time × 100]",
+            "trend": {{"percentage": 12, "direction": "upward", "description": "Process optimization reducing cycle times"}},
+            "format": "percentage"
+        }},
+        {{
+            "id": "first_pass_yield",
+            "display_name": "First Pass Yield Rate",
+            "technical_name": "first_pass_yield",
+            "value": "[calculate: Units passed first time / Total units processed × 100]",
+            "trend": {{"percentage": 8, "direction": "upward", "description": "Quality improvements reducing rework and defects"}}, 
+            "format": "percentage"
+        }},
+        {{
+            "id": "capacity_utilization",
+            "display_name": "Capacity Utilization Rate",
+            "technical_name": "capacity_utilization",
+            "value": "[calculate: Actual Output / Maximum Capacity × 100]",
+            "trend": {{"percentage": 15, "direction": "upward", "description": "Optimized scheduling and resource allocation"}},
+            "format": "percentage" 
+        }},
+        {{
+            "id": "operational_cost_per_unit", 
+            "display_name": "Operational Cost Per Unit",
+            "technical_name": "operational_cost_per_unit",
+            "value": "[calculate: Total Operational Costs / Units Produced]",
+            "trend": {{"percentage": -8, "direction": "downward", "description": "Process improvements reducing per-unit operational costs"}},
+            "format": "currency"
         }}
-        // Generate 5+ PERFORMANCE KPIs: efficiency, speed, throughput, quality, utilization
     ],
     "charts": [
         {{
-            "id": "[performance-chart-id]",
-            "display_name": "[Performance chart from data analysis]",
-            "technical_name": "[technical_name]",
-            "chart_type": "[best chart type for performance data]",
-            "data": [{{ACTUAL PERFORMANCE DATA from analysis}}],
+            "id": "process_efficiency_by_stage",
+            "display_name": "Process Efficiency by Operational Stage",
+            "technical_name": "process_efficiency_by_stage",
+            "chart_type": "bar",
+            "data": [
+                {{"stage": "Receiving & Inspection", "efficiency": 92.5}},
+                {{"stage": "Production Processing", "efficiency": 87.2}},
+                {{"stage": "Quality Control", "efficiency": 94.8}},
+                {{"stage": "Packaging & Shipping", "efficiency": 89.6}}
+            ],
             "config": {{
-                "x_axis": {{"field": "[real data field]", "display_name": "[performance label]"}},
-                "y_axis": {{"field": "[real data field]", "display_name": "[performance metric]"}}
+                "x_axis": {{"field": "stage", "display_name": "Operational Stage"}},
+                "y_axis": {{"field": "efficiency", "display_name": "Efficiency Rate %"}}
+            }}
+        }},
+        {{
+            "id": "quality_performance_trends", 
+            "display_name": "Quality Performance Trends",
+            "technical_name": "quality_performance_trends",
+            "chart_type": "line",
+            "data": [
+                {{"period": "Week 1", "defect_rate": 2.8, "first_pass_yield": 94.2}},
+                {{"period": "Week 2", "defect_rate": 2.3, "first_pass_yield": 95.1}},
+                {{"period": "Week 3", "defect_rate": 1.9, "first_pass_yield": 96.3}},
+                {{"period": "Week 4", "defect_rate": 1.6, "first_pass_yield": 97.1}}
+            ],
+            "config": {{
+                "x_axis": {{"field": "period", "display_name": "Time Period"}},
+                "y_axis": {{"field": "first_pass_yield", "display_name": "Quality Metrics"}}
+            }}
+        }},
+        {{
+            "id": "capacity_utilization_analysis",
+            "display_name": "Resource Capacity Utilization Analysis", 
+            "technical_name": "capacity_utilization_analysis",
+            "chart_type": "bar",
+            "data": [
+                {{"resource": "Production Line A", "utilization": 89.2, "capacity": 95.0}},
+                {{"resource": "Production Line B", "utilization": 92.5, "capacity": 95.0}},
+                {{"resource": "Quality Lab", "utilization": 76.3, "capacity": 90.0}},
+                {{"resource": "Packaging Center", "utilization": 94.1, "capacity": 100.0}}
+            ],
+            "config": {{
+                "x_axis": {{"field": "resource", "display_name": "Operational Resource"}},
+                "y_axis": {{"field": "utilization", "display_name": "Utilization Rate %"}}
             }}
         }}
-        // Generate 3+ PERFORMANCE charts: trends, efficiency breakdown, capacity analysis
     ],
     "tables": [
         {{
-            "id": "[performance-table-id]",
-            "display_name": "[Performance table from data analysis]", 
-            "technical_name": "[technical_name]",
-            "data": [{{ACTUAL DATA ROWS with performance focus}}],
-            "columns": ["[actual performance-relevant columns]"],
-            "config": {{"sortable": true, "filterable": true}}
+            "id": "process_performance_metrics",
+            "display_name": "Process Performance Metrics Dashboard",
+            "technical_name": "process_performance_metrics",
+            "data": [
+                {{
+                    "process": "Order Processing",
+                    "cycle_time": "2.3 hours",
+                    "efficiency": "91.2%", 
+                    "cost_per_unit": "$12.50",
+                    "improvement_target": "15% cycle reduction",
+                    "action_plan": "Automation implementation"
+                }},
+                {{
+                    "process": "Manufacturing",
+                    "cycle_time": "4.7 hours",
+                    "efficiency": "87.8%",
+                    "cost_per_unit": "$45.20", 
+                    "improvement_target": "10% efficiency gain",
+                    "action_plan": "Lean optimization"
+                }},
+                {{
+                    "process": "Quality Assurance", 
+                    "cycle_time": "0.8 hours",
+                    "efficiency": "95.1%",
+                    "cost_per_unit": "$8.30",
+                    "improvement_target": "Zero defect goal",
+                    "action_plan": "Six Sigma deployment"
+                }}
+            ],
+            "columns": ["process", "cycle_time", "efficiency", "cost_per_unit", "improvement_target", "action_plan"]
+        }},
+        {{
+            "id": "operational_improvement_initiatives",
+            "display_name": "Operational Improvement Initiatives",
+            "technical_name": "operational_improvement_initiatives",
+            "data": [
+                {{
+                    "initiative": "Automated Quality Control System",
+                    "implementation_cost": 125000,
+                    "annual_savings": 285000,
+                    "efficiency_gain": "18%",
+                    "timeline": "6 months",
+                    "priority": "High"
+                }},
+                {{
+                    "initiative": "Lean Manufacturing Program",
+                    "implementation_cost": 75000,
+                    "annual_savings": 195000,
+                    "efficiency_gain": "12%", 
+                    "timeline": "4 months",
+                    "priority": "Medium"
+                }},
+                {{
+                    "initiative": "Predictive Maintenance System",
+                    "implementation_cost": 200000,
+                    "annual_savings": 450000,
+                    "efficiency_gain": "25%",
+                    "timeline": "8 months",
+                    "priority": "Very High"
+                }}
+            ],
+            "columns": ["initiative", "implementation_cost", "annual_savings", "efficiency_gain", "timeline", "priority"]
         }}
-        // Generate 2+ PERFORMANCE tables: metrics breakdown, bottleneck analysis, optimization targets
     ],
     "total_records": {len(data_records)}
 }}
 
-PERFORMANCE ANALYSIS REQUIREMENTS:
-- ANALYZE actual data for operational efficiency patterns
-- CALCULATE real performance metrics (speed, throughput, utilization, quality)
-- IDENTIFY bottlenecks and optimization opportunities in the data
-- MEASURE system performance using actual data values  
-- GENERATE operational insights different from main and business views
-- FOCUS on efficiency improvements, process optimization, and capacity planning"""
+⚡ OPERATIONAL EXCELLENCE REQUIREMENTS:
+- Focus on OPERATIONAL EFFICIENCY METRICS (OEE, cycle time, first pass yield, capacity utilization)
+- Generate PROCESS OPTIMIZATION INSIGHTS for operations managers
+- Create OPERATIONAL PERFORMANCE CHARTS (efficiency, quality, capacity, throughput)  
+- Provide CONTINUOUS IMPROVEMENT INITIATIVES with cost/benefit analysis
+- Calculate REALISTIC operational metrics from data patterns
+- NO overlap with strategic business or general technical content
+- Think like a LEAN SIX SIGMA consultant optimizing operations"""
 
             llm_response = await self._get_llm_analysis(performance_prompt)
             result = self._parse_llm_insights(llm_response, flattened_data)
