@@ -40,7 +40,8 @@ const DashboardPage: React.FC = () => {
 	const router = useRouter();
 	const { logout } = useAuth();
 
-	// AI Data Integration Function - defined before use
+	// DEPRECATED: AI Data Integration Function - No longer used
+	// MainGrid.tsx now handles all data loading with intelligent caching
 	const loadAIAnalysisData = async () => {
 		try {
 			setDashboardData((prev) => ({ ...prev, isAnalyzing: true, error: null }));
@@ -247,8 +248,8 @@ const DashboardPage: React.FC = () => {
 				setUser(response.data);
 				setLoading(false);
 
-				// Immediately load AI data for this real user
-				setTimeout(() => loadAIAnalysisData(), 100);
+				// MainGrid will handle data loading with intelligent caching
+				// setTimeout(() => loadAIAnalysisData(), 100); // Removed - redundant
 			} catch (error: unknown) {
 				console.error("Failed to load user data:", error);
 				const axiosError = error as { response?: { status?: number } };
@@ -275,17 +276,10 @@ const DashboardPage: React.FC = () => {
 		checkAuth();
 	}, [router]);
 
-	// Additional data refresh when user changes (optional, for redundancy)
+	// MainGrid.tsx now handles all data loading with intelligent caching
 	useEffect(() => {
-		if (
-			user &&
-			user.client_id !== "instant-user" &&
-			user.client_id !== "fallback-user" &&
-			!dashboardData.isAnalyzing
-		) {
-			console.log("🔄 User changed, refreshing dashboard data...");
-			loadAIAnalysisData();
-		}
+		// No need for redundant API calls - MainGrid handles everything with cache
+		console.log("✅ Dashboard ready - MainGrid will handle data loading with cache");
 	}, [user?.client_id]);
 
 	const handleLogout = () => {
@@ -318,7 +312,7 @@ const DashboardPage: React.FC = () => {
 			<Dashboard
 				dashboardData={dashboardData}
 				user={user}
-				onRefreshAIData={loadAIAnalysisData}
+				onRefreshAIData={undefined} // MainGrid handles data loading with cache
 				onLogout={handleLogout}
 			/>
 

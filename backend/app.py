@@ -1827,14 +1827,14 @@ async def get_dashboard_metrics(
         
         # Clear cache if forced fresh analysis is requested
         if force_llm:
-            await llm_cache_manager.invalidate_cache(client_id)
-            logger.info(f"🗑️ Cleared LLM cache for fresh analysis - client {client_id}")
+            await llm_cache_manager.invalidate_cache(client_id, "metrics")
+            logger.info(f"🗑️ Cleared MAIN dashboard cache for fresh analysis - client {client_id}")
         
         # 🚀 PRIORITY 1: Check cache first (instant response) - but skip if force_llm
         cached_insights = None
         if not force_llm:
             cached_insights = await llm_cache_manager.get_cached_llm_response(
-                uuid.UUID(client_id), client_data
+                client_id, client_data, "metrics"
             )
         
         if cached_insights and not force_llm:
@@ -1855,6 +1855,16 @@ async def get_dashboard_metrics(
         try:
             insights = await dashboard_orchestrator._extract_main_dashboard_insights(client_data)
             logger.info(f"✅ Main dashboard LLM analysis successful for client {client_id}")
+            
+            # 💾 CRITICAL: Store in cache for future requests
+            cache_success = await llm_cache_manager.store_cached_llm_response(
+                client_id, client_data, insights, "metrics"
+            )
+            if cache_success:
+                logger.info(f"💾 Cached MAIN dashboard response for client {client_id}")
+            else:
+                logger.warning(f"⚠️ Failed to cache MAIN dashboard response for client {client_id}")
+                
         except Exception as llm_error:
             logger.error(f"❌ Main dashboard LLM analysis failed for client {client_id}: {llm_error}")
             raise HTTPException(status_code=500, detail=f"Main dashboard analysis failed: {str(llm_error)}")
@@ -1901,14 +1911,14 @@ async def get_business_insights_dashboard(
         
         # Clear cache if forced fresh analysis is requested
         if force_llm:
-            await llm_cache_manager.invalidate_cache(client_id)
-            logger.info(f"🗑️ Cleared LLM cache for fresh analysis - client {client_id}")
+            await llm_cache_manager.invalidate_cache(client_id, "business")
+            logger.info(f"🗑️ Cleared BUSINESS dashboard cache for fresh analysis - client {client_id}")
         
         # Check cache first - but skip if force_llm is true
         cached_insights = None
         if not force_llm:
             cached_insights = await llm_cache_manager.get_cached_llm_response(
-                client_id, client_data
+                client_id, client_data, "business"
             )
         
         if cached_insights and not force_llm:
@@ -1930,6 +1940,16 @@ async def get_business_insights_dashboard(
         try:
             insights = await dashboard_orchestrator._extract_business_insights_specialized(client_data)
             logger.info(f"✅ Business insights LLM analysis successful for client {client_id}")
+            
+            # 💾 CRITICAL: Store in cache for future requests
+            cache_success = await llm_cache_manager.store_cached_llm_response(
+                client_id, client_data, insights, "business"
+            )
+            if cache_success:
+                logger.info(f"💾 Cached BUSINESS insights response for client {client_id}")
+            else:
+                logger.warning(f"⚠️ Failed to cache BUSINESS insights response for client {client_id}")
+                
         except Exception as llm_error:
             logger.error(f"❌ Business insights LLM analysis failed for client {client_id}: {llm_error}")
             raise HTTPException(status_code=500, detail=f"Business insights analysis failed: {str(llm_error)}")
@@ -1974,6 +1994,11 @@ async def get_performance_dashboard(
         if not client_data:
             raise HTTPException(status_code=404, detail="No data found for this client")
         
+        # Clear cache if forced fresh analysis is requested
+        if force_llm:
+            await llm_cache_manager.invalidate_cache(client_id, "performance")
+            logger.info(f"🗑️ Cleared PERFORMANCE dashboard cache for fresh analysis - client {client_id}")
+        
         # Check cache first with dashboard type
         cached_insights = await llm_cache_manager.get_cached_llm_response(
             client_id, client_data, "performance"
@@ -1997,6 +2022,16 @@ async def get_performance_dashboard(
         try:
             insights = await dashboard_orchestrator._extract_performance_insights_specialized(client_data)
             logger.info(f"✅ Performance insights LLM analysis successful for client {client_id}")
+            
+            # 💾 CRITICAL: Store in cache for future requests
+            cache_success = await llm_cache_manager.store_cached_llm_response(
+                client_id, client_data, insights, "performance"
+            )
+            if cache_success:
+                logger.info(f"💾 Cached PERFORMANCE insights response for client {client_id}")
+            else:
+                logger.warning(f"⚠️ Failed to cache PERFORMANCE insights response for client {client_id}")
+                
         except Exception as llm_error:
             logger.error(f"❌ Performance insights LLM analysis failed for client {client_id}: {llm_error}")
             raise HTTPException(status_code=500, detail=f"Performance insights analysis failed: {str(llm_error)}")
@@ -2018,6 +2053,62 @@ async def get_performance_dashboard(
         logger.error(f"❌ Failed to get performance dashboard: {e}")
         return {
             "error": f"Failed to get performance dashboard: {str(e)}"
+        }
+
+@app.get("/api/dashboard/cache/stats")
+async def get_cache_stats(token: str = Depends(security)):
+    """Get LLM cache statistics"""
+    try:
+        # Verify admin token (optional - for security)
+        token_data = verify_token(token.credentials)
+        
+        from llm_cache_manager import llm_cache_manager
+        stats = await llm_cache_manager.get_cache_stats()
+        
+        return {
+            "success": True,
+            "cache_stats": stats,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"❌ Failed to get cache stats: {e}")
+        return {
+            "error": f"Failed to get cache stats: {str(e)}"
+        }
+
+@app.post("/api/dashboard/cache/invalidate")
+async def invalidate_cache(
+    token: str = Depends(security),
+    client_id: Optional[str] = None,
+    dashboard_type: Optional[str] = None
+):
+    """Invalidate cache for specific client/dashboard or all cache"""
+    try:
+        # Verify token
+        token_data = verify_token(token.credentials)
+        
+        from llm_cache_manager import llm_cache_manager
+        
+        if client_id:
+            # Invalidate for specific client and optionally specific dashboard
+            success = await llm_cache_manager.invalidate_cache(client_id, dashboard_type)
+            message = f"Cache invalidated for client {client_id}"
+            if dashboard_type:
+                message += f" ({dashboard_type} dashboard)"
+        else:
+            # Invalidate all cache (admin function)
+            success = await llm_cache_manager.invalidate_all_cache()
+            message = "All cache invalidated"
+        
+        return {
+            "success": success,
+            "message": message,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"❌ Failed to invalidate cache: {e}")
+        return {
+            "error": f"Failed to invalidate cache: {str(e)}"
         }
 
 @app.get("/api/dashboard/status", response_model=DashboardStatusResponse)

@@ -18,20 +18,7 @@ export type StatCardProps = {
   data: number[];
 };
 
-function getDaysInMonth(month: number, year: number) {
-  const date = new Date(year, month, 0);
-  const monthName = date.toLocaleDateString('en-US', {
-    month: 'short',
-  });
-  const daysInMonth = date.getDate();
-  const days = [];
-  let i = 1;
-  while (days.length < daysInMonth) {
-    days.push(`${monthName} ${i}`);
-    i += 1;
-  }
-  return days;
-}
+
 
 function AreaGradient({ color, id }: { color: string; id: string }) {
   return (
@@ -62,7 +49,8 @@ export default function StatCard({
     interval
   });
   const theme = useTheme();
-  const daysInWeek = getDaysInMonth(4, 2024);
+  // Generate generic period labels instead of specific month/day combinations
+  const daysInWeek = Array.from({ length: data.length }, (_, i) => `Period ${i + 1}`);
 
   const trendColors = {
     up:

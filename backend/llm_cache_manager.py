@@ -48,47 +48,60 @@ class LLMCacheManager:
             # Calculate current data hash
             current_hash = self._calculate_data_hash(client_data)
             
-            # Check for cached response using client_id only 
-            # Note: Current schema allows only one cache entry per client
+            # Get existing cache record for this client (all dashboard types in one record)
             response = self.db_client.table("llm_response_cache").select("*").eq("client_id", client_id).limit(1).execute()
             
             if response.data:
                 cached_record = response.data[0]
                 cached_hash = cached_record.get("data_hash")
-                cached_response = cached_record.get("llm_response")
+                cached_responses_json = cached_record.get("llm_response")
                 created_at = cached_record.get("created_at")
                 
                 # Check if data hash matches (data hasn't changed)
-                if cached_hash == current_hash and cached_response:
-                    logger.info(f"✅ Cache HIT for client {client_id} ({dashboard_type}) - data unchanged")
-                    
-                                    # Check if cache is still valid (not too old)
-                try:
-                    # Handle timezone-aware datetime parsing
-                    created_at_str = created_at
-                    if created_at_str.endswith('Z'):
-                        created_at_str = created_at_str.replace('Z', '+00:00')
-                    
-                    created_at_dt = datetime.fromisoformat(created_at_str)
-                    
-                    # Ensure both datetimes are timezone-aware
-                    if created_at_dt.tzinfo is None:
-                        # If created_at is naive, assume UTC
-                        from datetime import timezone
-                        created_at_dt = created_at_dt.replace(tzinfo=timezone.utc)
-                    
-                    current_time = datetime.now(created_at_dt.tzinfo)
-                    cache_age = current_time - created_at_dt
-                    
-                    if cache_age.days < 7:  # Cache valid for 7 days
-                        return json.loads(cached_response)
-                    else:
-                        logger.info(f"⚠️ Cache expired for client {client_id} ({dashboard_type}) (age: {cache_age.days} days)")
+                if cached_hash == current_hash and cached_responses_json:
+                    try:
+                        # Parse the cached responses (all dashboard types in one JSON)
+                        cached_responses = json.loads(cached_responses_json)
+                        
+                        # Get the specific dashboard type response
+                        dashboard_response = cached_responses.get(dashboard_type)
+                        
+                        if dashboard_response:
+                            logger.info(f"✅ Cache HIT for client {client_id} ({dashboard_type}) - data unchanged")
+                            
+                            # Check if cache is still valid (not too old)
+                            try:
+                                # Handle timezone-aware datetime parsing
+                                created_at_str = created_at
+                                if created_at_str.endswith('Z'):
+                                    created_at_str = created_at_str.replace('Z', '+00:00')
+                                
+                                created_at_dt = datetime.fromisoformat(created_at_str)
+                                
+                                # Ensure both datetimes are timezone-aware
+                                if created_at_dt.tzinfo is None:
+                                    # If created_at is naive, assume UTC
+                                    from datetime import timezone
+                                    created_at_dt = created_at_dt.replace(tzinfo=timezone.utc)
+                                
+                                current_time = datetime.now(created_at_dt.tzinfo)
+                                cache_age = current_time - created_at_dt
+                                
+                                if cache_age.days < 7:  # Cache valid for 7 days
+                                    return dashboard_response
+                                else:
+                                    logger.info(f"⚠️ Cache expired for client {client_id} ({dashboard_type}) (age: {cache_age.days} days)")
+                                    return None
+                            except Exception as time_error:
+                                logger.warning(f"⚠️ Failed to parse cache timestamp for client {client_id} ({dashboard_type}): {time_error}")
+                                # If we can't parse the timestamp, assume cache is valid
+                                return dashboard_response
+                        else:
+                            logger.info(f"🔄 No {dashboard_type} cache found for client {client_id}")
+                            return None
+                    except Exception as parse_error:
+                        logger.warning(f"⚠️ Failed to parse cached responses for client {client_id}: {parse_error}")
                         return None
-                except Exception as time_error:
-                    logger.warning(f"⚠️ Failed to parse cache timestamp for client {client_id} ({dashboard_type}): {time_error}")
-                    # If we can't parse the timestamp, assume cache is valid
-                    return json.loads(cached_response)
                 else:
                     logger.info(f"🔄 Cache MISS for client {client_id} ({dashboard_type}) - data changed or no cache")
                     return None
@@ -118,23 +131,45 @@ class LLMCacheManager:
             # Calculate data hash
             data_hash = self._calculate_data_hash(client_data)
             
-            # Prepare cache record - use actual client_id UUID, store dashboard_type in data_type
-            cache_record = {
-                "client_id": client_id,  # Use actual UUID, not concatenated string
-                "data_hash": data_hash,
-                "llm_response": json.dumps(llm_response),
-                "data_type": dashboard_type,  # Store dashboard type here
-                "total_records": client_data.get("total_records", 0),
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat()
-            }
+            # Check if record already exists for this client
+            existing = self.db_client.table("llm_response_cache").select("*").eq("client_id", client_id).limit(1).execute()
             
-            # Upsert cache record (update if exists, insert if not)
-            # Note: Current schema has UNIQUE(client_id), so this will overwrite existing cache for the client
-            response = self.db_client.table("llm_response_cache").upsert(
-                cache_record, 
-                on_conflict="client_id"
-            ).execute()
+            if existing.data:
+                # Update existing record - merge new dashboard type with existing ones
+                existing_record = existing.data[0]
+                existing_responses_json = existing_record.get("llm_response", "{}")
+                
+                try:
+                    # Parse existing responses
+                    existing_responses = json.loads(existing_responses_json)
+                except Exception:
+                    # If parsing fails, start fresh
+                    existing_responses = {}
+                
+                # Add/update the specific dashboard type
+                existing_responses[dashboard_type] = llm_response
+                
+                update_record = {
+                    "data_hash": data_hash,
+                    "llm_response": json.dumps(existing_responses),
+                    "total_records": client_data.get("total_records", len(client_data.get("data", []))),
+                    "updated_at": datetime.now().isoformat()
+                }
+                response = self.db_client.table("llm_response_cache").update(update_record).eq("client_id", client_id).execute()
+            else:
+                # Insert new record with this dashboard type
+                new_responses = {dashboard_type: llm_response}
+                
+                cache_record = {
+                    "client_id": client_id,  # Keep as proper UUID
+                    "data_hash": data_hash,
+                    "llm_response": json.dumps(new_responses),
+                    "data_type": "combined",  # Indicates multiple dashboard types
+                    "total_records": client_data.get("total_records", len(client_data.get("data", []))),
+                    "created_at": datetime.now().isoformat(),
+                    "updated_at": datetime.now().isoformat()
+                }
+                response = self.db_client.table("llm_response_cache").insert(cache_record).execute()
             
             if response.data:
                 logger.info(f"✅ Cached LLM response for client {client_id} ({dashboard_type}) (hash: {data_hash[:8]}...)")
@@ -147,68 +182,147 @@ class LLMCacheManager:
             logger.error(f"❌ Error storing cache for client {client_id} ({dashboard_type}): {e}")
             return False
     
-    async def invalidate_cache(self, client_id: str) -> bool:
+    async def invalidate_cache(self, client_id: str, dashboard_type: Optional[str] = None) -> bool:
         """
-        Invalidate cache for a specific client
+        Invalidate cache for a specific client and/or dashboard type
+        
+        Args:
+            client_id: Client identifier
+            dashboard_type: Optional dashboard type. If None, invalidates all dashboards for client
         
         Returns:
             - True if invalidated successfully
             - False if invalidation failed
         """
         try:
-            response = self.db_client.table("llm_response_cache").delete().eq("client_id", client_id).execute()
-            logger.info(f"🗑️ Invalidated cache for client {client_id}")
+            if dashboard_type:
+                # Invalidate specific dashboard type only - remove it from the JSON structure
+                existing = self.db_client.table("llm_response_cache").select("*").eq("client_id", client_id).limit(1).execute()
+                
+                if existing.data:
+                    existing_record = existing.data[0]
+                    existing_responses_json = existing_record.get("llm_response", "{}")
+                    
+                    try:
+                        existing_responses = json.loads(existing_responses_json)
+                        
+                        # Remove the specific dashboard type
+                        if dashboard_type in existing_responses:
+                            del existing_responses[dashboard_type]
+                            
+                            if existing_responses:
+                                # Update record with remaining dashboard types
+                                update_record = {
+                                    "llm_response": json.dumps(existing_responses),
+                                    "updated_at": datetime.now().isoformat()
+                                }
+                                response = self.db_client.table("llm_response_cache").update(update_record).eq("client_id", client_id).execute()
+                                logger.info(f"🗑️ Invalidated {dashboard_type} cache for client {client_id}")
+                            else:
+                                # No dashboard types left, delete the entire record
+                                response = self.db_client.table("llm_response_cache").delete().eq("client_id", client_id).execute()
+                                logger.info(f"🗑️ Invalidated {dashboard_type} cache (last one) for client {client_id}")
+                        else:
+                            logger.info(f"ℹ️ No {dashboard_type} cache found to invalidate for client {client_id}")
+                    except Exception as parse_error:
+                        logger.warning(f"⚠️ Failed to parse cache for invalidation, deleting entire record for client {client_id}: {parse_error}")
+                        response = self.db_client.table("llm_response_cache").delete().eq("client_id", client_id).execute()
+                else:
+                    logger.info(f"ℹ️ No cache found to invalidate for client {client_id}")
+            else:
+                # Invalidate all dashboard types for this client - delete entire record
+                response = self.db_client.table("llm_response_cache").delete().eq("client_id", client_id).execute()
+                logger.info(f"🗑️ Invalidated ALL dashboard caches for client {client_id}")
             return True
         except Exception as e:
-            logger.error(f"❌ Error invalidating cache for client {client_id}: {e}")
+            logger.error(f"❌ Error invalidating cache for client {client_id} ({dashboard_type}): {e}")
+            return False
+    
+    async def invalidate_all_cache(self) -> bool:
+        """
+        Invalidate all cached responses (use with caution)
+        
+        Returns:
+            - True if invalidated successfully
+            - False if invalidation failed
+        """
+        try:
+            response = self.db_client.table("llm_response_cache").delete().neq("client_id", "").execute()
+            logger.info(f"🗑️ Invalidated ALL cached responses")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Error invalidating all cache: {e}")
             return False
     
     async def get_cache_stats(self) -> Dict[str, Any]:
-        """Get cache statistics"""
+        """Get cache statistics with dashboard-type breakdown"""
         try:
-            # Get total cache entries
-            total_response = self.db_client.table("llm_response_cache").select("client_id", count="exact").execute()
-            total_entries = total_response.count if total_response.count is not None else 0
+            # Get all cache entries with dashboard type breakdown
+            response = self.db_client.table("llm_response_cache").select("client_id", "data_type", "created_at").execute()
             
-            # Get cache age distribution
-            response = self.db_client.table("llm_response_cache").select("created_at").execute()
+            if not response.data:
+                return {
+                    "total_entries": 0,
+                    "by_dashboard_type": {},
+                    "unique_clients": 0,
+                    "avg_age_days": 0,
+                    "cache_hit_potential": "0%"
+                }
             
-            if response.data:
-                ages = []
-                for record in response.data:
-                    try:
-                        # Handle timezone-aware datetime parsing
-                        created_at_str = record["created_at"]
-                        if created_at_str.endswith('Z'):
-                            created_at_str = created_at_str.replace('Z', '+00:00')
-                        
-                        created_at = datetime.fromisoformat(created_at_str)
-                        
-                        # Ensure both datetimes are timezone-aware
-                        if created_at.tzinfo is None:
-                            # If created_at is naive, assume UTC
-                            from datetime import timezone
-                            created_at = created_at.replace(tzinfo=timezone.utc)
-                        
-                        current_time = datetime.now(created_at.tzinfo)
-                        age = (current_time - created_at).days
-                        ages.append(age)
-                    except Exception as parse_error:
-                        logger.warning(f"⚠️ Failed to parse created_at: {parse_error}")
-                        continue
+            # Analyze cache data
+            dashboard_types = {}
+            unique_clients = set()
+            ages = []
+            
+            for record in response.data:
+                # Extract client_id and parse dashboard types from JSON
+                client_id = record.get("client_id", "")
+                cached_responses_json = record.get("llm_response", "{}")
                 
-                avg_age = sum(ages) / len(ages) if ages else 0
-                oldest_cache = max(ages) if ages else 0
-                newest_cache = min(ages) if ages else 0
-            else:
-                avg_age = oldest_cache = newest_cache = 0
+                try:
+                    # Parse the cached responses to count dashboard types
+                    cached_responses = json.loads(cached_responses_json)
+                    
+                    # Count each dashboard type in this record
+                    for dashboard_type in cached_responses.keys():
+                        dashboard_types[dashboard_type] = dashboard_types.get(dashboard_type, 0) + 1
+                except Exception:
+                    # If parsing fails, count as unknown
+                    dashboard_types["unknown"] = dashboard_types.get("unknown", 0) + 1
+                
+                # Add to unique clients set
+                unique_clients.add(client_id)
+                
+                # Calculate age
+                try:
+                    created_at_str = record["created_at"]
+                    if created_at_str.endswith('Z'):
+                        created_at_str = created_at_str.replace('Z', '+00:00')
+                    
+                    created_at = datetime.fromisoformat(created_at_str)
+                    
+                    if created_at.tzinfo is None:
+                        from datetime import timezone
+                        created_at = created_at.replace(tzinfo=timezone.utc)
+                    
+                    current_time = datetime.now(created_at.tzinfo)
+                    age = (current_time - created_at).days
+                    ages.append(age)
+                except Exception as parse_error:
+                    logger.warning(f"⚠️ Failed to parse created_at: {parse_error}")
+                    continue
+            
+            oldest_cache = max(ages) if ages else 0
+            newest_cache = min(ages) if ages else 0
             
             return {
-                "total_entries": total_entries,
-                "average_age_days": round(avg_age, 1),
+                "total_entries": len(response.data),
+                "by_dashboard_type": dashboard_types,
+                "unique_clients": len(unique_clients),
+                "avg_age_days": round(avg_age, 1),
                 "oldest_cache_days": oldest_cache,
                 "newest_cache_days": newest_cache,
-                "cache_hit_rate": "N/A"  # Would need to track hits/misses
+                "cache_efficiency": f"{len(unique_clients) * 3}/{len(response.data)}" if len(response.data) > 0 else "0/0"
             }
             
         except Exception as e:

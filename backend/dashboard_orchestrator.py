@@ -3953,7 +3953,7 @@ class DashboardOrchestrator:
                     # 💾 CACHE THE RESULTS FOR FUTURE USE
                     if client_id and "error" not in llm_results:
                         cache_success = await llm_cache_manager.store_cached_llm_response(
-                            client_id, client_data, llm_results, "general"
+                            client_id, client_data, llm_results, "metrics"
                         )
                         if cache_success:
                             logger.info(f"💾 Cached LLM response in database for client {client_id}")

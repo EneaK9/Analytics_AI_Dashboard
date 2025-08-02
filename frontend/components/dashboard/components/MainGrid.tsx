@@ -20,7 +20,6 @@ import StatCard, { StatCardProps } from "./StatCard";
 import { DateRange } from "./CustomDatePicker";
 import api from "../../../lib/axios";
 import {
-	muiDashboardService,
 	MUIDashboardData,
 	BackendMetric,
 	MUITableData,
@@ -35,6 +34,40 @@ import { PieChart } from '@mui/x-charts/PieChart';
 import { BarChart } from '@mui/x-charts/BarChart';
 
 // Chart data validation function for LLM response format
+// Helper function to format KPI values based on format type (shared between components)
+const formatKPIValue = (value: any, format: string): string => {
+	// Handle object format (e.g., status distributions, breakdowns)
+	if (format === "object" && typeof value === "object" && value !== null) {
+		const entries = Object.entries(value);
+		
+		// Calculate total if all values are numbers
+		const total = entries.reduce((sum, [key, val]) => {
+			const num = typeof val === 'number' ? val : parseFloat(String(val));
+			return !isNaN(num) ? sum + num : sum;
+		}, 0);
+		
+		// Show total with breakdown hint
+		const breakdown = entries.map(([key, val]) => `${key}: ${val}`).join(', ');
+		return `${total} total (${breakdown})`;
+	}
+
+	const numValue = parseFloat(value);
+	if (isNaN(numValue) || numValue === null || numValue === undefined || value === null || value === undefined) {
+		// Return safe string representation if value can't be parsed as number
+		return String(value || "0");
+	}
+
+	switch (format) {
+		case "currency":
+			return `$${numValue.toLocaleString()}`;
+		case "percentage":
+			return `${numValue}%`;
+		case "number":
+		default:
+			return numValue.toLocaleString();
+	}
+};
+
 const isValidChartData = (chartData: any) => {
 	if (!chartData) {
 		console.log('❌ isValidChartData: No chartData provided');
@@ -222,24 +255,7 @@ function OriginalMainGrid({
 		[chartId: string]: string;
 	}>({});
 
-	// Helper function to format KPI values based on format type
-	const formatKPIValue = (value: string, format: string): string => {
-		const numValue = parseFloat(value);
-		if (isNaN(numValue) || numValue === null || numValue === undefined || value === null || value === undefined) {
-			// Return safe string representation if value can't be parsed as number
-			return String(value || "0");
-		}
 
-		switch (format) {
-			case "currency":
-				return `$${numValue.toLocaleString()}`;
-			case "percentage":
-				return `${numValue}%`;
-			case "number":
-			default:
-				return numValue.toLocaleString();
-		}
-	};
 
 	// Helper function to get trend direction icon and color
 	const getTrendDisplay = (trend: any) => {
@@ -336,8 +352,8 @@ function OriginalMainGrid({
 				// 🚀 Load rich LLM analysis for main dashboard (with fallback)
 				console.log("🔗 Loading main dashboard with rich LLM analysis");
 				
-				// Force rich LLM analysis for main dashboard
-				let endpoint = "/dashboard/metrics?fast_mode=false&force_llm=true";
+				// Load rich LLM analysis for main dashboard (cached when possible)
+				let endpoint = "/dashboard/metrics?fast_mode=false";
 				console.log(`🔗 Calling LLM endpoint: ${endpoint}`);
 				const response = await api.get(endpoint);
 
@@ -609,7 +625,7 @@ function OriginalMainGrid({
 									value={formatKPIValue(kpi.value, kpi.format)}
 									interval={kpi.trend.description}
 									trend={kpi.trend.direction || "neutral"}
-									trendValue={kpi.trend?.percentage || "0%"}
+									trendValue={kpi.trend?.percentage ? `${kpi.trend.percentage}%` : "0%"}
 									data={Array.from(
 										{ length: 30 },
 										() => parseFloat(kpi.value) || 0
@@ -1294,8 +1310,8 @@ function TemplateDashboard({
 			// Use specialized LLM-powered endpoints for business and performance templates
 			if (dashboardType === "business") {
 				console.log("🤖 Loading Business Intelligence data with LLM analysis...");
-				// Force fresh LLM analysis for rich business insights
-				const businessResponse = await api.get("/dashboard/business-insights?force_llm=true&fast_mode=false");
+				// Load rich business insights (cached when possible)
+				const businessResponse = await api.get("/dashboard/business-insights?fast_mode=false");
 				
 				if (businessResponse.data && businessResponse.data.llm_analysis) {
 					// Process the LLM analysis data directly
@@ -1323,8 +1339,8 @@ function TemplateDashboard({
 				}
 			} else if (dashboardType === "performance") {
 				console.log("⚡ Loading Performance Hub data with LLM analysis...");
-				// Force fresh LLM analysis for rich performance insights
-				const performanceResponse = await api.get("/dashboard/performance?force_llm=true&fast_mode=false");
+				// Load rich performance insights (cached when possible)
+				const performanceResponse = await api.get("/dashboard/performance?fast_mode=false");
 				
 				if (performanceResponse.data && performanceResponse.data.llm_analysis) {
 					// Process the LLM analysis data directly
@@ -1374,9 +1390,9 @@ function TemplateDashboard({
 				// Call appropriate endpoint based on dashboard type
 				let endpoint = "/dashboard/metrics"; // default
 				if (dashboardType === "business") {
-					endpoint = "/dashboard/business-insights?force_llm=true&fast_mode=false";
-				} else if (dashboardType === "performance") {
-					endpoint = "/dashboard/performance?force_llm=true&fast_mode=false";
+									endpoint = "/dashboard/business-insights?fast_mode=false";
+			} else if (dashboardType === "performance") {
+				endpoint = "/dashboard/performance?fast_mode=false";
 				}
 				
 				console.log(`🔗 Calling endpoint: ${endpoint} for dashboard type: ${dashboardType}`);
@@ -1524,7 +1540,8 @@ function TemplateDashboard({
 	// 🚀 NEW: Get specialized template configuration
 	const getTemplateConfig = () => {
 		const filteredData = getFilteredData(clientData);
-		const totalRecords = filteredData.length;
+		// Use LLM response total_records if available, otherwise fall back to filtered data length
+		const totalRecords = specializedData?.total_records || specializedData?.llm_analysis?.total_records || filteredData.length;
 
 		// Handle Business Intelligence template with LLM Analysis
 		if (dashboardType === "business" && specializedData?.llm_analysis?.charts) {
@@ -1838,7 +1855,7 @@ function TemplateDashboard({
 												mb: 0.5,
 												fontSize: { xs: '1.75rem', sm: '2rem' }
 											}}>
-												{kpi.value}
+												{formatKPIValue(kpi.value, kpi.format)}
 											</Typography>
 											<Typography variant="body1" sx={{ 
 												opacity: 0.9,
@@ -1864,7 +1881,7 @@ function TemplateDashboard({
 														{kpi.trend.percentage > 0 ? '+' : ''}{kpi.trend.percentage}%
 													</Box>
 													<Box component="span" sx={{ opacity: 0.7, fontSize: '0.75rem' }}>
-														vs last period
+														{kpi.trend?.description || 'vs last period'}
 													</Box>
 												</Typography>
 											)}
@@ -2071,6 +2088,25 @@ function TemplateDashboard({
 																</div>
 															)}
 															
+															{chartData.type === 'scatter' && (
+																<div style={{ width: '100%', height: '200px' }}>
+																	<Charts.ScatterChart
+																		data={chartData.labels.map((label: string, i: number) => {
+																			const xValue = Number(chartData.data[i]);
+																			const yValue = Number(chartData.data[i]) * (Math.random() * 0.5 + 0.75); // Add some variation
+																			return {
+																				x: isNaN(xValue) ? i : xValue,
+																				y: isNaN(yValue) ? i : yValue,
+																				label: String(label || `Point ${i + 1}`)
+																			};
+																		}).filter((item: any) => item.x >= 0 && item.y >= 0)}
+																		title={chartData.title}
+																		xAxisLabel="X Value"
+																		yAxisLabel="Y Value"
+																	/>
+																</div>
+															)}
+
 															{chartData.type === 'bar' && (
 																<div style={{ width: '100%', height: '200px' }}>
 																	<BarChart
@@ -2305,7 +2341,7 @@ function TemplateDashboard({
 												mb: 0.5,
 												fontSize: { xs: '1.75rem', sm: '2rem' }
 											}}>
-												{kpi.value}
+												{formatKPIValue(kpi.value, kpi.format)}
 											</Typography>
 											<Typography variant="body1" sx={{ 
 												opacity: 0.9,
@@ -2331,7 +2367,7 @@ function TemplateDashboard({
 														{kpi.trend.percentage > 0 ? '+' : ''}{kpi.trend.percentage}%
 													</Box>
 													<Box component="span" sx={{ opacity: 0.7, fontSize: '0.75rem' }}>
-														vs last period
+														{kpi.trend?.description || 'vs last period'}
 													</Box>
 												</Typography>
 											)}
@@ -2487,6 +2523,25 @@ function TemplateDashboard({
 															/>
 														</div>
 													)}
+
+													{chartData.type === 'scatter' && (
+														<div style={{ width: '100%', height: '200px' }}>
+															<Charts.ScatterChart
+																data={chartData.labels.map((label: string, i: number) => {
+																	const xValue = Number(chartData.data[i]);
+																	const yValue = Number(chartData.data[i]) * (Math.random() * 0.5 + 0.75); // Add some variation
+																	return {
+																		x: isNaN(xValue) ? i : xValue,
+																		y: isNaN(yValue) ? i : yValue,
+																		label: String(label || `Point ${i + 1}`)
+																	};
+																}).filter((item: any) => item.x >= 0 && item.y >= 0)}
+																title={chartData.title}
+																xAxisLabel="X Value"
+																yAxisLabel="Y Value"
+															/>
+														</div>
+													)}
 													
 													{chartData.type === 'bar' && (
 														<div style={{ width: '100%', height: '200px' }}>
@@ -2559,6 +2614,25 @@ function TemplateDashboard({
 																slotProps={{
 																	noDataOverlay: { message: 'No data available' }
 																}}
+															/>
+														</div>
+													)}
+
+													{chartData.type === 'scatter' && (
+														<div style={{ width: '100%', height: '200px' }}>
+															<Charts.ScatterChart
+																data={chartData.labels.map((label: string, i: number) => {
+																	const xValue = Number(chartData.data[i]);
+																	const yValue = Number(chartData.data[i]) * (Math.random() * 0.5 + 0.75); // Add some variation
+																	return {
+																		x: isNaN(xValue) ? i : xValue,
+																		y: isNaN(yValue) ? i : yValue,
+																		label: String(label || `Point ${i + 1}`)
+																	};
+																}).filter((item: any) => item.x >= 0 && item.y >= 0)}
+																title={chartData.title}
+																xAxisLabel="X Value"
+																yAxisLabel="Y Value"
 															/>
 														</div>
 													)}
@@ -2917,18 +2991,31 @@ function TemplateDashboard({
 												<LineChart
 													xAxis={[
 														{
-															data: [
-																"Jan",
-																"Feb",
-																"Mar",
-																"Apr",
-																"May",
-																"Jun",
-																"Jul",
-																"Aug",
-																"Sep",
-																"Oct",
-															],
+															data: (() => {
+																// Try to get AI-generated chart labels first
+																const aiData =
+																	getAIChartData("volume") ||
+																	getAIChartData("trend") ||
+																	getAIChartData("quarterly");
+																if (aiData && aiData.labels && Array.isArray(aiData.labels)) {
+																	return aiData.labels.slice(0, 10);
+																}
+
+																// Fallback: Create dynamic labels from data
+																const numericFields = dataColumns.filter((col) => {
+																	const values = clientData.map((record) => record[col]).filter((v) => v != null);
+																	return values.length > 0 && !isNaN(parseFloat(values[0]));
+																});
+
+																if (numericFields.length > 0) {
+																	const labelField = dataColumns.find((col) => typeof clientData[0][col] === "string") || dataColumns[0];
+																	const chartData = createDynamicChartData(clientData, labelField, numericFields[0], 10);
+																	return chartData.map((item, index) => item.name || `Item ${index + 1}`);
+																}
+
+																// Last resort: use period labels
+																return ["Period 1", "Period 2", "Period 3", "Period 4", "Period 5", "Period 6", "Period 7", "Period 8", "Period 9", "Period 10"];
+															})(),
 															scaleType: "point",
 														},
 													]}
