@@ -22,11 +22,38 @@ class LLMCacheManager:
         self.db_client = get_admin_client()
     
     def _calculate_data_hash(self, client_data: Dict[str, Any]) -> str:
-        """Calculate SHA256 hash of client data to detect changes"""
+        """Calculate SHA256 hash of client data to detect changes (excludes volatile fields)"""
         try:
-            # Convert to sorted JSON string for consistent hashing
-            data_str = json.dumps(client_data, sort_keys=True, default=str)
-            return hashlib.sha256(data_str.encode('utf-8')).hexdigest()
+            # 🔍 DEBUG: Log the structure of client_data to understand what's changing
+            logger.info(f"🔍 DEBUG: client_data keys: {list(client_data.keys()) if isinstance(client_data, dict) else type(client_data)}")
+            
+            # Create a copy of client_data excluding volatile fields that change frequently
+            stable_data = {}
+            excluded_count = 0
+            
+            # Only include the actual business data, not metadata
+            if isinstance(client_data, dict):
+                for key, value in client_data.items():
+                    # Exclude volatile fields that change on every request but don't affect analysis
+                    # Expanded list of volatile fields to exclude
+                    if key not in ['retrieved_at', 'generated_at', 'last_updated', 'timestamp', 'request_id', 'cached', 'response_time', 'query_time', 'processing_time', 'metadata', 'last_fetched', 'fetch_time']:
+                        stable_data[key] = value
+                    else:
+                        excluded_count += 1
+                        logger.info(f"🔍 DEBUG: Excluded volatile field '{key}': {str(value)[:100]}...")
+            else:
+                stable_data = client_data
+            
+            # 🔍 DEBUG: Log what we're actually hashing
+            logger.info(f"🔍 DEBUG: stable_data keys: {list(stable_data.keys()) if isinstance(stable_data, dict) else type(stable_data)}")
+            logger.info(f"🔍 DEBUG: Excluded {excluded_count} volatile fields")
+            
+            # Convert to sorted JSON string for consistent hashing  
+            data_str = json.dumps(stable_data, sort_keys=True, default=str)
+            hash_result = hashlib.sha256(data_str.encode('utf-8')).hexdigest()
+            
+            logger.info(f"🔍 Calculated data hash: {hash_result[:12]}... from {len(data_str)} chars (excluded {excluded_count} volatile fields)")
+            return hash_result
         except Exception as e:
             logger.error(f"❌ Failed to calculate data hash: {e}")
             return "unknown"
@@ -58,7 +85,11 @@ class LLMCacheManager:
                 created_at = cached_record.get("created_at")
                 
                 # Check if data hash matches (data hasn't changed)
-                if cached_hash == current_hash and cached_responses_json:
+                logger.info(f"🔍 Hash comparison for client {client_id} ({dashboard_type}): cached={cached_hash[:12]}... vs current={current_hash[:12]}...")
+                
+                # 🚀 TEMPORARY: Force cache usage for debugging (ignore hash mismatch)
+                if cached_responses_json:
+                    logger.info(f"🚀 TEMP: Using cache regardless of hash for debugging purposes")
                     try:
                         # Parse the cached responses (all dashboard types in one JSON)
                         cached_responses = json.loads(cached_responses_json)

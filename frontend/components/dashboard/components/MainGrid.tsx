@@ -353,7 +353,7 @@ function OriginalMainGrid({
 				console.log("🔗 Loading main dashboard with rich LLM analysis");
 				
 				// Load rich LLM analysis for main dashboard (cached when possible)
-				let endpoint = "/dashboard/metrics?fast_mode=false";
+				let endpoint = "/dashboard/metrics?fast_mode=true";
 				console.log(`🔗 Calling LLM endpoint: ${endpoint}`);
 				const response = await api.get(endpoint);
 
@@ -1224,6 +1224,8 @@ function TemplateDashboard({
 	const [dataColumns, setDataColumns] = React.useState<string[]>([]);
 	const [aiMetrics, setAiMetrics] = React.useState<any[]>([]);
 	const [specializedData, setSpecializedData] = React.useState<any>(null);
+	
+
 
 	// Convert new standardized format to legacy format for compatibility
 	const convertStandardizedToLegacyFormat = (
@@ -1311,7 +1313,7 @@ function TemplateDashboard({
 			if (dashboardType === "business") {
 				console.log("🤖 Loading Business Intelligence data with LLM analysis...");
 				// Load rich business insights (cached when possible)
-				const businessResponse = await api.get("/dashboard/business-insights?fast_mode=false");
+				const businessResponse = await api.get("/dashboard/business-insights?fast_mode=true");
 				
 				if (businessResponse.data && businessResponse.data.llm_analysis) {
 					// Process the LLM analysis data directly
@@ -1340,7 +1342,7 @@ function TemplateDashboard({
 			} else if (dashboardType === "performance") {
 				console.log("⚡ Loading Performance Hub data with LLM analysis...");
 				// Load rich performance insights (cached when possible)
-				const performanceResponse = await api.get("/dashboard/performance?fast_mode=false");
+				const performanceResponse = await api.get("/dashboard/performance?fast_mode=true");
 				
 				if (performanceResponse.data && performanceResponse.data.llm_analysis) {
 					// Process the LLM analysis data directly
@@ -1390,9 +1392,9 @@ function TemplateDashboard({
 				// Call appropriate endpoint based on dashboard type
 				let endpoint = "/dashboard/metrics"; // default
 				if (dashboardType === "business") {
-									endpoint = "/dashboard/business-insights?fast_mode=false";
+									endpoint = "/dashboard/business-insights?fast_mode=true";
 			} else if (dashboardType === "performance") {
-				endpoint = "/dashboard/performance?fast_mode=false";
+				endpoint = "/dashboard/performance?fast_mode=true";
 				}
 				
 				console.log(`🔗 Calling endpoint: ${endpoint} for dashboard type: ${dashboardType}`);
@@ -1462,6 +1464,8 @@ function TemplateDashboard({
 	React.useEffect(() => {
 		loadClientData();
 	}, [loadClientData]);
+
+
 
 	// Filter data based on date range
 	const getFilteredData = React.useCallback(

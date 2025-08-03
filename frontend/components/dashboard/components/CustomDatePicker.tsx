@@ -193,52 +193,81 @@ export default function CustomDatePicker({
 
 			{/* Custom Date Range Dialog */}
 			{customPickerOpen && (
-				<div
-					style={{
-						position: "absolute",
-						top: "100%",
-						left: 0,
-						zIndex: 1300,
-						backgroundColor: "white",
-						border: "1px solid #ccc",
-						borderRadius: "4px",
-						padding: "16px",
-						boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-					}}>
-					<div style={{ marginBottom: "16px" }}>
-						<DatePicker
-							label="Start Date"
-							value={tempStartDate}
-							onChange={(newValue) => setTempStartDate(newValue)}
-							slotProps={{
-								textField: { size: "small", fullWidth: true },
-							}}
-						/>
-					</div>
-					<div style={{ marginBottom: "16px" }}>
-						<DatePicker
-							label="End Date"
-							value={tempEndDate}
-							onChange={(newValue) => setTempEndDate(newValue)}
-							slotProps={{
-								textField: { size: "small", fullWidth: true },
-							}}
-						/>
-					</div>
+				<>
+					{/* Backdrop */}
 					<div
-						style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-						<Button size="small" onClick={() => setCustomPickerOpen(false)}>
-							Cancel
-						</Button>
-						<Button
-							size="small"
-							variant="contained"
-							onClick={handleCustomRangeApply}
-							disabled={!tempStartDate || !tempEndDate}>
-							Apply
-						</Button>
+						style={{
+							position: "fixed",
+							top: 0,
+							left: 0,
+							right: 0,
+							bottom: 0,
+							backgroundColor: "rgba(0, 0, 0, 0.5)",
+							zIndex: 1200,
+						}}
+						onClick={() => setCustomPickerOpen(false)}
+					/>
+					{/* Modal Content */}
+					<div
+						style={{
+							position: "fixed",
+							top: "50%",
+							left: "50%",
+							transform: "translate(-50%, -50%)",
+							zIndex: 1300,
+							backgroundColor: "white",
+							border: "1px solid #e0e0e0",
+							borderRadius: "8px",
+							padding: "24px",
+							boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+							minWidth: "320px",
+						}}>
+						<div style={{ marginBottom: "20px" }}>
+							<h3 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: 600 }}>
+								Select Date Range
+							</h3>
+						</div>
+						<div style={{ marginBottom: "16px" }}>
+							<DatePicker
+								label="Start Date"
+								value={tempStartDate}
+								onChange={(newValue) => setTempStartDate(newValue)}
+								slotProps={{
+									textField: { size: "small", fullWidth: true },
+								}}
+							/>
+						</div>
+						<div style={{ marginBottom: "24px" }}>
+							<DatePicker
+								label="End Date"
+								value={tempEndDate}
+								onChange={(newValue) => setTempEndDate(newValue)}
+								slotProps={{
+									textField: { size: "small", fullWidth: true },
+								}}
+							/>
+						</div>
+						<div
+							style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+							<Button 
+								size="medium" 
+								onClick={() => setCustomPickerOpen(false)}
+								sx={{ minWidth: "80px" }}
+							>
+								Cancel
+							</Button>
+							<Button
+								size="medium"
+								variant="contained"
+								onClick={handleCustomRangeApply}
+								disabled={!tempStartDate || !tempEndDate}
+								sx={{ minWidth: "80px" }}
+							>
+								Apply
+							</Button>
+						</div>
 					</div>
-				</div>
+				</>
 			)}
 		</LocalizationProvider>
 	);
