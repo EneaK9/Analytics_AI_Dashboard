@@ -91,11 +91,11 @@ const isValidChartData = (chartData: any) => {
 		chartData.data && Array.isArray(chartData.data)) {
 		
 		const hasValidLabels = chartData.labels.length > 0 &&
-			chartData.labels.every((label: any) => label != null);
-			
+		chartData.labels.every((label: any) => label != null);
+		
 		const hasValidData = chartData.data.length > 0 &&
-			chartData.data.every((value: any) => value != null && !isNaN(Number(value)));
-			
+		chartData.data.every((value: any) => value != null && !isNaN(Number(value)));
+		
 		const sameLength = chartData.labels.length === chartData.data.length;
 		
 		const isValid = hasValidLabels && hasValidData && sameLength;
@@ -222,7 +222,7 @@ export default function MainGrid({
 	// Route to the appropriate dashboard template
 	// Main dashboard uses the original OriginalMainGrid with rich LLM analysis
 	if (dashboardType === "main") {
-		return <OriginalMainGrid dashboardData={dashboardData} user={user} />;
+		return <OriginalMainGrid dashboardData={dashboardData} user={user} dateRange={dateRange} />;
 	}
 
 	// For other dashboard types, use the dynamic template system
@@ -240,20 +240,75 @@ export default function MainGrid({
 function OriginalMainGrid({
 	dashboardData,
 	user,
+	dateRange,
 }: {
 	dashboardData?: MainGridProps["dashboardData"];
 	user?: { client_id: string; company_name: string; email: string };
+	dateRange?: { start: any; end: any; label?: string };
 }) {
 	const [llmAnalysis, setLlmAnalysis] = React.useState<any>(null);
 	const [clientData, setClientData] = React.useState<any[]>([]);
 	const [dataColumns, setDataColumns] = React.useState<any[]>([]);
 	const [loading, setLoading] = React.useState(true);
 	const [error, setError] = React.useState<string | null>(null);
+	const [isLoadingDateFilter, setIsLoadingDateFilter] = React.useState(false);
 
 	// State for chart dropdown selections
 	const [chartDropdownSelections, setChartDropdownSelections] = React.useState<{
 		[chartId: string]: string;
 	}>({});
+
+	// Date filtering for main dashboard
+	const loadDateFilteredData = React.useCallback(async () => {
+		if (!user?.client_id || !dateRange || (!dateRange.start && !dateRange.end)) {
+			console.log("🏠 No date filter applied - using regular data");
+			return;
+		}
+
+		console.log("📅 Loading date-filtered data for main dashboard:", {
+			start: dateRange.start?.format ? dateRange.start.format('YYYY-MM-DD') : dateRange.start,
+			end: dateRange.end?.format ? dateRange.end.format('YYYY-MM-DD') : dateRange.end,
+			label: dateRange.label
+		});
+
+		setIsLoadingDateFilter(true);
+
+		try {
+			const params = new URLSearchParams();
+			params.append('fast_mode', 'true');
+			
+			if (dateRange.start) {
+				const startDate = dateRange.start?.format ? dateRange.start.format('YYYY-MM-DD') : dateRange.start;
+				params.append('start_date', startDate);
+			}
+			if (dateRange.end) {
+				const endDate = dateRange.end?.format ? dateRange.end.format('YYYY-MM-DD') : dateRange.end;
+				params.append('end_date', endDate);
+			}
+
+			const response = await api.get(`/dashboard/metrics?${params.toString()}`);
+			
+			if (response.data && response.data.llm_analysis) {
+				console.log("✅ Date-filtered main dashboard data loaded");
+				setLlmAnalysis(response.data.llm_analysis);
+			} else {
+				console.error("❌ No LLM analysis in date-filtered response");
+			}
+		} catch (error) {
+			console.error("❌ Error loading date-filtered data:", error);
+			setError("Failed to load date-filtered data");
+		} finally {
+			setIsLoadingDateFilter(false);
+		}
+	}, [user?.client_id, dateRange]);
+
+	// Trigger date filtering when dateRange changes
+	React.useEffect(() => {
+		if (dateRange && (dateRange.start || dateRange.end)) {
+			console.log("🗓️ Main dashboard: Date range changed, loading filtered data");
+			loadDateFilteredData();
+		}
+	}, [dateRange, loadDateFilteredData]);
 
 
 
@@ -474,6 +529,35 @@ function OriginalMainGrid({
 
 	return (
 		<Box sx={{ width: "100%", maxWidth: { sm: "100%", md: "1700px" } }}>
+			{/* Date Filter Indicators for Main Dashboard */}
+			{isLoadingDateFilter && (
+				<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+					<Typography variant="caption" color="primary" sx={{ fontWeight: 500 }}>
+						🗓️ Loading data for selected date range...
+					</Typography>
+				</Box>
+			)}
+
+			{dateRange && (dateRange.start || dateRange.end) && (
+				<Box sx={{ mb: 3 }}>
+					<Typography variant="caption" sx={{ 
+						color: "info.main", 
+						bgcolor: "info.light", 
+						px: 1.5, 
+						py: 0.5, 
+						borderRadius: 1,
+						fontWeight: 500
+					}}>
+						📅 Data Filtered: {dateRange.label || 'Custom Range'}
+						{dateRange.start && dateRange.end && (
+							<span style={{ opacity: 0.8 }}>
+								{" "}({dateRange.start?.format ? dateRange.start.format('MMM DD') : dateRange.start} - {dateRange.end?.format ? dateRange.end.format('MMM DD, YYYY') : dateRange.end})
+							</span>
+						)}
+					</Typography>
+				</Box>
+			)}
+
 			{/* Business Insights Section - Only if available */}
 			{llmAnalysis?.business_analysis && (
 				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
@@ -728,7 +812,7 @@ function OriginalMainGrid({
 																		const yField = chart.config?.y_axis?.field || "value";
 																		
 																		return {
-																			id: item.id || idx,
+																		id: item.id || idx,
 																			value: Number(item[yField] || item.value || 0),
 																			label: String(item[xField] || item.name || `Item ${idx}`),
 																		};
@@ -809,7 +893,7 @@ function OriginalMainGrid({
 											/>
 											<CardContent>
 												<Box sx={{ height: 300 }}>
-																						<BarChart
+													<BarChart
 										dataset={filteredData.map((item: any) => {
 											// Get the actual field names from chart config
 											const xField = chart.config?.x_axis?.field || "name";
@@ -822,46 +906,46 @@ function OriginalMainGrid({
 											
 											return normalizedItem;
 										})}
-										xAxis={[
-											{
-												scaleType: "band",
+														xAxis={[
+															{
+																scaleType: "band",
 												dataKey: chart.config?.x_axis?.field || "name",
-												tickPlacement: "middle",
-												tickLabelPlacement: "middle",
-											},
-										]}
-										series={[
-											{
+																tickPlacement: "middle",
+																tickLabelPlacement: "middle",
+															},
+														]}
+														series={[
+															{
 												dataKey: chart.config?.y_axis?.field || "value",
-												label:
-													chart.config?.y_axis?.display_name || "Value",
-												valueFormatter: (value: any) => {
-													// Handle case where value might be an object
-													const actualValue =
-														typeof value === "object" && value !== null
-															? value.value || value
-															: value;
+																label:
+																	chart.config?.y_axis?.display_name || "Value",
+																valueFormatter: (value: any) => {
+																	// Handle case where value might be an object
+																	const actualValue =
+																		typeof value === "object" && value !== null
+																			? value.value || value
+																			: value;
 
-													if (actualValue == null) return "0";
-													if (
-														typeof actualValue === "number" &&
-														actualValue > 100
-													) {
-														return `$${actualValue.toLocaleString()}`;
-													}
-													return actualValue.toString();
-												},
-											},
-										]}
-										width={500}
-										height={300}
-										margin={{
-											top: 20,
-											bottom: 60,
-											left: 70,
-											right: 20,
-										}}
-									/>
+																	if (actualValue == null) return "0";
+																	if (
+																		typeof actualValue === "number" &&
+																		actualValue > 100
+																	) {
+																		return `$${actualValue.toLocaleString()}`;
+																	}
+																	return actualValue.toString();
+																},
+															},
+														]}
+														width={500}
+														height={300}
+														margin={{
+															top: 20,
+															bottom: 60,
+															left: 70,
+															right: 20,
+														}}
+													/>
 												</Box>
 											</CardContent>
 										</Card>
@@ -1225,6 +1309,10 @@ function TemplateDashboard({
 	const [aiMetrics, setAiMetrics] = React.useState<any[]>([]);
 	const [specializedData, setSpecializedData] = React.useState<any>(null);
 	
+	// Frontend cache for date-filtered analyses
+	const [analysisCache, setAnalysisCache] = React.useState<Map<string, any>>(new Map());
+	const [isLoadingWithDateFilter, setIsLoadingWithDateFilter] = React.useState(false);
+	
 
 
 	// Convert new standardized format to legacy format for compatibility
@@ -1393,7 +1481,7 @@ function TemplateDashboard({
 				let endpoint = "/dashboard/metrics"; // default
 				if (dashboardType === "business") {
 									endpoint = "/dashboard/business-insights?fast_mode=true";
-			} else if (dashboardType === "performance") {
+				} else if (dashboardType === "performance") {
 				endpoint = "/dashboard/performance?fast_mode=true";
 				}
 				
@@ -1465,6 +1553,18 @@ function TemplateDashboard({
 		loadClientData();
 	}, [loadClientData]);
 
+	// Effect to trigger date-filtered analysis when date range changes
+	React.useEffect(() => {
+		if (dashboardType === "main") {
+			// Main dashboard date filtering is handled in OriginalMainGrid
+			return;
+		}
+		
+		if (dateRange && (dateRange.start || dateRange.end)) {
+			console.log(`📊 ${dashboardType} dashboard: Date filter ignored - showing comprehensive analysis`);
+		}
+	}, [dateRange, dashboardType]);
+
 
 
 	// Filter data based on date range
@@ -1487,6 +1587,146 @@ function TemplateDashboard({
 		},
 		[dateRange]
 	);
+
+	// Generate date-aware cache key for analysis caching
+	const generateDateAwareCacheKey = React.useCallback(
+		(baseKey: string) => {
+			if (!dateRange || (!dateRange.start && !dateRange.end)) {
+				return `${baseKey}_all_time`;
+			}
+			
+			const startKey = dateRange.start?.format('YYYY-MM-DD') || 'no_start';
+			const endKey = dateRange.end?.format('YYYY-MM-DD') || 'no_end';
+			return `${baseKey}_${startKey}_to_${endKey}`;
+		},
+		[dateRange]
+	);
+
+	// Cache management functions
+	const getCachedAnalysis = React.useCallback(
+		(cacheKey: string) => {
+			const cached = analysisCache.get(cacheKey);
+			if (cached && cached.timestamp) {
+				// Check if cache is still valid (5 minutes)
+				const now = Date.now();
+				const cacheAge = now - cached.timestamp;
+				const maxAge = 5 * 60 * 1000; // 5 minutes
+				
+				if (cacheAge < maxAge) {
+					console.log(`⚡ Using cached analysis for key: ${cacheKey}`);
+					return cached.data;
+				} else {
+					console.log(`🕒 Cache expired for key: ${cacheKey}`);
+					// Remove expired cache
+					setAnalysisCache(prev => {
+						const newCache = new Map(prev);
+						newCache.delete(cacheKey);
+						return newCache;
+					});
+				}
+			}
+			return null;
+		},
+		[analysisCache]
+	);
+
+	const setCachedAnalysis = React.useCallback(
+		(cacheKey: string, data: any) => {
+			console.log(`💾 Caching analysis for key: ${cacheKey}`);
+			setAnalysisCache(prev => {
+				const newCache = new Map(prev);
+				newCache.set(cacheKey, {
+					data,
+					timestamp: Date.now()
+				});
+				return newCache;
+			});
+		},
+		[]
+	);
+
+	// Load date-filtered analysis with smart caching (MAIN DASHBOARD ONLY)
+	const loadDateFilteredAnalysis = React.useCallback(async () => {
+		// Only apply date filtering to main dashboard
+		if (dashboardType !== "main") {
+			console.log(`📊 ${dashboardType} dashboard shows comprehensive analysis - date filter ignored`);
+			return;
+		}
+
+		if (!user?.client_id || !dateRange || (!dateRange.start && !dateRange.end)) {
+			// No date filter applied, use regular loadClientData
+			return;
+		}
+
+		const cacheKey = generateDateAwareCacheKey(`main_analysis`);
+		
+		// Check cache first
+		const cachedResult = getCachedAnalysis(cacheKey);
+		if (cachedResult) {
+			console.log(`⚡ Using cached date-filtered analysis for main dashboard`);
+							setSpecializedData(cachedResult);
+			setIsLoadingWithDateFilter(false);
+			return;
+		}
+
+		console.log(`🗓️ Loading date-filtered analysis for main dashboard:`, {
+			start: dateRange.start?.format('YYYY-MM-DD'),
+			end: dateRange.end?.format('YYYY-MM-DD')
+		});
+
+		setIsLoadingWithDateFilter(true);
+
+		try {
+			// Filter existing client data by date range
+			const filteredData = getFilteredData(clientData);
+			
+			if (filteredData.length === 0) {
+				console.log(`⚠️ No data found for date range`);
+				setSpecializedData(null);
+				setIsLoadingWithDateFilter(false);
+				return;
+			}
+
+			// Main dashboard uses metrics endpoint with date parameters
+			const params = new URLSearchParams();
+			params.append('fast_mode', 'true');
+			if (dateRange.start) {
+				params.append('start_date', dateRange.start.format('YYYY-MM-DD'));
+			}
+			if (dateRange.end) {
+				params.append('end_date', dateRange.end.format('YYYY-MM-DD'));
+			}
+			
+			const endpointWithParams = `/dashboard/metrics?${params.toString()}`;
+			
+			console.log(`🔗 Calling date-filtered main dashboard: ${endpointWithParams}`);
+			const response = await api.get(endpointWithParams);
+
+			if (response.data && response.data.llm_analysis) {
+				const analysisData = {
+					...response.data,
+					dateFiltered: true,
+					dateRange: {
+						start: dateRange.start?.format('YYYY-MM-DD'),
+						end: dateRange.end?.format('YYYY-MM-DD'),
+						label: dateRange.label
+					}
+				};
+
+				// Cache the result
+				setCachedAnalysis(cacheKey, analysisData);
+				setSpecializedData(analysisData);
+				
+				console.log(`✅ Date-filtered main dashboard analysis loaded and cached`);
+			} else {
+				console.error(`❌ Date-filtered main dashboard analysis not available`);
+			}
+		} catch (error) {
+			console.error(`❌ Failed to load date-filtered analysis for main dashboard:`, error);
+		} finally {
+			setIsLoadingWithDateFilter(false);
+		}
+	}, [user?.client_id, dateRange, generateDateAwareCacheKey, getCachedAnalysis, setCachedAnalysis, getFilteredData, clientData]);
 
 	// Helper function to get AI-generated chart data
 	const getAIChartData = (chartName: string) => {
@@ -1773,9 +2013,51 @@ function TemplateDashboard({
 			<Typography component="h1" variant="h4" sx={{ mb: 1, fontWeight: 600 }}>
 				{config.title}
 			</Typography>
-			<Typography variant="body1" sx={{ mb: 3, color: "text.secondary" }}>
+			<Typography variant="body1" sx={{ mb: 1, color: "text.secondary" }}>
 				{config.subtitle}
 			</Typography>
+
+			{/* Date Range & Loading Indicators */}
+			{isLoadingWithDateFilter && dashboardType === 'main' && (
+				<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+					<Typography variant="caption" color="primary" sx={{ fontWeight: 500 }}>
+						🗓️ Analyzing operational data for selected date range...
+					</Typography>
+				</Box>
+			)}
+
+			{dateRange && (dateRange.start || dateRange.end) && (
+				<Box sx={{ mb: 3 }}>
+					{dashboardType === 'main' ? (
+						<Typography variant="caption" sx={{ 
+							color: "info.main", 
+							bgcolor: "info.light", 
+							px: 1.5, 
+							py: 0.5, 
+							borderRadius: 1,
+							fontWeight: 500
+						}}>
+							📅 Data Filtered: {dateRange.label}
+							{dateRange.start && dateRange.end && (
+								<span style={{ opacity: 0.8 }}>
+									{" "}({dateRange.start.format('MMM DD')} - {dateRange.end.format('MMM DD, YYYY')})
+								</span>
+							)}
+						</Typography>
+					) : (
+						<Typography variant="caption" sx={{ 
+							color: "grey.600", 
+							bgcolor: "grey.100", 
+							px: 1.5, 
+							py: 0.5, 
+							borderRadius: 1,
+							fontWeight: 500
+						}}>
+							📊 Comprehensive Analysis - Date filter not applicable for {dashboardType === 'business' ? 'strategic insights' : 'operational excellence'}
+						</Typography>
+					)}
+				</Box>
+			)}
 
 			{/* KPI Cards - Commented out for business and performance dashboards */}
 			{/* 
@@ -2005,15 +2287,15 @@ function TemplateDashboard({
 								});
 								
 								return (
-									<Grid key={chartKey} size={{ xs: 12, md: index === 0 ? 8 : 4 }}>
-										<Card sx={{ height: '100%' }}>
-											<CardHeader
-												title={chartData.title || chartKey}
-												subheader={`${chartData.type?.toUpperCase() || 'CHART'} • AI Analysis`}
-											/>
-											<CardContent>
-												<Box sx={{ height: 300, display: 'flex', flexDirection: 'column' }}>
-													{isValidChartData(chartData) ? (
+								<Grid key={chartKey} size={{ xs: 12, md: index === 0 ? 8 : 4 }}>
+									<Card sx={{ height: '100%' }}>
+										<CardHeader
+											title={chartData.title || chartKey}
+											subheader={`${chartData.type?.toUpperCase() || 'CHART'} • AI Analysis`}
+										/>
+										<CardContent>
+											<Box sx={{ height: 300, display: 'flex', flexDirection: 'column' }}>
+												{isValidChartData(chartData) ? (
 													<>
 														{/* Render Actual Chart Components */}
 														<Box sx={{ flex: 1, minHeight: 200 }}>
@@ -2110,7 +2392,7 @@ function TemplateDashboard({
 																	/>
 																</div>
 															)}
-
+															
 															{chartData.type === 'bar' && (
 																<div style={{ width: '100%', height: '200px' }}>
 																	<BarChart
@@ -2491,15 +2773,15 @@ function TemplateDashboard({
 						});
 						
 						return (
-							<Grid key={chartKey} size={{ xs: 12, md: index === 0 ? 8 : 4 }}>
-								<Card sx={{ height: '100%' }}>
-									<CardHeader
-										title={chartData.title || chartKey}
-										subheader={`${chartData.type?.toUpperCase() || 'CHART'} • Performance Analytics`}
-									/>
-									<CardContent>
-										<Box sx={{ height: 300, display: 'flex', flexDirection: 'column' }}>
-											{isValidChartData(chartData) ? (
+						<Grid key={chartKey} size={{ xs: 12, md: index === 0 ? 8 : 4 }}>
+							<Card sx={{ height: '100%' }}>
+								<CardHeader
+									title={chartData.title || chartKey}
+									subheader={`${chartData.type?.toUpperCase() || 'CHART'} • Performance Analytics`}
+								/>
+								<CardContent>
+									<Box sx={{ height: 300, display: 'flex', flexDirection: 'column' }}>
+										{isValidChartData(chartData) ? (
 											<>
 												{/* Render Actual Chart Components */}
 												<Box sx={{ flex: 1, minHeight: 200 }}>

@@ -1803,11 +1803,33 @@ async def get_dashboard_config(token: str = Depends(security)):
         logger.error(f"❌ Failed to get dashboard config: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get dashboard config: {str(e)}")
 
+# NOTE: Old cache function removed - now using time-based cache filtering
+
+def get_client_data_update_date(client_data: Dict[str, Any]) -> str:
+    """Extract or generate the data update timestamp for this client data"""
+    # Check for explicit data update timestamp
+    data_updated = (
+        client_data.get('data_updated_at') or 
+        client_data.get('last_updated') or 
+        client_data.get('retrieved_at') or
+        client_data.get('snapshot_date')
+    )
+    
+    if data_updated:
+        return str(data_updated)
+    
+    # Fallback: Use current timestamp (data is being updated now)
+    current_time = datetime.now().isoformat()
+    logger.info(f"📅 No explicit data update timestamp found, using current time: {current_time}")
+    return current_time
+
 @app.get("/api/dashboard/metrics")
 async def get_dashboard_metrics(
     token: str = Depends(security),
     fast_mode: bool = True,  # DEFAULT TO FAST MODE TO PREVENT TIMEOUTS
-    force_llm: bool = False  # Only use LLM if explicitly requested
+    force_llm: bool = False,  # Only use LLM if explicitly requested
+    start_date: Optional[str] = None,  # Date filtering support
+    end_date: Optional[str] = None     # Date filtering support
 ):
     """Get dashboard metrics - OPTIMIZED for speed, uses cache by default"""
     try:
@@ -1820,10 +1842,43 @@ async def get_dashboard_metrics(
         from dashboard_orchestrator import dashboard_orchestrator
         from llm_cache_manager import llm_cache_manager
         
-        # Get client data
+                # Get client data  
         client_data = await ai_analyzer.get_client_data_optimized(client_id)
         if not client_data:
             raise HTTPException(status_code=404, detail="No data found for this client")
+        
+        # 📅 NEW: Use time-based cache filtering when dates are provided
+        if start_date or end_date:
+            logger.info(f"📅 Checking time-based cache for date: {start_date or end_date}")
+            
+            # Use start_date, or end_date if start_date not provided, or both are the same
+            target_date = start_date or end_date
+            
+            # Get cached response for the specific date
+            cached_response = await llm_cache_manager.get_cached_response_by_date(
+                client_id, target_date, "metrics"
+            )
+            
+            if cached_response:
+                llm_response_data = cached_response.get("llm_response", {})
+                logger.info(f"📦 Found cached analysis for date {target_date} (created: {cached_response.get('created_at')}, {cached_response.get('days_difference', 0)} days difference)")
+                
+                # Return in the expected format
+                return {
+                    "client_id": client_id,
+                    "data_type": llm_response_data.get("data_type", "metrics"),
+                    "schema_type": llm_response_data.get("schema_type", "dashboard_analysis"),
+                    "total_records": llm_response_data.get("total_records", 0),
+                    "llm_analysis": llm_response_data.get("llm_analysis", {}),
+                    "cached": True,
+                    "fast_mode": fast_mode,
+                    "cached_date": cached_response.get("created_at"),
+                    "target_date": target_date,
+                    "days_difference": cached_response.get("days_difference", 0)
+                }
+            else:
+                logger.info(f"📭 No cached analysis found for date {target_date}")
+                # Continue to generate new analysis
         
         # Clear cache if forced fresh analysis is requested
         if force_llm:
@@ -1856,9 +1911,10 @@ async def get_dashboard_metrics(
             insights = await dashboard_orchestrator._extract_main_dashboard_insights(client_data)
             logger.info(f"✅ Main dashboard LLM analysis successful for client {client_id}")
             
-            # 💾 CRITICAL: Store in cache for future requests
+            # 💾 CRITICAL: Store in cache for future requests with data snapshot date
+            data_snapshot_date = get_client_data_update_date(client_data)
             cache_success = await llm_cache_manager.store_cached_llm_response(
-                client_id, client_data, insights, "metrics"
+                client_id, client_data, insights, "metrics", data_snapshot_date
             )
             if cache_success:
                 logger.info(f"💾 Cached MAIN dashboard response for client {client_id}")
@@ -1941,9 +1997,10 @@ async def get_business_insights_dashboard(
             insights = await dashboard_orchestrator._extract_business_insights_specialized(client_data)
             logger.info(f"✅ Business insights LLM analysis successful for client {client_id}")
             
-            # 💾 CRITICAL: Store in cache for future requests
+            # 💾 CRITICAL: Store in cache for future requests with data snapshot date
+            data_snapshot_date = get_client_data_update_date(client_data)
             cache_success = await llm_cache_manager.store_cached_llm_response(
-                client_id, client_data, insights, "business"
+                client_id, client_data, insights, "business", data_snapshot_date
             )
             if cache_success:
                 logger.info(f"💾 Cached BUSINESS insights response for client {client_id}")
@@ -2023,9 +2080,10 @@ async def get_performance_dashboard(
             insights = await dashboard_orchestrator._extract_performance_insights_specialized(client_data)
             logger.info(f"✅ Performance insights LLM analysis successful for client {client_id}")
             
-            # 💾 CRITICAL: Store in cache for future requests
+            # 💾 CRITICAL: Store in cache for future requests with data snapshot date
+            data_snapshot_date = get_client_data_update_date(client_data)
             cache_success = await llm_cache_manager.store_cached_llm_response(
-                client_id, client_data, insights, "performance"
+                client_id, client_data, insights, "performance", data_snapshot_date
             )
             if cache_success:
                 logger.info(f"💾 Cached PERFORMANCE insights response for client {client_id}")
@@ -4325,6 +4383,63 @@ async def cleanup_expired_cache(max_age_days: int = 7, token: str = Depends(secu
             "error": f"Failed to cleanup expired cache: {str(e)}"
         }
 
+@app.post("/api/cache/intelligent-cleanup/{client_id}")
+async def intelligent_cache_cleanup(client_id: str, preserve_policy: str = "balanced", token: str = Depends(security)):
+    """Perform intelligent cache cleanup that preserves important historical data"""
+    try:
+        from llm_cache_manager import llm_cache_manager
+        
+        if preserve_policy not in ["aggressive", "balanced", "conservative"]:
+            return {
+                "success": False,
+                "error": "Invalid preserve_policy. Must be 'aggressive', 'balanced', or 'conservative'"
+            }
+        
+        stats = await llm_cache_manager.intelligent_cache_cleanup(client_id, preserve_policy)
+        
+        return {
+            "success": True,
+            "client_id": client_id,
+            "preserve_policy": preserve_policy,
+            "cleanup_stats": stats,
+            "message": f"Intelligent cleanup completed: {stats['deleted_count']} deleted, {stats['preserved_count']} preserved"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to perform intelligent cache cleanup for client {client_id}: {e}")
+        return {
+            "success": False,
+            "error": f"Failed to perform intelligent cache cleanup: {str(e)}"
+        }
+
+@app.post("/api/cache/auto-cleanup-all")
+async def auto_cleanup_all_clients(preserve_policy: str = "balanced", token: str = Depends(security)):
+    """Perform intelligent cleanup for all clients with cache entries"""
+    try:
+        from llm_cache_manager import llm_cache_manager
+        
+        if preserve_policy not in ["aggressive", "balanced", "conservative"]:
+            return {
+                "success": False,
+                "error": "Invalid preserve_policy. Must be 'aggressive', 'balanced', or 'conservative'"
+            }
+        
+        stats = await llm_cache_manager.auto_cleanup_all_clients(preserve_policy)
+        
+        return {
+            "success": True,
+            "preserve_policy": preserve_policy,
+            "overall_stats": stats,
+            "message": f"Auto-cleanup completed for {stats.get('clients_processed', 0)} clients"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to perform auto cleanup for all clients: {e}")
+        return {
+            "success": False,
+            "error": f"Failed to perform auto cleanup: {str(e)}"
+        }
+
 @app.get("/api/cache/debug/{client_id}")
 async def debug_client_cache(client_id: str, token: str = Depends(security)):
     """Debug cache for a specific client"""
@@ -4621,6 +4736,96 @@ async def get_template_ecosystem(client_id: str, token: str = Depends(security))
     except Exception as e:
         logger.error(f"❌ Failed to retrieve template ecosystem: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve template ecosystem: {str(e)}")
+
+# ============================================================================
+# TIME-BASED CACHE FILTERING ENDPOINTS
+# ============================================================================
+
+@app.get("/api/cache/available-dates/{client_id}")
+async def get_available_cache_dates(client_id: str, dashboard_type: str = None, token: str = Depends(security)):
+    """Get available cache dates for calendar display"""
+    try:
+        from llm_cache_manager import llm_cache_manager
+        
+        dates = await llm_cache_manager.get_available_cache_dates(client_id, dashboard_type)
+        
+        return {
+            "success": True,
+            "client_id": client_id,
+            "dashboard_type": dashboard_type,
+            "available_dates": dates,
+            "total_dates": len(dates)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get available cache dates: {e}")
+        return {
+            "success": False,
+            "error": f"Failed to get available cache dates: {str(e)}"
+        }
+
+@app.get("/api/cache/by-date/{client_id}")
+async def get_cache_by_date(client_id: str, date: str, dashboard_type: str = None, token: str = Depends(security)):
+    """Get cached response for a specific date"""
+    try:
+        from llm_cache_manager import llm_cache_manager
+        
+        cached_response = await llm_cache_manager.get_cached_response_by_date(client_id, date, dashboard_type)
+        
+        if cached_response:
+            return {
+                "success": True,
+                "client_id": client_id,
+                "target_date": date,
+                "dashboard_type": dashboard_type,
+                "cached_date": cached_response.get("created_at"),
+                "days_difference": cached_response.get("days_difference"),
+                "data": cached_response.get("llm_response"),
+                "metadata": {
+                    "id": cached_response.get("id"),
+                    "data_hash": cached_response.get("data_hash"),
+                    "total_records": cached_response.get("total_records")
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"No cached data found for date {date}",
+                "client_id": client_id,
+                "target_date": date
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get cache by date: {e}")
+        return {
+            "success": False,
+            "error": f"Failed to get cache by date: {str(e)}"
+        }
+
+@app.get("/api/cache/date-range/{client_id}")
+async def get_cache_by_date_range(client_id: str, start_date: str, end_date: str, dashboard_type: str = None, token: str = Depends(security)):
+    """Get cached responses within a date range"""
+    try:
+        from llm_cache_manager import llm_cache_manager
+        
+        cached_responses = await llm_cache_manager.get_cached_responses_by_date_range(client_id, start_date, end_date, dashboard_type)
+        
+        return {
+            "success": True,
+            "client_id": client_id,
+            "start_date": start_date,
+            "end_date": end_date,
+            "dashboard_type": dashboard_type,
+            "total_entries": len(cached_responses),
+            "entries": cached_responses
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get cache by date range: {e}")
+        return {
+            "success": False,
+            "error": f"Failed to get cache by date range: {str(e)}"
+        }
 
 # Helper functions for business intelligence endpoint
 async def _get_template_recommendations(dna_data: Dict[str, Any]) -> List[str]:

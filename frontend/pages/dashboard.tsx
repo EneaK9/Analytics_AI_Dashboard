@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import api from "../lib/axios";
 import { useAuth } from "../lib/useAuth";
 import Dashboard from "../components/dashboard/Dashboard";
+import { DateRange } from "../components/dashboard/components/CustomDatePicker";
 
 interface User {
 	client_id: string;
@@ -39,6 +40,15 @@ const DashboardPage: React.FC = () => {
 	});
 	const router = useRouter();
 	const { logout } = useAuth();
+
+	// Date range state for filtering
+	const [dateRange, setDateRange] = useState<DateRange | null>(null);
+
+	// Handle date range changes from calendar
+	const handleDateRangeChange = (newDateRange: DateRange) => {
+		console.log("📅 Date range changed:", newDateRange);
+		setDateRange(newDateRange);
+	};
 
 	// DEPRECATED: AI Data Integration Function - No longer used
 	// MainGrid.tsx now handles all data loading with intelligent caching
@@ -314,6 +324,8 @@ const DashboardPage: React.FC = () => {
 				user={user}
 				onRefreshAIData={undefined} // MainGrid handles data loading with cache
 				onLogout={handleLogout}
+				dateRange={dateRange}
+				onDateRangeChange={handleDateRangeChange}
 			/>
 
 			{/* Error Display */}

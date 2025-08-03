@@ -46,6 +46,8 @@ interface DashboardProps {
 	};
 	onRefreshAIData?: () => void;
 	onLogout?: () => void;
+	dateRange?: DateRange | null;
+	onDateRangeChange?: (dateRange: DateRange) => void;
 }
 
 export default function Dashboard({
@@ -54,16 +56,14 @@ export default function Dashboard({
 	user,
 	onRefreshAIData,
 	onLogout,
+	dateRange,
+	onDateRangeChange,
 }: DashboardProps) {
 	// State for sidebar section selection
 	const [selectedSection, setSelectedSection] = React.useState("home");
 	const [currentDashboardType, setCurrentDashboardType] =
 		React.useState<string>("main");
-	const [dateRange, setDateRange] = React.useState<DateRange>({
-		start: null,
-		end: null,
-		label: "Last 30 days",
-	});
+
 
 	// Handle dashboard type changes from the dropdown
 	const handleDashboardChange = React.useCallback(
@@ -80,20 +80,7 @@ export default function Dashboard({
 		[onRefreshAIData]
 	);
 
-	// Handle date range changes from the calendar
-	const handleDateRangeChange = React.useCallback(
-		(newDateRange: DateRange) => {
-			console.log(`📅 Date range changed to: ${newDateRange.label}`);
-			setDateRange(newDateRange);
 
-			// Optionally refresh data when date changes
-			if (onRefreshAIData) {
-				console.log("🔄 Refreshing data for new date range");
-				setTimeout(() => onRefreshAIData(), 500); // Small delay to avoid rapid requests
-			}
-		},
-		[onRefreshAIData]
-	);
 
 	return (
 		<AppTheme
@@ -134,7 +121,7 @@ export default function Dashboard({
 						{selectedSection === "data-tables" ? (
 							<>
 								<Box sx={{ width: "100%", mb: 2 }}>
-									<Header onDateRangeChange={handleDateRangeChange} />
+									<Header onDateRangeChange={onDateRangeChange} />
 								</Box>
 								<Box sx={{ width: "100%", height: "calc(100vh - 200px)" }}>
 									<ExcelDataView user={user} />
@@ -142,12 +129,12 @@ export default function Dashboard({
 							</>
 						) : (
 							<>
-								<Header onDateRangeChange={handleDateRangeChange} />
+								<Header onDateRangeChange={onDateRangeChange} />
 								<MainGrid
 									dashboardData={dashboardData}
 									user={user}
 									dashboardType={currentDashboardType}
-									dateRange={dateRange}
+									dateRange={dateRange || undefined}
 								/>
 							</>
 						)}
