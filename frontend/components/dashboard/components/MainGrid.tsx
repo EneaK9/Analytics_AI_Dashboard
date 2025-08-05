@@ -528,11 +528,19 @@ function OriginalMainGrid({
 	}
 
 	return (
-		<Box sx={{ width: "100%", maxWidth: { sm: "100%", md: "1700px" } }}>
+		<Box sx={{ 
+			width: "100%", 
+			maxWidth: { sm: "100%", md: "1700px" },
+			px: { xs: 1, sm: 2, md: 0 },
+			overflow: 'hidden'
+		}}>
 			{/* Date Filter Indicators for Main Dashboard */}
 			{isLoadingDateFilter && (
-				<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-					<Typography variant="caption" color="primary" sx={{ fontWeight: 500 }}>
+				<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: { xs: 1, md: 2 } }}>
+					<Typography variant="caption" color="primary" sx={{ 
+						fontWeight: 500,
+						fontSize: { xs: '0.7rem', sm: '0.75rem' }
+					}}>
 						🗓️ Loading data for selected date range...
 					</Typography>
 				</Box>
@@ -558,7 +566,7 @@ function OriginalMainGrid({
 				</Box>
 			)}
 
-			{/* Business Insights Section - Only if available */}
+			{/* Business Insights Section - COMMENTED OUT 
 			{llmAnalysis?.business_analysis && (
 				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
 					<Grid size={{ xs: 12 }}>
@@ -630,7 +638,7 @@ function OriginalMainGrid({
 																</Typography>
 															)
 														)}
-													</Box>
+													</div>
 												</CardContent>
 											</Card>
 										</Grid>
@@ -684,7 +692,7 @@ function OriginalMainGrid({
 																</Typography>
 															)
 														)}
-													</Box>
+													</div>
 												</CardContent>
 											</Card>
 										</Grid>
@@ -695,6 +703,7 @@ function OriginalMainGrid({
 					</Grid>
 				</Grid>
 			)}
+			*/}
 
 			{/* KPI Cards - Only render if kpis array exists and has items */}
 			{llmAnalysis?.kpis && llmAnalysis.kpis.length > 0 && (
@@ -752,11 +761,23 @@ function OriginalMainGrid({
 							});
 						}
 
+						// Adaptive chart sizing - No empty space!
+						const totalCharts = llmAnalysis.charts.filter((c: any) => 
+							c.data && Array.isArray(c.data) && c.data.length > 0
+						).length;
+						
+						const getChartSize = () => {
+							if (totalCharts === 1) return { xs: 12 };
+							if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each - fills full width
+							if (totalCharts === 3) return { xs: 12, sm: 6, md: 4 }; // 33% each
+							return { xs: 12, sm: 6, md: 3 }; // 25% each for 4+
+						};
+
 						// Render based on chart type
 						switch (chart.chart_type?.toLowerCase()) {
 							case "pie":
 								return (
-									<Grid key={index} size={{ xs: 12, md: 4 }}>
+									<Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
@@ -1096,7 +1117,7 @@ function OriginalMainGrid({
 
 							case "heatmap":
 								return (
-									<Grid key={index} size={{ xs: 12, md: 8 }}>
+									<Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
@@ -1118,7 +1139,7 @@ function OriginalMainGrid({
 
 							case "radial":
 								return (
-									<Grid key={index} size={{ xs: 12, md: 4 }}>
+									<Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
@@ -1155,7 +1176,7 @@ function OriginalMainGrid({
 
 							case "donut":
 								return (
-									<Grid key={index} size={{ xs: 12, md: 4 }}>
+									<Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
@@ -2008,12 +2029,27 @@ function TemplateDashboard({
 	}
 
 	return (
-		<Box sx={{ width: "100%", maxWidth: { sm: "100%", md: "1700px" } }}>
-			{/* Dashboard Header */}
-			<Typography component="h1" variant="h4" sx={{ mb: 1, fontWeight: 600 }}>
+		<Box sx={{ 
+			width: "100%", 
+			maxWidth: { sm: "100%", md: "1700px" },
+			px: { xs: 1, sm: 2, md: 0 },
+			overflow: 'hidden'
+		}}>
+			{/* Dashboard Header - Responsive */}
+			<Typography component="h1" variant="h4" sx={{ 
+				mb: { xs: 1, md: 2 }, 
+				fontWeight: 600,
+				fontSize: { xs: '1.5rem', sm: '2rem', md: '2.25rem' },
+				lineHeight: 1.2
+			}}>
 				{config.title}
 			</Typography>
-			<Typography variant="body1" sx={{ mb: 1, color: "text.secondary" }}>
+			<Typography variant="body1" sx={{ 
+				mb: { xs: 2, md: 3 }, 
+				color: "text.secondary",
+				fontSize: { xs: '0.9rem', sm: '1rem' },
+				lineHeight: 1.4
+			}}>
 				{config.subtitle}
 			</Typography>
 
@@ -2084,33 +2120,59 @@ function TemplateDashboard({
 			{/* LLM-Generated Business Intelligence Analysis */}
 			{(config as any).templateType === "business_intelligence" && (config as any)?.llm_analysis && (
 				<>
-					{/* Business Intelligence KPIs Grid */}
-					<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+					{/* Business Intelligence KPIs Grid - Optimized for Full Width */}
+					<Grid container spacing={{ xs: 1, sm: 2, md: 3 }} columns={12} sx={{ mb: { xs: 2, md: 4 } }}>
 						{(config as any).kpis && (config as any).kpis.map((kpi: any, index: number) => (
-							<Grid key={kpi.id || index} size={{ xs: 12, sm: 6, md: 4 }}>
+							<Grid key={kpi.id || index} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
 								<Card sx={{ 
 									height: '100%',
 									background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
 									color: 'white',
 									transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+									position: 'relative',
+									overflow: 'hidden',
 									'&:hover': {
 										transform: 'translateY(-4px)',
 										boxShadow: '0 8px 25px rgba(0,0,0,0.15)'
+									},
+									'&::before': {
+										content: '""',
+										position: 'absolute',
+										top: 0,
+										left: 0,
+										right: 0,
+										bottom: 0,
+										background: 'rgba(0,0,0,0.1)',
+										zIndex: 0
 									}
 								}}>
-									<CardContent sx={{ p: 3 }}>
-										<Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
+									<CardContent sx={{ 
+										p: { xs: 1.5, sm: 2, md: 3 },
+										height: '100%',
+										display: 'flex',
+										flexDirection: 'column',
+										justifyContent: 'space-between',
+										position: 'relative',
+										zIndex: 1
+									}}>
+										<Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: { xs: 1, md: 2 } }}>
 											<Box sx={{ 
-												width: 48, 
-												height: 48, 
+												width: { xs: 40, sm: 48 }, 
+												height: { xs: 40, sm: 48 }, 
 												borderRadius: 2, 
-												bgcolor: 'rgba(255,255,255,0.2)', 
+												bgcolor: 'rgba(255,255,255,0.25)', 
 												display: 'flex', 
 												alignItems: 'center', 
 												justifyContent: 'center',
-												backdropFilter: 'blur(10px)'
+												backdropFilter: 'blur(10px)',
+												border: '1px solid rgba(255,255,255,0.1)'
 											}}>
-												<Typography variant="h6" color="white" sx={{ fontWeight: 'bold' }}>
+												<Typography variant="h6" sx={{ 
+													fontWeight: 'bold',
+													fontSize: { xs: '1rem', sm: '1.25rem' },
+													color: 'white',
+													textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+												}}>
 													{kpi.category === 'revenue' ? '💰' : 
 													 kpi.category === 'customer' ? '👥' : 
 													 kpi.category === 'growth' ? '📈' : 
@@ -2122,31 +2184,41 @@ function TemplateDashboard({
 												<Box sx={{ 
 													display: 'flex', 
 													alignItems: 'center',
-													px: 1,
+													px: { xs: 0.5, sm: 1 },
 													py: 0.5,
 													borderRadius: 1,
 													bgcolor: kpi.trend.direction === 'upward' ? 'rgba(76, 175, 80, 0.2)' : 
 															 kpi.trend.direction === 'downward' ? 'rgba(244, 67, 54, 0.2)' : 'rgba(158, 158, 158, 0.2)'
 												}}>
-													<Typography variant="caption" sx={{ fontWeight: 600 }}>
+													<Typography variant="caption" sx={{ 
+														fontWeight: 600,
+														fontSize: { xs: '0.7rem', sm: '0.75rem' }
+													}}>
 														{kpi.trend.direction === 'upward' ? '↗' : kpi.trend.direction === 'downward' ? '↘' : '→'}
 													</Typography>
 												</Box>
 											)}
 										</Box>
 										
-										<Box>
+										<Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
 											<Typography variant="h3" component="div" sx={{ 
 												fontWeight: 'bold', 
-												mb: 0.5,
-												fontSize: { xs: '1.75rem', sm: '2rem' }
+												mb: { xs: 0.5, md: 1 },
+												fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2rem', lg: '2.25rem' },
+												lineHeight: 1.2,
+												color: 'white',
+												textShadow: '0 1px 3px rgba(0,0,0,0.4)',
+												letterSpacing: '-0.02em'
 											}}>
 												{formatKPIValue(kpi.value, kpi.format)}
 											</Typography>
 											<Typography variant="body1" sx={{ 
-												opacity: 0.9,
+												opacity: 0.95,
 												fontWeight: 500,
-												mb: 1
+												fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
+												lineHeight: 1.3,
+												color: 'white',
+												textShadow: '0 1px 2px rgba(0,0,0,0.3)'
 											}}>
 												{kpi.display_name || kpi.title}
 											</Typography>
@@ -2157,16 +2229,24 @@ function TemplateDashboard({
 														fontWeight: 600,
 														display: 'flex',
 														alignItems: 'center',
-														gap: 0.5
+														gap: 0.5,
+														mt: 0.5
 													}}
 												>
 													<Box component="span" sx={{ 
-														color: kpi.trend.direction === 'upward' ? '#4caf50' : 
-															   kpi.trend.direction === 'downward' ? '#f44336' : '#9e9e9e'
+														color: kpi.trend.direction === 'upward' ? '#81c784' : 
+															   kpi.trend.direction === 'downward' ? '#e57373' : '#bdbdbd',
+														textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+														fontWeight: 'bold'
 													}}>
 														{kpi.trend.percentage > 0 ? '+' : ''}{kpi.trend.percentage}%
 													</Box>
-													<Box component="span" sx={{ opacity: 0.7, fontSize: '0.75rem' }}>
+													<Box component="span" sx={{ 
+														opacity: 0.8, 
+														fontSize: '0.75rem',
+														color: 'white',
+														textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+													}}>
 														{kpi.trend?.description || 'vs last period'}
 													</Box>
 												</Typography>
@@ -2265,9 +2345,18 @@ function TemplateDashboard({
 						</Grid>
 					</Grid>
 
-					{/* Business Intelligence Charts */}
+					{/* Business Intelligence Charts - Equal Spacing & Center Aligned */}
 					{(config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
-						<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+						<Grid 
+							container 
+							spacing={{ xs: 2, sm: 3, md: 4 }} 
+							columns={12} 
+							sx={{ 
+								mb: { xs: 2, md: 4 },
+								justifyContent: 'center',
+								alignItems: 'stretch'
+							}}
+						>
 							{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => {
 								console.log(`🔍 Rendering business chart ${chartKey}:`, {
 									chartKey,
@@ -2286,21 +2375,72 @@ function TemplateDashboard({
 									}
 								});
 								
+								// Equal spacing chart sizing - No empty space!
+								const totalCharts = Object.keys((config as any).charts).length;
+								const getChartSize = () => {
+									if (totalCharts === 1) return { xs: 12 };
+									if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each
+									if (totalCharts === 3) return { xs: 12, sm: 6, md: 4 }; // 33% each - EQUAL
+									if (totalCharts === 4) return { xs: 12, sm: 6, md: 3 }; // 25% each
+									return { xs: 12, sm: 6, lg: Math.floor(12/totalCharts) }; // Equal distribution
+								};
+								
 								return (
-								<Grid key={chartKey} size={{ xs: 12, md: index === 0 ? 8 : 4 }}>
-									<Card sx={{ height: '100%' }}>
+								<Grid key={chartKey} size={getChartSize()}>
+									<Card sx={{ 
+										height: { xs: 'auto', sm: '400px', md: '450px', lg: '480px' },
+										minHeight: { xs: '350px', sm: '380px' },
+										display: 'flex',
+										flexDirection: 'column'
+									}}>
 										<CardHeader
 											title={chartData.title || chartKey}
 											subheader={`${chartData.type?.toUpperCase() || 'CHART'} • AI Analysis`}
+											sx={{
+												pb: 1,
+												'& .MuiCardHeader-title': {
+													fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' },
+													fontWeight: 600,
+													lineHeight: 1.3
+												},
+												'& .MuiCardHeader-subheader': {
+													fontSize: { xs: '0.75rem', sm: '0.8rem' }
+												}
+											}}
 										/>
-										<CardContent>
-											<Box sx={{ height: 300, display: 'flex', flexDirection: 'column' }}>
+										<CardContent sx={{ 
+											pt: 0, 
+											pb: { xs: 1, sm: 2 },
+											px: { xs: 1, sm: 2, md: 3 },
+											flex: 1,
+											display: 'flex',
+											flexDirection: 'column'
+										}}>
+											<Box sx={{ 
+												flex: 1,
+												height: '100%', 
+												width: '100%',
+												display: 'flex', 
+												flexDirection: 'column',
+												justifyContent: 'center',
+												alignItems: 'center',
+												minHeight: { xs: '280px', sm: '320px', md: '360px' }
+											}}>
 												{isValidChartData(chartData) ? (
 													<>
-														{/* Render Actual Chart Components */}
-														<Box sx={{ flex: 1, minHeight: 200 }}>
+																												{/* Render Actual Chart Components - Responsive */}
+														<Box sx={{ 
+															flex: 1, 
+															minHeight: { xs: 180, sm: 220, md: 260 },
+															width: '100%',
+															position: 'relative'
+														}}>
 															{chartData.type === 'line' && (
-																<div style={{ width: '100%', height: '200px' }}>
+																<Box sx={{ 
+																	width: '100%', 
+																	height: '100%',
+																	minHeight: { xs: '180px', sm: '220px', md: '260px' }
+																}}>
 																	<LineChart
 																		series={[{
 																			data: chartData.data.map((val: any) => {
@@ -2314,18 +2454,30 @@ function TemplateDashboard({
 																			data: chartData.labels.map((label: any) => String(label || '')),
 																			scaleType: 'point'
 																		}]}
-																		height={200}
-																		margin={{ left: 50, right: 50, top: 20, bottom: 50 }}
-																																skipAnimation={true}
-														slotProps={{
-															noDataOverlay: { message: 'No data available' }
-														}}
-													/>
-												</div>
-											)}
-											
-											{chartData.type === 'pie' && (
-																<div style={{ width: '100%', height: '200px', display: 'flex', justifyContent: 'center' }}>
+																		height={260}
+																		margin={{ 
+																			left: 40, 
+																			right: 20, 
+																			top: 20, 
+																			bottom: 40 
+																		}}
+																		skipAnimation={true}
+																		slotProps={{
+																			noDataOverlay: { message: 'No data available' }
+																		}}
+																	/>
+																</Box>
+															)}
+															
+															{chartData.type === 'pie' && (
+																<Box sx={{ 
+																	width: '100%', 
+																	height: '100%',
+																	minHeight: { xs: '180px', sm: '220px', md: '260px' },
+																	display: 'flex', 
+																	justifyContent: 'center',
+																	alignItems: 'center'
+																}}>
 																	<PieChart
 																		series={[{
 																			data: chartData.labels.map((label: string, i: number) => {
@@ -2335,17 +2487,17 @@ function TemplateDashboard({
 																					value: isNaN(value) ? 0 : value,
 																					label: String(label || `Item ${i + 1}`)
 																				};
-																														}).filter((item: any) => item.value > 0),
-											highlightScope: { fade: 'global', highlight: 'item' } as const,
-										}]}
-										height={200}
-										width={400}
-										skipAnimation={true}
-										slotProps={{
-											noDataOverlay: { message: 'No data available' }
-										}}
-									/>
-								</div>
+																			}).filter((item: any) => item.value > 0),
+																			highlightScope: { fade: 'global', highlight: 'item' } as const,
+																		}]}
+																		height={240}
+																		width={300}
+																		skipAnimation={true}
+																		slotProps={{
+																			noDataOverlay: { message: 'No data available' }
+																		}}
+																	/>
+																</Box>
 															)}
 
 															{chartData.type === 'radial' && (
@@ -2570,33 +2722,59 @@ function TemplateDashboard({
 			{/* LLM-Generated Performance Hub Analysis */}
 			{config.templateType === "performance_hub" && (config as any)?.llm_analysis && (
 				<>
-					{/* Performance Hub KPIs Grid */}
-					<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+					{/* Performance Hub KPIs Grid - Optimized for Full Width */}
+					<Grid container spacing={{ xs: 1, sm: 2, md: 3 }} columns={12} sx={{ mb: { xs: 2, md: 4 } }}>
 						{(config as any).kpis && (config as any).kpis.map((kpi: any, index: number) => (
-							<Grid key={kpi.id || index} size={{ xs: 12, sm: 6, md: 4 }}>
+							<Grid key={kpi.id || index} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
 								<Card sx={{ 
 									height: '100%',
 									background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
 									color: 'white',
 									transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+									position: 'relative',
+									overflow: 'hidden',
 									'&:hover': {
 										transform: 'translateY(-4px)',
 										boxShadow: '0 8px 25px rgba(0,0,0,0.15)'
+									},
+									'&::before': {
+										content: '""',
+										position: 'absolute',
+										top: 0,
+										left: 0,
+										right: 0,
+										bottom: 0,
+										background: 'rgba(0,0,0,0.1)',
+										zIndex: 0
 									}
 								}}>
-									<CardContent sx={{ p: 3 }}>
-										<Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
+									<CardContent sx={{ 
+										p: { xs: 1.5, sm: 2, md: 3 },
+										height: '100%',
+										display: 'flex',
+										flexDirection: 'column',
+										justifyContent: 'space-between',
+										position: 'relative',
+										zIndex: 1
+									}}>
+										<Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: { xs: 1, md: 2 } }}>
 											<Box sx={{ 
-												width: 48, 
-												height: 48, 
+												width: { xs: 40, sm: 48 }, 
+												height: { xs: 40, sm: 48 }, 
 												borderRadius: 2, 
-												bgcolor: 'rgba(255,255,255,0.2)', 
+												bgcolor: 'rgba(255,255,255,0.25)', 
 												display: 'flex', 
 												alignItems: 'center', 
 												justifyContent: 'center',
-												backdropFilter: 'blur(10px)'
+												backdropFilter: 'blur(10px)',
+												border: '1px solid rgba(255,255,255,0.1)'
 											}}>
-												<Typography variant="h6" color="white" sx={{ fontWeight: 'bold' }}>
+												<Typography variant="h6" color="white" sx={{ 
+													fontWeight: 'bold',
+													fontSize: { xs: '1rem', sm: '1.25rem' },
+													color: 'white',
+													textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+												}}>
 													{kpi.category === 'efficiency' ? '⚡' : 
 													 kpi.category === 'reliability' ? '🛡️' : 
 													 kpi.category === 'quality' ? '⭐' : 
@@ -2608,31 +2786,41 @@ function TemplateDashboard({
 												<Box sx={{ 
 													display: 'flex', 
 													alignItems: 'center',
-													px: 1,
+													px: { xs: 0.5, sm: 1 },
 													py: 0.5,
 													borderRadius: 1,
 													bgcolor: kpi.trend.direction === 'upward' ? 'rgba(76, 175, 80, 0.2)' : 
 															 kpi.trend.direction === 'downward' ? 'rgba(244, 67, 54, 0.2)' : 'rgba(158, 158, 158, 0.2)'
 												}}>
-													<Typography variant="caption" sx={{ fontWeight: 600 }}>
+													<Typography variant="caption" sx={{ 
+														fontWeight: 600,
+														fontSize: { xs: '0.7rem', sm: '0.75rem' }
+													}}>
 														{kpi.trend.direction === 'upward' ? '↗' : kpi.trend.direction === 'downward' ? '↘' : '→'}
 													</Typography>
 												</Box>
 											)}
 										</Box>
 										
-										<Box>
+										<Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
 											<Typography variant="h3" component="div" sx={{ 
 												fontWeight: 'bold', 
-												mb: 0.5,
-												fontSize: { xs: '1.75rem', sm: '2rem' }
+												mb: { xs: 0.5, md: 1 },
+												fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2rem', lg: '2.25rem' },
+												lineHeight: 1.2,
+												color: 'white',
+												textShadow: '0 1px 3px rgba(0,0,0,0.4)',
+												letterSpacing: '-0.02em'
 											}}>
 												{formatKPIValue(kpi.value, kpi.format)}
 											</Typography>
 											<Typography variant="body1" sx={{ 
-												opacity: 0.9,
+												opacity: 0.95,
 												fontWeight: 500,
-												mb: 1
+												fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
+												lineHeight: 1.3,
+												color: 'white',
+												textShadow: '0 1px 2px rgba(0,0,0,0.3)'
 											}}>
 												{kpi.display_name || kpi.title}
 											</Typography>
@@ -2643,16 +2831,24 @@ function TemplateDashboard({
 														fontWeight: 600,
 														display: 'flex',
 														alignItems: 'center',
-														gap: 0.5
+														gap: 0.5,
+														mt: 0.5
 													}}
 												>
 													<Box component="span" sx={{ 
-														color: kpi.trend.direction === 'upward' ? '#4caf50' : 
-															   kpi.trend.direction === 'downward' ? '#f44336' : '#9e9e9e'
+														color: kpi.trend.direction === 'upward' ? '#81c784' : 
+															   kpi.trend.direction === 'downward' ? '#e57373' : '#bdbdbd',
+														textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+														fontWeight: 'bold'
 													}}>
 														{kpi.trend.percentage > 0 ? '+' : ''}{kpi.trend.percentage}%
 													</Box>
-													<Box component="span" sx={{ opacity: 0.7, fontSize: '0.75rem' }}>
+													<Box component="span" sx={{ 
+														opacity: 0.8, 
+														fontSize: '0.75rem',
+														color: 'white',
+														textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+													}}>
 														{kpi.trend?.description || 'vs last period'}
 													</Box>
 												</Typography>
@@ -2751,9 +2947,18 @@ function TemplateDashboard({
 						</Grid>
 					</Grid>
 
-					{/* Performance Hub Charts */}
+					{/* Performance Hub Charts - Equal Spacing & Center Aligned */}
 			{config.templateType === "performance_hub" && (config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+				<Grid 
+					container 
+					spacing={{ xs: 2, sm: 3, md: 4 }} 
+					columns={12} 
+					sx={{ 
+						mb: { xs: 2, md: 4 },
+						justifyContent: 'center',
+						alignItems: 'stretch'
+					}}
+				>
 					{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => {
 						console.log(`🔍 Rendering performance chart ${chartKey}:`, {
 							chartKey,
@@ -2772,15 +2977,40 @@ function TemplateDashboard({
 							}
 						});
 						
+						// Equal spacing chart sizing for Performance Dashboard
+						const totalCharts = Object.keys((config as any).charts).length;
+						const getChartSize = () => {
+							if (totalCharts === 1) return { xs: 12 };
+							if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each
+							if (totalCharts === 3) return { xs: 12, sm: 6, md: 4 }; // 33% each - EQUAL
+							if (totalCharts === 4) return { xs: 12, sm: 6, md: 3 }; // 25% each
+							return { xs: 12, sm: 6, lg: Math.floor(12/totalCharts) }; // Equal distribution
+						};
+						
 						return (
-						<Grid key={chartKey} size={{ xs: 12, md: index === 0 ? 8 : 4 }}>
-							<Card sx={{ height: '100%' }}>
+						<Grid key={chartKey} size={getChartSize()}>
+							<Card sx={{ 
+								height: { xs: 'auto', sm: '400px', md: '450px', lg: '480px' },
+								minHeight: { xs: '350px', sm: '380px' },
+								display: 'flex',
+								flexDirection: 'column'
+							}}>
 								<CardHeader
 									title={chartData.title || chartKey}
 									subheader={`${chartData.type?.toUpperCase() || 'CHART'} • Performance Analytics`}
 								/>
-								<CardContent>
-									<Box sx={{ height: 300, display: 'flex', flexDirection: 'column' }}>
+								<CardContent sx={{ 
+									flex: 1,
+									display: 'flex',
+									flexDirection: 'column',
+									p: { xs: 1, sm: 2, md: 3 }
+								}}>
+									<Box sx={{ 
+										flex: 1, 
+										display: 'flex', 
+										flexDirection: 'column',
+										minHeight: { xs: '250px', sm: '300px' }
+									}}>
 										{isValidChartData(chartData) ? (
 											<>
 												{/* Render Actual Chart Components */}
@@ -2985,7 +3215,7 @@ function TemplateDashboard({
 					{(config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
 						<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
 							{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => (
-								<Grid key={chartKey} size={{ xs: 12, md: index === 0 ? 8 : 4 }}>
+								<Grid key={chartKey} size={{ xs: 12, md: 6 }}>
 									<Card sx={{ height: '100%' }}>
 										<CardHeader
 											title={chartData.title || chartKey}
@@ -3262,18 +3492,48 @@ function TemplateDashboard({
 			{/* Default Charts for Main Template */}
 			{config.showCharts && config.templateType !== "business_intelligence" && config.templateType !== "performance_hub" && (
 				<>
-					{/* First Row - Unique Charts for Visual Analytics */}
-					<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-						<Grid size={{ xs: 12, md: 8 }}>
-							<Card>
+					{/* First Row - Unique Charts for Visual Analytics - Balanced Layout */}
+					<Grid 
+						container 
+						spacing={{ xs: 2, sm: 3, md: 5, lg: 6 }} 
+						columns={12} 
+						sx={{ 
+							mb: { xs: 2, md: 4 },
+							justifyContent: 'space-between',
+							alignItems: 'stretch',
+							px: { xs: 1, sm: 2, md: 3, lg: 4 } // Equal spacing from borders
+						}}
+					>
+						<Grid size={{ xs: 12, md: 5.5 }}>
+							<Card sx={{ 
+								height: '100%',
+								boxShadow: { xs: 2, md: 4 },
+								borderRadius: 2,
+								transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+								'&:hover': {
+									transform: 'translateY(-2px)',
+									boxShadow: 6
+								}
+							}}>
 								<CardHeader
 									title="Trading Volume Analysis"
 									subheader={`Stock trading patterns • ${clientData.length} transactions analyzed`}
 								/>
-								<CardContent>
-									<Box sx={{ height: 300 }}>
+								<CardContent sx={{ 
+									p: { xs: 2, sm: 3 },
+									height: 'calc(100% - 80px)',
+									display: 'flex',
+									flexDirection: 'column'
+								}}>
+									<Box sx={{ 
+										flex: 1, 
+										display: 'flex',
+										justifyContent: 'center',
+										alignItems: 'center',
+										minHeight: { xs: 280, sm: 320, md: 350 }
+									}}>
 										{clientData.length > 0 ? (
-											<div style={{ width: '100%', height: '250px' }}>
+											<div style={{ width: '100%', height: '100%', minHeight: '280px' }}>
 												<LineChart
 													xAxis={[
 														{
@@ -3435,21 +3695,36 @@ function TemplateDashboard({
 								</CardContent>
 							</Card>
 						</Grid>
-						<Grid size={{ xs: 12, md: 4 }}>
-							<Card>
+						<Grid size={{ xs: 12, md: 5.5 }}>
+							<Card sx={{ 
+								height: '100%',
+								boxShadow: { xs: 2, md: 4 },
+								borderRadius: 2,
+								transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+								'&:hover': {
+									transform: 'translateY(-2px)',
+									boxShadow: 6
+								}
+							}}>
 								<CardHeader
 									title="Portfolio Breakdown"
 									subheader="Investment distribution"
 								/>
-								<CardContent>
-									<Box
-										sx={{
-											height: 300,
-											display: "flex",
-											justifyContent: "center",
-										}}>
+								<CardContent sx={{ 
+									p: { xs: 2, sm: 3 },
+									height: 'calc(100% - 80px)',
+									display: 'flex',
+									flexDirection: 'column'
+								}}>
+									<Box sx={{ 
+										flex: 1, 
+										display: 'flex',
+										justifyContent: 'center',
+										alignItems: 'center',
+										minHeight: { xs: 280, sm: 320, md: 350 }
+									}}>
 										{clientData.length > 0 ? (
-											<div style={{ width: '100%', height: '250px' }}>
+											<div style={{ width: '100%', height: '100%', minHeight: '280px' }}>
 												<PieChart
 												series={[
 													{
@@ -3718,14 +3993,38 @@ function TemplateDashboard({
 				</>
 			)}
 
-			{/* Remove the Additional Components section from charts template */}
+			{/* Data Table Section - Responsive Full Width */}
 			{!config.showCharts && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-					<Grid size={{ xs: 12, lg: 8 }}>
-						<BusinessDataTable
-							clientData={clientData}
-							dataColumns={dataColumns}
-						/>
+				<Grid container spacing={{ xs: 1, sm: 2, md: 3 }} columns={12} sx={{ mb: { xs: 2, md: 4 } }}>
+					<Grid size={{ xs: 12 }}>
+						<Card sx={{ 
+							height: 'auto',
+							minHeight: { xs: '300px', sm: '400px' }
+						}}>
+							<CardHeader
+								title="Business Data Analysis"
+								subheader={`${clientData.length} records • Real-time data insights`}
+								sx={{
+									'& .MuiCardHeader-title': {
+										fontSize: { xs: '1.1rem', sm: '1.25rem', md: '1.5rem' },
+										fontWeight: 600
+									},
+									'& .MuiCardHeader-subheader': {
+										fontSize: { xs: '0.75rem', sm: '0.875rem' }
+									}
+								}}
+							/>
+							<CardContent sx={{ 
+								p: { xs: 1, sm: 2, md: 3 },
+								pt: 0,
+								overflow: 'auto'
+							}}>
+								<BusinessDataTable
+									clientData={clientData}
+									dataColumns={dataColumns}
+								/>
+							</CardContent>
+						</Card>
 					</Grid>
 				</Grid>
 			)}
