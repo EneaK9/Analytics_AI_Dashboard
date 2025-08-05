@@ -161,6 +161,122 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 	const [availableColumns, setAvailableColumns] = useState<string[]>([]);
 	const [isStructuredData, setIsStructuredData] = useState(false);
 
+	// Universal intelligent object flattening function
+	const flattenObject = (obj: any, prefix = '', maxDepth = 3, currentDepth = 0): Record<string, unknown> => {
+		const flattened: Record<string, unknown> = {};
+		
+		// Prevent infinite recursion
+		if (currentDepth >= maxDepth) {
+			return { [prefix || 'data']: '[Complex Data]' };
+		}
+		
+		if (obj === null || obj === undefined) {
+			return { [prefix || 'value']: '' };
+		}
+		
+		// Handle primitive types
+		if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
+			return { [prefix || 'value']: obj };
+		}
+		
+		// Handle arrays
+		if (Array.isArray(obj)) {
+			if (obj.length === 0) {
+				return { [prefix || 'array']: '' };
+			}
+			
+			// If array contains primitives, join them
+			if (obj.every(item => typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean')) {
+				return { [prefix || 'array']: obj.join(', ') };
+			}
+			
+			// Generic handling for arrays of objects - extract common properties from first item
+			if (obj.length > 0 && typeof obj[0] === 'object') {
+				const firstItem = obj[0];
+				const arraySize = obj.length;
+				
+				// Add array count
+				flattened[`${prefix ? prefix + '_' : ''}count`] = arraySize;
+				
+				// Extract properties from first item with smart naming
+				Object.entries(firstItem).forEach(([key, value]) => {
+					if (value !== null && value !== undefined && value !== '') {
+						// Use clean property names - for common arrays like variants, use direct names
+						let cleanKey;
+						if (prefix === 'variants') {
+							cleanKey = key; // Direct names like 'sku', 'price' for variants
+						} else {
+							cleanKey = prefix ? `${prefix}_${key}` : key;
+						}
+						flattened[cleanKey] = value;
+					}
+				});
+				
+				return flattened;
+			}
+			
+			// Fallback: flatten first few items with index
+			const maxItems = Math.min(obj.length, 3);
+			for (let i = 0; i < maxItems; i++) {
+				const arrayPrefix = prefix ? `${prefix}.${i}` : `item_${i}`;
+				const arrayFlattened = flattenObject(obj[i], arrayPrefix, maxDepth, currentDepth + 1);
+				Object.assign(flattened, arrayFlattened);
+			}
+			
+			return flattened;
+		}
+		
+		// Handle objects
+		if (typeof obj === 'object') {
+			const entries = Object.entries(obj);
+			
+			// If object is empty
+			if (entries.length === 0) {
+				return { [prefix || 'object']: '' };
+			}
+			
+			entries.forEach(([key, value]) => {
+				const newPrefix = prefix ? `${prefix}.${key}` : key;
+				
+				if (value === null || value === undefined) {
+					flattened[newPrefix] = '';
+				} else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+					flattened[newPrefix] = value;
+				} else if (Array.isArray(value)) {
+					if (value.length === 0) {
+						flattened[newPrefix] = '';
+					} else if (value.every(item => typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean')) {
+						flattened[newPrefix] = value.join(', ');
+					} else {
+						// Generic array handling - extract from first item
+						const arrayFlattened = flattenObject(value, key, maxDepth, currentDepth + 1);
+						Object.assign(flattened, arrayFlattened);
+					}
+				} else if (typeof value === 'object') {
+					// Recursively flatten nested objects
+					const nestedFlattened = flattenObject(value, newPrefix, maxDepth, currentDepth + 1);
+					Object.assign(flattened, nestedFlattened);
+				} else {
+					// Fallback for other types
+					try {
+						flattened[newPrefix] = JSON.stringify(value).substring(0, 100);
+					} catch (e) {
+						flattened[newPrefix] = '[Data Object]';
+					}
+				}
+			});
+			
+			return flattened;
+		}
+		
+		// Fallback for any other type
+		try {
+			return { [prefix || 'value']: JSON.stringify(obj).substring(0, 100) };
+		} catch (e) {
+			return { [prefix || 'value']: '[Data Object]' };
+		}
+	};
+
 	// Load client data
 	const loadData = async () => {
 		setLoading(true);
@@ -190,34 +306,44 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 					
 					// Fall back to legacy flattening for unstructured data
 					const flattenedData = response.rawData.map((record: any) => {
-						const flattened: Record<string, unknown> = {};
+						const flattened = flattenObject(record);
 						
-						Object.entries(record).forEach(([key, value]) => {
-							if (value === null || value === undefined) {
-								flattened[key] = '';
-							} else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-								flattened[key] = value;
-							} else {
-								try {
-									if (Array.isArray(value)) {
-										flattened[key] = value.join(', ');
-									} else {
-										const str = JSON.stringify(value);
-										flattened[key] = str.length < 100 ? str.replace(/[{}"]/g, '').replace(/,/g, ', ') : '[Complex Data]';
-									}
-								} catch (e) {
-									flattened[key] = '[Data Object]';
-								}
+						// Only convert truly empty values to "-", preserve zeros and false values
+						Object.keys(flattened).forEach(key => {
+							const value = flattened[key];
+							if (value === null || value === undefined || value === '') {
+								flattened[key] = '-';
+							} else if (typeof value === 'string' && value.trim() === '') {
+								flattened[key] = '-';
 							}
 						});
 						
 						return flattened;
 					});
 
-					setLegacyData(flattenedData);
-					const columns = Object.keys(flattenedData[0] || {});
-					setAvailableColumns(columns);
-					setSelectedColumns(columns.slice(0, 8));
+					// Filter out rows that are mostly empty
+					const meaningfulData = flattenedData.filter(row => {
+						const nonEmptyValues = Object.values(row).filter(value => 
+							value !== '-' && value !== '' && value !== null && value !== undefined
+						);
+						return nonEmptyValues.length >= 3; // Keep rows with at least 3 meaningful values
+					});
+
+					setLegacyData(meaningfulData);
+					const columns = Object.keys(meaningfulData[0] || {});
+				setAvailableColumns(columns);
+					
+					// Intelligent column selection - prioritize meaningful columns
+					const priorityColumns = [
+						'id', 'name', 'title', 'handle', 'status', 'vendor', 'platform', 'tags',
+						'sku', 'price', 'cost', 'quantity', 'email', 'phone', 'address',
+						'variants_count', 'product_type', 'category', 'description',
+						'created_at', 'updated_at', 'published_at'
+					];
+					const availableInData = priorityColumns.filter(col => columns.includes(col));
+					const otherColumns = columns.filter(col => !priorityColumns.includes(col));
+					const selectedCols = [...availableInData, ...otherColumns].slice(0, 10); // Show meaningful columns
+					setSelectedColumns(selectedCols);
 				}
 			} else {
 				console.log("⚠️ No data available");
@@ -238,6 +364,22 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 	useEffect(() => {
 		loadData();
 	}, [user?.client_id]);
+
+	// Process legacy data for filtering and search (moved here to fix hooks order)
+	const processedData = useMemo(() => {
+		if (!legacyData || legacyData.length === 0) return [];
+
+		let result = [...legacyData];
+		if (searchTerm && selectedColumns.length > 0) {
+			result = result.filter((row) =>
+				selectedColumns.some((col) => {
+					const value = row[col];
+					return value && value.toString().toLowerCase().includes(searchTerm.toLowerCase());
+				})
+			);
+		}
+		return result;
+	}, [legacyData, searchTerm, selectedColumns]);
 
 	// TabPanel component for structured data view
 	interface TabPanelProps {
@@ -594,7 +736,7 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 			} catch {
 				// Fall through to return as string
 			}
-		}
+			}
 
 		// Handle booleans
 		if (typeof value === "boolean") {
@@ -646,7 +788,7 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 
 	if (!isStructuredData && (!legacyData || legacyData.length === 0)) {
 		return (
-			<Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+			<Card sx={{ width: "100%", display: "flex", flexDirection: "column" }}>
 				<CardHeader
 					title="📊 Business Data Tables"
 					subheader={`Real business data for ${user?.company_name || "your company"}`}
@@ -689,26 +831,26 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 		);
 	}
 
-	// Structured Data View
+		// Structured Data View
 	if (isStructuredData && structuredData) {
-		return (
-			<Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-				<CardHeader
-					title={
-						<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-							<Typography variant="h5" component="h2">
+	return (
+			<Card sx={{ width: "100%", display: "flex", flexDirection: "column" }}>
+			<CardHeader
+				title={
+					<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+						<Typography variant="h5" component="h2">
 								📊 {structuredData.business_info.company_name} - Business Analytics
-							</Typography>
-							<Chip
+						</Typography>
+						<Chip
 								label={structuredData.business_info.industry}
-								color="primary"
-								size="small"
-							/>
-						</Box>
-					}
+							color="primary"
+							size="small"
+						/>
+					</Box>
+				}
 					subheader={`Comprehensive business data analysis • ${structuredData.business_info.data_period}`}
-					action={
-						<Box sx={{ display: "flex", gap: 1 }}>
+				action={
+					<Box sx={{ display: "flex", gap: 1 }}>
 							<Tooltip title="Upload New Data">
 								<IconButton 
 									component="label" 
@@ -724,14 +866,14 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 									/>
 								</IconButton>
 							</Tooltip>
-							<Tooltip title="Refresh Data">
+						<Tooltip title="Refresh Data">
 								<IconButton onClick={loadData} disabled={loading || uploading} size="small">
-									<RefreshIcon />
-								</IconButton>
-							</Tooltip>
-						</Box>
-					}
-				/>
+								<RefreshIcon />
+							</IconButton>
+						</Tooltip>
+					</Box>
+				}
+			/>
 
 				<Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
 					<Tabs value={currentTab} onChange={(_, newValue) => setCurrentTab(newValue)}>
@@ -768,34 +910,20 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 					{/* <TabPanel value={currentTab} index={5}>
 						{renderPerformanceMetrics(structuredData.performance_metrics)}
 					</TabPanel> */}
-				</Box>
+					</Box>
 			</Card>
 		);
 	}
 
 	// Legacy Data View (fallback for unstructured data)
-	const processedData = useMemo(() => {
-		if (!legacyData || legacyData.length === 0) return [];
-		
-		let result = [...legacyData];
-		if (searchTerm && selectedColumns.length > 0) {
-			result = result.filter((row) =>
-				selectedColumns.some((col) => {
-					const value = row[col];
-					return value && value.toString().toLowerCase().includes(searchTerm.toLowerCase());
-				})
-			);
-		}
-		return result;
-	}, [legacyData, searchTerm, selectedColumns]);
 
-	const paginatedData = processedData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+	const paginatedData = rowsPerPage === -1 ? processedData : processedData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
 	return (
-		<Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+		<Card sx={{ width: "100%", display: "flex", flexDirection: "column" }}>
 			<CardHeader
-				title="📊 Data Tables - Legacy View"
-				subheader="Unstructured data format"
+				title="📊 Data Tables"
+				subheader={`${legacyData.length} records • Interactive data viewer`}
 				action={
 					<Box sx={{ display: "flex", gap: 1 }}>
 						<Tooltip title="Upload CSV File">
@@ -817,31 +945,121 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 					</Box>
 				}
 			/>
-			<CardContent sx={{ flexGrow: 1, overflow: 'auto' }}>
-				<TableContainer>
-					<Table>
-						<TableHead>
-							<TableRow>
-								<TableCell>#</TableCell>
-								{selectedColumns.map((column) => (
-									<TableCell key={column}>{column}</TableCell>
-								))}
-							</TableRow>
-						</TableHead>
-						<TableBody>
-							{paginatedData.map((row, index) => (
-								<TableRow key={index}>
-									<TableCell>{page * rowsPerPage + index + 1}</TableCell>
-									{selectedColumns.map((column) => (
-										<TableCell key={column}>
-											{formatCellValue(row[column], column)}
-										</TableCell>
+			<CardContent sx={{ p: 2 }}>
+				{/* Search and Filter Controls */}
+				<Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+							<TextField
+								size="small"
+						placeholder="Search in data..."
+								value={searchTerm}
+								onChange={(e) => setSearchTerm(e.target.value)}
+								InputProps={{
+									startAdornment: (
+										<InputAdornment position="start">
+											<SearchIcon />
+										</InputAdornment>
+									),
+								}}
+						sx={{ minWidth: 200 }}
+					/>
+					<FormControl size="small" sx={{ minWidth: 200 }}>
+						<InputLabel>Columns to Show</InputLabel>
+								<Select
+									multiple
+									value={selectedColumns}
+							onChange={(e) => setSelectedColumns(e.target.value as string[])}
+							renderValue={(selected) => `${selected.length} columns selected`}
+						>
+									{availableColumns.map((column) => (
+										<MenuItem key={column} value={column}>
+												{column}
+										</MenuItem>
 									))}
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				</TableContainer>
+								</Select>
+							</FormControl>
+					<Chip
+						label={`${processedData.length} rows`}
+						color="primary"
+						variant="outlined"
+					/>
+					<Tooltip title="Export Filtered Data to CSV">
+						<IconButton 
+							onClick={exportToCSV} 
+							disabled={processedData.length === 0}
+							color="primary"
+						>
+							<DownloadIcon />
+						</IconButton>
+					</Tooltip>
+				</Box>
+
+				{/* Compact Table with immediate pagination */}
+				<Paper elevation={1} sx={{ overflow: 'hidden' }}>
+					<TableContainer sx={{ 
+						maxHeight: 'calc(100vh - 300px)',
+						minHeight: '400px',
+						overflowX: 'auto', 
+						overflowY: 'auto',
+						'&::-webkit-scrollbar': {
+							width: 8,
+							height: 8,
+						},
+						'&::-webkit-scrollbar-track': {
+							backgroundColor: 'rgba(0,0,0,0.1)',
+							borderRadius: 4,
+						},
+						'&::-webkit-scrollbar-thumb': {
+							backgroundColor: 'rgba(0,0,0,0.3)',
+							borderRadius: 4,
+							'&:hover': {
+								backgroundColor: 'rgba(0,0,0,0.5)',
+							},
+						},
+					}}>
+						<Table sx={{ minWidth: 800 }} stickyHeader>
+								<TableHead>
+									<TableRow>
+									<TableCell sx={{ fontWeight: 'bold' }}>#</TableCell>
+										{selectedColumns.map((column) => (
+										<TableCell key={column} sx={{ fontWeight: 'bold' }}>{column}</TableCell>
+										))}
+									</TableRow>
+								</TableHead>
+								<TableBody>
+									{paginatedData.map((row, index) => (
+									<TableRow key={index} hover>
+										<TableCell>{page * rowsPerPage + index + 1}</TableCell>
+											{selectedColumns.map((column) => (
+											<TableCell key={column}>
+													{formatCellValue(row[column], column)}
+												</TableCell>
+											))}
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						</TableContainer>
+
+						<TablePagination
+							component="div"
+							count={processedData.length}
+							page={page}
+							onPageChange={(_, newPage) => setPage(newPage)}
+							rowsPerPage={rowsPerPage}
+						onRowsPerPageChange={(event) => {
+							setRowsPerPage(parseInt(event.target.value, 10));
+								setPage(0);
+							}}
+						rowsPerPageOptions={[25, 50, 100, 250, 500, { label: 'All', value: -1 }]}
+							showFirstButton
+							showLastButton
+						sx={{ 
+							borderTop: 1, 
+							borderColor: 'divider', 
+							backgroundColor: 'grey.50' 
+						}}
+						/>
+				</Paper>
 			</CardContent>
 		</Card>
 	);
