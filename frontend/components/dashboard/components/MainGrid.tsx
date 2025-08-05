@@ -732,7 +732,14 @@ function OriginalMainGrid({
 
 			{/* Charts - Only render if charts array exists and has items */}
 			{llmAnalysis?.charts && llmAnalysis.charts.length > 0 && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+				<Grid 
+					container 
+					spacing={{ xs: 2, sm: 3, md: 3 }} 
+					sx={{ 
+						mb: { xs: 2, md: 4 },
+						alignItems: 'stretch'
+					}}
+				>
 					{llmAnalysis.charts.map((chart: any, index: number) => {
 						// Skip if no data or invalid chart type
 						if (
@@ -874,7 +881,7 @@ function OriginalMainGrid({
 
 							case "bar":
 								return (
-									<Grid key={index} size={{ xs: 12, md: 6 }}>
+									<Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
@@ -975,7 +982,7 @@ function OriginalMainGrid({
 
 							case "line":
 								return (
-									<Grid key={index} size={{ xs: 12, md: 6 }}>
+									<Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
@@ -1075,7 +1082,7 @@ function OriginalMainGrid({
 
 							case "radar":
 								return (
-									<Grid key={index} size={{ xs: 12, md: 6 }}>
+									<Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
@@ -1095,7 +1102,7 @@ function OriginalMainGrid({
 
 							case "scatter":
 								return (
-									<Grid key={index} size={{ xs: 12, md: 6 }}>
+									<Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
@@ -2345,12 +2352,11 @@ function TemplateDashboard({
 						</Grid>
 					</Grid>
 
-					{/* Business Intelligence Charts - Equal Spacing & Center Aligned */}
+					{/* Business Intelligence Charts - Optimized 50/50 Layout */}
 					{(config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
 						<Grid 
 							container 
-							spacing={{ xs: 2, sm: 3, md: 4 }} 
-							columns={12} 
+							spacing={{ xs: 2, sm: 3, md: 3 }} 
 							sx={{ 
 								mb: { xs: 2, md: 4 },
 								justifyContent: 'center',
@@ -3213,9 +3219,28 @@ function TemplateDashboard({
 				</Grid>
 			)}
 					{(config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
-						<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
-							{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => (
-								<Grid key={chartKey} size={{ xs: 12, md: 6 }}>
+						<Grid 
+							container 
+							spacing={{ xs: 2, sm: 3, md: 4 }} 
+							sx={{ 
+								mb: { xs: 2, md: 4 },
+								justifyContent: 'center',
+								alignItems: 'stretch',
+								px: { xs: 1, sm: 2, md: 3 }
+							}}
+						>
+							{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => {
+								const totalCharts = Object.keys((config as any).charts).length;
+								const getChartSize = () => {
+									if (totalCharts === 1) return { xs: 12 };
+									if (totalCharts === 2) return { xs: 12, md: 6 };
+									if (totalCharts === 3) return { xs: 12, sm: 6, md: 4 };
+									if (totalCharts === 4) return { xs: 12, sm: 6, md: 6, lg: 3 };
+									return { xs: 12, sm: 6, md: 4 };
+								};
+								
+								return (
+									<Grid key={chartKey} size={getChartSize()}>
 									<Card sx={{ height: '100%' }}>
 										<CardHeader
 											title={chartData.title || chartKey}
@@ -3396,7 +3421,8 @@ function TemplateDashboard({
 										</CardContent>
 									</Card>
 								</Grid>
-							))}
+								);
+							})}
 						</Grid>
 					)}
 
@@ -3492,19 +3518,17 @@ function TemplateDashboard({
 			{/* Default Charts for Main Template */}
 			{config.showCharts && config.templateType !== "business_intelligence" && config.templateType !== "performance_hub" && (
 				<>
-					{/* First Row - Unique Charts for Visual Analytics - Balanced Layout */}
+					{/* First Row - Trading Volume and Portfolio Charts */}
 					<Grid 
 						container 
-						spacing={{ xs: 2, sm: 3, md: 5, lg: 6 }} 
-						columns={12} 
+						spacing={{ xs: 2, sm: 3, md: 3 }} 
 						sx={{ 
 							mb: { xs: 2, md: 4 },
-							justifyContent: 'space-between',
-							alignItems: 'stretch',
-							px: { xs: 1, sm: 2, md: 3, lg: 4 } // Equal spacing from borders
+							justifyContent: 'center',
+							alignItems: 'stretch'
 						}}
 					>
-						<Grid size={{ xs: 12, md: 5.5 }}>
+						<Grid size={{ xs: 12, md: 6 }}>
 							<Card sx={{ 
 								height: '100%',
 								boxShadow: { xs: 2, md: 4 },
@@ -3695,7 +3719,7 @@ function TemplateDashboard({
 								</CardContent>
 							</Card>
 						</Grid>
-						<Grid size={{ xs: 12, md: 5.5 }}>
+						<Grid size={{ xs: 12, md: 6 }}>
 							<Card sx={{ 
 								height: '100%',
 								boxShadow: { xs: 2, md: 4 },
