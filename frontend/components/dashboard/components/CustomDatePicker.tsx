@@ -76,12 +76,15 @@ export default function CustomDatePicker({
 				slotProps={{
 					textField: {
 						size: "small",
+						style: {
+							height: "20px",
+						},
 						variant: "outlined",
 						InputProps: {
 							startAdornment: (
 								<CalendarTodayRoundedIcon 
 									fontSize="small" 
-									sx={{ mr: 1, color: "action.active" }} 
+									sx={{ mr: 1, color: "action.active", height: "20px"}} 
 								/>
 							),
 							readOnly: true, // Prevent manual typing
@@ -95,9 +98,57 @@ export default function CustomDatePicker({
 						sx: {
 							minWidth: "180px",
 							"& .MuiOutlinedInput-root": {
+								"& > fieldset": {
+									border: "none",
+								},
 								"&:hover": {
 									"& > fieldset": {
-										borderColor: "primary.main",
+										border: "none",
+									},
+								},
+								"&.Mui-focused": {
+									"& > fieldset": {
+										border: "none",
+									},
+								},
+							},
+							"& .MuiIconButton-root": {
+								border: "none",
+								outline: "none",
+								boxShadow: "none",
+								"&:hover": {
+									border: "none",
+									outline: "none",
+									boxShadow: "none",
+									backgroundColor: "transparent",
+								},
+								"&:focus": {
+									border: "none",
+									outline: "none",
+									boxShadow: "none",
+								},
+								"&.Mui-focusVisible": {
+									border: "none",
+									outline: "none",
+									boxShadow: "none",
+								},
+							},
+						},
+					},
+					popper: {
+						sx: {
+							"& .MuiPickersCalendarHeader-root": {
+								paddingLeft: 2,
+								paddingRight: 2,
+								justifyContent: "space-between",
+								"& .MuiPickersArrowSwitcher-root": {
+									gap: 1,
+									"& .MuiIconButton-root": {
+										margin: "0 4px",
+										padding: "8px",
+										border: "none",
+										outline: "none",
+										boxShadow: "none",
 									},
 								},
 							},

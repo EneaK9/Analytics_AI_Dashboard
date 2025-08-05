@@ -497,7 +497,7 @@ function OriginalMainGrid({
 				<Typography component="h2" variant="h6" sx={{ mb: 2 }}>
 					Loading Analytics Dashboard...
 				</Typography>
-				<Grid container spacing={2} columns={12}>
+				<Grid container spacing={2} >
 					{Array.from({ length: 4 }).map((_, index) => (
 						<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
 							<Card sx={{ height: 150, bgcolor: "grey.100" }}>
@@ -531,7 +531,7 @@ function OriginalMainGrid({
 		<Box sx={{ 
 			width: "100%", 
 			maxWidth: { sm: "100%", md: "1700px" },
-			px: { xs: 1, sm: 2, md: 0 },
+			px: 0,
 			overflow: 'hidden'
 		}}>
 			{/* Date Filter Indicators for Main Dashboard */}
@@ -568,7 +568,7 @@ function OriginalMainGrid({
 
 			{/* Business Insights Section - COMMENTED OUT 
 			{llmAnalysis?.business_analysis && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+				<Grid container spacing={2}  sx={{ mb: 3 }}>
 					<Grid size={{ xs: 12 }}>
 						<Card
 							sx={{
@@ -707,7 +707,7 @@ function OriginalMainGrid({
 
 			{/* KPI Cards - Only render if kpis array exists and has items */}
 			{llmAnalysis?.kpis && llmAnalysis.kpis.length > 0 && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+				<Grid container spacing={2}  sx={{ mb: 3 }}>
 					{llmAnalysis.kpis.map((kpi: any, index: number) => {
 						const trendDisplay = getTrendDisplay(kpi.trend);
 
@@ -1212,7 +1212,7 @@ function OriginalMainGrid({
 
 			{/* Tables - Only render if tables array exists and has items */}
 			{llmAnalysis?.tables && llmAnalysis.tables.length > 0 && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+				<Grid container spacing={2}  sx={{ mb: 3 }}>
 					{llmAnalysis.tables.map((table: any, index: number) => {
 						// Skip if no columns or data
 						if (
@@ -1299,7 +1299,7 @@ function OriginalMainGrid({
 				((!llmAnalysis.kpis || llmAnalysis.kpis.length === 0) &&
 					(!llmAnalysis.charts || llmAnalysis.charts.length === 0) &&
 					(!llmAnalysis.tables || llmAnalysis.tables.length === 0))) && (
-				<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+				<Grid container spacing={2}  sx={{ mb: 3 }}>
 					<Grid size={{ xs: 12 }}>
 						<Card
 							sx={{
@@ -2020,7 +2020,7 @@ function TemplateDashboard({
 				<Typography component="h2" variant="h6" sx={{ mb: 2 }}>
 					Loading {dashboardType} Dashboard...
 				</Typography>
-				<Grid container spacing={2} columns={12}>
+				<Grid container spacing={2} >
 					{Array.from({ length: 4 }).map((_, index) => (
 						<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
 							<Card sx={{ height: 150, bgcolor: "grey.100" }}>
@@ -2039,7 +2039,7 @@ function TemplateDashboard({
 		<Box sx={{ 
 			width: "100%", 
 			maxWidth: { sm: "100%", md: "1700px" },
-			px: { xs: 1, sm: 2, md: 0 },
+			px: 0,
 			overflow: 'hidden'
 		}}>
 			{/* Dashboard Header - Responsive */}
@@ -2104,7 +2104,7 @@ function TemplateDashboard({
 
 			{/* KPI Cards - Commented out for business and performance dashboards */}
 			{/* 
-			<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+			<Grid container spacing={2}  sx={{ mb: 3 }}>
 				{config.cards.map((card: any, index: number) => (
 					<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
 						<StatCard
@@ -2128,7 +2128,7 @@ function TemplateDashboard({
 			{(config as any).templateType === "business_intelligence" && (config as any)?.llm_analysis && (
 				<>
 					{/* Business Intelligence KPIs Grid - Optimized for Full Width */}
-					<Grid container spacing={{ xs: 1, sm: 2, md: 3 }} columns={12} sx={{ mb: { xs: 2, md: 4 } }}>
+					<Grid container spacing={{ xs: 1, sm: 2, md: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
 						{(config as any).kpis && (config as any).kpis.map((kpi: any, index: number) => (
 							<Grid key={kpi.id || index} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
 								<Card sx={{ 
@@ -2266,7 +2266,7 @@ function TemplateDashboard({
 					</Grid>
 
 					{/* Business Intelligence Insights Section */}
-					<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+					<Grid container sx={{ mb: 3 }}>
 						<Grid size={{ xs: 12 }}>
 							<Card sx={{ 
 								background: 'linear-gradient(135deg, #f8f9ff 0%, #e8f2ff 100%)',
@@ -2352,14 +2352,13 @@ function TemplateDashboard({
 						</Grid>
 					</Grid>
 
-					{/* Business Intelligence Charts - Optimized 50/50 Layout */}
+					{/* Business Intelligence Charts - Edge-to-Edge Layout */}
 					{(config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
 						<Grid 
 							container 
 							spacing={{ xs: 2, sm: 3, md: 3 }} 
 							sx={{ 
 								mb: { xs: 2, md: 4 },
-								justifyContent: 'center',
 								alignItems: 'stretch'
 							}}
 						>
@@ -2417,7 +2416,7 @@ function TemplateDashboard({
 										<CardContent sx={{ 
 											pt: 0, 
 											pb: { xs: 1, sm: 2 },
-											px: { xs: 1, sm: 2, md: 3 },
+											px: 0,
 											flex: 1,
 											display: 'flex',
 											flexDirection: 'column'
@@ -2638,7 +2637,7 @@ function TemplateDashboard({
 
 					{/* Business Intelligence Tables */}
 					{(config as any)?.tables && (config as any).tables.length > 0 && (
-						<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+						<Grid container spacing={2}  sx={{ mb: 3 }}>
 							{(config as any).tables.map((table: any, index: number) => (
 								<Grid key={index} size={{ xs: 12 }}>
 									<Card>
@@ -2729,7 +2728,7 @@ function TemplateDashboard({
 			{config.templateType === "performance_hub" && (config as any)?.llm_analysis && (
 				<>
 					{/* Performance Hub KPIs Grid - Optimized for Full Width */}
-					<Grid container spacing={{ xs: 1, sm: 2, md: 3 }} columns={12} sx={{ mb: { xs: 2, md: 4 } }}>
+					<Grid container spacing={{ xs: 1, sm: 2, md: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
 						{(config as any).kpis && (config as any).kpis.map((kpi: any, index: number) => (
 							<Grid key={kpi.id || index} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
 								<Card sx={{ 
@@ -2867,7 +2866,7 @@ function TemplateDashboard({
 					</Grid>
 
 					{/* Performance Hub Insights Section */}
-					<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+					<Grid container sx={{ mb: 3 }}>
 						<Grid size={{ xs: 12 }}>
 							<Card sx={{ 
 								background: 'linear-gradient(135deg, #fff8e1 0%, #ffe0b2 100%)',
@@ -2953,15 +2952,13 @@ function TemplateDashboard({
 						</Grid>
 					</Grid>
 
-					{/* Performance Hub Charts - Equal Spacing & Center Aligned */}
+					{/* Performance Hub Charts - Edge-to-Edge Layout */}
 			{config.templateType === "performance_hub" && (config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
 				<Grid 
 					container 
-					spacing={{ xs: 2, sm: 3, md: 4 }} 
-					columns={12} 
+					spacing={{ xs: 2, sm: 3, md: 3 }} 
 					sx={{ 
 						mb: { xs: 2, md: 4 },
-						justifyContent: 'center',
 						alignItems: 'stretch'
 					}}
 				>
@@ -3226,7 +3223,7 @@ function TemplateDashboard({
 								mb: { xs: 2, md: 4 },
 								justifyContent: 'center',
 								alignItems: 'stretch',
-								px: { xs: 1, sm: 2, md: 3 }
+								px: 0
 							}}
 						>
 							{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => {
@@ -3428,7 +3425,7 @@ function TemplateDashboard({
 
 					{/* Performance Hub Tables */}
 					{(config as any)?.tables && (config as any).tables.length > 0 && (
-						<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+						<Grid container spacing={2}  sx={{ mb: 3 }}>
 							{(config as any).tables.map((table: any, index: number) => (
 								<Grid key={index} size={{ xs: 12 }}>
 									<Card>
@@ -3845,7 +3842,7 @@ function TemplateDashboard({
 					</Grid>
 
 					{/* Second Row - More Unique Charts */}
-					<Grid container spacing={2} columns={12} sx={{ mb: 3 }}>
+					<Grid container spacing={2}  sx={{ mb: 3 }}>
 						<Grid size={{ xs: 12, md: 6 }}>
 							<Card>
 								<CardHeader
@@ -4019,7 +4016,7 @@ function TemplateDashboard({
 
 			{/* Data Table Section - Responsive Full Width */}
 			{!config.showCharts && (
-				<Grid container spacing={{ xs: 1, sm: 2, md: 3 }} columns={12} sx={{ mb: { xs: 2, md: 4 } }}>
+				<Grid container spacing={{ xs: 1, sm: 2, md: 3 }}  sx={{ mb: { xs: 2, md: 4 } }}>
 					<Grid size={{ xs: 12 }}>
 						<Card sx={{ 
 							height: 'auto',

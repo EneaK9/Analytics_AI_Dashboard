@@ -1,11 +1,13 @@
 import * as React from "react";
 import { styled } from "@mui/material/styles";
 import Avatar from "@mui/material/Avatar";
+import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import ListItemText from "@mui/material/ListItemText";
 import MuiSelect from "@mui/material/Select";
 import MuiMenuItem from "@mui/material/MenuItem";
 import { SelectChangeEvent } from "@mui/material/Select";
+import { SyntheticEvent } from "react";
 import BarChartIcon from "@mui/icons-material/BarChart";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
@@ -158,8 +160,8 @@ export default function SelectContent({
 		generateDashboardOptions();
 	}, [generateDashboardOptions]);
 
-	const handleChange = async (event: SelectChangeEvent) => {
-		const newDashboardId = event.target.value as string;
+	const handleChange = async (event: SelectChangeEvent<string>, child?: React.ReactNode) => {
+		const newDashboardId = event.target.value;
 		setSelectedDashboard(newDashboardId);
 
 		// Update active state
@@ -222,13 +224,46 @@ export default function SelectContent({
 						gap: 1,
 						width: "100%",
 						padding: 1,
+						minHeight: 64,
+						justifyContent: "space-between",
 					}}>
-					<Avatar sx={{ width: 36, height: 36, bgcolor: option.color }}>
-						{option.icon}
-					</Avatar>
-					<ListItemText primary={option.title} secondary={option.subtitle} />
+					<Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
+						<Avatar sx={{ width: 36, height: 36, bgcolor: option.color }}>
+							{option.icon}
+						</Avatar>
+						<ListItemText 
+							primary={option.title} 
+							secondary={option.subtitle}
+							sx={{
+								flex: 1,
+								'& .MuiListItemText-primary': {
+									whiteSpace: 'normal',
+									wordWrap: 'break-word',
+								},
+								'& .MuiListItemText-secondary': {
+									whiteSpace: 'normal',
+									wordWrap: 'break-word',
+								}
+							}}
+						/>
+					</Box>
 					{option.isActive && (
-						<Chip size="small" color="primary" label="Active" />
+						<Chip 
+							size="small" 
+							color="primary" 
+							label="Active"
+							sx={{ 
+								flexShrink: 0,
+								ml: 0.5,
+								fontSize: '0.6rem',
+								height: 20,
+								'& .MuiChip-label': {
+									fontSize: '0.6rem',
+									px: 0.5,
+									py: 0
+								}
+							}}
+						/>
 					)}
 				</MenuItem>
 			))}
