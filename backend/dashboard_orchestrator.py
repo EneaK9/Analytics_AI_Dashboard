@@ -4050,12 +4050,21 @@ class DashboardOrchestrator:
             return self._flatten_nested_data_for_llm(data_records)
 
     def _is_business_data_structure(self, record: Dict) -> bool:
-        """Check if record has complex business data structure"""
+        """Check if record has complex business data structure or is Shopify order/product data"""
         business_keys = [
             'business_info', 'sales_transactions', 'customer_data', 
             'product_inventory', 'monthly_summary', 'performance_metrics'
         ]
-        return any(key in record for key in business_keys)
+        
+        # Also check for Shopify order/product indicators
+        shopify_order_keys = ['order_id', 'customer_email', 'total_price', 'financial_status', 'order_number', 'subtotal_price']
+        shopify_product_keys = ['product_id', 'variants', 'handle', 'vendor', 'variants_count', 'images_count']
+        
+        has_business_structure = any(key in record for key in business_keys)
+        has_shopify_order = any(key in record for key in shopify_order_keys)
+        has_shopify_product = any(key in record for key in shopify_product_keys)
+        
+        return has_business_structure or has_shopify_order or has_shopify_product
 
     def _extract_entities_from_business_structure(self, record: Dict) -> List[Dict]:
         """Extract individual business entities from nested structure"""
@@ -4121,6 +4130,32 @@ class DashboardOrchestrator:
                 }
                 entities.append(entity)
         
+        # Handle Shopify order data
+        shopify_order_keys = ['order_id', 'customer_email', 'total_price', 'financial_status', 'order_number', 'subtotal_price']
+        if any(key in record for key in shopify_order_keys):
+            # This is a Shopify order record
+            logger.info(f"🛒 Found Shopify order record with keys: {list(record.keys())}")
+            entity = {
+                'entity_type': 'shopify_order',
+                **business_context,
+                **record,
+                'performance_metrics': performance_context
+            }
+            entities.append(entity)
+            
+        # Handle Shopify product data  
+        shopify_product_keys = ['product_id', 'variants', 'handle', 'vendor', 'variants_count', 'images_count']
+        if any(key in record for key in shopify_product_keys):
+            # This is a Shopify product record
+            logger.info(f"📦 Found Shopify product record with keys: {list(record.keys())}")
+            entity = {
+                'entity_type': 'shopify_product',
+                **business_context,
+                **record,
+                'performance_metrics': performance_context
+            }
+            entities.append(entity)
+        
         # If no entities found, create one combined record
         if not entities:
             entities.append({
@@ -4129,7 +4164,13 @@ class DashboardOrchestrator:
                 **performance_context
             })
         
-        logger.info(f"🔧 Extracted {len(entities)} entities from business structure")
+        # Count entity types for debugging
+        entity_counts = {}
+        for entity in entities:
+            entity_type = entity.get('entity_type', 'unknown')
+            entity_counts[entity_type] = entity_counts.get(entity_type, 0) + 1
+        
+        logger.info(f"🔧 Extracted {len(entities)} entities from business structure: {entity_counts}")
         return entities
 
     def _flatten_simple_record(self, record: Dict) -> Dict:
@@ -4606,10 +4647,13 @@ Return ONLY the JSON response, no additional text or explanations.
             logger.info(f"🔄 FORCING fresh LLM analysis for MAIN dashboard (improved prompts) - client {client_id}")
             
             flattened_data = self._extract_business_entities_for_llm(data_records)
-            # Send more data to LLM for better analysis (first 10 records)
-            sample_data = flattened_data[:10] if len(flattened_data) > 10 else flattened_data
-            logger.info(f"📊 Sending {len(sample_data)} sample records to LLM for MAIN dashboard analysis")
-            logger.info(f"📊 Sample data fields: {list(sample_data[0].keys()) if sample_data else 'No data'}")
+            
+            # Send ALL data to LLM for complete comprehensive analysis (no limits)
+            sample_data = flattened_data  # Use ALL records, no truncation
+            
+            logger.info(f"📊 Sending ALL {len(sample_data)} records to LLM for COMPLETE MAIN dashboard analysis")
+            logger.info(f"📊 Total records being analyzed: {len(flattened_data)}")
+            logger.info(f"📊 Data fields: {list(sample_data[0].keys()) if sample_data else 'No data'}")
             logger.info(f"📊 Sample record: {sample_data[0] if sample_data else 'No data'}")
             
             # Create main dashboard focused prompt
@@ -4623,20 +4667,30 @@ Focus on MAIN DASHBOARD metrics:
 - Critical metrics overview
 - General business insights
 - Overall data quality and characteristics
+- ORDER ANALYSIS: If orders/transactions data is present, analyze order patterns, volumes, revenue trends
+- SHOPIFY ORDER ANALYSIS: If Shopify order data exists (order_id, customer_email, total_price), analyze sales performance, customer orders, revenue
+- CUSTOMER INSIGHTS: Customer behavior, purchase patterns, segmentation if customer data exists
+- PRODUCT/SERVICE PERFORMANCE: Product/service sales, popularity, performance metrics
+- SHOPIFY PRODUCT ANALYSIS: If Shopify product data exists (product_id, variants, handle), analyze product catalog and inventory
 
-Sample Data: {json.dumps(sample_data)}
-Total Records: {len(data_records)}
+Complete Dataset: {json.dumps(sample_data)}
+Total Records: {len(data_records)} (ALL records included for analysis)
 Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 ANALYZE THE ACTUAL CLIENT DATA and generate REAL insights based on DATA PATTERNS you discover. 
 
 STEPS:
 1. EXAMINE the data fields and values to understand the business
-2. CALCULATE real metrics from the actual data 
-3. IDENTIFY genuine patterns and trends
+2. CALCULATE real metrics from the actual data (analyze ALL {len(sample_data)} records - complete dataset)
+3. IDENTIFY genuine patterns and trends across the complete dataset
 4. GENERATE meaningful KPIs based on what you find in the data
-5. CREATE charts that visualize actual data distributions and relationships
-6. BUILD tables from real data rows and columns
+5. ANALYZE orders/transactions if present: order volumes, revenue patterns, customer behavior
+6. ANALYZE Shopify orders if present: total sales, average order value, customer purchasing patterns, fulfillment status
+7. EXAMINE customer data if available: customer segments, purchase frequency, lifetime value
+8. REVIEW product/service data: performance metrics, popularity, sales trends
+9. ANALYZE Shopify products if present: product catalog, variants, inventory levels, vendor performance
+10. CREATE charts that visualize actual data distributions and relationships from all records
+11. BUILD tables from real data rows and columns showing representative samples
 
 Return JSON with this structure, using ONLY insights derived from the actual data:
 {{
@@ -4660,6 +4714,11 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
             "format": "[appropriate format]"
         }}
         // Generate 5+ KPIs based on actual data analysis
+        // Include order-related KPIs if orders/transactions data exists (e.g., total orders, average order value, revenue)
+        // Include Shopify order KPIs if Shopify order data exists (e.g., total sales, order count, average order value, fulfillment rate)
+        // Include customer KPIs if customer data exists (e.g., total customers, repeat customers, customer satisfaction)
+        // Include product/service KPIs if relevant data exists (e.g., top products, inventory levels, performance metrics)
+        // Include Shopify product KPIs if Shopify product data exists (e.g., product count, variant count, inventory status)
     ],
     "charts": [
         {{
@@ -4674,6 +4733,11 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
             }}
         }}
         // Generate 3+ charts that visualize actual data patterns
+        // Include order/sales charts if transaction data exists (e.g., sales over time, order volume trends)
+        // Include Shopify order charts if Shopify order data exists (e.g., sales by date, order value distribution, fulfillment status)
+        // Include customer charts if customer data exists (e.g., customer distribution, purchase patterns)  
+        // Include product/service charts if relevant data exists (e.g., product performance, category analysis)
+        // Include Shopify product charts if Shopify product data exists (e.g., product variants, vendor distribution, inventory levels)
     ],
     "tables": [
         {{
@@ -4685,18 +4749,29 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
             "config": {{"sortable": true, "filterable": true}}
         }}
         // Generate 2+ tables using actual data rows
+        // Include order/transaction tables if order data exists (e.g., recent orders, top orders by value)
+        // Include Shopify order tables if Shopify order data exists (e.g., recent orders, customer orders, high-value orders)
+        // Include customer tables if customer data exists (e.g., top customers, customer summary)
+        // Include product/service tables if relevant data exists (e.g., product performance, inventory status)
+        // Include Shopify product tables if Shopify product data exists (e.g., product catalog, variant details, vendor summary)
     ],
     "total_records": {len(data_records)}
 }}
 
 CRITICAL REQUIREMENTS:
 - NO dummy data or static examples
-- CALCULATE all metrics from the actual dataset
+- CALCULATE all metrics from the COMPLETE dataset (all {len(sample_data)} records - entire client dataset)
 - USE real field names and values from the client data
-- ANALYZE patterns in the actual data to generate insights
+- ANALYZE patterns in the actual data to generate insights across ALL records
 - DERIVE KPIs that make sense for this specific business based on available data
-- CREATE visualizations that show real data distributions
-- GENERATE tables with actual data rows (first 10-20 records)"""
+- FOCUS on ORDER ANALYSIS if order/transaction data is present
+- PRIORITIZE Shopify order analysis if Shopify order data exists (order_id, total_price, customer_email)
+- INCLUDE customer insights if customer data exists
+- ANALYZE product/service performance if relevant data exists
+- ANALYZE Shopify product catalog if Shopify product data exists (product_id, variants, handle)
+- CREATE visualizations that show real data distributions from the complete dataset
+- GENERATE tables with actual data rows (showing most relevant/recent records)
+- ENSURE comprehensive analysis covers all major data categories present"""
 
             llm_response = await self._get_llm_analysis(main_prompt)
             result = self._parse_llm_insights(llm_response, flattened_data)
