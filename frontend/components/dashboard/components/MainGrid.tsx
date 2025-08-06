@@ -965,7 +965,7 @@ function OriginalMainGrid({
 																},
 															},
 														]}
-														width={500}
+														
 														height={300}
 														margin={{
 															top: 20,
@@ -1065,7 +1065,7 @@ function OriginalMainGrid({
 																},
 															},
 														]}
-														width={500}
+														
 														height={300}
 														margin={{
 															top: 20,
@@ -1169,7 +1169,7 @@ function OriginalMainGrid({
 															outerRadius: 100,
 														}]}
 														height={280}
-														width={400}
+
 														skipAnimation={true}
 														slotProps={{
 															noDataOverlay: { message: 'No data available' }
@@ -2496,7 +2496,7 @@ function TemplateDashboard({
 																			highlightScope: { fade: 'global', highlight: 'item' } as const,
 																		}]}
 																		height={240}
-																		width={300}
+			
 																		skipAnimation={true}
 																		slotProps={{
 																			noDataOverlay: { message: 'No data available' }
@@ -2522,7 +2522,7 @@ function TemplateDashboard({
 																			outerRadius: 90,
 																		}]}
 																		height={200}
-																		width={400}
+			
 																		skipAnimation={true}
 																		slotProps={{
 																			noDataOverlay: { message: 'No data available' }
@@ -3102,7 +3102,6 @@ function TemplateDashboard({
 																	highlightScope: { fade: 'global', highlight: 'item' } as const,
 																}]}
 																height={200}
-																width={400}
 																skipAnimation={true}
 																slotProps={{
 																	noDataOverlay: { message: 'No data available' }
@@ -3128,7 +3127,6 @@ function TemplateDashboard({
 																	outerRadius: 80,
 																}]}
 																height={200}
-																width={400}
 																skipAnimation={true}
 																slotProps={{
 																	noDataOverlay: { message: 'No data available' }
@@ -3215,7 +3213,7 @@ function TemplateDashboard({
 					})}
 				</Grid>
 			)}
-					{(config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
+					{(config as any)?.charts && Object.keys((config as any).charts).length > 0 && config.templateType !== "performance_hub" && (
 						<Grid 
 							container 
 							spacing={{ xs: 2, sm: 3, md: 4 }} 
@@ -3289,7 +3287,6 @@ function TemplateDashboard({
 																			highlightScope: { fade: 'global', highlight: 'item' } as const,
 																		}]}
 																		height={200}
-																		width={400}
 																		skipAnimation={true}
 																		slotProps={{
 																			noDataOverlay: { message: 'No data available' }
@@ -3315,7 +3312,6 @@ function TemplateDashboard({
 																			outerRadius: 80,
 																		}]}
 																		height={200}
-																		width={400}
 																		skipAnimation={true}
 																		slotProps={{
 																			noDataOverlay: { message: 'No data available' }
@@ -3554,7 +3550,7 @@ function TemplateDashboard({
 										minHeight: { xs: 280, sm: 320, md: 350 }
 									}}>
 										{clientData.length > 0 ? (
-											<div style={{ width: '100%', height: '100%', minHeight: '280px' }}>
+																											<div style={{ width: '100%', height: '100%', minHeight: '280px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
 												<LineChart
 													xAxis={[
 														{
@@ -3692,7 +3688,7 @@ function TemplateDashboard({
 														color: "#dc004e",
 													},
 												]}
-												width={600}
+												
 												height={250}
 												skipAnimation={true}
 												slotProps={{
@@ -3745,7 +3741,7 @@ function TemplateDashboard({
 										minHeight: { xs: 280, sm: 320, md: 350 }
 									}}>
 										{clientData.length > 0 ? (
-											<div style={{ width: '100%', height: '100%', minHeight: '280px' }}>
+																											<div style={{ width: '100%', height: '100%', minHeight: '280px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
 												<PieChart
 												series={[
 													{
@@ -3820,7 +3816,7 @@ function TemplateDashboard({
 														},
 													},
 												]}
-												width={280}
+												
 												height={250}
 												skipAnimation={true}
 												slotProps={{
