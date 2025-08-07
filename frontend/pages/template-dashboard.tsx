@@ -20,6 +20,7 @@ interface TemplatePageState {
 export default function TemplateDashboardPage() {
 	const router = useRouter();
 	const { user } = useAuth();
+	const [isClient, setIsClient] = useState(false);
 	const [state, setState] = useState<TemplatePageState>({
 		step: "select",
 		selectedTemplate: null,
@@ -28,6 +29,11 @@ export default function TemplateDashboardPage() {
 		loading: true,
 		error: null,
 	});
+
+	// Ensure this only runs on client-side
+	useEffect(() => {
+		setIsClient(true);
+	}, []);
 
 	// Load client data on mount
 	useEffect(() => {
@@ -90,10 +96,25 @@ export default function TemplateDashboardPage() {
 		}));
 	};
 
-	// Redirect to login if not authenticated
-	if (!user) {
-		router.push("/login");
-		return null;
+	// Redirect to login if not authenticated (client-side only)
+	useEffect(() => {
+		if (isClient && !user) {
+			router.push("/login");
+		}
+	}, [isClient, user, router]);
+
+	// Don't render anything during SSR or if not authenticated
+	if (!isClient || !user) {
+		return (
+			<div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex items-center justify-center">
+				<div className="text-center">
+					<div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-6"></div>
+					<p className="text-xl font-semibold text-gray-900">
+						Loading...
+					</p>
+				</div>
+			</div>
+		);
 	}
 
 	if (state.loading) {
@@ -127,7 +148,7 @@ export default function TemplateDashboardPage() {
 							Try Again
 						</button>
 						<button
-							onClick={() => router.push("/dashboard")}
+							onClick={() => isClient && router.push("/dashboard")}
 							className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
 							Back to Dashboard
 						</button>
@@ -221,13 +242,13 @@ export default function TemplateDashboardPage() {
 					</div>
 					<div className="flex items-center gap-4">
 						<button
-							onClick={() => router.push("/dashboard")}
+							onClick={() => isClient && router.push("/dashboard")}
 							className="text-blue-600 hover:text-blue-700 transition-colors">
 							Back to Main Dashboard
 						</button>
 						<span>•</span>
 						<button
-							onClick={() => router.push("/charts-showcase")}
+							onClick={() => isClient && router.push("/charts-showcase")}
 							className="text-blue-600 hover:text-blue-700 transition-colors">
 							View All Charts
 						</button>
