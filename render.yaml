@@ -39,5 +39,5 @@ services:
       - key: NODE_VERSION
         value: 20.11.0
       - key: NEXT_PUBLIC_API_URL
-        value: https://tryliro.ai
+        value: https://analytics-ai-backend.onrender.com
     # Note: Render will automatically add https:// prefix to the service URL
