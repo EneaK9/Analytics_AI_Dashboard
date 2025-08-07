@@ -408,7 +408,7 @@ function OriginalMainGrid({
 				console.log("🔗 Loading main dashboard with rich LLM analysis");
 				
 				// Load rich LLM analysis for main dashboard (cached when possible)
-				let endpoint = "/dashboard/metrics?fast_mode=true";
+				const endpoint = "/dashboard/metrics?fast_mode=true";
 				console.log(`🔗 Calling LLM endpoint: ${endpoint}`);
 				const response = await api.get(endpoint);
 
