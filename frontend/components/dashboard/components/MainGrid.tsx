@@ -880,6 +880,7 @@ function OriginalMainGrid({
 								);
 
 							case "bar":
+							case "histogram":
 								return (
 									<Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
 										<Card>
@@ -1834,7 +1835,7 @@ function TemplateDashboard({
 							insights: chart.insights || `${chart.display_name} analysis from AI`,
 							config: chart.config
 						};
-					} else if (chart.chart_type === 'line' || chart.chart_type === 'bar') {
+					                    } else if (chart.chart_type === 'line' || chart.chart_type === 'bar' || chart.chart_type === 'histogram') {
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
@@ -1890,7 +1891,7 @@ function TemplateDashboard({
 							insights: chart.insights || `${chart.display_name} performance analysis from AI`,
 							config: chart.config
 						};
-					} else if (chart.chart_type === 'line' || chart.chart_type === 'bar' || chart.chart_type === 'radar') {
+					                    } else if (chart.chart_type === 'line' || chart.chart_type === 'bar' || chart.chart_type === 'radar' || chart.chart_type === 'histogram') {
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
@@ -2550,7 +2551,7 @@ function TemplateDashboard({
 																</div>
 															)}
 															
-															{chartData.type === 'bar' && (
+															{(chartData.type === 'bar' || chartData.type === 'histogram') && (
 																<div style={{ width: '100%', height: '200px' }}>
 																	<BarChart
 																		series={[{
@@ -3062,7 +3063,7 @@ function TemplateDashboard({
 														</div>
 													)}
 													
-													{chartData.type === 'bar' && (
+													{(chartData.type === 'bar' || chartData.type === 'histogram') && (
 														<div style={{ width: '100%', height: '200px' }}>
 															<BarChart
 																series={[{
@@ -3352,7 +3353,7 @@ function TemplateDashboard({
 																</div>
 															)}
 															
-															{chartData.type === 'bar' && (
+															{(chartData.type === 'bar' || chartData.type === 'histogram') && (
 																<div style={{ width: '100%', height: '200px' }}>
 																	<BarChart
 																		series={[{

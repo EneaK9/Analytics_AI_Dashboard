@@ -72,6 +72,7 @@ export default function DynamicDashboard({
 		const componentMap = {
 			// Primary Chart Components
 			BarChartOne: Charts.BarChartOne,
+			Histogram: Charts.BarChartOne, // Use BarChart for histograms
 			LineChartOne: Charts.LineChartOne,
 			PieChart: Charts.PieChart,
 			RadarChart: Charts.RadarChart,
