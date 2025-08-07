@@ -96,25 +96,63 @@ app = FastAPI(
 # Add CORS middleware
 # Get allowed origins from environment
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
+# Base origins that are always allowed
 allowed_origins = [
     "http://localhost:3000", 
     "http://localhost:3001",
     FRONTEND_URL
 ]
 
+# In production, be more permissive with deployment URLs
+if ENVIRONMENT == "production":
+    # Allow your actual deployment URLs
+    allowed_origins.extend([
+        "https://tryliora.ai",
+        "https://www.tryliora.ai",
+        "https://analytics-ai-frontend.onrender.com",  # Keep Render as backup
+        "https://*.onrender.com",  # Allow any Render subdomain
+        "https://*.tryliora.ai",  # Allow any tryliora.ai subdomain
+    ])
+    # For debugging in production, you can temporarily allow all origins
+    # Comment this out once CORS is working properly
+    logger.info(f"🌐 Production CORS: allowing origins {allowed_origins}")
+    logger.info(f"🌐 FRONTEND_URL environment variable: {FRONTEND_URL}")
+    logger.info(f"🌐 ENVIRONMENT: {ENVIRONMENT}")
+
 # Remove any None values and duplicates
 allowed_origins = list(set([origin for origin in allowed_origins if origin]))
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# In production, if still having issues, use allow_origin_regex for deployment domains
+if ENVIRONMENT == "production":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"https://.*\.(onrender\.com|tryliora\.ai)",  # Allow Render and tryliora.ai domains
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Security
 security = HTTPBearer()
+
+# Add a simple OPTIONS handler for debugging CORS
+@app.options("/api/{path:path}")
+async def options_handler(path: str):
+    """Handle OPTIONS requests for CORS debugging"""
+    logger.info(f"🔍 OPTIONS request for path: /api/{path}")
+    return {"message": "OK"}
 
 # JWT Configuration
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-this-in-production")
