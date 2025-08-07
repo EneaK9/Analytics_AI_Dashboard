@@ -4002,6 +4002,13 @@ class DashboardOrchestrator:
             )
 
             logger.info(f"📝 LLM prompt length: {len(llm_prompt)} characters")
+            
+            # Estimate tokens before sending to prevent API errors
+            estimated_tokens = self._estimate_token_count(llm_prompt)
+            logger.info(f"🔢 Estimated prompt tokens: {estimated_tokens} (limit: 128,000)")
+            
+            if estimated_tokens > 120000:
+                logger.warning(f"⚠️ Prompt may be too long ({estimated_tokens} tokens). Consider reducing sample size.")
 
             # Get LLM analysis
             llm_response = await self._get_llm_analysis(llm_prompt)
@@ -4048,6 +4055,35 @@ class DashboardOrchestrator:
             logger.error(f"❌ Business entity extraction failed: {e}")
             # Fallback to simple flattening
             return self._flatten_nested_data_for_llm(data_records)
+
+    def _unwrap_stored_data(self, record: Dict) -> Dict:
+        """
+        🔥 CRITICAL: Unwrap the new storage format with raw_data field
+        Our .bak files are now stored as: {"raw_data": "{json_string}", "record_type": "bak_extracted"}
+        """
+        try:
+            # Check if this is our wrapped format
+            if isinstance(record, dict) and 'raw_data' in record and 'record_type' in record:
+                raw_data_str = record['raw_data']
+                if isinstance(raw_data_str, str):
+                    # Parse the JSON string back to a dict
+                    parsed_data = json.loads(raw_data_str)
+                    logger.debug(f"✅ Unwrapped stored data: {len(str(parsed_data))} chars")
+                    return parsed_data
+                else:
+                    logger.warning(f"⚠️ raw_data is not a string: {type(raw_data_str)}")
+                    return record
+            else:
+                # Not our wrapped format, return as-is
+                return record
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Failed to parse raw_data JSON: {e}")
+            # Fallback to a clean empty record
+            return {"data_sample": "parse_failed", "original_raw_data_length": len(str(record))}
+        except Exception as e:
+            logger.error(f"❌ Failed to unwrap stored data: {e}")
+            return record
 
     def _is_business_data_structure(self, record: Dict) -> bool:
         """Check if record has complex business data structure"""
@@ -4151,6 +4187,271 @@ class DashboardOrchestrator:
         
         return flat_record
 
+    def _estimate_token_count(self, text: str) -> int:
+        """Ultra-conservative token count estimation for OpenAI models based on actual behavior"""
+        # ULTRA-CONSERVATIVE estimation: 1 token ≈ 1.5 characters + 20% safety margin
+        # Based on logs: estimated 184K → actual 215K (17% higher)
+        base_estimate = len(text) // 1.5
+        safety_margin = base_estimate * 0.25  # 25% safety margin
+        return int(base_estimate + safety_margin)
+    
+    def _calculate_optimal_chunk_size(self, data_records: List[Dict], max_tokens: int = 100000) -> int:
+        """Calculate BIG chunk size for processing ALL data - AGGRESSIVE CHUNKING"""
+        if not data_records:
+            return 0
+        
+        # Test with sample to estimate tokens per record
+        sample_size = min(10, len(data_records))
+        sample = data_records[:sample_size]
+        sample_json = json.dumps(sample)
+        estimated_tokens_per_sample = self._estimate_token_count(sample_json)
+        
+        if estimated_tokens_per_sample > 0 and sample_size > 0:
+            tokens_per_record = estimated_tokens_per_sample / sample_size
+            # ULTRA AGGRESSIVE: Use 90% of available tokens for data
+            available_tokens = int(max_tokens * 0.9)  # Use almost all tokens
+            optimal_chunk_size = max(500, int(available_tokens / tokens_per_record))  # Minimum 500 records per chunk
+            
+            # MASSIVE CHUNKS: Allow up to 2000 records per chunk for millions of data
+            if optimal_chunk_size > 2000:
+                optimal_chunk_size = 2000
+                logger.info(f"🔥 Using MASSIVE chunk size of 2000 records")
+            
+        else:
+            optimal_chunk_size = 1000  # Default to massive chunks
+        
+        logger.info(f"🔥 MASSIVE CHUNK MODE: {optimal_chunk_size} records per chunk (estimated {tokens_per_record:.1f} tokens per record)")
+        return optimal_chunk_size
+    
+    def _create_data_chunks(self, data_records: List[Dict], chunk_size: int) -> List[List[Dict]]:
+        """Split data into chunks for processing"""
+        chunks = []
+        for i in range(0, len(data_records), chunk_size):
+            chunk = data_records[i:i + chunk_size]
+            chunks.append(chunk)
+        
+        logger.info(f"🔥 Created {len(chunks)} MASSIVE chunks from {len(data_records)} records (chunk size: {chunk_size})")
+        return chunks
+    
+    async def _analyze_data_chunk(self, chunk: List[Dict], chunk_index: int, total_chunks: int, 
+                                data_type: str, prompt_template: str) -> Dict[str, Any]:
+        """Analyze a single chunk of data"""
+        try:
+            logger.info(f"🔥 Analyzing MASSIVE chunk {chunk_index + 1}/{total_chunks} ({len(chunk)} records)")
+            
+            # Create chunk-specific prompt
+            chunk_prompt = prompt_template.replace(
+                "Sample Data: {json.dumps(sample_data)}", 
+                f"Data Chunk {chunk_index + 1}/{total_chunks}: {json.dumps(chunk)}"
+            )
+            
+            # Add chunk context to prompt
+            chunk_context = f"\n\n🔢 CHUNK CONTEXT: This is chunk {chunk_index + 1} of {total_chunks} total chunks. Analyze this chunk thoroughly as part of the complete dataset."
+            chunk_prompt += chunk_context
+            
+            # Estimate tokens
+            estimated_tokens = self._estimate_token_count(chunk_prompt)
+            logger.info(f"🔢 Chunk {chunk_index + 1} estimated tokens: {estimated_tokens}")
+            
+            # If chunk exceeds limit, we'll try anyway or reduce if absolutely necessary
+            if estimated_tokens > 120000:
+                logger.warning(f"⚠️ Chunk {chunk_index + 1} estimated at {estimated_tokens} tokens - trying anyway")
+                # Only reduce if WAY over limit
+                if estimated_tokens > 200000:
+                    logger.warning(f"🔄 Chunk {chunk_index + 1} too large ({estimated_tokens} tokens) - reducing to 75%")
+                    reduced_size = int(len(chunk) * 0.75)
+                    chunk = chunk[:reduced_size]
+                    chunk_prompt = prompt_template.replace(
+                        "Sample Data: {json.dumps(sample_data)}", 
+                        f"Data Chunk {chunk_index + 1}/{total_chunks}: {json.dumps(chunk)}"
+                    ) + chunk_context
+            
+            # Get LLM analysis for this chunk
+            llm_response = await self._get_llm_analysis(chunk_prompt)
+            result = self._parse_llm_insights(llm_response, chunk)
+            
+            logger.info(f"✅ Chunk {chunk_index + 1}/{total_chunks} analysis complete")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Chunk {chunk_index + 1} analysis failed: {e}")
+            return {"error": f"Chunk {chunk_index + 1} failed: {str(e)}"}
+    
+    def _aggregate_chunk_results(self, chunk_results: List[Dict[str, Any]], total_records: int) -> Dict[str, Any]:
+        """Aggregate results from multiple chunks into a comprehensive analysis"""
+        try:
+            logger.info(f"🔄 Aggregating results from {len(chunk_results)} chunks")
+            
+            # Filter out error results
+            valid_results = [r for r in chunk_results if "error" not in r]
+            if not valid_results:
+                logger.error("❌ No valid chunk results to aggregate")
+                return {"error": "All chunks failed analysis"}
+            
+            # Initialize aggregated result structure
+            aggregated = {
+                "business_analysis": {},
+                "kpis": [],
+                "charts": [],
+                "tables": [],
+                "total_records": total_records,
+                "chunks_processed": len(valid_results),
+                "chunks_failed": len(chunk_results) - len(valid_results)
+            }
+            
+            # Aggregate business analysis (take from first valid result and enhance)
+            if valid_results and "business_analysis" in valid_results[0]:
+                aggregated["business_analysis"] = valid_results[0]["business_analysis"].copy()
+                
+                # Enhance with insights from all chunks
+                all_insights = []
+                all_recommendations = []
+                for result in valid_results:
+                    if "business_analysis" in result:
+                        ba = result["business_analysis"]
+                        if "business_insights" in ba:
+                            all_insights.extend(ba.get("business_insights", []))
+                        if "recommendations" in ba:
+                            all_recommendations.extend(ba.get("recommendations", []))
+                
+                # Remove duplicates and take best insights
+                unique_insights = list(dict.fromkeys(all_insights))[:10]  # Top 10 unique insights
+                unique_recommendations = list(dict.fromkeys(all_recommendations))[:8]  # Top 8 unique recommendations
+                
+                aggregated["business_analysis"]["business_insights"] = unique_insights
+                aggregated["business_analysis"]["recommendations"] = unique_recommendations
+                aggregated["business_analysis"]["analysis_method"] = "comprehensive_chunked_analysis"
+            
+            # Aggregate KPIs (combine and deduplicate)
+            all_kpis = []
+            for result in valid_results:
+                if "kpis" in result:
+                    all_kpis.extend(result["kpis"])
+            
+            # Deduplicate KPIs by technical_name and take best ones
+            seen_kpis = set()
+            unique_kpis = []
+            for kpi in all_kpis:
+                kpi_key = kpi.get("technical_name", kpi.get("id", ""))
+                if kpi_key not in seen_kpis:
+                    seen_kpis.add(kpi_key)
+                    unique_kpis.append(kpi)
+                if len(unique_kpis) >= 12:  # Limit to top 12 KPIs
+                    break
+            
+            aggregated["kpis"] = unique_kpis
+            
+            # Aggregate charts (combine and deduplicate)
+            all_charts = []
+            for result in valid_results:
+                if "charts" in result:
+                    all_charts.extend(result["charts"])
+            
+            # Deduplicate charts by technical_name
+            seen_charts = set()
+            unique_charts = []
+            for chart in all_charts:
+                chart_key = chart.get("technical_name", chart.get("id", ""))
+                if chart_key not in seen_charts:
+                    seen_charts.add(chart_key)
+                    unique_charts.append(chart)
+                if len(unique_charts) >= 10:  # Limit to top 10 charts
+                    break
+            
+            aggregated["charts"] = unique_charts
+            
+            # Aggregate tables (combine and deduplicate)
+            all_tables = []
+            for result in valid_results:
+                if "tables" in result:
+                    all_tables.extend(result["tables"])
+            
+            # Deduplicate tables by technical_name
+            seen_tables = set()
+            unique_tables = []
+            for table in all_tables:
+                table_key = table.get("technical_name", table.get("id", ""))
+                if table_key not in seen_tables:
+                    seen_tables.add(table_key)
+                    unique_tables.append(table)
+                if len(unique_tables) >= 8:  # Limit to top 8 tables
+                    break
+            
+            aggregated["tables"] = unique_tables
+            
+            logger.info(f"✅ Aggregation complete: {len(aggregated['kpis'])} KPIs, {len(aggregated['charts'])} charts, {len(aggregated['tables'])} tables")
+            return aggregated
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to aggregate chunk results: {e}")
+            return {"error": f"Aggregation failed: {str(e)}"}
+    
+    async def _analyze_all_data_chunked(self, data_records: List[Dict], prompt_template: str, 
+                                       data_type: str = "main") -> Dict[str, Any]:
+        """Analyze ALL data using chunking approach - no data left behind"""
+        try:
+            logger.info(f"🚀 Starting comprehensive chunked analysis of {len(data_records)} records")
+            
+            # Calculate optimal chunk size
+            chunk_size = self._calculate_optimal_chunk_size(data_records, max_tokens=120000)
+            
+            # NO EMERGENCY FALLBACK - USE MASSIVE CHUNKS
+            # Just ensure chunk size is reasonable
+            if chunk_size > len(data_records):
+                chunk_size = len(data_records)
+            elif chunk_size < 500:
+                chunk_size = 500  # Force minimum 500 records per chunk
+                logger.info(f"🔥 Forcing minimum MASSIVE chunk size of 500 records")
+            
+            # Create chunks
+            chunks = self._create_data_chunks(data_records, chunk_size)
+            
+            # Analyze each chunk
+            chunk_results = []
+            for i, chunk in enumerate(chunks):
+                try:
+                    result = await self._analyze_data_chunk(chunk, i, len(chunks), data_type, prompt_template)
+                    chunk_results.append(result)
+                except Exception as e:
+                    logger.error(f"❌ Chunk {i + 1} failed: {e}")
+                    chunk_results.append({"error": f"Chunk {i + 1} failed: {str(e)}"})
+            
+            # Aggregate all chunk results
+            final_result = self._aggregate_chunk_results(chunk_results, len(data_records))
+            
+            logger.info(f"🎉 Comprehensive chunked analysis complete: {len(data_records)} records processed in {len(chunks)} chunks")
+            return final_result
+            
+        except Exception as e:
+            logger.error(f"❌ Chunked analysis failed: {e}")
+            return {"error": f"Chunked analysis failed: {str(e)}"}
+    
+    def _intelligent_data_sampling(self, data_records: List[Dict], max_tokens: int = 100000) -> List[Dict]:
+        """DEPRECATED: Use _analyze_all_data_chunked for comprehensive analysis"""
+        logger.warning("⚠️ Using sampling instead of comprehensive chunked analysis")
+        
+        # Calculate chunk size for comparison
+        chunk_size = self._calculate_optimal_chunk_size(data_records, max_tokens)
+        
+        # If data fits in one chunk, return it all
+        if len(data_records) <= chunk_size:
+            logger.info(f"📊 Data fits in single chunk ({len(data_records)} <= {chunk_size}), returning all data")
+            return data_records
+        
+        # Otherwise, take a representative sample
+        logger.info(f"📊 Data requires chunking ({len(data_records)} > {chunk_size}), taking representative sample")
+        
+        if chunk_size <= 10:
+            return data_records[:chunk_size]
+        else:
+            # Diverse sampling: beginning, middle, end
+            third = chunk_size // 3
+            beginning = data_records[:third]
+            middle_start = len(data_records) // 2 - third // 2
+            middle = data_records[middle_start:middle_start + third]
+            end = data_records[-third:]
+            return beginning + middle + end
+    
     def _flatten_nested_data_for_llm(self, data_records: List[Dict]) -> List[Dict]:
         """
         Flatten nested data structures (dicts, lists) to make them LLM-analyzable
@@ -4442,11 +4743,11 @@ Return ONLY the JSON response, no additional text or explanations.
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an expert business intelligence analyst with deep expertise in data analysis. Analyze the provided data thoroughly and generate meaningful, diverse insights based on actual data patterns. Never use dummy or placeholder data - always calculate real metrics from the actual dataset provided.",
+                        "content": "You are an expert business intelligence analyst with deep expertise in data analysis. Analyze the provided data thoroughly and generate meaningful, diverse insights based on actual data patterns. Never use dummy or placeholder data - always calculate real metrics from the actual dataset provided. CRITICAL: Always respond with valid JSON format only. Do not include any text before or after the JSON. Start your response directly with { and end with }.",
                     },
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.2,  # Slightly higher for more creative analysis while staying accurate
+                temperature=0.1,  # Lower temperature for more consistent JSON format
                 max_tokens=6000,  # Increased for more detailed analysis
             )
 
@@ -4588,7 +4889,27 @@ Return ONLY the JSON response, no additional text or explanations.
 
             except Exception as fix_error:
                 logger.warning(f"⚠️ JSON fix also failed: {fix_error}")
-                raise e  # This will trigger fallback analysis
+                # Return a basic fallback structure instead of raising error
+                logger.info(f"🔄 Using basic fallback structure due to JSON parsing failure")
+                return {
+                    "business_analysis": {
+                        "business_type": "Data Analysis",
+                        "business_insights": ["Performance data analysis in progress"],
+                        "recommendations": ["System optimization recommended"]
+                    },
+                    "kpis": [
+                        {
+                            "id": "data_records",
+                            "display_name": "Total Records",
+                            "value": len(data_records),
+                            "format": "number"
+                        }
+                    ],
+                    "charts": [],
+                    "tables": [],
+                    "total_records": len(data_records),
+                    "error_note": "LLM response parsing failed, using fallback data"
+                }
 
         except Exception as e:
             logger.error(f"❌ Failed to parse LLM insights: {e}")
@@ -4601,19 +4922,15 @@ Return ONLY the JSON response, no additional text or explanations.
             
             data_records = client_data.get('data', [])
             
-            # FORCE FRESH ANALYSIS - DON'T USE CACHE (TESTING IMPROVED PROMPTS)
+            # FORCE FRESH ANALYSIS ALWAYS - BYPASS ALL CACHING
             client_id = client_data.get("client_id")
-            logger.info(f"🔄 FORCING fresh LLM analysis for MAIN dashboard (improved prompts) - client {client_id}")
+            logger.info(f"🚀 FORCING fresh BIG CHUNK analysis for MAIN dashboard - client {client_id}")
             
             flattened_data = self._extract_business_entities_for_llm(data_records)
-            # Send more data to LLM for better analysis (first 10 records)
-            sample_data = flattened_data[:10] if len(flattened_data) > 10 else flattened_data
-            logger.info(f"📊 Sending {len(sample_data)} sample records to LLM for MAIN dashboard analysis")
-            logger.info(f"📊 Sample data fields: {list(sample_data[0].keys()) if sample_data else 'No data'}")
-            logger.info(f"📊 Sample record: {sample_data[0] if sample_data else 'No data'}")
+            logger.info(f"📊 Analyzing ALL {len(flattened_data)} records using comprehensive chunked analysis")
             
-            # Create main dashboard focused prompt
-            main_prompt = f"""
+            # Create main dashboard focused prompt template
+            main_prompt_template = f"""
 You are a data analyst creating a MAIN DASHBOARD overview. Analyze this data and provide COMPREHENSIVE OVERVIEW insights.
 
 Focus on MAIN DASHBOARD metrics:
@@ -4624,9 +4941,9 @@ Focus on MAIN DASHBOARD metrics:
 - General business insights
 - Overall data quality and characteristics
 
-Sample Data: {json.dumps(sample_data)}
+Sample Data: {{json.dumps(sample_data)}}
 Total Records: {len(data_records)}
-Data Fields: {list(sample_data[0].keys()) if sample_data else []}
+Data Fields: {list(flattened_data[0].keys()) if flattened_data else []}
 
 ANALYZE THE ACTUAL CLIENT DATA and generate REAL insights based on DATA PATTERNS you discover. 
 
@@ -4698,8 +5015,8 @@ CRITICAL REQUIREMENTS:
 - CREATE visualizations that show real data distributions
 - GENERATE tables with actual data rows (first 10-20 records)"""
 
-            llm_response = await self._get_llm_analysis(main_prompt)
-            result = self._parse_llm_insights(llm_response, flattened_data)
+            # Use comprehensive chunked analysis to process ALL data
+            result = await self._analyze_all_data_chunked(flattened_data, main_prompt_template, "main")
             
             # Cache the result
             if client_id and "error" not in result:
@@ -4707,7 +5024,7 @@ CRITICAL REQUIREMENTS:
                 await llm_cache_manager.store_cached_llm_response(
                     client_id, client_data, result, "main"
                 )
-                logger.info(f"💾 Cached MAIN dashboard response for client {client_id}")
+                logger.info(f"💾 Cached MASSIVE CHUNK analysis for client {client_id}")
             
             return result
             
@@ -4727,23 +5044,19 @@ CRITICAL REQUIREMENTS:
             logger.info(f"🔄 FORCING fresh LLM analysis for BUSINESS dashboard (improved prompts) - client {client_id}")
             
             flattened_data = self._extract_business_entities_for_llm(data_records)
-            # Send more data to LLM for better business analysis (first 10 records)
-            sample_data = flattened_data[:10] if len(flattened_data) > 10 else flattened_data
-            logger.info(f"📊 Sending {len(sample_data)} sample records to LLM for BUSINESS dashboard analysis")
-            logger.info(f"📊 Business data fields: {list(sample_data[0].keys()) if sample_data else 'No data'}")
-            logger.info(f"📊 Business sample record: {sample_data[0] if sample_data else 'No data'}")
+            logger.info(f"📊 Analyzing ALL {len(flattened_data)} records using comprehensive chunked analysis for BUSINESS dashboard")
             
-            # Create EXECUTIVE BUSINESS INTELLIGENCE prompt - COMPLETELY DIFFERENT from main dashboard
-            business_prompt = f"""
+            # Create EXECUTIVE BUSINESS INTELLIGENCE prompt template - COMPLETELY DIFFERENT from main dashboard
+            business_prompt_template = f"""
 🎯 EXECUTIVE BUSINESS INTELLIGENCE ANALYST
 You are a SENIOR BUSINESS STRATEGY CONSULTANT creating an EXECUTIVE DASHBOARD for C-LEVEL DECISION MAKING.
 
 ⚠️ CRITICAL: This dashboard must be COMPLETELY DIFFERENT from general/technical analytics. Focus on HIGH-LEVEL BUSINESS STRATEGY.
 
 📊 DATA CONTEXT:
-Sample Data: {json.dumps(sample_data)}
+Sample Data: {{json.dumps(sample_data)}}
 Total Records: {len(data_records)}
-Data Fields: {list(sample_data[0].keys()) if sample_data else []}
+Data Fields: {list(flattened_data[0].keys()) if flattened_data else []}
 
 🎯 EXECUTIVE FOCUS AREAS (analyze and choose most relevant):
 1. STRATEGIC MARKET POSITIONING & COMPETITIVE ANALYSIS
@@ -4952,8 +5265,8 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 - NO overlap with technical/operational dashboard content
 - Think like a McKinsey consultant presenting to the CEO"""
 
-            llm_response = await self._get_llm_analysis(business_prompt)
-            result = self._parse_llm_insights(llm_response, flattened_data)
+            # Use comprehensive chunked analysis to process ALL data
+            result = await self._analyze_all_data_chunked(flattened_data, business_prompt_template, "business")
             
             # Cache the result
             if client_id and "error" not in result:
@@ -4981,23 +5294,19 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
             logger.info(f"🔄 FORCING fresh LLM analysis for PERFORMANCE dashboard (improved prompts) - client {client_id}")
             
             flattened_data = self._extract_business_entities_for_llm(data_records)
-            # Send more data to LLM for better performance analysis (first 10 records)
-            sample_data = flattened_data[:10] if len(flattened_data) > 10 else flattened_data
-            logger.info(f"📊 Sending {len(sample_data)} sample records to LLM for PERFORMANCE dashboard analysis")
-            logger.info(f"📊 Performance data fields: {list(sample_data[0].keys()) if sample_data else 'No data'}")
-            logger.info(f"📊 Performance sample record: {sample_data[0] if sample_data else 'No data'}")
+            logger.info(f"📊 Analyzing ALL {len(flattened_data)} records using comprehensive chunked analysis for PERFORMANCE dashboard")
             
-            # Create OPERATIONAL EXCELLENCE prompt - COMPLETELY DIFFERENT from main and business dashboards
-            performance_prompt = f"""
+            # Create OPERATIONAL EXCELLENCE prompt template - COMPLETELY DIFFERENT from main and business dashboards
+            performance_prompt_template = f"""
 ⚡ OPERATIONAL EXCELLENCE CONSULTANT
 You are a SENIOR OPERATIONS DIRECTOR creating a PERFORMANCE OPTIMIZATION DASHBOARD for OPERATIONAL LEADERSHIP.
 
 🚨 CRITICAL: This dashboard must be COMPLETELY DIFFERENT from general analytics and business strategy. Focus on OPERATIONAL EXCELLENCE and PROCESS OPTIMIZATION.
 
 📊 OPERATIONAL DATA CONTEXT:
-Sample Data: {json.dumps(sample_data)}
+Sample Data: {{json.dumps(sample_data)}}
 Total Records: {len(data_records)}
-Data Fields: {list(sample_data[0].keys()) if sample_data else []}
+Data Fields: {list(flattened_data[0].keys()) if flattened_data else []}
 
 ⚡ OPERATIONAL EXCELLENCE FOCUS AREAS (analyze and choose most relevant):
 1. PROCESS EFFICIENCY & CYCLE TIME OPTIMIZATION
@@ -5204,10 +5513,13 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 - Provide CONTINUOUS IMPROVEMENT INITIATIVES with cost/benefit analysis
 - Calculate REALISTIC operational metrics from data patterns
 - NO overlap with strategic business or general technical content
-- Think like a LEAN SIX SIGMA consultant optimizing operations"""
+- Think like a LEAN SIX SIGMA consultant optimizing operations
 
-            llm_response = await self._get_llm_analysis(performance_prompt)
-            result = self._parse_llm_insights(llm_response, flattened_data)
+🚨 CRITICAL OUTPUT FORMAT: 
+Respond ONLY with valid JSON format. Start your response with {{ and end with }}. Do not include any explanatory text, markdown formatting, or commentary outside the JSON structure."""
+
+            # Use comprehensive chunked analysis to process ALL data
+            result = await self._analyze_all_data_chunked(flattened_data, performance_prompt_template, "performance")
             
             # Cache the result
             if client_id and "error" not in result:

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import api from "../../lib/axios";
 import { useAuth } from "../../lib/useAuth";
+import SftpProgressModal from "../../components/SftpProgressModal";
 
 interface Client {
 	client_id: string;
@@ -163,6 +164,11 @@ const SuperAdminDashboard: React.FC = () => {
 		files: any[];
 	}>({ success: false, message: "", tested: false, files: [] });
 	const [selectedSftpFiles, setSelectedSftpFiles] = useState<string[]>([]);
+
+	// Progress modal state
+	const [showProgressModal, setShowProgressModal] = useState(false);
+	const [progressClientId, setProgressClientId] = useState<string>("");
+	const [progressClientName, setProgressClientName] = useState<string>("");
 
 	// Check authentication and load data
 	useEffect(() => {
@@ -512,11 +518,22 @@ const SuperAdminDashboard: React.FC = () => {
 					);
 				}
 
-				await api.post("/superadmin/clients/sftp-integration", submitData, {
-					headers: {
-						"Content-Type": "multipart/form-data",
-					},
-				});
+				const response = await api.post(
+					"/superadmin/clients/sftp-integration",
+					submitData,
+					{
+						headers: {
+							"Content-Type": "multipart/form-data",
+						},
+					}
+				);
+
+				// Show progress modal for SFTP client
+				if (response.data && response.data.client_id) {
+					setProgressClientId(response.data.client_id);
+					setProgressClientName(formData.company_name);
+					setShowProgressModal(true);
+				}
 			} else {
 				// Manual data upload (existing logic)
 				submitData.append("data_type", formData.data_type);
@@ -528,11 +545,22 @@ const SuperAdminDashboard: React.FC = () => {
 					submitData.append("uploaded_file", formData.uploaded_file);
 				}
 
-				await api.post("/superadmin/clients", submitData, {
+				const response = await api.post("/superadmin/clients", submitData, {
 					headers: {
 						"Content-Type": "multipart/form-data",
 					},
 				});
+
+				// For SFTP clients, show progress modal
+				if (
+					formData.input_method === "sftp" &&
+					response.data &&
+					response.data.client_id
+				) {
+					setProgressClientId(response.data.client_id);
+					setProgressClientName(formData.company_name);
+					setShowProgressModal(true);
+				}
 			}
 
 			// Reset form and reload clients
@@ -1684,6 +1712,19 @@ id,name,email,age,department
 						</div>
 					</div>
 				)}
+
+				{/* SFTP Progress Modal */}
+				<SftpProgressModal
+					isOpen={showProgressModal}
+					onClose={() => {
+						setShowProgressModal(false);
+						// Clear progress state when modal closes
+						setProgressClientId("");
+						setProgressClientName("");
+					}}
+					clientId={progressClientId}
+					clientName={progressClientName}
+				/>
 			</main>
 		</div>
 	);

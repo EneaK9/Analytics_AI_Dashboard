@@ -113,7 +113,7 @@ export interface MUIDashboardData {
 const MUI_CHART_MAP: Record<string, string> = {
 	// Primary chart types to MUI chart types
 	pie: "PieChart",
-	bar: "BarChart", 
+	bar: "BarChart",
 	line: "LineChart",
 	area: "AreaChart",
 	radar: "RadarChart",
@@ -352,7 +352,9 @@ class MUIDashboardService {
 							case "radialchart":
 								return "RadialChart";
 							default:
-								console.warn(`⚠️ Unknown chart type: ${chartType}, defaulting to BarChart`);
+								console.warn(
+									`⚠️ Unknown chart type: ${chartType}, defaulting to BarChart`
+								);
 								return "BarChart"; // Default fallback
 						}
 					};
@@ -419,16 +421,16 @@ class MUIDashboardService {
 						} else if (type === "radial") {
 							// Radial charts: Pass raw values to let the component calculate percentages
 							console.log("🔄 MUIService processing radial data:", data);
-							
+
 							return data.map((item, index) => {
 								const rawValue = Number(item.value) || 0;
-								
+
 								console.log(`🔄 MUIService radial item ${index}:`, {
 									name: item.name,
 									originalValue: item.value,
-									rawValue: rawValue
+									rawValue: rawValue,
 								});
-								
+
 								return {
 									name: item.name || `Metric ${index}`,
 									value: rawValue, // Pass raw value to let RadialChart calculate percentage
