@@ -163,6 +163,13 @@ const defaultData: StatCardProps[] = [
 	},
 ];
 
+interface UseDashboardMetricsReturn {
+	data: any;
+	loading: boolean;
+	error: string | null;
+	refetch: () => Promise<void>;
+}
+
 interface MainGridProps {
 	dashboardData?: {
 		users: number;
@@ -183,6 +190,7 @@ interface MainGridProps {
 	};
 	dashboardType?: string;
 	dateRange?: DateRange;
+	sharedDashboardMetrics?: UseDashboardMetricsReturn;
 }
 
 interface DashboardConfig {
@@ -218,11 +226,12 @@ export default function MainGrid({
 	user,
 	dashboardType = "main",
 	dateRange,
+	sharedDashboardMetrics,
 }: MainGridProps) {
 	// Route to the appropriate dashboard template
 	// Main dashboard uses the original OriginalMainGrid with rich LLM analysis
 	if (dashboardType === "main") {
-		return <OriginalMainGrid dashboardData={dashboardData} user={user} dateRange={dateRange} />;
+		return <OriginalMainGrid dashboardData={dashboardData} user={user} dateRange={dateRange} sharedDashboardMetrics={sharedDashboardMetrics} />;
 	}
 
 	// For other dashboard types, use the dynamic template system
@@ -241,10 +250,12 @@ function OriginalMainGrid({
 	dashboardData,
 	user,
 	dateRange,
+	sharedDashboardMetrics,
 }: {
 	dashboardData?: MainGridProps["dashboardData"];
 	user?: { client_id: string; company_name: string; email: string };
 	dateRange?: { start: any; end: any; label?: string };
+	sharedDashboardMetrics?: UseDashboardMetricsReturn;
 }) {
 	const [llmAnalysis, setLlmAnalysis] = React.useState<any>(null);
 	const [clientData, setClientData] = React.useState<any[]>([]);
@@ -258,10 +269,30 @@ function OriginalMainGrid({
 		[chartId: string]: string;
 	}>({});
 
+	// Helper function to check if dateRange represents "today" (no filtering needed)
+	const isDateRangeToday = React.useCallback((dateRange: any) => {
+		if (!dateRange || !dateRange.start) return false;
+		
+		const today = new Date();
+		const selectedDate = dateRange.start?.format ? 
+			new Date(dateRange.start.format('YYYY-MM-DD')) : 
+			new Date(dateRange.start);
+		
+		return selectedDate.toDateString() === today.toDateString();
+	}, []);
+
 	// Date filtering for main dashboard
 	const loadDateFilteredData = React.useCallback(async () => {
-		if (!user?.client_id || !dateRange || (!dateRange.start && !dateRange.end)) {
-			console.log("🏠 No date filter applied - using regular data");
+		// Check if no date filter or if the date is today (use shared data)
+		if (!user?.client_id || !dateRange || (!dateRange.start && !dateRange.end) || isDateRangeToday(dateRange)) {
+			const isToday = isDateRangeToday(dateRange);
+			console.log(isToday ? "📅 Today selected - using shared data (no filtering needed)" : "🏠 No date filter applied - using shared data if available");
+			
+			if (sharedDashboardMetrics?.data && !sharedDashboardMetrics.loading) {
+				console.log("✅ Using shared dashboard metrics for current data");
+				setLlmAnalysis(sharedDashboardMetrics.data);
+				setError(null);
+			}
 			return;
 		}
 
@@ -300,15 +331,25 @@ function OriginalMainGrid({
 		} finally {
 			setIsLoadingDateFilter(false);
 		}
-	}, [user?.client_id, dateRange]);
+	}, [user?.client_id, dateRange, sharedDashboardMetrics, isDateRangeToday]);
 
 	// Trigger date filtering when dateRange changes
 	React.useEffect(() => {
-		if (dateRange && (dateRange.start || dateRange.end)) {
+		if (dateRange && (dateRange.start || dateRange.end) && !isDateRangeToday(dateRange)) {
 			console.log("🗓️ Main dashboard: Date range changed, loading filtered data");
 			loadDateFilteredData();
+		} else {
+			// Reset to shared data when no date filter is applied or when today is selected
+			const isToday = isDateRangeToday(dateRange);
+			console.log(isToday ? "📅 Today selected - resetting to shared data" : "🏠 Main dashboard: No date filter, resetting to shared data");
+			
+			if (sharedDashboardMetrics?.data && !sharedDashboardMetrics.loading) {
+				console.log("✅ Resetting to shared dashboard metrics data");
+				setLlmAnalysis(sharedDashboardMetrics.data);
+				setError(null);
+			}
 		}
-	}, [dateRange, loadDateFilteredData]);
+	}, [dateRange, loadDateFilteredData, sharedDashboardMetrics, isDateRangeToday]);
 
 
 
@@ -404,16 +445,26 @@ function OriginalMainGrid({
 					"🚀 Loading AI-POWERED custom dashboard with intelligent analysis"
 				);
 
-				// 🚀 Load rich LLM analysis for main dashboard (with fallback)
-				console.log("🔗 Loading main dashboard with rich LLM analysis");
+				// 🚀 Use shared data if available, otherwise make API call
+				let analysis = null;
 				
-				// Load rich LLM analysis for main dashboard (cached when possible)
-				const endpoint = "/dashboard/metrics?fast_mode=true";
-				console.log(`🔗 Calling LLM endpoint: ${endpoint}`);
-				const response = await api.get(endpoint);
+				if (sharedDashboardMetrics?.data && !sharedDashboardMetrics.loading) {
+					console.log("✅ Using shared dashboard metrics data (no additional API call)");
+					analysis = sharedDashboardMetrics.data;
+				} else {
+					console.log("🔗 Loading main dashboard with rich LLM analysis via API");
+					
+					// Load rich LLM analysis for main dashboard (cached when possible)
+					let endpoint = "/dashboard/metrics?fast_mode=true";
+					console.log(`🔗 Calling LLM endpoint: ${endpoint}`);
+					const response = await api.get(endpoint);
 
-				if (response.data && response.data.llm_analysis) {
-					const analysis = response.data.llm_analysis;
+					if (response.data && response.data.llm_analysis) {
+						analysis = response.data.llm_analysis;
+					}
+				}
+				
+				if (analysis) {
 
 					console.log("🚨 CRITICAL DEBUG - LLM Analysis received:", {
 						hasKpis: !!analysis.kpis,
@@ -489,7 +540,7 @@ function OriginalMainGrid({
 		};
 
 		fetchRealData();
-	}, [loadClientData]);
+	}, [loadClientData, sharedDashboardMetrics]);
 
 	if (loading) {
 		return (
@@ -880,7 +931,6 @@ function OriginalMainGrid({
 								);
 
 							case "bar":
-							case "histogram":
 								return (
 									<Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
 										<Card>
@@ -1211,8 +1261,8 @@ function OriginalMainGrid({
 				</Grid>
 			)}
 
-			{/* Tables - Only render if tables array exists and has items */}
-			{llmAnalysis?.tables && llmAnalysis.tables.length > 0 && (
+			{/* Tables - MOVED TO DATA TABLES PAGE */}
+			{/* {llmAnalysis?.tables && llmAnalysis.tables.length > 0 && (
 				<Grid container spacing={2}  sx={{ mb: 3 }}>
 					{llmAnalysis.tables.map((table: any, index: number) => {
 						// Skip if no columns or data
@@ -1293,7 +1343,7 @@ function OriginalMainGrid({
 						);
 					})}
 				</Grid>
-			)}
+			)} */}
 
 			{/* No Data Message - Only show if no data at all */}
 			{(!llmAnalysis ||
@@ -1835,7 +1885,7 @@ function TemplateDashboard({
 							insights: chart.insights || `${chart.display_name} analysis from AI`,
 							config: chart.config
 						};
-					                    } else if (chart.chart_type === 'line' || chart.chart_type === 'bar' || chart.chart_type === 'histogram') {
+					} else if (chart.chart_type === 'line' || chart.chart_type === 'bar') {
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
@@ -1891,7 +1941,7 @@ function TemplateDashboard({
 							insights: chart.insights || `${chart.display_name} performance analysis from AI`,
 							config: chart.config
 						};
-					                    } else if (chart.chart_type === 'line' || chart.chart_type === 'bar' || chart.chart_type === 'radar' || chart.chart_type === 'histogram') {
+					} else if (chart.chart_type === 'line' || chart.chart_type === 'bar' || chart.chart_type === 'radar') {
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
@@ -2551,7 +2601,7 @@ function TemplateDashboard({
 																</div>
 															)}
 															
-															{(chartData.type === 'bar' || chartData.type === 'histogram') && (
+															{chartData.type === 'bar' && (
 																<div style={{ width: '100%', height: '200px' }}>
 																	<BarChart
 																		series={[{
@@ -3063,7 +3113,7 @@ function TemplateDashboard({
 														</div>
 													)}
 													
-													{(chartData.type === 'bar' || chartData.type === 'histogram') && (
+													{chartData.type === 'bar' && (
 														<div style={{ width: '100%', height: '200px' }}>
 															<BarChart
 																series={[{
@@ -3353,7 +3403,7 @@ function TemplateDashboard({
 																</div>
 															)}
 															
-															{(chartData.type === 'bar' || chartData.type === 'histogram') && (
+															{chartData.type === 'bar' && (
 																<div style={{ width: '100%', height: '200px' }}>
 																	<BarChart
 																		series={[{
@@ -4011,8 +4061,8 @@ function TemplateDashboard({
 				</>
 			)}
 
-			{/* Data Table Section - Responsive Full Width */}
-			{!config.showCharts && (
+			{/* Data Table Section - MOVED TO DATA TABLES PAGE */}
+			{/* {!config.showCharts && (
 				<Grid container spacing={{ xs: 1, sm: 2, md: 3 }}  sx={{ mb: { xs: 2, md: 4 } }}>
 					<Grid size={{ xs: 12 }}>
 						<Card sx={{ 
@@ -4045,7 +4095,7 @@ function TemplateDashboard({
 						</Card>
 					</Grid>
 				</Grid>
-			)}
+			)} */}
 
 			<Copyright sx={{ my: 4 }} />
 		</Box>

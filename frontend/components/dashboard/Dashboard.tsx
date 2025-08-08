@@ -12,7 +12,9 @@ import Header from "./components/Header";
 import MainGrid from "./components/MainGrid";
 import SideMenu from "./components/SideMenu";
 import ExcelDataView from "./components/ExcelDataView";
+import DataTablesPage from "./components/DataTablesPage";
 import AppTheme from "../shared-theme/AppTheme";
+import useDashboardMetrics from "../../hooks/useDashboardMetrics";
 import { DateRange } from "./components/CustomDatePicker";
 import {
 	chartsCustomizations,
@@ -63,6 +65,9 @@ export default function Dashboard({
 	const [selectedSection, setSelectedSection] = React.useState("home");
 	const [currentDashboardType, setCurrentDashboardType] =
 		React.useState<string>("main");
+	
+	// Shared dashboard metrics hook
+	const dashboardMetrics = useDashboardMetrics(user?.client_id);
 
 
 	// Handle dashboard type changes from the dropdown
@@ -118,16 +123,16 @@ export default function Dashboard({
 							pb: 5,
 							mt: { xs: 8, md: 0 },
 						}}>
-						{selectedSection === "data-tables" ? (
-							<>
-								<Box sx={{ width: "100%", mb: 2 }}>
-									<Header onDateRangeChange={onDateRangeChange} />
-								</Box>
-								<Box sx={{ width: "100%", height: "calc(100vh - 200px)" }}>
-									<ExcelDataView user={user} />
-								</Box>
-							</>
-						) : (
+											{selectedSection === "data-tables" ? (
+						<>
+							<Box sx={{ width: "100%", mb: 2 }}>
+								<Header onDateRangeChange={onDateRangeChange} />
+							</Box>
+							<Box sx={{ width: "100%", height: "calc(100vh - 200px)" }}>
+								<DataTablesPage user={user} dashboardMetrics={dashboardMetrics} dateRange={dateRange || undefined} />
+							</Box>
+						</>
+					) : (
 							<>
 								<Header onDateRangeChange={onDateRangeChange} />
 								<MainGrid
@@ -135,6 +140,7 @@ export default function Dashboard({
 									user={user}
 									dashboardType={currentDashboardType}
 									dateRange={dateRange || undefined}
+									sharedDashboardMetrics={dashboardMetrics}
 								/>
 							</>
 						)}

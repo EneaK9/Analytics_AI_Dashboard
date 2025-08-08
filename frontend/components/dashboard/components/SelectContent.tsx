@@ -1,39 +1,10 @@
 import * as React from "react";
-import { styled } from "@mui/material/styles";
 import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import ListItemText from "@mui/material/ListItemText";
-import MuiSelect from "@mui/material/Select";
-import MuiMenuItem from "@mui/material/MenuItem";
-import { SelectChangeEvent } from "@mui/material/Select";
-import { SyntheticEvent } from "react";
-import BarChartIcon from "@mui/icons-material/BarChart";
 import DashboardIcon from "@mui/icons-material/Dashboard";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
-import InsightsIcon from "@mui/icons-material/Insights";
-import AssessmentIcon from "@mui/icons-material/Assessment";
-import api from "../../../lib/axios";
 
-const Select = styled(MuiSelect)({
-	border: "none",
-	"&:before": {
-		display: "none",
-	},
-	"&:after": {
-		display: "none",
-	},
-	"& .MuiSelect-select": {
-		display: "flex",
-		alignItems: "center",
-		gap: "8px",
-		paddingLeft: 0,
-	},
-});
 
-const MenuItem = styled(MuiMenuItem)({
-	gap: "8px",
-});
 
 interface DashboardOption {
 	id: string;
@@ -59,7 +30,6 @@ export default function SelectContent({
 	user,
 	onDashboardChange,
 }: SelectContentProps) {
-	const [selectedDashboard, setSelectedDashboard] = React.useState("0");
 	const [dashboardOptions, setDashboardOptions] = React.useState<
 		DashboardOption[]
 	>([]);
@@ -90,34 +60,19 @@ export default function SelectContent({
 	): Promise<DashboardOption[]> => {
 		const templates: DashboardOption[] = [];
 
-		// Main dashboard (always present - but now AI-enhanced)
+		// Main dashboard (only dashboard available)
 		templates.push({
 			id: "0",
 			title: companyName || "Analytics Dashboard",
-			subtitle: "AI-Enhanced Overview",
+			subtitle: "Main Overview",
 			icon: <DashboardIcon />,
 			template_type: "main",
 			color: "primary.main",
 			isActive: true,
 		});
 
-		// Add AI-generated custom templates
-		customTemplates.forEach((template, index) => {
-			templates.push({
-				id: (index + 1).toString(),
-				title: template.name || `Custom Template ${index + 1}`,
-				subtitle: template.description || "AI-Generated Dashboard",
-				icon: index === 0 ? <AssessmentIcon /> : <InsightsIcon />,
-				template_type: `custom_${index + 1}`,
-				color: index === 0 ? "success.main" : "info.main",
-				isActive: false,
-				// Store custom template data for later use
-				customTemplateData: template,
-			});
-		});
-
 		console.log(
-			`🎨 Generated ${templates.length} dashboard options with AI intelligence`
+			`🎨 Generated ${templates.length} dashboard option (main only)`
 		);
 		return templates;
 	};
@@ -134,139 +89,73 @@ export default function SelectContent({
 				color: "primary.main",
 				isActive: true,
 			},
-			{
-				id: "1",
-				title: "Business Intelligence",
-				subtitle: "Key Metrics",
-				icon: <TrendingUpIcon />,
-				template_type: "business",
-				color: "success.main",
-				isActive: false,
-			},
-			{
-				id: "2",
-				title: "Performance Hub",
-				subtitle: "Analytics Center",
-				icon: <InsightsIcon />,
-				template_type: "performance",
-				color: "info.main",
-				isActive: false,
-			},
 		];
 	};
 
-	// Load dashboard options on mount
+	// Load dashboard options on mount and notify parent of main dashboard
 	React.useEffect(() => {
 		generateDashboardOptions();
 	}, [generateDashboardOptions]);
 
-	const handleChange = async (event: SelectChangeEvent<string>, child?: React.ReactNode) => {
-		const newDashboardId = event.target.value;
-		setSelectedDashboard(newDashboardId);
-
-		// Update active state
-		setDashboardOptions((prev) =>
-			prev.map((option) => ({
-				...option,
-				isActive: option.id === newDashboardId,
-			}))
-		);
-
-		// Notify parent component about dashboard change
-		if (onDashboardChange) {
-			const selectedOption = dashboardOptions.find(
-				(opt) => opt.id === newDashboardId
+	// Notify parent component about the main dashboard when data loads
+	React.useEffect(() => {
+		if (!loading && dashboardOptions.length > 0 && onDashboardChange) {
+			const mainDashboard = dashboardOptions[0];
+			console.log(
+				`🔄 Loading dashboard: ${mainDashboard.title} (${mainDashboard.template_type})`
 			);
-			if (selectedOption) {
-				console.log(
-					`🔄 Switching to dashboard: ${selectedOption.title} (${selectedOption.template_type})`
-				);
-				onDashboardChange(selectedOption.template_type);
-			}
+			onDashboardChange(mainDashboard.template_type);
 		}
-	};
+	}, [loading, dashboardOptions, onDashboardChange]);
 
 	if (loading) {
 		return (
-			<Select value="" displayEmpty disabled fullWidth>
-				<MenuItem
-					value=""
-					sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-					<Avatar sx={{ width: 36, height: 36, bgcolor: "grey.300" }}>
-						<DashboardIcon />
-					</Avatar>
-					<ListItemText
-						primary="Loading..."
-						secondary="Generating dashboards"
-					/>
-				</MenuItem>
-			</Select>
+			<Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+				<Avatar sx={{ width: 36, height: 36, bgcolor: "grey.300" }}>
+					<DashboardIcon />
+				</Avatar>
+				<ListItemText
+					primary="Loading..."
+					secondary="Generating dashboard"
+				/>
+			</Box>
 		);
 	}
 
+	// Get the main dashboard option (there should only be one)
+	const mainDashboard = dashboardOptions[0];
+
+	if (!mainDashboard) {
+		return null;
+	}
+
 	return (
-		<Select
-			labelId="dashboard-select"
-			id="dashboard-simple-select"
-			value={selectedDashboard}
-			onChange={handleChange}
-			displayEmpty
-			inputProps={{ "aria-label": "Select dashboard" }}
-			fullWidth>
-			{dashboardOptions.map((option) => (
-				<MenuItem
-					key={option.id}
-					value={option.id}
-					selected={option.isActive}
-					sx={{
-						display: "flex",
-						alignItems: "center",
-						gap: 1,
-						width: "100%",
-						padding: 1,
-						minHeight: 64,
-						justifyContent: "space-between",
-					}}>
-					<Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
-						<Avatar sx={{ width: 36, height: 36, bgcolor: option.color }}>
-							{option.icon}
-						</Avatar>
-						<ListItemText 
-							primary={option.title} 
-							secondary={option.subtitle}
-							sx={{
-								flex: 1,
-								'& .MuiListItemText-primary': {
-									whiteSpace: 'normal',
-									wordWrap: 'break-word',
-								},
-								'& .MuiListItemText-secondary': {
-									whiteSpace: 'normal',
-									wordWrap: 'break-word',
-								}
-							}}
-						/>
-					</Box>
-					{option.isActive && (
-						<Chip 
-							size="small" 
-							color="primary" 
-							label="Active"
-							sx={{ 
-								flexShrink: 0,
-								ml: 0.5,
-								fontSize: '0.6rem',
-								height: 20,
-								'& .MuiChip-label': {
-									fontSize: '0.6rem',
-									px: 0.5,
-									py: 0
-								}
-							}}
-						/>
-					)}
-				</MenuItem>
-			))}
-		</Select>
+		<Box sx={{ 
+			display: "flex", 
+			alignItems: "center", 
+			gap: 1, 
+			p: 1,
+			width: "100%",
+			minHeight: 64 
+		}}>
+			<Avatar sx={{ width: 36, height: 36, bgcolor: mainDashboard.color }}>
+				{mainDashboard.icon}
+			</Avatar>
+			<ListItemText 
+				primary={mainDashboard.title} 
+				secondary={mainDashboard.subtitle}
+				sx={{
+					flex: 1,
+					'& .MuiListItemText-primary': {
+						whiteSpace: 'normal',
+						wordWrap: 'break-word',
+					},
+					'& .MuiListItemText-secondary': {
+						whiteSpace: 'normal',
+						wordWrap: 'break-word',
+					}
+				}}
+			/>
+		</Box>
 	);
 }
