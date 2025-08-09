@@ -131,18 +131,19 @@ export default function RadialChart({
 		dataMapSize: dataMap.size
 	});
 
-	const options: ApexOptions = {
-		chart: {
-			height: 350,
-			type: 'radialBar',
-			toolbar: {
-				show: !minimal
-			},
-			animations: {
-				enabled: true,
-				speed: 800,
-			}
-		},
+    const options: ApexOptions = {
+        chart: {
+            height: 350,
+            width: '100%',
+            type: 'radialBar',
+            toolbar: {
+                show: !minimal
+            },
+            animations: {
+                enabled: true,
+                speed: 800,
+            }
+        },
 		title: minimal ? undefined : {
 			text: title,
 			style: {
@@ -287,7 +288,7 @@ export default function RadialChart({
 	};
 
 	return (
-		<div className="w-full">
+        <div className="w-full">
 			{!minimal && description && (
 				<p className="text-sm text-gray-600 mb-4">{description}</p>
 			)}
@@ -295,7 +296,8 @@ export default function RadialChart({
 				options={options}
 				series={series}
 				type="radialBar"
-				height={350}
+                height={350}
+                width="100%"
 			/>
 		</div>
 	);

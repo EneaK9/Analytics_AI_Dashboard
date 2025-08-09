@@ -114,19 +114,20 @@ export default function HeatmapChart({
 
 	const series = processHeatmapData(data);
 
-	const options: ApexOptions = {
-		chart: {
-			height: 350,
-			type: 'heatmap',
-			toolbar: {
-				show: !minimal
-			},
-			animations: {
-				enabled: true,
-				easing: 'easeinout',
-				speed: 800,
-			}
-		},
+    const options: ApexOptions = {
+        chart: {
+            height: 350,
+            width: '100%',
+            type: 'heatmap',
+            toolbar: {
+                show: !minimal
+            },
+            animations: {
+                enabled: true,
+                easing: 'easeinout',
+                speed: 800,
+            }
+        },
 		title: minimal ? undefined : {
 			text: title,
 			style: {
@@ -240,23 +241,24 @@ export default function HeatmapChart({
 				bottom: 20
 			}
 		},
-		responsive: [
-			{
-				breakpoint: 640,
-				options: {
-					chart: {
-						height: 300
-					},
-					dataLabels: {
-						enabled: false
-					}
-				}
-			}
-		]
+        responsive: [
+            {
+                breakpoint: 640,
+                options: {
+                    chart: {
+                        height: 300,
+                        width: '100%'
+                    },
+                    dataLabels: {
+                        enabled: false
+                    }
+                }
+            }
+        ]
 	};
 
 	return (
-		<div className="w-full">
+        <div className="w-full">
 			{!minimal && description && (
 				<p className="text-sm text-gray-600 mb-4">{description}</p>
 			)}
@@ -264,7 +266,8 @@ export default function HeatmapChart({
 				options={options}
 				series={series}
 				type="heatmap"
-				height={350}
+                height={350}
+                width="100%"
 			/>
 		</div>
 	);

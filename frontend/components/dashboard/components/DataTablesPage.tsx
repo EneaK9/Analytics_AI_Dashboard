@@ -7,6 +7,8 @@ import CardHeader from "@mui/material/CardHeader";
 import Typography from "@mui/material/Typography";
 import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
+import Tabs from "@mui/material/Tabs";
+import Tab from "@mui/material/Tab";
 import api from "../../../lib/axios";
 interface UseDashboardMetricsReturn {
 	data: any;
@@ -109,10 +111,15 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
 		loadDateFilteredData();
 	}, [loadDateFilteredData]);
 
-	// Determine which data to use: date-filtered or shared
-	const activeData = dateFilteredData || metricsData;
-	const isActivelyLoading = loading || isLoadingDateFilter;
-	const activeError = error || dateFilterError;
+    // Determine which data to use: date-filtered or shared
+    const activeData = dateFilteredData || metricsData;
+    const isActivelyLoading = loading || isLoadingDateFilter;
+    const activeError = error || dateFilterError;
+    // Prepare tables and local tab state UNCONDITIONALLY to preserve hook order
+    const validTables = (activeData?.tables || []).filter((table: any) => (
+        table?.columns && Array.isArray(table.columns) && table?.data && Array.isArray(table.data)
+    ));
+    const [activeTab, setActiveTab] = React.useState(0);
 
 	if (isActivelyLoading) {
 		return (
@@ -142,29 +149,41 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
 		);
 	}
 
-	const hasLLMTables = activeData?.tables && activeData.tables.length > 0;
+  const hasLLMTables = activeData?.tables && activeData.tables.length > 0;
 
-	if (!hasLLMTables) {
-		return (
-			<Box sx={{ p: 3 }}>
-				<Card sx={{
-					bgcolor: "grey.50",
-					border: "2px dashed #ccc",
-					textAlign: "center",
-					p: 4
-				}}>
-					<Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
-						📊 No Data Tables Available
-					</Typography>
-					<Typography color="text.secondary">
-						Upload some data to see analysis tables and insights here.
-					</Typography>
-				</Card>
-			</Box>
-		);
-	}
+  // If no tables at all, show friendly message
+  if (!hasLLMTables) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Card sx={{ bgcolor: "grey.50", border: "2px dashed #ccc", textAlign: "center", p: 4 }}>
+          <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+            📊 No Data Tables Available
+          </Typography>
+          <Typography color="text.secondary">
+            Upload some data to see analysis tables and insights here.
+          </Typography>
+        </Card>
+      </Box>
+    );
+  }
 
-	return (
+  // If after filtering none are valid, show message
+  if (validTables.length === 0) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Card sx={{ bgcolor: "grey.50", border: "2px dashed #ccc", textAlign: "center", p: 4 }}>
+          <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+            📊 No Valid Tables Available
+          </Typography>
+          <Typography color="text.secondary">
+            Upload some data to see analysis tables and insights here.
+          </Typography>
+        </Card>
+      </Box>
+    );
+  }
+
+  return (
 		<Box sx={{ p: 3 }}>
 			<Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
 				📊 Data Tables
@@ -180,84 +199,82 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
 				</Alert>
 			)}
 
-			{/* LLM Analysis Tables */}
-			<Grid container spacing={2}>
-				{activeData.tables.map((table: any, index: number) => {
-					// Skip if no columns or data
-					if (
-						!table.columns ||
-						!Array.isArray(table.columns) ||
-						!table.data ||
-						!Array.isArray(table.data)
-					) {
-						return null;
-					}
+      {/* LLM Analysis Tables - Tabbed Switcher */}
+      <Box sx={{ width: '100%' }}>
+        <Tabs
+          value={Math.min(activeTab, validTables.length - 1)}
+          onChange={(_, v) => setActiveTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{ mb: 2 }}
+        >
+          {validTables.map((table: any, index: number) => (
+            <Tab key={index} label={table.display_name || `Table ${index + 1}`} />
+          ))}
+        </Tabs>
 
-					return (
-						<Grid key={index} size={{ xs: 12 }}>
-							<Card sx={{ mb: 3 }}>
-								<CardHeader
-									title={table.display_name}
-									subheader={`${table.data.length} rows of data`}
-								/>
-								<CardContent>
-									<Box sx={{ overflow: "auto", maxHeight: 600 }}>
-										<table style={{ width: "100%", borderCollapse: "collapse" }}>
-											<thead>
-												<tr style={{ backgroundColor: "#f5f5f5" }}>
-													{table.columns.map((column: string, colIndex: number) => (
-														<th
-															key={colIndex}
-															style={{
-																padding: "12px",
-																textAlign: "left",
-																borderBottom: "1px solid #ddd",
-																fontWeight: "bold",
-															}}>
-															{column}
-														</th>
-													))}
-												</tr>
-											</thead>
-											<tbody>
-												{table.data.map((row: any, rowIndex: number) => (
-													<tr key={rowIndex}>
-														{Array.isArray(row) ? (
-															// Handle array format (row is an array)
-															row.map((cell: any, cellIndex: number) => (
-																<td
-																	key={cellIndex}
-																	style={{
-																		padding: "12px",
-																		borderBottom: "1px solid #eee",
-																	}}>
-																	{String(cell || "-")}
-																</td>
-															))
-														) : (
-															// Handle object format (row is an object)
-															table.columns.map((column: string, cellIndex: number) => (
-																<td
-																	key={cellIndex}
-																	style={{
-																		padding: "12px",
-																		borderBottom: "1px solid #eee",
-																	}}>
-																	{String(row[column] || "-")}
-																</td>
-															))
-														)}
-													</tr>
-												))}
-											</tbody>
-										</table>
-									</Box>
-								</CardContent>
-							</Card>
-						</Grid>
-					);
-				})}
-			</Grid>
+        {(() => {
+          const table = validTables[Math.min(activeTab, validTables.length - 1)];
+          return (
+            <Card sx={{ height: '100%' }}>
+              <CardHeader
+                title={table.display_name || `Table ${activeTab + 1}`}
+                subheader={`${table.data.length} rows of data`}
+              />
+              <CardContent sx={{ p: 0 }}>
+                <Box sx={{ width: '100%', height: { xs: '60vh', md: '70vh' }, overflow: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f5f5f5' }}>
+                        {table.columns.map((column: string, colIndex: number) => (
+                          <th
+                            key={colIndex}
+                            style={{
+                              position: 'sticky',
+                              top: 0,
+                              zIndex: 1,
+                              padding: '12px',
+                              textAlign: 'left',
+                              borderBottom: '1px solid #ddd',
+                              fontWeight: 'bold',
+                              background: '#f5f5f5'
+                            }}
+                          >
+                            {column}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {table.data.map((row: any, rowIndex: number) => (
+                        <tr key={rowIndex}>
+                          {Array.isArray(row)
+                            ? row.map((cell: any, cellIndex: number) => (
+                                <td
+                                  key={cellIndex}
+                                  style={{ padding: '12px', borderBottom: '1px solid #eee', whiteSpace: 'nowrap' }}
+                                >
+                                  {String(cell || '-')}
+                                </td>
+                              ))
+                            : table.columns.map((column: string, cellIndex: number) => (
+                                <td
+                                  key={cellIndex}
+                                  style={{ padding: '12px', borderBottom: '1px solid #eee', whiteSpace: 'nowrap' }}
+                                >
+                                  {String(row[column] || '-')}
+                                </td>
+                              ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Box>
+              </CardContent>
+            </Card>
+          );
+        })()}
+      </Box>
 		</Box>
 	);
 }

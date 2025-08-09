@@ -104,23 +104,24 @@ export default function ScatterChart({
 
 	const series = processScatterData(data);
 
-	const options: ApexOptions = {
-		chart: {
-			height: 350,
-			type: 'scatter',
-			zoom: {
-				enabled: true,
-				type: 'xy'
-			},
-			toolbar: {
-				show: !minimal
-			},
-			animations: {
-				enabled: true,
-				easing: 'easeinout',
-				speed: 800,
-			}
-		},
+    const options: ApexOptions = {
+        chart: {
+            height: 350,
+            width: '100%',
+            type: 'scatter',
+            zoom: {
+                enabled: true,
+                type: 'xy'
+            },
+            toolbar: {
+                show: !minimal
+            },
+            animations: {
+                enabled: true,
+                easing: 'easeinout',
+                speed: 800,
+            }
+        },
 		title: minimal ? undefined : {
 			text: title,
 			style: {
@@ -215,23 +216,24 @@ export default function ScatterChart({
 				}
 			}
 		},
-		responsive: [
-			{
-				breakpoint: 640,
-				options: {
-					chart: {
-						height: 300
-					},
-					legend: {
-						position: 'bottom'
-					}
-				}
-			}
-		]
+        responsive: [
+            {
+                breakpoint: 640,
+                options: {
+                    chart: {
+                        height: 300,
+                        width: '100%'
+                    },
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        ]
 	};
 
 	return (
-		<div className="w-full">
+        <div className="w-full">
 			{!minimal && description && (
 				<p className="text-sm text-gray-600 mb-4">{description}</p>
 			)}
@@ -239,7 +241,8 @@ export default function ScatterChart({
 				options={options}
 				series={series}
 				type="scatter"
-				height={350}
+                height={350}
+                width="100%"
 			/>
 		</div>
 	);

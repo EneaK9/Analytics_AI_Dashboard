@@ -824,12 +824,21 @@ function OriginalMainGrid({
 							c.data && Array.isArray(c.data) && c.data.length > 0
 						).length;
 						
-						const getChartSize = () => {
-							if (totalCharts === 1) return { xs: 12 };
-							if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each - fills full width
-							if (totalCharts === 3) return { xs: 12, sm: 6, md: 4 }; // 33% each
-							return { xs: 12, sm: 6, md: 3 }; // 25% each for 4+
-						};
+                        const getChartSize = () => {
+                            if (totalCharts === 1) return { xs: 12 };
+                            if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each - fills full width
+                            // For 3+ charts, cap at 3 per row; if last row has 2, use 50% each; if last row has 1, use full width
+                            const chartsPerRowMd = 3;
+                            const remainder = totalCharts % chartsPerRowMd;
+                            const isInLastRow = index >= totalCharts - (remainder === 0 ? chartsPerRowMd : remainder);
+                            if (remainder === 2 && index >= totalCharts - 2) {
+                                return { xs: 12, sm: 6, md: 6 };
+                            }
+                            if (remainder === 1 && index === totalCharts - 1) {
+                                return { xs: 12 };
+                            }
+                            return { xs: 12, sm: 6, md: 4 };
+                        };
 
 						// Render based on chart type
 						switch (chart.chart_type?.toLowerCase()) {
@@ -873,15 +882,16 @@ function OriginalMainGrid({
 													)
 												}
 											/>
-											<CardContent>
-												<Box
-													sx={{
-														height: 300,
-														display: "flex",
-														justifyContent: "center",
-														alignItems: "center",
-													}}>
-													<PieChart
+                                        <CardContent>
+                                            <Box
+                                                sx={{
+                                                    height: 300,
+                                                    width: '100%',
+                                                    display: "flex",
+                                                    justifyContent: "center",
+                                                    alignItems: "center",
+                                                }}>
+                                                <PieChart
 														series={[
 															{
 																data: filteredData.map(
@@ -915,8 +925,8 @@ function OriginalMainGrid({
 																},
 															},
 														]}
-														width={300}
-														height={300}
+                                                    height={280}
+                                                    sx={{ width: '100%' }}
 														margin={{
 															top: 40,
 															bottom: 40,
@@ -931,8 +941,8 @@ function OriginalMainGrid({
 								);
 
 							case "bar":
-								return (
-									<Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
+                                return (
+                                    <Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
@@ -970,9 +980,9 @@ function OriginalMainGrid({
 													)
 												}
 											/>
-											<CardContent>
-												<Box sx={{ height: 300 }}>
-													<BarChart
+                                            <CardContent>
+                                                <Box sx={{ height: 300, width: '100%' }}>
+                                                    <BarChart
 										dataset={filteredData.map((item: any) => {
 											// Get the actual field names from chart config
 											const xField = chart.config?.x_axis?.field || "name";
@@ -1017,7 +1027,8 @@ function OriginalMainGrid({
 															},
 														]}
 														
-														height={300}
+                                                        height={300}
+                                                        sx={{ width: '100%' }}
 														margin={{
 															top: 20,
 															bottom: 60,
@@ -1032,8 +1043,8 @@ function OriginalMainGrid({
 								);
 
 							case "line":
-								return (
-									<Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
+                                return (
+                                    <Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
@@ -1071,9 +1082,9 @@ function OriginalMainGrid({
 													)
 												}
 											/>
-											<CardContent>
-												<Box sx={{ height: 300 }}>
-													<LineChart
+                                            <CardContent>
+                                                <Box sx={{ height: 300, width: '100%' }}>
+                                                    <LineChart
 														dataset={filteredData.map((item: any) => {
 															// Get the actual field names from chart config
 															const xField = chart.config?.x_axis?.field || "name";
@@ -1117,7 +1128,8 @@ function OriginalMainGrid({
 															},
 														]}
 														
-														height={300}
+                                                        height={300}
+                                                        sx={{ width: '100%' }}
 														margin={{
 															top: 20,
 															bottom: 60,
@@ -1132,15 +1144,15 @@ function OriginalMainGrid({
 								);
 
 							case "radar":
-								return (
-									<Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
+                                return (
+                                    <Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
 												subtitle="Multi-dimensional performance analysis"
 											/>
-											<CardContent>
-												<Box sx={{ height: 300 }}>
+                                            <CardContent>
+                                                <Box sx={{ height: 300, width: '100%' }}>
 													<Charts.RadarChart
 														data={filteredData}
 														title={chart.display_name}
@@ -1152,15 +1164,15 @@ function OriginalMainGrid({
 								);
 
 							case "scatter":
-								return (
-									<Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
+                                return (
+                                    <Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
 												subtitle="Correlation and relationship analysis"
 											/>
-											<CardContent>
-												<Box sx={{ height: 300 }}>
+                                            <CardContent>
+                                                <Box sx={{ height: 300, width: '100%' }}>
 													<Charts.ScatterChart
 														data={filteredData}
 														title={chart.display_name}
@@ -1174,15 +1186,15 @@ function OriginalMainGrid({
 								);
 
 							case "heatmap":
-								return (
-									<Grid key={index} size={getChartSize()}>
+                                return (
+                                    <Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
 												subtitle="Pattern and intensity visualization"
 											/>
-											<CardContent>
-												<Box sx={{ height: 300 }}>
+                                            <CardContent>
+                                                <Box sx={{ height: 300, width: '100%' }}>
 													<Charts.HeatmapChart
 														data={filteredData}
 														title={chart.display_name}
@@ -1196,16 +1208,16 @@ function OriginalMainGrid({
 								);
 
 							case "radial":
-								return (
-									<Grid key={index} size={getChartSize()}>
+                                return (
+                                    <Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
 												subtitle="Progress and completion tracking"
 											/>
-											<CardContent>
-												<Box sx={{ height: 300, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-													<PieChart
+                                            <CardContent>
+                                                <Box sx={{ height: 300, width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                                    <PieChart
 														series={[{
 															data: filteredData.slice(0, 6).map((item: any, i: number) => {
 																const value = Number(item.value || item.count || item.total || 0);
@@ -1219,7 +1231,8 @@ function OriginalMainGrid({
 															innerRadius: 50,
 															outerRadius: 100,
 														}]}
-														height={280}
+                                                        height={280}
+                                                        sx={{ width: '100%' }}
 
 														skipAnimation={true}
 														slotProps={{
@@ -1232,26 +1245,28 @@ function OriginalMainGrid({
 									</Grid>
 								);
 
-							case "donut":
-								return (
-									<Grid key={index} size={getChartSize()}>
-										<Card>
-											<CardHeader
-												title={chart.display_name}
-												subtitle="Donut chart visualization"
-											/>
-											<CardContent>
-												<Box sx={{ height: 300 }}>
-													<Charts.PieChart
-														data={filteredData}
-														title={chart.display_name}
-														chartType="donut"
-													/>
-												</Box>
-											</CardContent>
-										</Card>
-									</Grid>
-								);
+                            case "donut":
+                                return (
+                                    <Grid key={index} size={getChartSize()}>
+                                        <Card>
+                                            <CardHeader
+                                                title={chart.display_name}
+                                                subtitle={chart.config?.y_axis?.display_name || "Donut chart visualization"}
+                                            />
+                                            <CardContent>
+                                                <Box sx={{ height: 300, width: '100%' }}>
+                                                    <Charts.PieChart
+                                                        data={filteredData}
+                                                        title={chart.display_name}
+                                                        chartType="donut"
+                                                        labelField={chart.config?.x_axis?.field || 'name'}
+                                                        valueField={chart.config?.y_axis?.field || 'value'}
+                                                    />
+                                                </Box>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                );
 
 							default:
 								console.warn(`⚠️ Unknown chart type: ${chart.chart_type}`);
@@ -2433,13 +2448,20 @@ function TemplateDashboard({
 								
 								// Equal spacing chart sizing - No empty space!
 								const totalCharts = Object.keys((config as any).charts).length;
-								const getChartSize = () => {
-									if (totalCharts === 1) return { xs: 12 };
-									if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each
-									if (totalCharts === 3) return { xs: 12, sm: 6, md: 4 }; // 33% each - EQUAL
-									if (totalCharts === 4) return { xs: 12, sm: 6, md: 3 }; // 25% each
-									return { xs: 12, sm: 6, lg: Math.floor(12/totalCharts) }; // Equal distribution
-								};
+                                const getChartSize = () => {
+                                    if (totalCharts === 1) return { xs: 12 };
+                                    if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each
+                                    // For 3+ charts, cap at 3 per row; make final row 50% when exactly 2 remain
+                                    const chartsPerRowMd = 3;
+                                    const remainder = totalCharts % chartsPerRowMd;
+                                    if (remainder === 2 && index >= totalCharts - 2) {
+                                        return { xs: 12, sm: 6, md: 6 };
+                                    }
+                                    if (remainder === 1 && index === totalCharts - 1) {
+                                        return { xs: 12 };
+                                    }
+                                    return { xs: 12, sm: 6, md: 4 };
+                                };
 								
 								return (
 								<Grid key={chartKey} size={getChartSize()}>
@@ -3033,13 +3055,19 @@ function TemplateDashboard({
 						
 						// Equal spacing chart sizing for Performance Dashboard
 						const totalCharts = Object.keys((config as any).charts).length;
-						const getChartSize = () => {
-							if (totalCharts === 1) return { xs: 12 };
-							if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each
-							if (totalCharts === 3) return { xs: 12, sm: 6, md: 4 }; // 33% each - EQUAL
-							if (totalCharts === 4) return { xs: 12, sm: 6, md: 3 }; // 25% each
-							return { xs: 12, sm: 6, lg: Math.floor(12/totalCharts) }; // Equal distribution
-						};
+                        const getChartSize = () => {
+                            if (totalCharts === 1) return { xs: 12 };
+                            if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each
+                            const chartsPerRowMd = 3;
+                            const remainder = totalCharts % chartsPerRowMd;
+                            if (remainder === 2 && index >= totalCharts - 2) {
+                                return { xs: 12, sm: 6, md: 6 };
+                            }
+                            if (remainder === 1 && index === totalCharts - 1) {
+                                return { xs: 12 };
+                            }
+                            return { xs: 12, sm: 6, md: 4 };
+                        };
 						
 						return (
 						<Grid key={chartKey} size={getChartSize()}>
@@ -3277,13 +3305,19 @@ function TemplateDashboard({
 						>
 							{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => {
 								const totalCharts = Object.keys((config as any).charts).length;
-								const getChartSize = () => {
-									if (totalCharts === 1) return { xs: 12 };
-									if (totalCharts === 2) return { xs: 12, md: 6 };
-									if (totalCharts === 3) return { xs: 12, sm: 6, md: 4 };
-									if (totalCharts === 4) return { xs: 12, sm: 6, md: 6, lg: 3 };
-									return { xs: 12, sm: 6, md: 4 };
-								};
+                                const getChartSize = () => {
+                                    if (totalCharts === 1) return { xs: 12 };
+                                    if (totalCharts === 2) return { xs: 12, md: 6 };
+                                    const chartsPerRowMd = 3;
+                                    const remainder = totalCharts % chartsPerRowMd;
+                                    if (remainder === 2 && index >= totalCharts - 2) {
+                                        return { xs: 12, sm: 6, md: 6 };
+                                    }
+                                    if (remainder === 1 && index === totalCharts - 1) {
+                                        return { xs: 12 };
+                                    }
+                                    return { xs: 12, sm: 6, md: 4 };
+                                };
 								
 								return (
 									<Grid key={chartKey} size={getChartSize()}>

@@ -69,19 +69,20 @@ export default function RadarChart({
 
 	const { series, categories } = processRadarData(data);
 
-	const options: ApexOptions = {
-		chart: {
-			height: 350,
-			type: 'radar',
-			toolbar: {
-				show: !minimal
-			},
-			animations: {
-				enabled: true,
-				easing: 'easeinout',
-				speed: 800,
-			}
-		},
+    const options: ApexOptions = {
+        chart: {
+            height: 350,
+            width: '100%',
+            type: 'radar',
+            toolbar: {
+                show: !minimal
+            },
+            animations: {
+                enabled: true,
+                easing: 'easeinout',
+                speed: 800,
+            }
+        },
 		title: minimal ? undefined : {
 			text: title,
 			style: {
@@ -155,25 +156,28 @@ export default function RadarChart({
 		fill: {
 			opacity: 0.2
 		},
-		responsive: [
-			{
-				breakpoint: 640,
-				options: {
-					plotOptions: {
-						radar: {
-							size: 100
-						}
-					},
-					legend: {
-						position: 'bottom'
-					}
-				}
-			}
-		]
+        responsive: [
+            {
+                breakpoint: 640,
+                options: {
+                    chart: {
+                        width: '100%'
+                    },
+                    plotOptions: {
+                        radar: {
+                            size: 100
+                        }
+                    },
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        ]
 	};
 
 	return (
-		<div className="w-full">
+        <div className="w-full">
 			{!minimal && description && (
 				<p className="text-sm text-gray-600 mb-4">{description}</p>
 			)}
@@ -181,7 +185,8 @@ export default function RadarChart({
 				options={options}
 				series={series}
 				type="radar"
-				height={350}
+                height={350}
+                width="100%"
 			/>
 		</div>
 	);

@@ -8,12 +8,14 @@ import { ApexOptions } from "apexcharts";
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 interface PieChartProps {
-	data?: any[];
-	title?: string;
-	description?: string;
-	minimal?: boolean;
-	showLegend?: boolean;
-	chartType?: 'pie' | 'donut';
+    data?: any[];
+    title?: string;
+    description?: string;
+    minimal?: boolean;
+    showLegend?: boolean;
+    chartType?: 'pie' | 'donut';
+    labelField?: string; // e.g., status, category, name
+    valueField?: string; // e.g., count, value, total
 }
 
 export default function PieChart({
@@ -23,16 +25,27 @@ export default function PieChart({
 	minimal = false,
 	showLegend = true,
 	chartType = 'pie',
+    labelField,
+    valueField,
 }: PieChartProps) {
 	
 	// Process data for pie chart format
-	const processPieData = (inputData: any[]) => {
+    const processPieData = (inputData: any[]) => {
 		if (!inputData || inputData.length === 0) {
 			return {
 				series: [44, 55, 13, 43, 22],
 				labels: ['Desktop', 'Mobile', 'Tablet', 'Smart TV', 'Other']
 			};
 		}
+
+        // If explicit fields provided, use them directly
+        if (labelField || valueField) {
+            const resolvedLabel = labelField || 'name';
+            const resolvedValue = valueField || 'value';
+            const series = inputData.map(item => Number(item?.[resolvedValue]) || 0);
+            const labels = inputData.map(item => String(item?.[resolvedLabel] ?? 'Category'));
+            return { series, labels };
+        }
 
 		// If data has name/value structure
 		if (inputData.length > 0 && inputData[0].hasOwnProperty('name') && inputData[0].hasOwnProperty('value')) {
@@ -42,21 +55,20 @@ export default function PieChart({
 			return { series, labels };
 		}
 
-		// If data has multiple properties, use the first numeric one
+        // If data has multiple properties (e.g., status/count), pick first non-numeric as label and first numeric as value
 		if (inputData.length > 0 && typeof inputData[0] === 'object') {
 			const keys = Object.keys(inputData[0]);
-			const nameKey = keys.find(key => key.toLowerCase().includes('name') || 
-											  key.toLowerCase().includes('category') ||
-											  key.toLowerCase().includes('label')) || keys[0];
-			const valueKeys = keys.filter(key => key !== nameKey && 
-				(typeof inputData[0][key] === 'number' || !isNaN(Number(inputData[0][key]))));
-			
-			if (valueKeys.length > 0) {
-				const series = inputData.map(item => Number(item[valueKeys[0]]) || 0);
-				const labels = inputData.map(item => item[nameKey] || 'Category');
-				
-				return { series, labels };
-			}
+            const numericKeys = keys.filter(k => typeof (inputData[0] as any)[k] === 'number' || !isNaN(Number((inputData[0] as any)[k])));
+            const nonNumericKeys = keys.filter(k => !numericKeys.includes(k));
+
+            const inferredValueKey = numericKeys[0];
+            const inferredLabelKey = nonNumericKeys.find(k => ['name','category','label','status','type'].some(s => k.toLowerCase().includes(s))) || nonNumericKeys[0] || keys[0];
+
+            if (inferredValueKey) {
+                const series = inputData.map(item => Number(item[inferredValueKey]) || 0);
+                const labels = inputData.map(item => String(item[inferredLabelKey] ?? 'Category'));
+                return { series, labels };
+            }
 		}
 
 		// If data is just an array of numbers
@@ -76,19 +88,18 @@ export default function PieChart({
 
 	const { series, labels } = processPieData(data);
 
-	const options: ApexOptions = {
-		chart: {
-			width: 380,
-			type: chartType,
-			toolbar: {
-				show: !minimal
-			},
-			animations: {
-				enabled: true,
-				easing: 'easeinout',
-				speed: 800,
-			}
-		},
+    const options: ApexOptions = {
+        chart: {
+            width: '100%',
+            type: chartType,
+            toolbar: {
+                show: !minimal
+            },
+            animations: {
+                enabled: true,
+                speed: 800,
+            }
+        },
 		title: minimal ? undefined : {
 			text: title,
 			style: {
@@ -99,32 +110,34 @@ export default function PieChart({
 		},
 		labels: labels,
 		colors: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#F97316', '#84CC16'],
-		dataLabels: {
-			enabled: true,
-			style: {
-				fontSize: '12px',
-				fontWeight: 'bold',
-				colors: ['#fff']
-			},
-			dropShadow: {
-				enabled: false
-			}
-		},
+        dataLabels: {
+            enabled: true,
+            style: {
+                fontSize: '11px',
+                fontWeight: 'bold',
+                colors: ['#fff']
+            },
+            dropShadow: { enabled: false }
+        },
 		plotOptions: {
 			pie: {
-				donut: chartType === 'donut' ? {
+                dataLabels: {
+                    offset: -6,
+                    minAngleToShowLabel: 12
+                },
+                donut: chartType === 'donut' ? {
 					size: '65%',
 					labels: {
 						show: true,
 						name: {
 							show: true,
-							fontSize: '16px',
+                            fontSize: '14px',
 							fontWeight: 600,
 							color: '#374151'
 						},
 						value: {
 							show: true,
-							fontSize: '14px',
+                            fontSize: '13px',
 							fontWeight: 'bold',
 							color: '#1F2937',
 						},
@@ -132,7 +145,7 @@ export default function PieChart({
 							show: true,
 							showAlways: false,
 							label: 'Total',
-							fontSize: '16px',
+                            fontSize: '14px',
 							fontWeight: 600,
 							color: '#374151',
 							formatter: function (w: any) {
@@ -156,18 +169,9 @@ export default function PieChart({
 			labels: {
 				colors: '#374151'
 			},
-			markers: {
-				width: 12,
-				height: 12,
-				strokeWidth: 0,
-				strokeColor: '#fff',
-				fillColors: undefined,
-				radius: 12,
-				customHTML: undefined,
-				onClick: undefined,
-				offsetX: 0,
-				offsetY: 0
-			},
+            markers: {
+                strokeWidth: 0,
+            },
 			itemMargin: {
 				horizontal: 5,
 				vertical: 5
@@ -187,33 +191,46 @@ export default function PieChart({
 			width: 2,
 			colors: ['#fff']
 		},
-		responsive: [
-			{
-				breakpoint: 640,
-				options: {
-					chart: {
-						width: 300
-					},
-					legend: {
-						position: 'bottom'
-					}
-				}
-			}
-		]
+        responsive: [
+            {
+                breakpoint: 1200,
+                options: {
+                    plotOptions: { pie: { donut: { size: '62%' } } },
+                    dataLabels: { style: { fontSize: '10px' } }
+                }
+            },
+            {
+                breakpoint: 768,
+                options: {
+                    plotOptions: { pie: { donut: { size: '58%' } } },
+                    legend: { position: 'bottom', fontSize: '11px' },
+                    dataLabels: { style: { fontSize: '10px' } }
+                }
+            },
+            {
+                breakpoint: 480,
+                options: {
+                    plotOptions: { pie: { donut: { size: '55%' } } },
+                    legend: { position: 'bottom', fontSize: '10px' },
+                    dataLabels: { style: { fontSize: '9px' } }
+                }
+            }
+        ]
 	};
 
 	return (
-		<div className="w-full flex justify-center">
+        <div className="w-full">
 			{!minimal && description && (
 				<div className="w-full">
 					<p className="text-sm text-gray-600 mb-4">{description}</p>
 				</div>
 			)}
-			<Chart
+            <Chart
 				options={options}
 				series={series}
 				type={chartType}
-				width={380}
+                width="100%"
+                height={300}
 			/>
 		</div>
 	);
