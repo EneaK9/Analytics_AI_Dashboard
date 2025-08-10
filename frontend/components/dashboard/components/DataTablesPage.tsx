@@ -9,6 +9,11 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
+import OutlinedInput from "@mui/material/OutlinedInput";
+import InputAdornment from "@mui/material/InputAdornment";
+import IconButton from "@mui/material/IconButton";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import ClearIcon from "@mui/icons-material/Clear";
 import api from "../../../lib/axios";
 interface UseDashboardMetricsReturn {
 	data: any;
@@ -119,7 +124,14 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
     const validTables = (activeData?.tables || []).filter((table: any) => (
         table?.columns && Array.isArray(table.columns) && table?.data && Array.isArray(table.data)
     ));
-    const [activeTab, setActiveTab] = React.useState(0);
+  const [activeTab, setActiveTab] = React.useState(0);
+  // Debounced row search (per-table)
+  const [tableSearchInput, setTableSearchInput] = React.useState("");
+  const [tableSearch, setTableSearch] = React.useState("");
+  React.useEffect(() => {
+    const h = setTimeout(() => setTableSearch(tableSearchInput.trim()), 300);
+    return () => clearTimeout(h);
+  }, [tableSearchInput]);
 
 	if (isActivelyLoading) {
 		return (
@@ -183,6 +195,20 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
     );
   }
 
+  // Search highlight state
+  const [highlightQuery, setHighlightQuery] = React.useState<string>("");
+  const [forceRenderTick, setForceRenderTick] = React.useState(0);
+  React.useEffect(() => {
+    const handler = (e: any) => {
+      const q = ((e?.detail?.query) || '').toString().toLowerCase();
+      setHighlightQuery(q);
+      // Nudge Tabs to re-evaluate label rendering
+      setForceRenderTick((t) => t + 1);
+    };
+    window.addEventListener('dashboard-search', handler);
+    return () => window.removeEventListener('dashboard-search', handler);
+  }, []);
+
   return (
 		<Box sx={{ p: 3 }}>
 			<Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
@@ -208,9 +234,27 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
           scrollButtons="auto"
           sx={{ mb: 2 }}
         >
-          {validTables.map((table: any, index: number) => (
-            <Tab key={index} label={table.display_name || `Table ${index + 1}`} />
-          ))}
+          {validTables.map((table: any, index: number) => {
+            const name = table.display_name || `Table ${index + 1}`;
+            const q = highlightQuery;
+            const parts = q ? name.split(new RegExp(`(${q})`, 'ig')) : [name];
+            return (
+              <Tab
+                key={`${index}-${forceRenderTick}`}
+                label={q ? (
+                  <>
+                    {parts.map((p: string, i: number) => (
+                      p.toLowerCase() === q ? (
+                        <Box key={i} component="span" sx={{ bgcolor: 'rgba(255, 235, 59, 0.5)', borderRadius: '4px', px: 0.5 }}>{p}</Box>
+                      ) : (
+                        <Box key={i} component="span">{p}</Box>
+                      )
+                    ))}
+                  </>
+                ) : name}
+              />
+            );
+          })}
         </Tabs>
 
         {(() => {
@@ -218,10 +262,47 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
           return (
             <Card sx={{ height: '100%' }}>
               <CardHeader
-                title={table.display_name || `Table ${activeTab + 1}`}
+                title={(() => {
+                  const name = table.display_name || `Table ${activeTab + 1}`;
+                  const q = highlightQuery;
+                  if (q && name.toLowerCase().includes(q)) {
+                    return (
+                      <>
+                        {name.split(new RegExp(`(${q})`, 'ig')).map((part: string, i: number) => (
+                          part.toLowerCase() === q ? (
+                            <Box key={i} component="span" sx={{ bgcolor: 'rgba(255, 235, 59, 0.5)', borderRadius: '4px', px: 0.5 }}>{part}</Box>
+                          ) : (
+                            <Box key={i} component="span">{part}</Box>
+                          )
+                        ))}
+                      </>
+                    );
+                  }
+                  return name;
+                })()}
                 subheader={`${table.data.length} rows of data`}
               />
               <CardContent sx={{ p: 0 }}>
+                {/* Inline search for table rows */}
+                <Box sx={{ px: 2, py: 1.5, display: 'flex', justifyContent: 'flex-end' }}>
+                  <OutlinedInput
+                    size="small"
+                    value={tableSearchInput}
+                    onChange={(e) => setTableSearchInput(e.target.value)}
+                    placeholder="Search rows…"
+                    endAdornment={
+                      <InputAdornment position="end">
+                        {tableSearchInput && (
+                          <IconButton size="small" onClick={() => setTableSearchInput("")}>
+                            <ClearIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                        <SearchRoundedIcon fontSize="small" sx={{ color: 'text.secondary', ml: 0.5 }} />
+                      </InputAdornment>
+                    }
+                    sx={{ width: { xs: '100%', md: 320 } }}
+                  />
+                </Box>
                 <Box sx={{ width: '100%', height: { xs: '60vh', md: '70vh' }, overflow: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
                     <thead>
@@ -246,23 +327,31 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
                       </tr>
                     </thead>
                     <tbody>
-                      {table.data.map((row: any, rowIndex: number) => (
+                      {table.data.filter((row: any) => {
+                        const q = tableSearch.trim().toLowerCase();
+                        if (!q) return true;
+                        try {
+                          if (Array.isArray(row)) return row.some((c: any) => String(c ?? '').toLowerCase().includes(q));
+                          if (row && typeof row === 'object') return Object.values(row).some((c: any) => String(c ?? '').toLowerCase().includes(q));
+                          return String(row ?? '').toLowerCase().includes(q);
+                        } catch { return false; }
+                      }).map((row: any, rowIndex: number) => (
                         <tr key={rowIndex}>
                           {Array.isArray(row)
                             ? row.map((cell: any, cellIndex: number) => (
-                                <td
-                                  key={cellIndex}
-                                  style={{ padding: '12px', borderBottom: '1px solid #eee', whiteSpace: 'nowrap' }}
-                                >
-                                  {String(cell || '-')}
+                                <td key={cellIndex} style={{ padding: '12px', borderBottom: '1px solid #eee', whiteSpace: 'nowrap' }}>
+                                  {(() => { const text = String(cell ?? '-'); const q = tableSearch.trim();
+                                    if (q && text.toLowerCase().includes(q.toLowerCase())) {
+                                      return <>{text.split(new RegExp(`(${q})`, 'ig')).map((p, i) => p.toLowerCase() === q.toLowerCase() ? <span key={i} style={{ backgroundColor: 'rgba(255, 235, 59, 0.5)', borderRadius: 4 }}>{p}</span> : <span key={i}>{p}</span>)}</>;
+                                    } return text; })()}
                                 </td>
                               ))
                             : table.columns.map((column: string, cellIndex: number) => (
-                                <td
-                                  key={cellIndex}
-                                  style={{ padding: '12px', borderBottom: '1px solid #eee', whiteSpace: 'nowrap' }}
-                                >
-                                  {String(row[column] || '-')}
+                                <td key={cellIndex} style={{ padding: '12px', borderBottom: '1px solid #eee', whiteSpace: 'nowrap' }}>
+                                  {(() => { const text = String(row[column] ?? '-'); const q = tableSearch.trim();
+                                    if (q && text.toLowerCase().includes(q.toLowerCase())) {
+                                      return <>{text.split(new RegExp(`(${q})`, 'ig')).map((p, i) => p.toLowerCase() === q.toLowerCase() ? <span key={i} style={{ backgroundColor: 'rgba(255, 235, 59, 0.5)', borderRadius: 4 }}>{p}</span> : <span key={i}>{p}</span>)}</>;
+                                    } return text; })()}
                                 </td>
                               ))}
                         </tr>

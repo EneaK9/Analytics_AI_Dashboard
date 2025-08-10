@@ -9,10 +9,11 @@ import ColorModeIconDropdown from "../../shared-theme/ColorModeIconDropdown";
 import Search from "./Search";
 
 interface HeaderProps {
-	onDateRangeChange?: (dateRange: DateRange) => void;
+    onDateRangeChange?: (dateRange: DateRange) => void;
+    onSearch?: (query: string) => void;
 }
 
-export default function Header({ onDateRangeChange }: HeaderProps) {
+export default function Header({ onDateRangeChange, onSearch }: HeaderProps) {
 	return (
 		<Stack
 			direction="row"
@@ -26,9 +27,9 @@ export default function Header({ onDateRangeChange }: HeaderProps) {
 			}}
 			spacing={2}>
 			<NavbarBreadcrumbs />
-			<Stack direction="row" sx={{ gap: 1 }}>
-				<Search />
-				<CustomDatePicker onDateRangeChange={onDateRangeChange} />
+            <Stack direction="row" sx={{ gap: 1 }}>
+                <Search onSearch={onSearch} />
+                <CustomDatePicker onDateRangeChange={onDateRangeChange} />
 				<MenuButton showBadge aria-label="Open notifications">
 					<NotificationsRoundedIcon />
 				</MenuButton>

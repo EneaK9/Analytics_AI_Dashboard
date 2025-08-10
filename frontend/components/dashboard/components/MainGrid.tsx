@@ -30,6 +30,7 @@ import * as Charts from "../../charts";
 
 // Import MUI X Charts
 import { LineChart } from '@mui/x-charts/LineChart';
+import TimelineTrendsCard from './TimelineTrendsCard';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { BarChart } from '@mui/x-charts/BarChart';
 
@@ -264,6 +265,39 @@ function OriginalMainGrid({
 	const [error, setError] = React.useState<string | null>(null);
 	const [isLoadingDateFilter, setIsLoadingDateFilter] = React.useState(false);
 
+	// Build timeline series from llm_analysis.timeline when present
+	const timelineSeries = React.useMemo(() => {
+		if (!llmAnalysis || !llmAnalysis.timeline || !Array.isArray(llmAnalysis.timeline)) {
+			return null;
+		}
+		const dates: string[] = [];
+		const kpiSeriesMap: Record<string, number[]> = {};
+		for (const dayEntry of llmAnalysis.timeline) {
+			const date = dayEntry.date;
+			const analysis = dayEntry.llm_analysis || {};
+			dates.push(date);
+			if (analysis.kpis && Array.isArray(analysis.kpis)) {
+				for (const kpi of analysis.kpis) {
+					const key = kpi.display_name || kpi.name || "KPI";
+					const valNum = typeof kpi.value === 'number' ? kpi.value : parseFloat(String(kpi.value ?? 0));
+					if (!kpiSeriesMap[key]) kpiSeriesMap[key] = [];
+					kpiSeriesMap[key].push(isNaN(valNum) ? 0 : valNum);
+				}
+			}
+		}
+		// Convert to chart-compatible arrays
+		const series = Object.entries(kpiSeriesMap).map(([name, data]) => ({ name, data }));
+		return { categories: dates, series };
+	}, [llmAnalysis]);
+
+	// Search highlight state - listens for global dashboard-search events
+	const [highlightQuery, setHighlightQuery] = React.useState<string>("");
+	React.useEffect(() => {
+		const handler = (e: any) => setHighlightQuery(((e?.detail?.query) || '').toString().toLowerCase());
+		window.addEventListener('dashboard-search', handler);
+		return () => window.removeEventListener('dashboard-search', handler);
+	}, []);
+
 	// State for chart dropdown selections
 	const [chartDropdownSelections, setChartDropdownSelections] = React.useState<{
 		[chartId: string]: string;
@@ -321,7 +355,16 @@ function OriginalMainGrid({
 			
 			if (response.data && response.data.llm_analysis) {
 				console.log("✅ Date-filtered main dashboard data loaded");
-				setLlmAnalysis(response.data.llm_analysis);
+				const analysis = response.data.llm_analysis;
+				// Ensure timeline visibility for multi-day ranges even if backend didn't return timeline
+				const startDate = dateRange.start?.format ? dateRange.start.format('YYYY-MM-DD') : dateRange.start;
+				const endDate = dateRange.end?.format ? dateRange.end.format('YYYY-MM-DD') : dateRange.end;
+				if (startDate && endDate && startDate !== endDate && !Array.isArray((analysis as any).timeline)) {
+					console.log('ℹ️ Backend returned no timeline; wrapping single analysis into timeline for visibility');
+					setLlmAnalysis({ timeline: [{ date: endDate, llm_analysis: analysis }] });
+				} else {
+					setLlmAnalysis(analysis);
+				}
 			} else {
 				console.error("❌ No LLM analysis in date-filtered response");
 			}
@@ -756,15 +799,26 @@ function OriginalMainGrid({
 			)}
 			*/}
 
+
+			{/* Timeline charts when a date range is selected and timeline is available */}
+            {llmAnalysis?.timeline && Array.isArray(llmAnalysis.timeline) && (
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                    <Grid size={{ xs: 12 }} data-timeline>
+                        <TimelineTrendsCard timeline={llmAnalysis.timeline} />
+                    </Grid>
+                </Grid>
+            )}
+
 			{/* KPI Cards - Only render if kpis array exists and has items */}
 			{llmAnalysis?.kpis && llmAnalysis.kpis.length > 0 && (
 				<Grid container spacing={2}  sx={{ mb: 3 }}>
 					{llmAnalysis.kpis.map((kpi: any, index: number) => {
 						const trendDisplay = getTrendDisplay(kpi.trend);
 
-						return (
+					const isHit = highlightQuery && (kpi.display_name || '').toLowerCase().includes(highlightQuery);
+					return (
 							<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
-								<StatCard
+                                <StatCard
 									title={kpi.display_name}
 									value={formatKPIValue(kpi.value, kpi.format)}
 									interval={kpi.trend.description}
@@ -774,6 +828,8 @@ function OriginalMainGrid({
 										{ length: 30 },
 										() => parseFloat(kpi.value) || 0
 									)}
+                                        highlight={Boolean(isHit)}
+                                        highlightText={isHit ? highlightQuery : undefined}
 								/>
 							</Grid>
 						);
@@ -846,8 +902,27 @@ function OriginalMainGrid({
 								return (
 									<Grid key={index} size={getChartSize()}>
 										<Card>
-											<CardHeader
-												title={chart.display_name}
+                                            <CardHeader
+                                                title={(() => {
+                                                    const name = chart.display_name || '';
+                                                    const q = highlightQuery;
+                                                    if (q && name.toLowerCase().includes(q)) {
+                                                        return (
+                                                            <>
+                                                                {name.split(new RegExp(`(${q})`, 'ig')).map((part: string, i: number) => (
+                                                                    part.toLowerCase() === q.toLowerCase() ? (
+                                                                        <Box key={i} component="span" sx={{ bgcolor: 'rgba(255, 235, 59, 0.5)', borderRadius: '4px', px: 0.5 }}>
+                                                                            {part}
+                                                                        </Box>
+                                                                    ) : (
+                                                                        <Box key={i} component="span">{part}</Box>
+                                                                    )
+                                                                ))}
+                                                            </>
+                                                        );
+                                                    }
+                                                    return name;
+                                                })()}
 												subtitle={
 													chart.config?.x_axis?.display_name &&
 													chart.config?.y_axis?.display_name
@@ -944,8 +1019,27 @@ function OriginalMainGrid({
                                 return (
                                     <Grid key={index} size={getChartSize()}>
 										<Card>
-											<CardHeader
-												title={chart.display_name}
+                                            <CardHeader
+                                                title={(() => {
+                                                    const name = chart.display_name || '';
+                                                    const q = highlightQuery;
+                                                    if (q && name.toLowerCase().includes(q)) {
+                                                        return (
+                                                            <>
+                                                                {name.split(new RegExp(`(${q})`, 'ig')).map((part: string, i: number) => (
+                                                                    part.toLowerCase() === q.toLowerCase() ? (
+                                                                        <Box key={i} component="span" sx={{ bgcolor: 'rgba(255, 235, 59, 0.5)', borderRadius: '4px', px: 0.5 }}>
+                                                                            {part}
+                                                                        </Box>
+                                                                    ) : (
+                                                                        <Box key={i} component="span">{part}</Box>
+                                                                    )
+                                                                ))}
+                                                            </>
+                                                        );
+                                                    }
+                                                    return name;
+                                                })()}
 												subtitle={
 													chart.config?.x_axis?.display_name &&
 													chart.config?.y_axis?.display_name
@@ -1250,7 +1344,26 @@ function OriginalMainGrid({
                                     <Grid key={index} size={getChartSize()}>
                                         <Card>
                                             <CardHeader
-                                                title={chart.display_name}
+                                                title={(() => {
+                                                    const name = chart.display_name || '';
+                                                    const q = highlightQuery;
+                                                    if (q && name.toLowerCase().includes(q)) {
+                                                        return (
+                                                            <>
+                                                                {name.split(new RegExp(`(${q})`, 'ig')).map((part: string, i: number) => (
+                                                                    part.toLowerCase() === q.toLowerCase() ? (
+                                                                        <Box key={i} component="span" sx={{ bgcolor: 'rgba(25,118,210,0.15)', borderRadius: '4px', px: 0.5 }}>
+                                                                            {part}
+                                                                        </Box>
+                                                                    ) : (
+                                                                        <Box key={i} component="span">{part}</Box>
+                                                                    )
+                                                                ))}
+                                                            </>
+                                                        );
+                                                    }
+                                                    return name;
+                                                })()}
                                                 subtitle={chart.config?.y_axis?.display_name || "Donut chart visualization"}
                                             />
                                             <CardContent>
@@ -1360,30 +1473,7 @@ function OriginalMainGrid({
 				</Grid>
 			)} */}
 
-			{/* No Data Message - Only show if no data at all */}
-			{(!llmAnalysis ||
-				((!llmAnalysis.kpis || llmAnalysis.kpis.length === 0) &&
-					(!llmAnalysis.charts || llmAnalysis.charts.length === 0) &&
-					(!llmAnalysis.tables || llmAnalysis.tables.length === 0))) && (
-				<Grid container spacing={2}  sx={{ mb: 3 }}>
-					<Grid size={{ xs: 12 }}>
-						<Card
-							sx={{
-								bgcolor: "grey.50",
-								border: "2px dashed #ccc",
-							}}>
-							<CardContent sx={{ textAlign: "center", py: 4 }}>
-								<Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
-									📊 Dashboard Data
-								</Typography>
-								<Typography variant="body2" color="text.secondary">
-									No KPIs, charts, or tables available in the current analysis
-								</Typography>
-							</CardContent>
-						</Card>
-					</Grid>
-				</Grid>
-			)}
+			{/* No Data Message removed per request */}
 
 			<Copyright sx={{ my: 4 }} />
 		</Box>

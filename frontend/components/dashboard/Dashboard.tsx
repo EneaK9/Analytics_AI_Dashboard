@@ -87,7 +87,14 @@ export default function Dashboard({
 
 
 
-	return (
+    const handleSearch = React.useCallback((query: string) => {
+        console.log('🔎 Search submitted:', query);
+        // Broadcast search to dashboard components for highlight
+        const evt = new CustomEvent('dashboard-search', { detail: { query } });
+        window.dispatchEvent(evt);
+    }, []);
+
+    return (
 		<AppTheme
 			disableCustomTheme={disableCustomTheme}
 			themeComponents={xThemeComponents}>
@@ -134,7 +141,7 @@ export default function Dashboard({
 						</>
 					) : (
 							<>
-								<Header onDateRangeChange={onDateRangeChange} />
+                                <Header onDateRangeChange={onDateRangeChange} onSearch={handleSearch} />
 								<MainGrid
 									dashboardData={dashboardData}
 									user={user}

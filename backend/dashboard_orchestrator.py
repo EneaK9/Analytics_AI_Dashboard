@@ -4606,11 +4606,13 @@ Return ONLY the JSON response, no additional text or explanations.
             logger.info(f"🔄 FORCING fresh LLM analysis for MAIN dashboard (improved prompts) - client {client_id}")
             
             flattened_data = self._extract_business_entities_for_llm(data_records)
-            # Send more data to LLM for better analysis (first 10 records)
-            sample_data = flattened_data[:10] if len(flattened_data) > 10 else flattened_data
-            logger.info(f"📊 Sending {len(sample_data)} sample records to LLM for MAIN dashboard analysis")
-            logger.info(f"📊 Sample data fields: {list(sample_data[0].keys()) if sample_data else 'No data'}")
-            logger.info(f"📊 Sample record: {sample_data[0] if sample_data else 'No data'}")
+            # Summarize the ENTIRE dataset so analysis is based on all records (not a sample)
+            dataset_summary = self._summarize_flattened_records(flattened_data)
+            logger.info(
+                f"📊 Prepared dataset summary from {len(flattened_data)} records: "
+                f"{len(dataset_summary.get('numeric_fields', {}))} numeric, "
+                f"{len(dataset_summary.get('categorical_fields', {}))} categorical"
+            )
             
             # Create main dashboard focused prompt
             main_prompt = f"""
@@ -4624,9 +4626,9 @@ Focus on MAIN DASHBOARD metrics:
 - General business insights
 - Overall data quality and characteristics
 
-Sample Data: {json.dumps(sample_data)}
+DATASET SUMMARY (computed over ALL records): {json.dumps(dataset_summary)}
 Total Records: {len(data_records)}
-Data Fields: {list(sample_data[0].keys()) if sample_data else []}
+Data Fields: {list(dataset_summary.get('all_fields', []))}
 
 ANALYZE THE ACTUAL CLIENT DATA and generate REAL insights based on DATA PATTERNS you discover. 
 
@@ -4638,7 +4640,7 @@ STEPS:
 5. CREATE charts that visualize actual data distributions and relationships
 6. BUILD tables from real data rows and columns
 
-Return JSON with this structure, using ONLY insights derived from the actual data:
+Return JSON with this structure, using ONLY insights derived from the actual data (use the numeric/categorical summaries to calculate metrics over ALL records):
 {{
     "business_analysis": {{
         "business_type": "[analyze data to determine actual business type]",
@@ -4714,6 +4716,71 @@ CRITICAL REQUIREMENTS:
         except Exception as e:
             logger.error(f"❌ Main dashboard LLM analysis failed: {e}")
             raise e
+
+    def _summarize_flattened_records(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Compute lightweight statistics across ALL records to inform LLM prompt without sampling.
+
+        Returns a structure with:
+        - all_fields: union of keys
+        - numeric_fields: {field: {count, mean, min, max}}
+        - categorical_fields: {field: {top_values: [[value, count], ...]}}
+        - record_count
+        """
+        try:
+            all_fields: set = set()
+            numeric_stats: Dict[str, Dict[str, float]] = {}
+            categorical_counts: Dict[str, Dict[str, int]] = {}
+
+            for row in records:
+                if not isinstance(row, dict):
+                    continue
+                for k, v in row.items():
+                    all_fields.add(k)
+                    # Numeric aggregation
+                    try:
+                        num = float(v)
+                        stats = numeric_stats.setdefault(k, {"count": 0, "sum": 0.0, "min": float("inf"), "max": float("-inf")})
+                        stats["count"] += 1
+                        stats["sum"] += num
+                        if num < stats["min"]: stats["min"] = num
+                        if num > stats["max"]: stats["max"] = num
+                    except (TypeError, ValueError):
+                        # Categorical aggregation
+                        val = None
+                        if v is None:
+                            val = "<null>"
+                        elif isinstance(v, (str, int, float, bool)):
+                            val = str(v)
+                        else:
+                            val = json.dumps(v, default=str)[:80]
+                        counts = categorical_counts.setdefault(k, {})
+                        counts[val] = counts.get(val, 0) + 1
+
+            # Finalize numeric means and categorical top values
+            numeric_final: Dict[str, Dict[str, float]] = {}
+            for k, st in numeric_stats.items():
+                if st["count"] > 0:
+                    numeric_final[k] = {
+                        "count": int(st["count"]),
+                        "mean": st["sum"] / st["count"],
+                        "min": st["min"] if st["min"] != float("inf") else None,
+                        "max": st["max"] if st["max"] != float("-inf") else None,
+                    }
+
+            categorical_final: Dict[str, Dict[str, Any]] = {}
+            for k, counts in categorical_counts.items():
+                top = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:10]
+                categorical_final[k] = {"top_values": top}
+
+            return {
+                "record_count": len(records),
+                "all_fields": sorted(list(all_fields))[:200],  # cap list size
+                "numeric_fields": numeric_final,
+                "categorical_fields": categorical_final,
+            }
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to summarize flattened records: {e}")
+            return {"record_count": len(records), "all_fields": [], "numeric_fields": {}, "categorical_fields": {}}
 
     async def _extract_business_insights_specialized(self, client_data: Dict[str, Any]) -> Dict[str, Any]:
         """Generate BUSINESS-FOCUSED insights using LLM"""

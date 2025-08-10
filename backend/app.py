@@ -561,21 +561,24 @@ async def create_client_superadmin(
                         if parsed_records:
                             logger.info(f"🔄 {data_type.upper()} parsed to {len(parsed_records)} JSON records")
                             
-                            # BATCH INSERT - Same logic for ALL formats!
-                            batch_rows = []
-                            for record in parsed_records:
+                            # DEDUP + BATCH INSERT for ALL formats with retry logic
+                            if parsed_records:
+                                from database import get_db_manager
+                                manager = get_db_manager()
                                 # Remove metadata fields before storing
-                                clean_record = {k: v for k, v in record.items() if not k.startswith('_')}
-                                batch_rows.append({
-                                    "client_id": client_id,
-                                    "table_name": f"client_{client_id.replace('-', '_')}_data",
-                                    "data": clean_record  # Store as JSON object
-                                })
-                            
-                            # OPTIMIZED BATCH INSERT for ALL formats with retry logic
-                            if batch_rows:
-                                total_inserted = await improved_batch_insert(db_client, batch_rows, data_type)
-                                logger.info(f"🚀 TOTAL {data_type.upper()}: {total_inserted} rows inserted successfully!")
+                                clean_records = [
+                                    {k: v for k, v in r.items() if not str(k).startswith('_')}
+                                    for r in parsed_records
+                                ]
+                                total_inserted = await manager.dedup_and_batch_insert_client_data(
+                                    f"client_{client_id.replace('-', '_')}_data",
+                                    clean_records,
+                                    client_id,
+                                    dedup_scope="day",
+                                )
+                                logger.info(
+                                    f"🚀 TOTAL {data_type.upper()}: {total_inserted} new rows inserted after dedup!"
+                                )
                                 
                                 # 📊 PERFORMANCE MONITORING for large datasets
                                 if len(parsed_records) > 10000:  # Track performance for large uploads
@@ -969,18 +972,16 @@ async def create_client_with_api_integration(
                         "platform_type": platform_type
                     }).execute()
                     
-                    # Store data records
-                    batch_rows = []
-                    for record in records:
-                        batch_rows.append({
-                            "client_id": client_id,
-                            "table_name": f"client_{client_id.replace('-', '_')}_data",
-                            "data": record
-                        })
-                    
-                    # Optimized batch insert data with retry logic
-                    if batch_rows:
-                        inserted_count = await improved_batch_insert(db_client, batch_rows, f"{platform_type}_{data_type}")
+                    # Dedup and store data records for the day
+                    if records:
+                        from database import get_db_manager
+                        manager = get_db_manager()
+                        inserted_count = await manager.dedup_and_batch_insert_client_data(
+                            f"client_{client_id.replace('-', '_')}_data",
+                            records,
+                            client_id,
+                            dedup_scope="day",
+                        )
                         total_records += inserted_count
             
             # Update API credentials status to connected
@@ -1901,7 +1902,8 @@ async def get_dashboard_metrics(
     fast_mode: bool = True,  # DEFAULT TO FAST MODE TO PREVENT TIMEOUTS
     force_llm: bool = False,  # Only use LLM if explicitly requested
     start_date: Optional[str] = None,  # Date filtering support
-    end_date: Optional[str] = None     # Date filtering support
+    end_date: Optional[str] = None,     # Date filtering support
+    preset: Optional[str] = None       # Presets: today, yesterday, last_7_days, last_30_days, this_month, last_month
 ):
     """Get dashboard metrics - OPTIMIZED for speed, uses cache by default"""
     try:
@@ -1914,21 +1916,81 @@ async def get_dashboard_metrics(
         from dashboard_orchestrator import dashboard_orchestrator
         from llm_cache_manager import llm_cache_manager
         
-                # Get client data  
-        client_data = await ai_analyzer.get_client_data_optimized(client_id)
+        # Resolve preset into date range if provided and explicit range not present
+        if preset and not (start_date or end_date):
+            from datetime import datetime, timedelta
+            today = datetime.utcnow().date()
+            if preset == "today":
+                start_date = today.isoformat()
+                end_date = today.isoformat()
+            elif preset == "yesterday":
+                y = (today - timedelta(days=1)).isoformat()
+                start_date = y
+                end_date = y
+            elif preset == "last_7_days":
+                start_date = (today - timedelta(days=6)).isoformat()
+                end_date = today.isoformat()
+            elif preset == "last_30_days":
+                start_date = (today - timedelta(days=29)).isoformat()
+                end_date = today.isoformat()
+            elif preset == "this_month":
+                start_date = today.replace(day=1).isoformat()
+                end_date = today.isoformat()
+            elif preset == "last_month":
+                first_this = today.replace(day=1)
+                last_month_end = first_this - timedelta(days=1)
+                start_date = last_month_end.replace(day=1).isoformat()
+                end_date = last_month_end.isoformat()
+
+        # Get client data with optional date range for full, correct analysis
+        client_data = await ai_analyzer.get_client_data_optimized(client_id, start_date=start_date, end_date=end_date)
         if not client_data:
             raise HTTPException(status_code=404, detail="No data found for this client")
         
-        # Check for cached analysis based on data snapshot timeline
-        if start_date or end_date:
-            logger.info(f"📅 Checking for cached analysis for period: {start_date} to {end_date}")
-            cached_analysis = await get_cached_analysis_by_data_snapshot(
-                client_id, start_date, end_date, "metrics"
-            )
-            
-            if cached_analysis:
-                logger.info(f"📦 Returning cached analysis for period {start_date} to {end_date}")
-                return cached_analysis
+        # If range requested, attempt to serve from daily cache
+        if start_date and end_date:
+            logger.info(f"📅 Attempting cache for period: {start_date} to {end_date}")
+            try:
+                # Single-day request: return the day's cached analysis directly
+                if start_date == end_date:
+                    daily_entries = await llm_cache_manager.get_daily_latest_in_range(client_id, start_date, end_date, "metrics")
+                    if daily_entries:
+                        d = daily_entries[0]
+                        llm_resp = d.get("llm_response", {})
+                        analysis = llm_resp.get("llm_analysis") if isinstance(llm_resp, dict) else llm_resp
+                        return {
+                            "client_id": client_id,
+                            "data_type": client_data.get('data_type', 'unknown'),
+                            "schema_type": client_data.get('schema', {}).get('type', 'unknown'),
+                            "total_records": len(client_data.get('data', [])),
+                            "llm_analysis": analysis,
+                            "cached": True,
+                            "response_time": "instant"
+                        }
+
+                # Multi-day range: return a timeline series
+                daily_entries = await llm_cache_manager.get_daily_latest_in_range(client_id, start_date, end_date, "metrics")
+                if daily_entries:
+                    timeline = []
+                    for d in daily_entries:
+                        llm_resp = d.get("llm_response", {})
+                        analysis = llm_resp.get("llm_analysis") if isinstance(llm_resp, dict) else None
+                        timeline.append({
+                            "date": d.get("analysis_date") or (d.get("created_at", "")[:10]),
+                            "llm_analysis": analysis or llm_resp,
+                            "total_records": d.get("total_records"),
+                        })
+                    return {
+                        "client_id": client_id,
+                        "data_type": client_data.get('data_type', 'unknown'),
+                        "schema_type": client_data.get('schema', {}).get('type', 'unknown'),
+                        "total_records": len(client_data.get('data', [])),
+                        "llm_analysis": {"timeline": timeline},
+                        "cached": True,
+                        "response_time": "instant"
+                    }
+            except Exception as e:
+                logger.info(f"ℹ️ Range cache not available; will compute fresh: {e}")
         
         # Clear cache if forced fresh analysis is requested
         if force_llm:
