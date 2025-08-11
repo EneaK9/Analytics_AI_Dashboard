@@ -201,12 +201,11 @@ class PerformanceOptimizedDatabaseManager:
             start_time = time.time()
             client = self._get_pooled_admin_client()
             
-            # Use a single optimized query with proper indexing
+            # Use a single optimized query with proper indexing - NO LIMIT for complete data processing
             response = client.table("client_data") \
                 .select("data, table_name, created_at") \
                 .eq("client_id", client_id) \
                 .order("created_at", desc=True) \
-                .limit(1000) \
                 .execute()
             
             if response.data:
@@ -262,10 +261,9 @@ class PerformanceOptimizedDatabaseManager:
             # Use pooled admin client for faster processing
             client = self._get_pooled_admin_client()
             
-            # ENHANCED SETTINGS for large datasets
-            batch_size = 75  # Slightly smaller for better reliability
-            max_retries = 3
-            base_delay = 0.3
+            # 🚀 ULTRA-FAST SETTINGS for massive datasets (1M+ records)
+            batch_size = 1000  # Match app layer - 1000 record chunks
+            max_retries = 4
             total_inserted = 0
             failed_batches = []
             
@@ -277,9 +275,7 @@ class PerformanceOptimizedDatabaseManager:
                 
                 while retry_count <= max_retries and not batch_inserted:
                     try:
-                        # Add delay between batches to prevent overwhelming Supabase
-                        if i > 0:
-                            await asyncio.sleep(0.15)  # 150ms delay
+                        # 🚀 NO DELAYS - Maximum throughput for massive datasets
                         
                         response = client.table("client_data").insert(batch).execute()
                         
@@ -294,31 +290,36 @@ class PerformanceOptimizedDatabaseManager:
                         retry_count += 1
                         error_msg = str(batch_error)
                         
-                        if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-                            if retry_count <= max_retries:
-                                delay = base_delay * (2 ** retry_count)
-                                logger.warning(f"⏱️ Batch {batch_num} timeout (attempt {retry_count}/{max_retries + 1}). Retrying in {delay}s...")
-                                await asyncio.sleep(delay)
-                            else:
-                                logger.error(f"❌ Batch {batch_num} failed after {max_retries + 1} attempts")
-                                failed_batches.append(batch)
-                                break
+                        # 🚀 SMART TIMEOUT DETECTION - Similar to app layer
+                        is_timeout = any(keyword in error_msg.lower() for keyword in [
+                            "timeout", "timed out", "statement timeout", "canceling statement", "57014"
+                        ])
+                        
+                        if is_timeout and retry_count <= max_retries:
+                            # 🚀 MINIMAL BACKOFF - Linear instead of exponential for speed
+                            delay = 0.2 * retry_count  # 0.2s, 0.4s, 0.6s, 0.8s
+                            logger.warning(f"⏱️ Batch {batch_num} timeout (attempt {retry_count}/{max_retries + 1}). Retrying in {delay}s...")
+                            await asyncio.sleep(delay)
+                        elif retry_count > max_retries:
+                            logger.error(f"❌ Batch {batch_num} failed after {max_retries + 1} attempts")
+                            failed_batches.append(batch)
+                            break
                         else:
                             logger.error(f"❌ Batch {batch_num} failed with error: {batch_error}")
                             failed_batches.append(batch)
                             break
             
-            # Handle failed batches with smaller chunks
+            # 🚀 FAST RECOVERY - Handle failed batches with optimized smaller chunks
             if failed_batches:
-                logger.info(f"🔄 Retrying {len(failed_batches)} failed batches with smaller chunks...")
-                small_batch_size = 25
+                logger.info(f"🔄 FAST RECOVERY: Processing {len(failed_batches)} failed batches...")
+                recovery_batch_size = 500  # Larger recovery chunks for speed
                 
                 for failed_batch in failed_batches:
-                    for j in range(0, len(failed_batch), small_batch_size):
-                        small_batch = failed_batch[j:j + small_batch_size]
+                    for j in range(0, len(failed_batch), recovery_batch_size):
+                        recovery_batch = failed_batch[j:j + recovery_batch_size]
                         try:
-                            await asyncio.sleep(0.4)  # Extra delay for problem batches
-                            response = client.table("client_data").insert(small_batch).execute()
+                            await asyncio.sleep(0.1)  # Minimal delay for recovery
+                            response = client.table("client_data").insert(recovery_batch).execute()
                             if response.data:
                                 total_inserted += len(response.data)
                                 logger.info(f"🔧 Recovered {len(response.data)} records")

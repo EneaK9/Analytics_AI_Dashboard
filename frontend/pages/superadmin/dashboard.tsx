@@ -52,6 +52,7 @@ interface CreateClientForm {
 	data_content: string;
 	input_method: "paste" | "upload" | "api" | "sftp";
 	uploaded_file: File | null;
+	uploaded_files: File[];
 
 	// API Integration fields
 	platform_type: "manual" | "shopify" | "amazon" | "woocommerce";
@@ -117,6 +118,7 @@ const SuperAdminDashboard: React.FC = () => {
 		data_content: "",
 		input_method: "paste",
 		uploaded_file: null,
+		uploaded_files: [],
 
 		// API Integration fields
 		platform_type: "manual",
@@ -230,12 +232,27 @@ const SuperAdminDashboard: React.FC = () => {
 	};
 
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0] || null;
-		setFormData((prev) => ({
-			...prev,
-			uploaded_file: file,
-		}));
+		const files = e.target.files;
+		if (files) {
+			const fileArray = Array.from(files);
+			setFormData((prev) => ({
+				...prev,
+				uploaded_file: fileArray[0] || null, // Keep single file for backward compatibility
+				uploaded_files: fileArray,
+			}));
+		}
 		if (error) setError("");
+	};
+
+	const removeFile = (index: number) => {
+		setFormData((prev) => {
+			const newFiles = prev.uploaded_files.filter((_, i) => i !== index);
+			return {
+				...prev,
+				uploaded_file: newFiles[0] || null,
+				uploaded_files: newFiles,
+			};
+		});
 	};
 
 	const handleInputMethodChange = (
@@ -524,8 +541,17 @@ const SuperAdminDashboard: React.FC = () => {
 
 				if (formData.input_method === "paste") {
 					submitData.append("data_content", formData.data_content);
-				} else if (formData.uploaded_file) {
-					submitData.append("uploaded_file", formData.uploaded_file);
+				} else if (formData.uploaded_files.length > 0) {
+					// Submit all files
+					formData.uploaded_files.forEach((file, index) => {
+						submitData.append(`uploaded_file_${index}`, file);
+					});
+					// Also keep single file for backward compatibility
+					submitData.append("uploaded_file", formData.uploaded_files[0]);
+					submitData.append(
+						"file_count",
+						formData.uploaded_files.length.toString()
+					);
 				}
 
 				await api.post("/superadmin/clients", submitData, {
@@ -544,6 +570,7 @@ const SuperAdminDashboard: React.FC = () => {
 				data_content: "",
 				input_method: "paste",
 				uploaded_file: null,
+				uploaded_files: [],
 
 				// API Integration fields
 				platform_type: "manual",
@@ -978,7 +1005,9 @@ id,name,email,age,department
 												className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-gray-1 focus:ring-1 focus:ring-primary focus:border-transparent outline-none">
 												<option value="json">JSON</option>
 												<option value="csv">CSV</option>
+												<option value="excel">Excel (.xlsx/.xls)</option>
 												<option value="xml">XML</option>
+												<option value="bak">Backup Files (.bak)</option>
 											</select>
 										</div>
 									)}
@@ -1063,28 +1092,48 @@ id,name,email,age,department
 									) : formData.input_method === "upload" ? (
 										<div>
 											<label className="block text-xs font-medium text-black mb-1">
-												Upload File
+												Upload Files (Multiple files supported)
 											</label>
 											<input
 												type="file"
 												onChange={handleFileChange}
+												multiple
 												accept={
 													formData.data_type === "csv"
-														? ".csv,.txt"
+														? ".csv,.txt,.xlsx,.xls,.bak"
 														: formData.data_type === "json"
-														? ".json,.txt"
+														? ".json,.txt,.xlsx,.xls,.bak"
 														: formData.data_type === "xml"
-														? ".xml,.txt"
-														: ".txt,.json,.csv,.xml"
+														? ".xml,.txt,.xlsx,.xls,.bak"
+														: formData.data_type === "excel"
+														? ".xlsx,.xls,.csv,.txt,.bak"
+														: ".txt,.json,.csv,.xml,.xlsx,.xls,.bak"
 												}
 												className="block w-full px-2 py-1.5 text-sm border border-stroke rounded bg-gray-1 focus:ring-1 focus:ring-primary focus:border-transparent outline-none file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
 												required
 											/>
-											{formData.uploaded_file && (
-												<p className="mt-1 text-xs text-body">
-													{formData.uploaded_file.name} (
-													{(formData.uploaded_file.size / 1024).toFixed(1)} KB)
-												</p>
+											{formData.uploaded_files.length > 0 && (
+												<div className="mt-2 space-y-1">
+													{formData.uploaded_files.map((file, index) => (
+														<div
+															key={index}
+															className="flex items-center justify-between bg-gray-1 p-2 rounded text-xs border">
+															<span className="text-body">
+																{file.name} ({(file.size / 1024).toFixed(1)} KB)
+															</span>
+															<button
+																type="button"
+																onClick={() => removeFile(index)}
+																className="text-danger hover:text-danger/80 ml-2"
+																title="Remove file">
+																×
+															</button>
+														</div>
+													))}
+													<p className="text-xs text-body mt-1">
+														Total: {formData.uploaded_files.length} file(s)
+													</p>
+												</div>
 											)}
 										</div>
 									) : formData.input_method === "api" ? (

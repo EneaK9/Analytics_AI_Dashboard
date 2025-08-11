@@ -556,7 +556,13 @@ class DashboardOrchestrator:
                     date_patterns = 0
                     for val in sample_values:
                         try:
-                            pd.to_datetime(val)
+                            # Handle timezone parsing more gracefully
+                            val_str = str(val).strip()
+                            # Remove problematic timezone abbreviations and let pandas handle UTC conversion
+                            if 'PST' in val_str or 'EST' in val_str or 'MST' in val_str or 'CST' in val_str:
+                                # Replace timezone abbreviations with UTC offset for better parsing
+                                val_str = val_str.replace(' PST', '-08:00').replace(' EST', '-05:00').replace(' MST', '-07:00').replace(' CST', '-06:00')
+                            pd.to_datetime(val_str)
                             date_patterns += 1
                         except:
                             pass
@@ -4419,6 +4425,10 @@ Return ONLY the JSON response, no additional text or explanations.
             import openai
             import os
             from openai import AsyncOpenAI
+            from dotenv import load_dotenv
+
+            # Force reload environment variables
+            load_dotenv(override=True)
 
             # Check if API key is available
             api_key = os.getenv("OPENAI_API_KEY")
@@ -4430,11 +4440,24 @@ Return ONLY the JSON response, no additional text or explanations.
                 if not api_key:
                     raise Exception("OpenAI API key not configured - tried OPENAI_API_KEY, OPENAI_KEY, OPENAI_API_TOKEN")
 
+            # Validate API key format
+            if not api_key.startswith("sk-"):
+                logger.error(f"❌ Invalid API key format - doesn't start with 'sk-': {api_key[:20]}...")
+                raise Exception("Invalid OpenAI API key format")
+
+            logger.info(f"🔑 Using OpenAI API key: {api_key[:20]}... (length: {len(api_key)})")
+
             # Initialize OpenAI client
             client = AsyncOpenAI(api_key=api_key)
 
             logger.info(f"🤖 Sending prompt to LLM for analysis")
             logger.info(f"🤖 Using model: gpt-4o")
+            logger.info(f"📏 Prompt length: {len(prompt)} characters")
+
+            # Validate prompt size (OpenAI has token limits)
+            if len(prompt) > 50000:  # Rough character limit to avoid token issues
+                logger.warning(f"⚠️ Prompt is very large ({len(prompt)} chars), truncating...")
+                prompt = prompt[:45000] + "\n\n[Truncated due to size limits]"
 
             # Call OpenAI API with enhanced settings for detailed analysis
             response = await client.chat.completions.create(
@@ -4448,6 +4471,7 @@ Return ONLY the JSON response, no additional text or explanations.
                 ],
                 temperature=0.2,  # Slightly higher for more creative analysis while staying accurate
                 max_tokens=6000,  # Increased for more detailed analysis
+                timeout=120.0,  # Add timeout to prevent hanging
             )
 
             llm_response = response.choices[0].message.content.strip()
@@ -4458,16 +4482,20 @@ Return ONLY the JSON response, no additional text or explanations.
 
         except openai.AuthenticationError as e:
             logger.error(f"❌ OpenAI authentication failed: {e}")
-            raise Exception(f"OpenAI authentication failed: {e}")
+            logger.error(f"❌ API key preview: {api_key[:20] if api_key else 'None'}...")
+            raise Exception(f"OpenAI authentication failed - check API key: {str(e)}")
         except openai.RateLimitError as e:
             logger.error(f"❌ OpenAI rate limit exceeded: {e}")
-            raise Exception(f"OpenAI rate limit exceeded: {e}")
+            raise Exception(f"OpenAI rate limit exceeded: {str(e)}")
         except openai.APIError as e:
             logger.error(f"❌ OpenAI API error: {e}")
-            raise Exception(f"OpenAI API error: {e}")
+            raise Exception(f"OpenAI API error: {str(e)}")
         except Exception as e:
             logger.error(f"❌ LLM analysis failed: {e}")
             logger.error(f"❌ Error type: {type(e).__name__}")
+            logger.error(f"❌ API key status: {'exists' if api_key else 'missing'}")
+            if api_key:
+                logger.error(f"❌ API key preview: {api_key[:20]}...")
             raise e
 
     def _parse_llm_insights(
@@ -4614,29 +4642,30 @@ Return ONLY the JSON response, no additional text or explanations.
             
             # Create main dashboard focused prompt
             main_prompt = f"""
-You are a data analyst creating a MAIN DASHBOARD overview. Analyze this data and provide COMPREHENSIVE OVERVIEW insights.
+You are a SENIOR DATA ANALYST creating an intelligent business dashboard. Analyze the actual data to understand the business type and generate relevant insights.
 
-Focus on MAIN DASHBOARD metrics:
-- Key performance indicators (KPIs) that give overall health view
-- High-level trends and patterns
-- Overall business performance summary
-- Critical metrics overview
-- General business insights
-- Overall data quality and characteristics
+🎯 INTELLIGENT BUSINESS ANALYSIS:
+First, examine the data fields and values to automatically detect the business type and industry. Then tailor your analysis accordingly.
+
+📊 ADAPTIVE ANALYSIS APPROACH:
+Based on the data patterns you observe, focus on the most relevant metrics for this specific business:
+- If INVENTORY/RETAIL: Stock levels, product performance, supply chain efficiency, fulfillment analysis
+- If SALES/ECOMMERCE: Revenue analysis, customer patterns, conversion metrics, channel performance
+- If OPERATIONAL: Process efficiency, resource utilization, performance optimization
+- If FINANCIAL: Cash flow, profitability, cost analysis, ROI metrics
+- If SERVICE: Customer satisfaction, service delivery, quality metrics
 
 Sample Data: {json.dumps(sample_data)}
 Total Records: {len(data_records)}
 Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
-ANALYZE THE ACTUAL CLIENT DATA and generate REAL insights based on DATA PATTERNS you discover. 
-
-STEPS:
-1. EXAMINE the data fields and values to understand the business
-2. CALCULATE real metrics from the actual data 
-3. IDENTIFY genuine patterns and trends
-4. GENERATE meaningful KPIs based on what you find in the data
-5. CREATE charts that visualize actual data distributions and relationships
-6. BUILD tables from real data rows and columns
+🚀 SMART ANALYSIS STEPS:
+1. BUSINESS INTELLIGENCE: Examine data fields to determine business type and key value drivers
+2. CALCULATE MEANINGFUL METRICS: Generate KPIs that actually matter for this specific business
+3. IDENTIFY PATTERNS: Find trends, bottlenecks, and opportunities in the actual data
+4. VALUE-DRIVEN INSIGHTS: Focus on metrics that drive revenue, reduce costs, or improve efficiency
+5. ACTIONABLE RECOMMENDATIONS: Provide specific, data-backed suggestions for improvement
+6. RELEVANT VISUALIZATIONS: Create charts that show the most important business relationships
 
 Return JSON with this structure, using ONLY insights derived from the actual data:
 {{
@@ -4645,35 +4674,138 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
         "industry_sector": "[determine from data fields and content]", 
         "business_model": "[infer from data patterns]",
         "data_characteristics": ["[list actual data characteristics you observe]"],
-        "business_insights": ["[5+ insights based on actual data analysis]"],
-        "recommendations": ["[4+ recommendations based on data findings]"],
+        "business_insights": [
+            "Based on inventory data analysis, derive specific insights about:",
+            "- Stock level optimization opportunities",  
+            "- Product performance and demand patterns",
+            "- Fulfillment efficiency improvements",
+            "- Inventory turnover and cash flow optimization",
+            "- Supply chain bottlenecks and solutions"
+        ],
+        "recommendations": [
+            "Provide actionable recommendations such as:",
+            "- Reorder points for low-stock items", 
+            "- Pricing optimization strategies",
+            "- FBA vs FBM allocation improvements",
+            "- Inventory mix optimization for better ROI"
+        ],
         "data_quality_score": [calculate based on data completeness],
         "confidence_level": [your confidence in the analysis]
     }},
     "kpis": [
         {{
-            "id": "[meaningful-id-based-on-data]",
-            "display_name": "[KPI name relevant to this business]",
-            "technical_name": "[technical_name]",
-            "value": "[CALCULATE from actual data]",
-            "trend": {{"percentage": [estimated trend], "direction": "[up/down/stable]", "description": "[meaningful description]"}},
-            "format": "[appropriate format]"
+            "id": "total_inventory_value",
+            "display_name": "Total Inventory Value",
+            "technical_name": "total_inventory_value", 
+            "value": "[calculate sum of (your_price * afn_fulfillable_quantity) for all products]",
+            "trend": {{"percentage": 0, "direction": "stable", "description": "Current total value of sellable inventory"}},
+            "format": "currency"
+        }},
+        {{
+            "id": "average_order_value",
+            "display_name": "Average Order Value",
+            "technical_name": "average_order_value",
+            "value": "[calculate average of your_price field across all products]", 
+            "trend": {{"percentage": 0, "direction": "stable", "description": "Average price per product in inventory"}},
+            "format": "currency"
+        }},
+        {{
+            "id": "fulfillable_inventory",
+            "display_name": "Fulfillable Inventory",
+            "technical_name": "fulfillable_inventory",
+            "value": "[sum all afn_fulfillable_quantity values]",
+            "trend": {{"percentage": 0, "direction": "stable", "description": "Total units ready for immediate fulfillment"}},
+            "format": "number"
+        }},
+        {{
+            "id": "unsellable_inventory_rate", 
+            "display_name": "Unsellable Inventory Rate",
+            "technical_name": "unsellable_inventory_rate",
+            "value": "[calculate (sum afn_unsellable_quantity / sum afn_total_quantity) * 100]",
+            "trend": {{"percentage": 0, "direction": "down", "description": "Percentage of inventory that cannot be sold"}},
+            "format": "percentage"
+        }},
+        {{
+            "id": "reserved_inventory",
+            "display_name": "Reserved Inventory", 
+            "technical_name": "reserved_inventory",
+            "value": "[sum all afn_reserved_quantity values]",
+            "trend": {{"percentage": 0, "direction": "stable", "description": "Units currently reserved and unavailable"}},
+            "format": "number"
+        }},
+        {{
+            "id": "future_supply_buyable",
+            "display_name": "Future Supply Buyable",
+            "technical_name": "future_supply_buyable", 
+            "value": "[sum all afn_future_supply_buyable values]",
+            "trend": {{"percentage": 0, "direction": "stable", "description": "Units available for future purchasing"}},
+            "format": "number"
         }}
-        // Generate 5+ KPIs based on actual data analysis
+        // Add more e-commerce specific KPIs based on actual data analysis
     ],
     "charts": [
         {{
-            "id": "[chart-id-based-on-data]",
-            "display_name": "[Chart name based on data analysis]",
-            "technical_name": "[technical_name]",
-            "chart_type": "[appropriate chart type for this data]",
-            "data": [{{USE ACTUAL DATA VALUES from the dataset}}],
+            "id": "inventory_health_overview",
+            "display_name": "Inventory Health Distribution",
+            "technical_name": "inventory_health_overview",
+            "chart_type": "pie",
+            "data": [
+                {{"category": "Fulfillable", "value": "[sum of afn_fulfillable_quantity]"}},
+                {{"category": "Reserved", "value": "[sum of afn_reserved_quantity]"}},
+                {{"category": "Unsellable", "value": "[sum of afn_unsellable_quantity]"}},
+                {{"category": "Inbound", "value": "[sum of afn_inbound_working_quantity]"}}
+            ],
             "config": {{
-                "x_axis": {{"field": "[actual field name]", "display_name": "[meaningful label]"}},
-                "y_axis": {{"field": "[actual field name]", "display_name": "[meaningful label]"}}
+                "x_axis": {{"field": "category", "display_name": "Inventory Status"}},
+                "y_axis": {{"field": "value", "display_name": "Quantity"}}
+            }}
+        }},
+        {{
+            "id": "top_revenue_products",
+            "display_name": "Top Products by Inventory Value",
+            "technical_name": "top_revenue_products", 
+            "chart_type": "bar",
+            "data": [
+                {{"product": "[top product name]", "value": "[price * quantity]"}},
+                {{"product": "[2nd product name]", "value": "[price * quantity]"}},
+                {{"product": "[3rd product name]", "value": "[price * quantity]"}}
+            ],
+            "config": {{
+                "x_axis": {{"field": "product", "display_name": "Product"}},
+                "y_axis": {{"field": "value", "display_name": "Inventory Value ($)"}}
+            }}
+        }},
+        {{
+            "id": "fulfillment_channel_comparison",
+            "display_name": "FBA vs FBM Performance",
+            "technical_name": "fulfillment_channel_comparison",
+            "chart_type": "bar", 
+            "data": [
+                {{"channel": "Amazon FBA", "listings": "[count where afn_listing_exists=Yes]"}},
+                {{"channel": "Merchant Fulfilled", "listings": "[count where mfn_listing_exists=Yes]"}}
+            ],
+            "config": {{
+                "x_axis": {{"field": "channel", "display_name": "Fulfillment Method"}},
+                "y_axis": {{"field": "listings", "display_name": "Number of Listings"}}
+            }}
+        }},
+        {{
+            "id": "price_distribution_analysis",
+            "display_name": "Product Price Distribution",
+            "technical_name": "price_distribution_analysis",
+            "chart_type": "bar",
+            "data": [
+                {{"range": "$0-$25", "count": "[count products in range]"}},
+                {{"range": "$25-$50", "count": "[count products in range]"}},
+                {{"range": "$50-$100", "count": "[count products in range]"}},
+                {{"range": "$100+", "count": "[count products in range]"}}
+            ],
+            "config": {{
+                "x_axis": {{"field": "range", "display_name": "Price Range"}},
+                "y_axis": {{"field": "count", "display_name": "Number of Products"}}
             }}
         }}
-        // Generate 3+ charts that visualize actual data patterns
+        // Generate more charts based on actual data analysis and e-commerce patterns
     ],
     "tables": [
         {{
@@ -5444,53 +5576,97 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
             return {"error": f"Analysis failed: {str(e)}"}
 
     def _fix_malformed_json(self, json_string: str) -> str:
-        """Fix common JSON syntax errors from LLM responses"""
+        """Fix common JSON syntax errors from LLM responses including control characters"""
         try:
             import re
+            
+            logger.info(f"🔧 Attempting to fix malformed JSON (length: {len(json_string)})")
 
-            # Remove any trailing commas before closing brackets/braces
+            # Step 1: Remove/fix control characters that cause JSON parsing issues
+            # Remove null bytes and other problematic control characters
+            json_string = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', json_string)
+            
+            # Step 2: Fix invalid escape sequences
+            # Fix incomplete unicode escapes
+            json_string = re.sub(r'\\u[0-9a-fA-F]{0,3}(?![0-9a-fA-F])', '', json_string)
+            # Fix incomplete hex escapes  
+            json_string = re.sub(r'\\x[0-9a-fA-F]{0,1}(?![0-9a-fA-F])', '', json_string)
+            # Fix invalid backslashes
+            json_string = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_string)
+            
+            # Step 3: Fix common structural issues
+            # Remove trailing commas before closing brackets/braces
             json_string = re.sub(r",(\s*[}\]])", r"\1", json_string)
-
-            # Fix unescaped quotes in strings (basic attempt)
-            # This is a simple fix - look for quotes inside string values
+            
+            # Step 4: Fix string values with problematic characters
             lines = json_string.split("\n")
             fixed_lines = []
 
             for line in lines:
-                # If line contains a string value with unescaped quotes
-                if '"' in line and ":" in line:
-                    # Try to fix obvious unescaped quotes in values
-                    if line.count('"') > 2:  # More than just key-value quotes
-                        # Find the value part after the colon
-                        if ":" in line:
-                            key_part, value_part = line.split(":", 1)
-                            # If value part has unescaped quotes, try to escape them
-                            if '"' in value_part.strip().strip(",").strip():
-                                # Simple escape of internal quotes
-                                value_part = value_part.replace('""', '"').replace(
-                                    '"', '\\"'
-                                )
-                                # But restore the outer quotes
-                                if value_part.strip().startswith('\\"'):
-                                    value_part = '"' + value_part.strip()[2:]
-                                if value_part.strip().endswith('\\"'):
-                                    value_part = value_part.strip()[:-2] + '"'
-                                line = key_part + ":" + value_part
-
-                fixed_lines.append(line)
+                try:
+                    # Skip empty lines and comments
+                    if not line.strip() or line.strip().startswith('//'):
+                        fixed_lines.append(line)
+                        continue
+                    
+                    # If line looks like a key-value pair, clean the value
+                    if '"' in line and ":" in line:
+                        # Split on first colon only
+                        parts = line.split(":", 1)
+                        if len(parts) == 2:
+                            key_part = parts[0]
+                            value_part = parts[1]
+                            
+                            # Clean value part of problematic characters
+                            # Remove or escape characters that break JSON
+                            value_part = re.sub(r'[^\x20-\x7E\s]', '', value_part)  # Keep only printable ASCII
+                            
+                            line = key_part + ":" + value_part
+                    
+                    fixed_lines.append(line)
+                    
+                except Exception as line_error:
+                    logger.warning(f"⚠️ Skipping problematic line: {line_error}")
+                    # Skip problematic lines entirely
+                    continue
 
             fixed_json = "\n".join(fixed_lines)
-
-            # Remove any remaining syntax issues
-            fixed_json = re.sub(
-                r'([^\\])"([^",:}\]]*)"([^,:}\]]*)', r'\1"\2\3"', fixed_json
-            )
-
+            
+            # Step 5: Final cleanup
+            # Ensure proper JSON structure
+            fixed_json = re.sub(r',\s*}', '}', fixed_json)  # Remove trailing commas in objects
+            fixed_json = re.sub(r',\s*]', ']', fixed_json)  # Remove trailing commas in arrays
+            
+            logger.info(f"🔧 JSON fix completed, new length: {len(fixed_json)}")
             return fixed_json
 
         except Exception as e:
-            logger.warning(f"⚠️ JSON fixing failed: {e}")
-            return json_string  # Return original if fixing fails
+            logger.error(f"❌ JSON fixing failed: {e}")
+            # If all else fails, try to extract just the structure without problematic content
+            try:
+                # Create a minimal valid JSON structure
+                minimal_json = '''
+                {
+                    "business_analysis": {
+                        "business_type": "other",
+                        "industry_sector": "other",
+                        "business_model": "other",
+                        "data_characteristics": ["unstructured"],
+                        "business_insights": ["Data contains complex formatting that requires further processing"]
+                    },
+                    "dashboard_data": {
+                        "kpis": [],
+                        "charts": [],
+                        "tables": [],
+                        "field_mappings": {},
+                        "metadata": {"total_records": 0}
+                    }
+                }
+                '''
+                logger.info("🔧 Using minimal fallback JSON structure")
+                return minimal_json.strip()
+            except:
+                return json_string  # Return original as last resort
 
 
 

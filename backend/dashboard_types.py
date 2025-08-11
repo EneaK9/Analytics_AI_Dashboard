@@ -21,6 +21,7 @@ class DataFormat(str, Enum):
     YAML = "yaml"
     AVRO = "avro"
     ORC = "orc"
+    BAK = "bak"
 
 class UploadStatus(str, Enum):
     PROCESSING = "processing"
