@@ -9729,13 +9729,13 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
                         logger.warning(f"⚠️ Could not clear all cache: {e}")
                         logger.info(f"🔄 Forced standard cache invalidation for enhanced analysis - client {client_id}")
 
-                await llm_cache_manager.store_cached_llm_response(
-
-                    client_id, client_data, result, "main"
-
-                )
-
-                logger.info(f"💾 Cached MAIN dashboard response for client {client_id}")
+                    await llm_cache_manager.store_cached_llm_response(
+                        str(client_id), 
+                        "main", 
+                        result, 
+                        len(flattened_data)
+                    )
+                    logger.info(f"💾 Cached MAIN dashboard response for client {client_id}")
 
                 except Exception as cache_error:
                     logger.warning(f"⚠️ Cache operations failed: {cache_error}")
@@ -11349,7 +11349,10 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
                                 value_part = f'"{content}"{comma_suffix}'
                                 line = key_part + value_part
 
-                fixed_lines.append(line)
+                    fixed_lines.append(line)
+                except Exception:
+                    # If line processing fails, keep the original line
+                    fixed_lines.append(line)
 
             fixed_json = '\n'.join(fixed_lines)
             

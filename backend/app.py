@@ -611,26 +611,8 @@ async def create_client_superadmin(
                     for file_idx, file in enumerate(files_to_process):
                         try:
                             logger.info(f"📄 Processing file {file_idx + 1}/{len(files_to_process)}: {file.filename}")
+                            parsed_records = []  # Initialize for each file
                             
-                            # DEDUP + BATCH INSERT for ALL formats with retry logic
-                            if parsed_records:
-                                from database import get_db_manager
-                                manager = get_db_manager()
-                                # Remove metadata fields before storing
-                                clean_records = [
-                                    {k: v for k, v in r.items() if not str(k).startswith('_')}
-                                    for r in parsed_records
-                                ]
-                                total_inserted = await manager.dedup_and_batch_insert_client_data(
-                                    f"client_{client_id.replace('-', '_')}_data",
-                                    clean_records,
-                                    client_id,
-                                    dedup_scope="day",
-                                )
-                                logger.info(
-                                    f"🚀 TOTAL {data_type.upper()}: {total_inserted} new rows inserted after dedup!"
-                                )
-                                
                             try:
                                 # NO LIMITS - READ THE ENTIRE FILE
                                 file_content = await file.read()
@@ -800,6 +782,29 @@ async def create_client_superadmin(
                                 except Exception as e:
                                     logger.error(f"❌ Error parsing file {file.filename}: {e}")
                                     continue
+                            
+                            # DEDUP + BATCH INSERT for each file after processing
+                            if parsed_records:
+                                try:
+                                    from database import get_db_manager
+                                    manager = get_db_manager()
+                                    # Remove metadata fields before storing
+                                    clean_records = [
+                                        {k: v for k, v in r.items() if not str(k).startswith('_')}
+                                        for r in parsed_records
+                                    ]
+                                    total_inserted = await manager.dedup_and_batch_insert_client_data(
+                                        f"client_{client_id.replace('-', '_')}_data",
+                                        clean_records,
+                                        client_id,
+                                        dedup_scope="day",
+                                    )
+                                    logger.info(
+                                        f"🚀 FILE {file.filename}: {total_inserted} new rows inserted after dedup!"
+                                    )
+                                    all_parsed_records.extend(parsed_records)
+                                except Exception as db_error:
+                                    logger.error(f"❌ Database insertion failed for {file.filename}: {db_error}")
                         
                         except Exception as e:
                             logger.error(f"❌ Error processing file {file.filename}: {e}")
