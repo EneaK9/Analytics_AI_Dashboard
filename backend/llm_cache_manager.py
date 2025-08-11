@@ -91,11 +91,21 @@ class LLMCacheManager:
                 if cached_responses_json:
                     logger.info(f"🚀 TEMP: Using cache regardless of hash for debugging purposes")
                     try:
-                        # Parse the cached responses (all dashboard types in one JSON)
-                        cached_responses = json.loads(cached_responses_json)
+                        # Handle both string and dict formats for backward compatibility
+                        if isinstance(cached_responses_json, str):
+                            cached_responses = json.loads(cached_responses_json)
+                        elif isinstance(cached_responses_json, dict):
+                            cached_responses = cached_responses_json
+                        else:
+                            logger.warning(f"⚠️ Unexpected cache format for client {client_id}: {type(cached_responses_json)}")
+                            return None
                         
-                        # Get the specific dashboard type response
-                        dashboard_response = cached_responses.get(dashboard_type)
+                        # If the cached response is the direct LLM analysis (not wrapped)
+                        if "llm_analysis" in cached_responses and dashboard_type == "metrics":
+                            dashboard_response = cached_responses
+                        else:
+                            # Get the specific dashboard type response
+                            dashboard_response = cached_responses.get(dashboard_type)
                         
                         if dashboard_response:
                             logger.info(f"✅ Cache HIT for client {client_id} ({dashboard_type}) - data unchanged")
@@ -245,21 +255,23 @@ class LLMCacheManager:
             except Exception:
                 pass
 
+            # Store as JSON string to avoid schema conflicts
+            llm_response_json = json.dumps({
+                "client_id": client_id,
+                "data_type": dashboard_type,
+                "schema_type": "dashboard_analysis",
+                "total_records": client_data.get("total_records", len(client_data.get("data", []))),
+                "llm_analysis": llm_response,
+                "cached": True,
+                "fast_mode": True,
+            })
+
             cache_record = {
                 "client_id": client_id,
                 "data_hash": data_hash,
-                "llm_response": {
-                    "client_id": client_id,
-                    "data_type": dashboard_type,
-                    "schema_type": "dashboard_analysis",
-                    "total_records": client_data.get("total_records", len(client_data.get("data", []))),
-                    "llm_analysis": llm_response,
-                    "cached": True,
-                    "fast_mode": True,
-                },
+                "llm_response": llm_response_json,
                 "data_type": dashboard_type,
                 "total_records": client_data.get("total_records", len(client_data.get("data", []))),
-                "analysis_date": analysis_date,
                 "created_at": datetime.now().isoformat(),
                 "updated_at": datetime.now().isoformat(),
             }
