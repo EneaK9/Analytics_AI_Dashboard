@@ -9170,15 +9170,21 @@ Return ONLY the JSON response, no additional text or explanations.
                                         logger.warning(f"⚠️ INVALID CHART DATA FORMAT: Array strings detected in {chart.get('display_name')}")
                                         return {"error": f"Invalid chart data format: {key}: {value} - use separate objects, not array strings"}
 
-                # 🚨 VALIDATE TABLE DATA - reject tables with insufficient rows
+                # 🚨 VALIDATE TABLE DATA - smart validation for optimal display
                 total_data_records = len(flattened_data)
-                min_required_rows = min(total_data_records, 50)  # Require at least 50 rows or all available data
                 for table in tables:
                     if table.get("data") and isinstance(table["data"], list):
                         table_row_count = len(table["data"])
-                        if table_row_count < min_required_rows:
-                            logger.warning(f"⚠️ INSUFFICIENT TABLE ROWS: {table.get('display_name')} has {table_row_count} rows, need minimum {min_required_rows}")
-                            return {"error": f"Insufficient table rows: {table.get('display_name')} has {table_row_count}/{min_required_rows} minimum required rows"}
+                        if table_row_count < 3:  # Only reject if extremely low (< 3 rows)
+                            logger.warning(f"⚠️ TABLE TOO SMALL: {table.get('display_name')} has {table_row_count} rows, minimum 3 required")
+                            return {"error": f"Table too small: {table.get('display_name')} has {table_row_count}/3 minimum required rows"}
+                        elif table_row_count >= 15:  # Good range for display
+                            logger.info(f"✅ TABLE OPTIMAL SIZE: {table.get('display_name')} has {table_row_count} rows")
+                        elif table_row_count >= 5:  # Acceptable
+                            logger.info(f"✅ TABLE ACCEPTABLE: {table.get('display_name')} has {table_row_count} rows")
+                        else:  # Warn but don't reject
+                            logger.warning(f"⚠️ TABLE SMALL: {table.get('display_name')} has {table_row_count} rows, ideally 15-25 rows")
+                            # Continue processing - don't reject
 
                 logger.info(f"✅ COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
 
@@ -9309,15 +9315,17 @@ Return ONLY the JSON response, no additional text or explanations.
                                         logger.warning(f"⚠️ INVALID CHART DATA FORMAT: Array strings detected in {chart.get('display_name')}")
                                         return {"error": f"Invalid chart data format: {key}: {value} - use separate objects, not array strings"}
 
-                # 🚨 VALIDATE TABLE DATA - reject tables with insufficient rows
+                # 🚨 VALIDATE TABLE DATA - warn about low rows but don't reject
                 total_data_records = len(data_records)
-                min_required_rows = min(total_data_records, 50)  # Require at least 50 rows or all available data
                 for table in tables:
                     if table.get("data") and isinstance(table["data"], list):
                         table_row_count = len(table["data"])
-                        if table_row_count < min_required_rows:
-                            logger.warning(f"⚠️ INSUFFICIENT TABLE ROWS: {table.get('display_name')} has {table_row_count} rows, need minimum {min_required_rows}")
-                            return {"error": f"Insufficient table rows: {table.get('display_name')} has {table_row_count}/{min_required_rows} minimum required rows"}
+                        if table_row_count < 3:  # Only reject if extremely low (< 3 rows)
+                            logger.warning(f"⚠️ TABLE TOO SMALL: {table.get('display_name')} has {table_row_count} rows, minimum 3 required")
+                            return {"error": f"Table too small: {table.get('display_name')} has {table_row_count}/3 minimum required rows"}
+                        elif table_row_count < min(total_data_records, 20):  # Warn but don't reject
+                            logger.warning(f"⚠️ TABLE HAS FEW ROWS: {table.get('display_name')} has {table_row_count} rows, ideally {total_data_records} rows")
+                            # Continue processing - don't reject
 
                 logger.info(f"✅ COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
 
@@ -9353,7 +9361,7 @@ Return ONLY the JSON response, no additional text or explanations.
             try:
                 logger.info("🔧 Attempting to fix malformed JSON...")
                 fixed_json = self._fix_malformed_json(cleaned_response)
-                
+
                 # Try parsing the fixed JSON
                 parsed_data = json.loads(fixed_json)
                 logger.info(f"✅ Successfully fixed and parsed LLM JSON")
@@ -9386,7 +9394,7 @@ Return ONLY the JSON response, no additional text or explanations.
                                 cleaned_data.append(item)
                         chart["data"] = cleaned_data
                         logger.info(f"🔧 Cleaned chart data format: {chart.get('display_name')}")
-                        
+
                 tables = parsed_data.get("tables", [])
 
                 # 🚨 VALIDATE MINIMUM REQUIREMENTS FOR COMPREHENSIVE ANALYSIS
@@ -9412,15 +9420,17 @@ Return ONLY the JSON response, no additional text or explanations.
                                         logger.warning(f"⚠️ INVALID CHART DATA FORMAT: Array strings detected in {chart.get('display_name')}")
                                         return {"error": f"Invalid chart data format: {key}: {value} - use separate objects, not array strings"}
 
-                # 🚨 VALIDATE TABLE DATA - reject tables with insufficient rows
+                # 🚨 VALIDATE TABLE DATA - warn about low rows but don't reject
                 total_data_records = len(data_records)
-                min_required_rows = min(total_data_records, 50)  # Require at least 50 rows or all available data
                 for table in tables:
                     if table.get("data") and isinstance(table["data"], list):
                         table_row_count = len(table["data"])
-                        if table_row_count < min_required_rows:
-                            logger.warning(f"⚠️ INSUFFICIENT TABLE ROWS: {table.get('display_name')} has {table_row_count} rows, need minimum {min_required_rows}")
-                            return {"error": f"Insufficient table rows: {table.get('display_name')} has {table_row_count}/{min_required_rows} minimum required rows"}
+                        if table_row_count < 3:  # Only reject if extremely low (< 3 rows)
+                            logger.warning(f"⚠️ TABLE TOO SMALL: {table.get('display_name')} has {table_row_count} rows, minimum 3 required")
+                            return {"error": f"Table too small: {table.get('display_name')} has {table_row_count}/3 minimum required rows"}
+                        elif table_row_count < min(total_data_records, 20):  # Warn but don't reject
+                            logger.warning(f"⚠️ TABLE HAS FEW ROWS: {table.get('display_name')} has {table_row_count} rows, ideally {total_data_records} rows")
+                            # Continue processing - don't reject
 
                 logger.info(f"✅ COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
 
@@ -9436,7 +9446,7 @@ Return ONLY the JSON response, no additional text or explanations.
                 logger.warning(f"⚠️ JSON fix also failed with parse error: {fix_json_error}")
                 logger.warning(f"⚠️ Fixed JSON snippet: {fixed_json[max(0, getattr(fix_json_error, 'pos', 0) - 100):getattr(fix_json_error, 'pos', 0) + 100]}")
                 # Fall through to trigger fallback analysis
-                
+
             except Exception as fix_error:
                 logger.warning(f"⚠️ JSON fix also failed: {fix_error}")
                 # Fall through to trigger fallback analysis
@@ -9487,6 +9497,9 @@ Return ONLY the JSON response, no additional text or explanations.
     async def _extract_main_dashboard_insights(self, client_data: Dict[str, Any]) -> Dict[str, Any]:
 
         """Generate MAIN dashboard insights - comprehensive overview"""
+
+        # Import at function level to ensure availability throughout
+        from llm_cache_manager import llm_cache_manager
 
         try:
 
@@ -9631,8 +9644,8 @@ SPECIFIC REQUIREMENTS - NON-NEGOTIABLE MINIMUMS:
 - Generate MINIMUM 10 KPIs (NO FEWER THAN 10) covering ALL business aspects
 - Generate MINIMUM 5 charts (NO FEWER THAN 5) with comprehensive business coverage  
 - Generate MINIMUM 5 tables (NO FEWER THAN 5) with deep business insights and all data rows
-- ALL TABLES MUST CONTAIN ALL """ + str(len(data_records)) + """ DATA ROWS (NOT JUST 1 ROW!)
-- TABLE DATA ARRAYS MUST HAVE """ + str(len(data_records)) + """ OBJECTS, NOT SAMPLES
+- TABLES SHOULD CONTAIN OPTIMAL DATA ROWS (15-25 rows for large datasets, more for smaller ones)
+- PRIORITIZE RESPONSE COMPLETENESS: better to have complete tables with 20 rows than truncated tables with 140 rows
 - FAILURE TO MEET MINIMUMS = INVALID RESPONSE
 - NO dummy data or static examples
 - CALCULATE all metrics from the actual dataset
@@ -9642,17 +9655,20 @@ SPECIFIC REQUIREMENTS - NON-NEGOTIABLE MINIMUMS:
 - CREATE visualizations that show real data distributions
 - GENERATE tables that include ALL RECORDS from the dataset (not just samples), up to 10 most important columns for readability
 
-🚨🚨🚨 TABLE CRITICAL WARNING - YOUR PREVIOUS RESPONSES FAILED THIS 🚨🚨🚨
-YOUR LAST RESPONSE HAD TABLES WITH ONLY 1 ROW EACH - THIS IS UNACCEPTABLE!
-EACH TABLE MUST HAVE THE COMPLETE LIST OF ALL """ + str(len(data_records)) + """ RECORDS IN THE DATA ARRAY
-EXAMPLE CORRECT TABLE FORMAT:
+🚨 SMART TABLE DATA STRATEGY 🚨
+GENERATE TABLES WITH OPTIMAL ROW COUNTS TO PREVENT JSON TRUNCATION:
+- For datasets with 50+ records: Include 15-25 representative rows per table
+- For smaller datasets: Include most/all records
+- Focus on QUALITY and VARIETY of data, not just quantity
+- Ensure each table shows different aspects of the business
+
+EXAMPLE OPTIMAL TABLE FORMAT:
 "data": [
   {"order_id": 6338179268843, "total_price": 73.14, "customer_email": "example1@example.com"},
   {"order_id": 6338179268844, "total_price": 84.22, "customer_email": "example2@example.com"},
-  {"order_id": 6338179268845, "total_price": 95.33, "customer_email": "example3@example.com"},
-  ... ALL """ + str(len(data_records)) + """ ROWS HERE ...
+  ... 15-25 REPRESENTATIVE ROWS (showing variety across dates, amounts, locations, etc.) ...
 ]
-SHOWING ONLY 1 ROW = AUTOMATIC REJECTION
+TARGET: 15-25 rows per table for datasets with """ + str(len(data_records)) + """ records
 
 ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 - FOR E-COMMERCE DATA: Revenue, customers, orders, fulfillment, geography, platforms
@@ -9664,6 +9680,14 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
             llm_response = await self._get_llm_analysis(main_prompt)
 
+            # 🔍 Monitor response size for truncation issues
+            if len(llm_response) > 20000:
+                logger.warning(f"⚠️ LARGE RESPONSE: {len(llm_response)} chars - risk of truncation")
+            elif len(llm_response) > 15000:
+                logger.info(f"📊 SUBSTANTIAL RESPONSE: {len(llm_response)} chars - good detail level")
+            else:
+                logger.info(f"📝 COMPACT RESPONSE: {len(llm_response)} chars")
+
             result = self._parse_llm_insights(llm_response, flattened_data)
 
             
@@ -9672,26 +9696,25 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
             if client_id and "error" not in result:
 
-                from llm_cache_manager import llm_cache_manager
-
-                            # 🗑️ FORCE MAXIMUM ANALYSIS: Clear ALL cache types for comprehensive regeneration
-            await llm_cache_manager.invalidate_cache(str(client_id), "main")
-            await llm_cache_manager.invalidate_cache(str(client_id), "metrics") 
-            await llm_cache_manager.invalidate_cache(str(client_id), "business")
-            await llm_cache_manager.invalidate_cache(str(client_id), "performance")
-            await llm_cache_manager.invalidate_cache(str(client_id), "dashboard")
-            await llm_cache_manager.invalidate_cache(str(client_id), "analytics")
-            # Clear any other possible cache entries
-            try:
-                from database import database_manager
-                await database_manager.execute_query(
-                    "DELETE FROM llm_response_cache WHERE client_id = %s",
-                    (str(client_id),)
-                )
-                logger.info(f"🔄 FORCED COMPLETE CACHE WIPE for maximum analysis - client {client_id}")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not clear all cache: {e}")
-                logger.info(f"🔄 Forced standard cache invalidation for enhanced analysis - client {client_id}")
+                try:
+                    # 🗑️ FORCE MAXIMUM ANALYSIS: Clear ALL cache types for comprehensive regeneration
+                    await llm_cache_manager.invalidate_cache(str(client_id), "main")
+                    await llm_cache_manager.invalidate_cache(str(client_id), "metrics") 
+                    await llm_cache_manager.invalidate_cache(str(client_id), "business")
+                    await llm_cache_manager.invalidate_cache(str(client_id), "performance")
+                    await llm_cache_manager.invalidate_cache(str(client_id), "dashboard")
+                    await llm_cache_manager.invalidate_cache(str(client_id), "analytics")
+                    # Clear any other possible cache entries
+                    try:
+                        from database import database_manager
+                        await database_manager.execute_query(
+                            "DELETE FROM llm_response_cache WHERE client_id = %s",
+                            (str(client_id),)
+                        )
+                        logger.info(f"🔄 FORCED COMPLETE CACHE WIPE for maximum analysis - client {client_id}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not clear all cache: {e}")
+                        logger.info(f"🔄 Forced standard cache invalidation for enhanced analysis - client {client_id}")
 
                 await llm_cache_manager.store_cached_llm_response(
 
@@ -9700,6 +9723,10 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
                 )
 
                 logger.info(f"💾 Cached MAIN dashboard response for client {client_id}")
+
+                except Exception as cache_error:
+                    logger.warning(f"⚠️ Cache operations failed: {cache_error}")
+                    logger.info("✅ Continuing without caching - analysis result still valid")
 
             
 
@@ -9711,7 +9738,22 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
             logger.error(f"❌ Main dashboard LLM analysis failed: {e}")
 
-            raise e
+            # Return graceful error response instead of crashing
+            return {
+                "error": f"Main dashboard analysis failed: {str(e)}",
+                "business_analysis": {
+                    "business_type": "Unknown",
+                    "industry_sector": "Unknown", 
+                    "business_insights": ["Main dashboard analysis failed due to system error"],
+                    "recommendations": ["Please try again - system encountered an error"],
+                    "data_quality_score": "Unable to analyze due to system error",
+                    "confidence_level": "Low"
+                },
+                "kpis": [],
+                "charts": [],
+                "tables": [],
+                "total_records": len(client_data.get('data', [])) if client_data else 0
+            }
 
 
 
@@ -11240,21 +11282,24 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
         """Fix common JSON syntax errors from LLM responses"""
         try:
             import re
-            
+
             # 0. Remove control characters that cause "Expecting value" errors
             json_string = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", json_string)
-            
+
             # 1. Remove JSON comments (// and /* */) which are invalid in JSON
             json_string = re.sub(r'//.*?$', '', json_string, flags=re.MULTILINE)  # Remove // comments
             json_string = re.sub(r'/\*.*?\*/', '', json_string, flags=re.DOTALL)  # Remove /* */ comments
-            
+
             # 2. Remove any trailing commas before closing brackets/braces
             json_string = re.sub(r",(\s*[}\]])", r"\1", json_string)
-            
+
             # 3. Fix incomplete/broken arrays and objects
             json_string = re.sub(r':\s*,', ': null,', json_string)  # Fix empty values
             json_string = re.sub(r':\s*}', ': null}', json_string)  # Fix missing values before }
             json_string = re.sub(r':\s*]', ': null]', json_string)  # Fix missing values before ]
+            
+            # 4. Fix truncated table data specifically - common pattern from your logs
+            json_string = re.sub(r'"customer_email":\s*"[^"]*$', '"customer_email": "truncated@example.com"', json_string)
             
             # 3. Fix unescaped control characters (like newlines, tabs)  
             json_string = json_string.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
@@ -11263,7 +11308,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
             # This is more sophisticated than before
             lines = json_string.split('\n')
             fixed_lines = []
-            
+
             for line in lines:
                 if ':' in line and '"' in line:
                     # Check if this looks like a key-value pair
@@ -11285,9 +11330,9 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
                                 comma_suffix = ',' if value_part.strip().endswith(',') else ''
                                 value_part = f'"{content}"{comma_suffix}'
                                 line = key_part + value_part
-                
+
                 fixed_lines.append(line)
-            
+
             fixed_json = '\n'.join(fixed_lines)
             
             # 4. Additional cleanup for common issues
@@ -11318,15 +11363,35 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
             
             # 6. Handle truncated JSON (ends abruptly)
             if not fixed_json.endswith(('}', ']')):
-                if '"' in fixed_json and not fixed_json.endswith('"'):
-                    fixed_json += '"'  # Close unclosed string
-                if fixed_json.count('{') > fixed_json.count('}'):
-                    fixed_json += '}'  # Close unclosed object
-                if fixed_json.count('[') > fixed_json.count(']'):
-                    fixed_json += ']'  # Close unclosed array
-            
+                # Handle truncated strings more aggressively
+                if '"' in fixed_json:
+                    # Count quotes to see if we have an unmatched quote
+                    quote_count = fixed_json.count('"')
+                    # If odd number of quotes, we have an unclosed string
+                    if quote_count % 2 == 1:
+                        # Find the last quote and close the string properly
+                        last_quote_pos = fixed_json.rfind('"')
+                        if last_quote_pos != -1:
+                            # Close the string and potentially add comma
+                            remaining = fixed_json[last_quote_pos+1:].strip()
+                            if remaining and not remaining.startswith(('}', ']', ',')):
+                                fixed_json = fixed_json[:last_quote_pos+1] + '"'
+                            else:
+                                fixed_json += '"'
+                
+                # Balance braces and brackets
+                open_braces = fixed_json.count('{')
+                close_braces = fixed_json.count('}')
+                open_brackets = fixed_json.count('[')
+                close_brackets = fixed_json.count(']')
+                
+                if open_braces > close_braces:
+                    fixed_json += '}' * (open_braces - close_braces)
+                if open_brackets > close_brackets:
+                    fixed_json += ']' * (open_brackets - close_brackets)
+
             return fixed_json
-            
+
         except Exception as e:
             logger.warning(f"⚠️ JSON fixing failed: {e}")
             return json_string  # Return original if fixing fails
