@@ -9687,24 +9687,24 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
                 from llm_cache_manager import llm_cache_manager
 
-                            # 🗑️ FORCE MAXIMUM ANALYSIS: Clear ALL cache types for comprehensive regeneration
-            await llm_cache_manager.invalidate_cache(str(client_id), "main")
-            await llm_cache_manager.invalidate_cache(str(client_id), "metrics") 
-            await llm_cache_manager.invalidate_cache(str(client_id), "business")
-            await llm_cache_manager.invalidate_cache(str(client_id), "performance")
-            await llm_cache_manager.invalidate_cache(str(client_id), "dashboard")
-            await llm_cache_manager.invalidate_cache(str(client_id), "analytics")
-            # Clear any other possible cache entries
-            try:
-                from database import database_manager
-                await database_manager.execute_query(
-                    "DELETE FROM llm_response_cache WHERE client_id = %s",
-                    (str(client_id),)
-                )
-                logger.info(f"🔄 FORCED COMPLETE CACHE WIPE for maximum analysis - client {client_id}")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not clear all cache: {e}")
-                logger.info(f"🔄 Forced standard cache invalidation for enhanced analysis - client {client_id}")
+                # 🗑️ FORCE MAXIMUM ANALYSIS: Clear ALL cache types for comprehensive regeneration
+                await llm_cache_manager.invalidate_cache(str(client_id), "main")
+                await llm_cache_manager.invalidate_cache(str(client_id), "metrics") 
+                await llm_cache_manager.invalidate_cache(str(client_id), "business")
+                await llm_cache_manager.invalidate_cache(str(client_id), "performance")
+                await llm_cache_manager.invalidate_cache(str(client_id), "dashboard")
+                await llm_cache_manager.invalidate_cache(str(client_id), "analytics")
+                # Clear any other possible cache entries
+                try:
+                    from database import database_manager
+                    await database_manager.execute_query(
+                        "DELETE FROM llm_response_cache WHERE client_id = %s",
+                        (str(client_id),)
+                    )
+                    logger.info(f"🔄 FORCED COMPLETE CACHE WIPE for maximum analysis - client {client_id}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not clear all cache: {e}")
+                    logger.info(f"🔄 Forced standard cache invalidation for enhanced analysis - client {client_id}")
 
                 await llm_cache_manager.store_cached_llm_response(
 

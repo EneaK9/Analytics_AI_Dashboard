@@ -611,219 +611,67 @@ class UniversalDataParser:
             return self._parse_csv(content)
     
     def _parse_bak(self, content: str) -> List[Dict[str, Any]]:
-        """Parse .bak files by extracting MEANINGFUL business data (filtering out binary garbage)"""
+        """Parse .bak files by converting to clean text FIRST, then JSON - SIMPLE APPROACH"""
         try:
-            # .bak files are typically backup files that could contain structured data
-            print("🔍 Analyzing .bak file content for MEANINGFUL business data extraction...")
-            print("🧠 Using smart filtering to avoid binary garbage and extract only business-relevant data")
-            print(f"📏 Content length: {len(content)} characters")
-            print(f"📄 Content preview (first 500 chars): {repr(content[:500])}")
+            print("🔍 Converting .bak file to clean text FIRST, then JSON...")
+            print(f"📏 Original content length: {len(content)} characters")
             
-            # Check if content is empty or very small
+            # Check if content is empty
             if not content or len(content.strip()) < 50:
                 print("❌ .bak file content is empty or too small to parse")
                 return []
             
-            # 🛡️ ENHANCED: Advanced unicode and data cleanup for .bak files
-            # Remove problematic unicode escape sequences that cause parsing failures
-            import re
+            # STEP 1: EXTRACT CLEAN TEXT FROM BINARY MESS
+            clean_text_lines = []
+            lines = content.split('\n')
             
-            # Step 1: Fix unicode escape sequence errors
-            content = re.sub(r'\\u[0-9a-fA-F]{0,3}(?![0-9a-fA-F])', '', content)  # Remove truncated \uXXX
-            content = re.sub(r'\\x[0-9a-fA-F]{0,1}(?![0-9a-fA-F])', '', content)   # Remove truncated \xXX
-            content = content.replace('\\\\', '\\')  # Fix double backslashes
+            print(f"📄 Processing {len(lines)} lines to extract readable text...")
             
-            # Step 2: MINIMAL data quality improvement - preserve actual data
-            content = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', content)  # Remove only null bytes and control chars
-            # Keep ALL printable characters including extended ASCII and unicode for international data
-            
-            # Step 3: Improve JSON detection by cleaning malformed structures
-            content = re.sub(r'}\s*{', '},{', content)  # Fix adjacent JSON objects
-            content = re.sub(r',\s*}', '}', content)  # Remove trailing commas
-            content = re.sub(r',\s*]', ']', content)  # Remove trailing commas in arrays
-            
-            print(f"🧹 Enhanced content cleanup: Removed binary junk and fixed JSON structures")
-            print(f"📏 Content length after cleanup: {len(content)} characters")
-            print(f"📄 Sample content (first 200 chars): {repr(content[:200])}")
-            print(f"📊 Content lines: {len(content.split(chr(10)))}")
-            
-            # 🔍 DATABASE BACKUP DETECTION - Check for common .bak patterns
-            backup_type = "unknown"
-            headers_extracted = []
-            
-            if "AB467008" in content[:1000]:  # GUID pattern suggests SQL Server
-                backup_type = "sql_server"
-                print("🗃️ Detected SQL Server backup format")
-                headers_extracted = self._extract_sql_server_headers(content)
-            elif "TAPE" in content[:1000] or "BACKUP" in content[:1000]:
-                backup_type = "sql_backup"
-                print("🗃️ Detected SQL backup format")
-                headers_extracted = self._extract_backup_headers(content)
-            elif "CREATE TABLE" in content[:5000] or "INSERT INTO" in content[:5000]:
-                backup_type = "sql_dump"
-                print("🗃️ Detected SQL dump format")
-                headers_extracted = self._extract_sql_dump_headers(content)
-            else:
-                print("🗃️ Unknown backup format, using generic parsing")
-                headers_extracted = self._extract_generic_headers(content)
-            
-            # Log discovered headers for AI understanding
-            if headers_extracted:
-                print(f"📋 DISCOVERED TABLE HEADERS: {headers_extracted}")
-                print(f"🎯 AI will use these {len(headers_extracted)} column headers for dashboard generation")
-            else:
-                print("⚠️ No clear table headers found - will use generic field names")
-            
-            # Quick sanity check - if we removed too much content, get original back
-            original_content = content  # Save current state first
-            if len(content) < 100:
-                print("⚠️ Cleanup removed too much content, reverting to minimal cleanup")
-                # Get original content and re-apply minimal cleanup only  
-                # Note: original_content here is the already-processed content, which is fine
-            
-            # Handle empty or very short content
-            if not content or len(content.strip()) < 10:
-                print("⚠️ .bak file is empty or too short to parse")
-                return [{
-                    'filename': 'backup_file',
-                    'content': 'empty_or_minimal',
-                    '_backup_file': True,
-                    '_original_format': 'bak'
-                }]
-            
-            content = content.strip()
-            
-            # Try to extract structured data from the .bak file
-            records = []
-            
-            # Method 1: Look for SQL INSERT statements (common in database backups)
-            sql_inserts = self._extract_sql_inserts(content)
-            if sql_inserts:
-                print(f"📊 Found {len(sql_inserts)} SQL INSERT statements")
-                records.extend(sql_inserts)
-            
-            # Method 2: Look for delimited data patterns (CSV-like within the backup)
-            delimited_data = self._extract_delimited_data(content)
-            if delimited_data:
-                print(f"📊 Found {len(delimited_data)} delimited data records")
-                records.extend(delimited_data)
-            
-            # Method 3: Look for JSON structures within the file
-            json_data = self._extract_json_from_text(content)
-            if json_data:
-                print(f"📊 Found {len(json_data)} JSON structures")
-                records.extend(json_data)
-            
-            # Method 4: Look for key-value pairs
-            kv_data = self._extract_key_value_pairs(content)
-            if kv_data:
-                print(f"📊 Found {len(kv_data)} key-value pairs")
-                records.extend(kv_data)
-            
-            # 🎯 SIMPLE APPROACH: Convert ANY records found to clean JSON
-            if records:
-                print(f"🎯 Found {len(records)} records, converting to clean JSON format...")
+            for line_num, line in enumerate(lines):
+                # Extract only readable ASCII text from each line
+                clean_chars = []
+                for char in line:
+                    # Keep only printable ASCII characters (32-126) plus common whitespace
+                    if 32 <= ord(char) <= 126 or char in [' ', '\t']:
+                        clean_chars.append(char)
                 
-                # 🚀 KEEP ALL RECORDS - NO SAMPLING
-                print(f"⚡ PROCESSING: Using ALL {len(records)} records")
+                clean_line = ''.join(clean_chars).strip()
                 
-                # Convert to simple, clean JSON records WITH HEADER INFORMATION
-                clean_records = []
-                
-                # Create a header information record for the AI
-                if headers_extracted:
-                    header_record = {
-                        'id': 0,
-                        'record_type': 'table_schema',
-                        'table_headers': headers_extracted,
-                        'column_count': len(headers_extracted),
-                        'backup_type': backup_type,
-                        'data_preview': 'Table schema information for AI dashboard generation',
-                        '_is_schema_info': True
-                    }
-                    clean_records.append(header_record)
-                    print(f"📋 Added schema record with {len(headers_extracted)} column headers for AI")
-                
-                for i, record in enumerate(records):
-                    if isinstance(record, dict):
-                        # Create a clean, simple JSON record
-                        clean_record = {
-                            'id': i + 1,
-                            'record_type': 'bak_data',
-                            'data': record,  # Original data
-                            '_sampled_data': True,
-                            '_original_total_records': len(records),
-                            '_available_headers': headers_extracted if headers_extracted else None
-                        }
-                        clean_records.append(clean_record)
-                
-                print(f"✅ Converted to {len(clean_records)} clean JSON records from .bak file")
-                print(f"🎯 AI Dashboard will receive clear table structure with {len(headers_extracted) if headers_extracted else 0} identified columns")
-                return clean_records
+                # Only keep lines with meaningful content (at least 5 characters)
+                if len(clean_line) >= 5:
+                    clean_text_lines.append({
+                        'line_number': line_num + 1,
+                        'text_content': clean_line,
+                        'content_length': len(clean_line)
+                    })
             
-            # If no structured data found, try standard format detection
-            print("🔍 No structured data patterns found, trying standard format detection...")
+            print(f"✅ Extracted {len(clean_text_lines)} lines of clean text")
             
-            # Check if content looks like binary data (contains many non-printable characters)
-            try:
-                non_printable_count = sum(1 for c in content[:1000] if ord(c) < 32 and c not in '\t\n\r')
-                if non_printable_count > len(content[:1000]) * 0.1:  # More than 10% non-printable
-                    print("📄 .bak file contains binary data - creating summary record")
-                    return self._create_binary_summary_records(content)
-            except Exception:
-                pass
+            # STEP 2: TAKE 10% SAMPLE AS REQUESTED
+            total_lines = len(clean_text_lines)
+            sample_size = max(1, total_lines // 10)  # 10% sampling
+            sampled_lines = clean_text_lines[:sample_size]  # Take first 10%
             
-            # 🎯 SIMPLE: Try CSV parsing if content has delimiters
-            if ',' in content or ';' in content or '\t' in content:
-                print("📄 .bak file appears to contain delimited data - trying CSV")
-                records = self._parse_csv(content)
-            else:
-                print("📄 .bak file: creating simple text records")
-                # Simple: convert text to basic records
-                lines = content.split('\n')
-                records = []
-                for i, line in enumerate(lines[:100000]):  # Max 1000 lines
-                    line = line.strip()
-                    if len(line) > 10:  # Only meaningful lines
-                        records.append({
-                            'line_number': i + 1,
-                            'text_content': line,
-                            'content_type': 'text_line'
-                        })
+            print(f"⚡ SAMPLING: Taking 10% sample = {len(sampled_lines)}/{total_lines} lines")
             
-            # 🚀 KEEP ALL RECORDS - NO SAMPLING
-            print(f"⚡ PROCESSING: Using ALL {len(records)} records")
-            
-            # 🎯 SIMPLE: Convert to clean JSON records WITH HEADER INFORMATION
+            # STEP 3: CONVERT TO SIMPLE JSON STRUCTURE
             json_records = []
             
-            # Add header information if available
-            if headers_extracted:
-                header_record = {
-                    'id': 0,
-                    'record_type': 'table_schema',
-                    'table_headers': headers_extracted,
-                    'column_count': len(headers_extracted),
-                    'backup_type': backup_type,
-                    'data_preview': 'Fallback table schema information for AI dashboard generation',
-                    '_is_schema_info': True
-                }
-                json_records.append(header_record)
-                print(f"📋 Added fallback schema record with {len(headers_extracted)} column headers for AI")
-            
-            for i, record in enumerate(records):
-                json_record = {
+            for i, line_data in enumerate(sampled_lines):
+                # Create simple JSON record for each line
+                record = {
                     'id': i + 1,
-                    'record_type': 'bak_data',
-                    'data': record,
-                    '_sampled_data': True,
-                    '_original_total_records': len(records),
-                    '_available_headers': headers_extracted if headers_extracted else None
+                    'line_number': line_data['line_number'],
+                    'text_content': line_data['text_content'],
+                    'content_length': line_data['content_length'],
+                    'record_type': 'text_line',
+                    '_source_format': 'bak_text_extraction'
                 }
-                json_records.append(json_record)
+                json_records.append(record)
             
-            print(f"✅ Converted {len(json_records)} .bak records to JSON format")
-            print(f"🎯 Fallback AI Dashboard will receive clear table structure with {len(headers_extracted) if headers_extracted else 0} identified columns")
+            print(f"✅ Converted {len(json_records)} text lines to clean JSON records")
+            print(f"📊 Sample text preview: {sampled_lines[0]['text_content'][:100] if sampled_lines else 'No data'}")
+            
             return json_records
             
         except Exception as e:
