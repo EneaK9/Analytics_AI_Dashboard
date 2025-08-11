@@ -611,123 +611,313 @@ class UniversalDataParser:
             return self._parse_csv(content)
     
     def _parse_bak(self, content: str) -> List[Dict[str, Any]]:
-        """Parse .bak files by converting to clean text FIRST, then JSON - SIMPLE APPROACH"""
+        """Parse .bak files (SQL Server backup files) with proper database structure extraction"""
         try:
-            print("🔍 Converting .bak file to clean text FIRST, then JSON...")
+            print("🔍 Parsing SQL Server .bak file with database structure extraction...")
             print(f"📏 Original content length: {len(content)} characters")
             
             # Check if content is empty
             if not content or len(content.strip()) < 50:
                 print("❌ .bak file content is empty or too small to parse")
-                return []
+                return self._create_bak_error_record(content, Exception("BAK file content is empty or too small"))
             
-            # STEP 1: EXTRACT CLEAN TEXT FROM BINARY MESS
-            clean_text_lines = []
+            # STEP 1: Try to extract SQL data structures from the backup
+            try:
+                print("🔍 Step 1: Attempting SQL structure extraction...")
+                sql_records = self._extract_sql_from_bak(content)
+                if sql_records:
+                    print(f"✅ SQL extraction successful: {len(sql_records)} records")
+                    return sql_records
+                print("⚠️ No SQL structures found")
+            except Exception as e:
+                print(f"⚠️ SQL extraction failed: {e}")
+            
+            # STEP 2: If SQL extraction fails, try to find database schema information
+            try:
+                print("🔍 Step 2: Attempting database schema extraction...")
+                schema_records = self._extract_database_schema(content)
+                if schema_records:
+                    print(f"✅ Schema extraction successful: {len(schema_records)} records")
+                    return schema_records
+                print("⚠️ No database schema found")
+            except Exception as e:
+                print(f"⚠️ Schema extraction failed: {e}")
+            
+            # STEP 3: Last resort - extract meaningful text patterns but parse them better
+            try:
+                print("🔍 Step 3: Attempting structured data extraction...")
+                structured_records = self._extract_structured_data_from_bak(content)
+                if structured_records:
+                    print(f"✅ Structured data extraction successful: {len(structured_records)} records")
+                    return structured_records
+                print("⚠️ No structured data found")
+            except Exception as e:
+                print(f"⚠️ Structured data extraction failed: {e}")
+            
+            # If all methods fail, return a helpful error record
+            print("❌ All BAK parsing methods failed, returning error record")
+            return self._create_bak_error_record(content, Exception("All BAK parsing methods failed to extract meaningful data"))
+            
+        except Exception as e:
+            print(f"❌ .bak file parsing failed with unexpected error: {e}")
+            import traceback
+            print(f"Full traceback: {traceback.format_exc()}")
+            return self._create_bak_error_record(content, e)
+    
+    def _extract_sql_from_bak(self, content: str) -> List[Dict[str, Any]]:
+        """Extract SQL data from BAK file content"""
+        try:
+            import re
+            
+            # Look for SQL-like patterns in the content
+            sql_patterns = [
+                r'CREATE TABLE\s+(\w+)\s*\(([^)]+)\)',  # Table definitions
+                r'INSERT INTO\s+(\w+)\s+VALUES\s*\(([^)]+)\)',  # Insert statements
+                r'(\w+)\s*=\s*[\'"]([^\'"]*)[\'"]',  # Key-value pairs
+            ]
+            
+            records = []
+            
+            for pattern in sql_patterns:
+                matches = re.findall(pattern, content, re.IGNORECASE | re.MULTILINE)
+                for match in matches[:50]:  # Limit to 50 matches per pattern
+                    if len(match) >= 2:
+                        record = {
+                            'table_name': self._sanitize_text(match[0]),
+                            'content': self._sanitize_text(match[1]),
+                            'record_type': 'sql_structure',
+                            '_source_format': 'bak_sql_extraction'
+                        }
+                        records.append(record)
+            
+            if records:
+                print(f"✅ Extracted {len(records)} SQL structure records from BAK")
+                return records[:100]  # Limit total records
+            
+            return []
+            
+        except Exception as e:
+            print(f"❌ SQL extraction failed: {e}")
+            return []
+    
+    def _extract_database_schema(self, content: str) -> List[Dict[str, Any]]:
+        """Extract database schema information from BAK file"""
+        try:
+            import re
+            
+            # Look for table names and column definitions
+            table_pattern = r'(\w+)\s*\(\s*(\w+(?:\s+\w+)*(?:\s*,\s*\w+(?:\s+\w+)*)*)\s*\)'
+            column_pattern = r'(\w+)\s+(VARCHAR|INT|DECIMAL|DATE|DATETIME|TEXT|CHAR|FLOAT|DOUBLE|BOOLEAN)\s*(?:\(\d+\))?'
+            
+            records = []
+            schema_info = {}
+            
+            # Extract table schemas
+            table_matches = re.findall(table_pattern, content, re.IGNORECASE)
+            for table_name, columns_text in table_matches[:20]:  # Limit to 20 tables
+                column_matches = re.findall(column_pattern, columns_text, re.IGNORECASE)
+                
+                if column_matches:
+                    table_record = {
+                        'table_name': self._sanitize_text(table_name),
+                        'record_type': 'table_schema',
+                        'column_count': len(column_matches),
+                        'columns': [{'name': col[0], 'type': col[1]} for col in column_matches],
+                        '_source_format': 'bak_schema_extraction'
+                    }
+                    records.append(table_record)
+                    schema_info[table_name] = column_matches
+            
+            # Look for data patterns based on schema
+            for table_name, columns in schema_info.items():
+                data_pattern = r'\b' + re.escape(table_name) + r'\b.*?(\d+(?:\s*,\s*[^\s,]+)*)'
+                data_matches = re.findall(data_pattern, content, re.IGNORECASE)
+                
+                for i, data_match in enumerate(data_matches[:10]):  # Limit to 10 data records per table
+                    values = [v.strip().strip("'\"") for v in data_match.split(',')]
+                    
+                    data_record = {
+                        'table_name': table_name,
+                        'record_type': 'data_row',
+                        'record_id': i + 1,
+                        '_source_format': 'bak_data_extraction'
+                    }
+                    
+                    # Map values to column names
+                    for j, (col_name, col_type) in enumerate(columns):
+                        if j < len(values):
+                            data_record[self._sanitize_text(col_name)] = self._convert_value_by_type(values[j], col_type)
+                    
+                    records.append(data_record)
+            
+            if records:
+                print(f"✅ Extracted {len(records)} database schema records from BAK")
+                return records
+            
+            return []
+            
+        except Exception as e:
+            print(f"❌ Database schema extraction failed: {e}")
+            return []
+    
+    def _extract_structured_data_from_bak(self, content: str) -> List[Dict[str, Any]]:
+        """Last resort: extract structured data patterns from BAK content"""
+        try:
+            import re
+            
+            # Look for structured data patterns
+            patterns = [
+                r'(\w+):\s*([^\n\r]+)',  # Key-value pairs
+                r'(\w+)\s*=\s*([^\n\r]+)',  # Assignment patterns
+                r'(\d{4}-\d{2}-\d{2})',  # Dates
+                r'(\d+\.\d+)',  # Decimal numbers
+                r'(\d+)',  # Integers
+            ]
+            
+            records = []
+            extracted_data = {}
+            
+            for pattern_name, pattern in [
+                ('key_value', patterns[0]),
+                ('assignment', patterns[1]),
+                ('dates', patterns[2]),
+                ('decimals', patterns[3]),
+                ('integers', patterns[4])
+            ]:
+                matches = re.findall(pattern, content, re.MULTILINE)
+                if matches:
+                    extracted_data[pattern_name] = matches[:20]  # Limit matches
+            
+            # Create records from extracted patterns
+            record_id = 1
+            
+            for pattern_type, matches in extracted_data.items():
+                for match in matches:
+                    if isinstance(match, tuple) and len(match) >= 2:
+                        record = {
+                            'id': record_id,
+                            'pattern_type': pattern_type,
+                            'key': self._sanitize_text(str(match[0])),
+                            'value': self._sanitize_text(str(match[1])),
+                            'record_type': 'structured_data',
+                            '_source_format': 'bak_pattern_extraction'
+                        }
+                        records.append(record)
+                        record_id += 1
+                    elif isinstance(match, str):
+                        record = {
+                            'id': record_id,
+                            'pattern_type': pattern_type,
+                            'value': self._sanitize_text(match),
+                            'record_type': 'structured_data',
+                            '_source_format': 'bak_pattern_extraction'
+                        }
+                        records.append(record)
+                        record_id += 1
+            
+            if records:
+                print(f"✅ Extracted {len(records)} structured data records from BAK")
+                return records[:100]  # Limit to 100 records
+            
+            # If no structured patterns found, extract clean text lines
+            return self._extract_clean_text_from_bak(content)
+            
+        except Exception as e:
+            print(f"❌ Structured data extraction failed: {e}")
+            return self._extract_clean_text_from_bak(content)
+    
+    def _extract_clean_text_from_bak(self, content: str) -> List[Dict[str, Any]]:
+        """Extract clean readable text from BAK content"""
+        try:
             lines = content.split('\n')
-            
-            print(f"📄 Processing {len(lines)} lines to extract readable text...")
+            records = []
             
             for line_num, line in enumerate(lines):
-                # Extract only readable ASCII text from each line
+                # Extract only readable ASCII text
                 clean_chars = []
                 for char in line:
-                    # Keep only printable ASCII characters (32-126) plus common whitespace
                     if 32 <= ord(char) <= 126 or char in [' ', '\t']:
                         clean_chars.append(char)
                 
                 clean_line = ''.join(clean_chars).strip()
                 
-                # Only keep lines with meaningful content (at least 5 characters)
-                if len(clean_line) >= 5:
-                    clean_text_lines.append({
+                # Only keep lines with meaningful content
+                if len(clean_line) >= 10 and any(c.isalpha() for c in clean_line):
+                    record = {
+                        'id': len(records) + 1,
                         'line_number': line_num + 1,
-                        'text_content': clean_line,
-                        'content_length': len(clean_line)
-                    })
+                        'text_content': clean_line[:200],  # Limit length
+                        'content_length': len(clean_line),
+                        'record_type': 'text_line',
+                        '_source_format': 'bak_text_extraction'
+                    }
+                    records.append(record)
+                    
+                    if len(records) >= 100:  # Limit total records
+                        break
             
-            print(f"✅ Extracted {len(clean_text_lines)} lines of clean text")
-            
-            # STEP 2: TAKE 6% SAMPLE AS REQUESTED
-            total_lines = len(clean_text_lines)
-            sample_size = max(1, int(total_lines * 0.06))  # 6% sampling (0.06 = 6/100)
-            sampled_lines = clean_text_lines[:sample_size]  # Take first 6%
-            
-            print(f"⚡ SAMPLING: Taking 6% sample = {len(sampled_lines)}/{total_lines} lines")
-            
-            # STEP 3: CONVERT TO SIMPLE JSON STRUCTURE
-            json_records = []
-            
-            for i, line_data in enumerate(sampled_lines):
-                # Create simple JSON record for each line
-                record = {
-                    'id': i + 1,
-                    'line_number': line_data['line_number'],
-                    'text_content': line_data['text_content'],
-                    'content_length': line_data['content_length'],
-                    'record_type': 'text_line',
-                    '_source_format': 'bak_text_extraction'
-                }
-                json_records.append(record)
-            
-            print(f"✅ Converted {len(json_records)} text lines to clean JSON records")
-            print(f"📊 Sample text preview: {sampled_lines[0]['text_content'][:100] if sampled_lines else 'No data'}")
-            
-            return json_records
+            print(f"✅ Extracted {len(records)} clean text records from BAK")
+            return records
             
         except Exception as e:
-            print(f"❌ .bak file parsing failed: {e}")
-            # 🛡️ ENHANCED: Better error reporting for unicode/parsing issues
-            error_type = "unicode_error" if "unicode" in str(e).lower() else "parsing_error"
-            print(f"🔧 Error type detected: {error_type}")
+            print(f"❌ Clean text extraction failed: {e}")
+            return []
+    
+    def _create_bak_error_record(self, content: str, error: Exception) -> List[Dict[str, Any]]:
+        """Create error record when BAK parsing fails"""
+        error_type = "unicode_error" if "unicode" in str(error).lower() else "parsing_error"
+        
+        # Try to extract at least some basic info even on failure
+        basic_stats = {
+            'content_length': len(content) if content else 0,
+            'line_count': len(content.split('\n')) if content else 0,
+            'has_sql_keywords': any(keyword in content.upper() for keyword in ['CREATE', 'INSERT', 'SELECT', 'TABLE']) if content else False,
+            'has_database_patterns': any(pattern in content.upper() for pattern in ['DATABASE', 'SCHEMA', 'INDEX']) if content else False
+        }
+        
+        return [{
+            'id': 1,
+            'filename': 'backup_file.bak',
+            'error': str(error)[:200],
+            'error_type': error_type,
+            'content_preview': content[:100] if content else 'empty',
+            'record_type': 'bak_file_info',
+            'data_type': 'bak',
+            'source': 'database',
+            '_backup_file': True,
+            '_original_format': 'bak',
+            '_parse_failed': True,
+            'recovery_message': 'BAK file detected but content extraction failed. This is a database backup file.',
+            **basic_stats
+        }]
+    
+    def _sanitize_text(self, text: str) -> str:
+        """Sanitize text content for safe processing"""
+        if not isinstance(text, str):
+            text = str(text)
+        
+        # Remove non-printable characters
+        sanitized = ''.join(char for char in text if ord(char) >= 32 or char in ['\n', '\t'])
+        
+        # Limit length and strip
+        return sanitized[:500].strip()
+    
+    def _convert_value_by_type(self, value: str, data_type: str) -> Any:
+        """Convert string value to appropriate type based on SQL data type"""
+        try:
+            value = value.strip().strip("'\"")
+            data_type = data_type.upper()
             
-            # Even if parsing fails, try to extract headers for AI
-            try:
-                print("🔄 Attempting header extraction despite parsing failure...")
-                emergency_headers = self._extract_generic_headers(content[:5000])  # Use first 5000 chars only
-                if emergency_headers:
-                    print(f"📋 EMERGENCY HEADER EXTRACTION successful: {emergency_headers}")
-                    
-                    # Return both error info AND header information
-                    return [
-                        {
-                            'id': 0,
-                            'record_type': 'table_schema',
-                            'table_headers': emergency_headers,
-                            'column_count': len(emergency_headers),
-                            'backup_type': 'unknown',
-                            'data_preview': 'Emergency header extraction for AI dashboard generation',
-                            '_is_schema_info': True,
-                            '_emergency_extraction': True
-                        },
-                        {
-                            'id': 1,
-                            'filename': 'failed_backup_file',
-                            'error': str(e)[:200],  # Truncate long error messages
-                            'error_type': error_type,
-                            'content_length': len(content) if content else 0,
-                            'content_preview': content[:100] if content else 'empty',
-                            '_backup_file': True,
-                            '_original_format': 'bak',
-                            '_parse_failed': True,
-                            '_available_headers': emergency_headers,
-                            'recovery_message': f'File parsing failed but extracted {len(emergency_headers)} potential column headers'
-                        }
-                    ]
-            except:
-                pass
-            
-            # Ultimate fallback: create a single record with file info
-            return [{
-                'filename': 'failed_backup_file',
-                'error': str(e)[:200],  # Truncate long error messages
-                'error_type': error_type,
-                'content_length': len(content) if content else 0,
-                'content_preview': content[:100] if content else 'empty',
-                '_backup_file': True,
-                '_original_format': 'bak',
-                '_parse_failed': True,
-                'recovery_message': 'File parsing failed - likely unicode/encoding issues'
-            }]
+            if data_type in ['INT', 'INTEGER']:
+                return int(value)
+            elif data_type in ['FLOAT', 'DOUBLE', 'DECIMAL']:
+                return float(value)
+            elif data_type == 'BOOLEAN':
+                return value.lower() in ['true', '1', 'yes', 'on']
+            else:
+                return value
+        except:
+            return value
     
     def _extract_sql_inserts(self, content: str) -> List[Dict[str, Any]]:
         """Extract data from SQL INSERT statements"""
