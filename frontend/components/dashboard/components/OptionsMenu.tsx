@@ -58,11 +58,11 @@ export default function OptionsMenu() {
 						margin: "4px -4px",
 					},
 				}}>
-				<MenuItem onClick={handleClose}>Profile</MenuItem>
+				{/* <MenuItem onClick={handleClose}>Profile</MenuItem>
 				<MenuItem onClick={handleClose}>My account</MenuItem>
 				<Divider />
 				<MenuItem onClick={handleClose}>Add another account</MenuItem>
-				<MenuItem onClick={handleClose}>Settings</MenuItem>
+				<MenuItem onClick={handleClose}>Settings</MenuItem> */}
 				<Divider />
 				<MenuItem
 					onClick={handleLogout}

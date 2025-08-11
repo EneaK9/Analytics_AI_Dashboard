@@ -1,7 +1,6 @@
 import * as React from "react";
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -11,28 +10,19 @@ import InputLabel from "@mui/material/InputLabel";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import Copyright from "../internals/components/Copyright";
-import ChartUserByCountry from "./ChartUserByCountry";
-import BusinessDataTable from "./BusinessDataTable";
-import HighlightedCard from "./HighlightedCard";
-import RevenueTrendsChart from "./RevenueTrendsChart";
-import SalesCategoryChart from "./SalesCategoryChart";
 import StatCard, { StatCardProps } from "./StatCard";
 import { DateRange } from "./CustomDatePicker";
 import api from "../../../lib/axios";
-import {
-	MUIDashboardData,
-	BackendMetric,
-	MUITableData,
-} from "../../../lib/muiDashboardService";
+
 
 // Import various chart components
 import * as Charts from "../../charts";
 
 // Import MUI X Charts
-import { LineChart } from '@mui/x-charts/LineChart';
-import TimelineTrendsCard from './TimelineTrendsCard';
-import { PieChart } from '@mui/x-charts/PieChart';
-import { BarChart } from '@mui/x-charts/BarChart';
+import { LineChart } from "@mui/x-charts/LineChart";
+import TimelineTrendsCard from "./TimelineTrendsCard";
+import { PieChart } from "@mui/x-charts/PieChart";
+import { BarChart } from "@mui/x-charts/BarChart";
 
 // Chart data validation function for LLM response format
 // Helper function to format KPI values based on format type (shared between components)
@@ -58,10 +48,17 @@ const formatKPIValue = (value: any, format: string): string => {
 		numValue === null ||
 		numValue === undefined ||
 		value === null ||
-		value === undefined
+		value === undefined ||
+		value === "NaN" ||
+		value === "null" ||
+		value === "undefined"
 	) {
 		// Return safe string representation if value can't be parsed as number
-		return String(value || "0");
+		return String(
+			value === "NaN" || value === "null" || value === "undefined"
+				? "0"
+				: value || "0"
+		);
 	}
 
 	switch (format) {
@@ -298,7 +295,11 @@ export function OriginalMainGrid({
 
 	// Build timeline series from llm_analysis.timeline when present
 	const timelineSeries = React.useMemo(() => {
-		if (!llmAnalysis || !llmAnalysis.timeline || !Array.isArray(llmAnalysis.timeline)) {
+		if (
+			!llmAnalysis ||
+			!llmAnalysis.timeline ||
+			!Array.isArray(llmAnalysis.timeline)
+		) {
 			return null;
 		}
 		const dates: string[] = [];
@@ -310,23 +311,30 @@ export function OriginalMainGrid({
 			if (analysis.kpis && Array.isArray(analysis.kpis)) {
 				for (const kpi of analysis.kpis) {
 					const key = kpi.display_name || kpi.name || "KPI";
-					const valNum = typeof kpi.value === 'number' ? kpi.value : parseFloat(String(kpi.value ?? 0));
+					const valNum =
+						typeof kpi.value === "number"
+							? kpi.value
+							: parseFloat(String(kpi.value ?? 0));
 					if (!kpiSeriesMap[key]) kpiSeriesMap[key] = [];
 					kpiSeriesMap[key].push(isNaN(valNum) ? 0 : valNum);
 				}
 			}
 		}
 		// Convert to chart-compatible arrays
-		const series = Object.entries(kpiSeriesMap).map(([name, data]) => ({ name, data }));
+		const series = Object.entries(kpiSeriesMap).map(([name, data]) => ({
+			name,
+			data,
+		}));
 		return { categories: dates, series };
 	}, [llmAnalysis]);
 
 	// Search highlight state - listens for global dashboard-search events
 	const [highlightQuery, setHighlightQuery] = React.useState<string>("");
 	React.useEffect(() => {
-		const handler = (e: any) => setHighlightQuery(((e?.detail?.query) || '').toString().toLowerCase());
-		window.addEventListener('dashboard-search', handler);
-		return () => window.removeEventListener('dashboard-search', handler);
+		const handler = (e: any) =>
+			setHighlightQuery((e?.detail?.query || "").toString().toLowerCase());
+		window.addEventListener("dashboard-search", handler);
+		return () => window.removeEventListener("dashboard-search", handler);
 	}, []);
 
 	// State for chart dropdown selections
@@ -405,11 +413,24 @@ export function OriginalMainGrid({
 				console.log("✅ Date-filtered main dashboard data loaded");
 				const analysis = response.data.llm_analysis;
 				// Ensure timeline visibility for multi-day ranges even if backend didn't return timeline
-				const startDate = dateRange.start?.format ? dateRange.start.format('YYYY-MM-DD') : dateRange.start;
-				const endDate = dateRange.end?.format ? dateRange.end.format('YYYY-MM-DD') : dateRange.end;
-				if (startDate && endDate && startDate !== endDate && !Array.isArray((analysis as any).timeline)) {
-					console.log('ℹ️ Backend returned no timeline; wrapping single analysis into timeline for visibility');
-					setLlmAnalysis({ timeline: [{ date: endDate, llm_analysis: analysis }] });
+				const startDate = dateRange.start?.format
+					? dateRange.start.format("YYYY-MM-DD")
+					: dateRange.start;
+				const endDate = dateRange.end?.format
+					? dateRange.end.format("YYYY-MM-DD")
+					: dateRange.end;
+				if (
+					startDate &&
+					endDate &&
+					startDate !== endDate &&
+					!Array.isArray((analysis as any).timeline)
+				) {
+					console.log(
+						"ℹ️ Backend returned no timeline; wrapping single analysis into timeline for visibility"
+					);
+					setLlmAnalysis({
+						timeline: [{ date: endDate, llm_analysis: analysis }],
+					});
 				} else {
 					setLlmAnalysis(analysis);
 				}
@@ -462,7 +483,16 @@ export function OriginalMainGrid({
 		if (!trend || !trend.direction) return null;
 
 		const direction = trend.direction.toLowerCase();
-		const percentage = trend.percentage || "0%";
+		const rawPercentage = trend.percentage;
+		// Safely format percentage value
+		let percentage = "0%";
+		if (rawPercentage !== null && rawPercentage !== undefined) {
+			const numPercentage = parseFloat(rawPercentage.toString());
+			if (!isNaN(numPercentage)) {
+				const sign = numPercentage > 0 ? "+" : "";
+				percentage = `${sign}${numPercentage}%`;
+			}
+		}
 
 		switch (direction) {
 			case "up":
@@ -561,7 +591,7 @@ export function OriginalMainGrid({
 					);
 
 					// Load rich LLM analysis for main dashboard (cached when possible)
-					let endpoint = "/dashboard/metrics?fast_mode=true";
+					const endpoint = "/dashboard/metrics?fast_mode=true";
 					console.log(`🔗 Calling LLM endpoint: ${endpoint}`);
 					const response = await api.get(endpoint);
 
@@ -882,15 +912,14 @@ export function OriginalMainGrid({
 			)}
 			*/}
 
-
 			{/* Timeline charts when a date range is selected and timeline is available */}
-            {llmAnalysis?.timeline && Array.isArray(llmAnalysis.timeline) && (
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                    <Grid size={{ xs: 12 }} data-timeline>
-                        <TimelineTrendsCard timeline={llmAnalysis.timeline} />
-                    </Grid>
-                </Grid>
-            )}
+			{llmAnalysis?.timeline && Array.isArray(llmAnalysis.timeline) && (
+				<Grid container spacing={2} sx={{ mb: 3 }}>
+					<Grid size={{ xs: 12 }} data-timeline>
+						<TimelineTrendsCard timeline={llmAnalysis.timeline} />
+					</Grid>
+				</Grid>
+			)}
 
 			{/* KPI Cards - Only render if kpis array exists and has items */}
 			{llmAnalysis?.kpis && llmAnalysis.kpis.length > 0 && (
@@ -898,23 +927,35 @@ export function OriginalMainGrid({
 					{llmAnalysis.kpis.map((kpi: any, index: number) => {
 						const trendDisplay = getTrendDisplay(kpi.trend);
 
-					const isHit = highlightQuery && (kpi.display_name || '').toLowerCase().includes(highlightQuery);
-					return (
+						const isHit =
+							highlightQuery &&
+							(kpi.display_name || "").toLowerCase().includes(highlightQuery);
+						return (
 							<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
-                                <StatCard
+								<StatCard
 									title={kpi.display_name}
 									value={formatKPIValue(kpi.value, kpi.format)}
 									interval={kpi.trend.description}
 									trend={kpi.trend.direction || "neutral"}
-									trendValue={
-										kpi.trend?.percentage ? `${kpi.trend.percentage}%` : "0%"
-									}
+									trendValue={(() => {
+										if (!kpi.trend?.percentage && kpi.trend?.percentage !== 0) {
+											return "0%";
+										}
+										const numPercentage = parseFloat(
+											kpi.trend.percentage.toString()
+										);
+										if (isNaN(numPercentage)) {
+											return "0%";
+										}
+										const sign = numPercentage > 0 ? "+" : "";
+										return `${sign}${numPercentage}%`;
+									})()}
 									data={Array.from(
 										{ length: 30 },
 										() => parseFloat(kpi.value) || 0
 									)}
-                                        highlight={Boolean(isHit)}
-                                        highlightText={isHit ? highlightQuery : undefined}
+									highlight={Boolean(isHit)}
+									highlightText={isHit ? highlightQuery : undefined}
 								/>
 							</Grid>
 						);
@@ -929,588 +970,667 @@ export function OriginalMainGrid({
 					spacing={{ xs: 2, sm: 3, md: 3 }}
 					sx={{
 						mb: { xs: 2, md: 4 },
-						alignItems: 'stretch'
-					}}
-				>
+						alignItems: "stretch",
+					}}>
 					{llmAnalysis.charts
-						.filter((chart: any) => 
-							chart.data && 
-							Array.isArray(chart.data) && 
-							chart.data.length > 0
+						.filter(
+							(chart: any) =>
+								chart.data && Array.isArray(chart.data) && chart.data.length > 0
 						)
 						.map((chart: any, index: number) => {
-						const chartId = `chart-${index}`;
-						const selectedValue = chartDropdownSelections[chartId] || "all";
+							const chartId = `chart-${index}`;
+							const selectedValue = chartDropdownSelections[chartId] || "all";
 
-						// Filter data based on dropdown selection if filters exist
-						let filteredData = chart.data;
-						if (chart.config?.filters && selectedValue !== "all") {
-							filteredData = chart.data.filter((item: any) => {
-								const itemName = item.name || item.id || "";
-								return (
-									itemName
-										.toLowerCase()
-										.includes(selectedValue.toLowerCase()) ||
-									itemName === selectedValue ||
-									item.id === selectedValue
-								);
-							});
-						}
+							// Filter data based on dropdown selection if filters exist
+							let filteredData = chart.data;
+							if (chart.config?.filters && selectedValue !== "all") {
+								filteredData = chart.data.filter((item: any) => {
+									const itemName = item.name || item.id || "";
+									return (
+										itemName
+											.toLowerCase()
+											.includes(selectedValue.toLowerCase()) ||
+										itemName === selectedValue ||
+										item.id === selectedValue
+									);
+								});
+							}
 
-						// Adaptive chart sizing - No empty space!
-						const validCharts = llmAnalysis.charts.filter((c: any) => 
-							c.data && Array.isArray(c.data) && c.data.length > 0
-						);
-						const totalCharts = validCharts.length;
-						
-                        const getChartSize = () => {
-                            if (totalCharts === 1) return { xs: 12 };
-                            if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each - fills full width
-                            // For 3+ charts, cap at 3 per row; if last row has 2, use 50% each; if last row has 1, use full width
-                            const chartsPerRowMd = 3;
-                            const remainder = totalCharts % chartsPerRowMd;
-                            const isInLastRow = index >= totalCharts - (remainder === 0 ? chartsPerRowMd : remainder);
-                            if (remainder === 2 && index >= totalCharts - 2) {
-                                return { xs: 12, sm: 6, md: 6 };
-                            }
-                            if (remainder === 1 && index === totalCharts - 1) {
-                                return { xs: 12 };
-                            }
-                            return { xs: 12, sm: 6, md: 4 };
-                        };
+							// Adaptive chart sizing - No empty space!
+							const validCharts = llmAnalysis.charts.filter(
+								(c: any) => c.data && Array.isArray(c.data) && c.data.length > 0
+							);
+							const totalCharts = validCharts.length;
 
-						// Render based on chart type
-						switch (chart.chart_type?.toLowerCase()) {
-							case "pie":
-								return (
-									<Grid key={index} size={getChartSize()}>
-										<Card>
-                                            <CardHeader
-                                                title={(() => {
-                                                    const name = chart.display_name || '';
-                                                    const q = highlightQuery;
-                                                    if (q && name.toLowerCase().includes(q)) {
-                                                        return (
-                                                            <>
-                                                                {name.split(new RegExp(`(${q})`, 'ig')).map((part: string, i: number) => (
-                                                                    part.toLowerCase() === q.toLowerCase() ? (
-                                                                        <Box key={i} component="span" sx={{ bgcolor: 'rgba(255, 235, 59, 0.5)', borderRadius: '4px', px: 0.5 }}>
-                                                                            {part}
-                                                                        </Box>
-                                                                    ) : (
-                                                                        <Box key={i} component="span">{part}</Box>
-                                                                    )
-                                                                ))}
-                                                            </>
-                                                        );
-                                                    }
-                                                    return name;
-                                                })()}
-												subtitle={
-													chart.config?.x_axis?.display_name &&
-													chart.config?.y_axis?.display_name
-														? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
-														: "Data visualization"
-												}
-												action={
-													chart.config?.filters && (
-														<FormControl size="small" sx={{ minWidth: 120 }}>
-															<InputLabel id={`chart-dropdown-${chartId}`}>
-																Filter
-															</InputLabel>
-															<Select
-																labelId={`chart-dropdown-${chartId}`}
-																value={selectedValue}
-																label="Filter"
-																onChange={(e) =>
-																	handleDropdownChange(chartId, e.target.value)
-																}>
-																<MenuItem value="all">All</MenuItem>
-																{Object.values(chart.config.filters)
-																	.flat()
-																	.map((option: any) => (
-																		<MenuItem
-																			key={option.value}
-																			value={option.value}>
-																			{option.label}
-																		</MenuItem>
-																	))}
-															</Select>
-														</FormControl>
-													)
-												}
-											/>
-											<CardContent>
-												<Box
-													sx={{
-														height: 300,
-														width: "100%",
-														display: "flex",
-														justifyContent: "center",
-														alignItems: "center",
-													}}>
-													<PieChart
-														series={[
-															{
-																data: filteredData.map(
-																	(item: any, idx: number) => {
-																		// Get the actual field names from chart config
-																		const xField =
-																			chart.config?.x_axis?.field || "name";
-																		const yField =
-																			chart.config?.y_axis?.field || "value";
+							const getChartSize = () => {
+								if (totalCharts === 1) return { xs: 12 };
+								if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each - fills full width
+								// For 3+ charts, cap at 3 per row; if last row has 2, use 50% each; if last row has 1, use full width
+								const chartsPerRowMd = 3;
+								const remainder = totalCharts % chartsPerRowMd;
+								const isInLastRow =
+									index >=
+									totalCharts - (remainder === 0 ? chartsPerRowMd : remainder);
+								if (remainder === 2 && index >= totalCharts - 2) {
+									return { xs: 12, sm: 6, md: 6 };
+								}
+								if (remainder === 1 && index === totalCharts - 1) {
+									return { xs: 12 };
+								}
+								return { xs: 12, sm: 6, md: 4 };
+							};
 
-																		return {
-																			id: item.id || idx,
-																			value: Number(
-																				item[yField] || item.value || 0
-																			),
-																			label: String(
-																				item[xField] ||
+							// Render based on chart type
+							switch (chart.chart_type?.toLowerCase()) {
+								case "pie":
+									return (
+										<Grid key={index} size={getChartSize()}>
+											<Card>
+												<CardHeader
+													title={(() => {
+														const name = chart.display_name || "";
+														const q = highlightQuery;
+														if (q && name.toLowerCase().includes(q)) {
+															return (
+																<>
+																	{name
+																		.split(new RegExp(`(${q})`, "ig"))
+																		.map((part: string, i: number) =>
+																			part.toLowerCase() === q.toLowerCase() ? (
+																				<Box
+																					key={i}
+																					component="span"
+																					sx={{
+																						bgcolor: "rgba(255, 235, 59, 0.5)",
+																						borderRadius: "4px",
+																						px: 0.5,
+																					}}>
+																					{part}
+																				</Box>
+																			) : (
+																				<Box key={i} component="span">
+																					{part}
+																				</Box>
+																			)
+																		)}
+																</>
+															);
+														}
+														return name;
+													})()}
+													subtitle={
+														chart.config?.x_axis?.display_name &&
+														chart.config?.y_axis?.display_name
+															? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
+															: "Data visualization"
+													}
+													action={
+														chart.config?.filters && (
+															<FormControl size="small" sx={{ minWidth: 120 }}>
+																<InputLabel id={`chart-dropdown-${chartId}`}>
+																	Filter
+																</InputLabel>
+																<Select
+																	labelId={`chart-dropdown-${chartId}`}
+																	value={selectedValue}
+																	label="Filter"
+																	onChange={(e) =>
+																		handleDropdownChange(
+																			chartId,
+																			e.target.value
+																		)
+																	}>
+																	<MenuItem value="all">All</MenuItem>
+																	{Object.values(chart.config.filters)
+																		.flat()
+																		.map((option: any) => (
+																			<MenuItem
+																				key={option.value}
+																				value={option.value}>
+																				{option.label}
+																			</MenuItem>
+																		))}
+																</Select>
+															</FormControl>
+														)
+													}
+												/>
+												<CardContent>
+													<Box
+														sx={{
+															height: 300,
+															width: "100%",
+															display: "flex",
+															justifyContent: "center",
+															alignItems: "center",
+														}}>
+														<PieChart
+															series={[
+																{
+																	data: filteredData.map(
+																		(item: any, idx: number) => {
+																			// Get the actual field names from chart config
+																			const xField =
+																				chart.config?.x_axis?.field || "name";
+																			const yField =
+																				chart.config?.y_axis?.field || "value";
+
+																			return {
+																				id: item.id || idx,
+																				value: Number(
+																					item[yField] || item.value || 0
+																				),
+																				label: String(
+																					item[xField] ||
+																						item.name ||
+																						`Item ${idx}`
+																				),
+																			};
+																		}
+																	),
+																	valueFormatter: (value: any) => {
+																		// Handle case where value might be an object
+																		const actualValue =
+																			typeof value === "object" &&
+																			value !== null
+																				? value.value || value
+																				: value;
+
+																		if (actualValue == null) return "0";
+																		if (
+																			typeof actualValue === "number" &&
+																			actualValue > 100
+																		) {
+																			return `$${actualValue.toLocaleString()}`;
+																		}
+																		return actualValue.toString();
+																	},
+																},
+															]}
+															height={280}
+															sx={{ width: "100%" }}
+															margin={{
+																top: 40,
+																bottom: 40,
+																left: 40,
+																right: 40,
+															}}
+														/>
+													</Box>
+												</CardContent>
+											</Card>
+										</Grid>
+									);
+
+								case "bar":
+									return (
+										<Grid key={index} size={getChartSize()}>
+											<Card>
+												<CardHeader
+													title={(() => {
+														const name = chart.display_name || "";
+														const q = highlightQuery;
+														if (q && name.toLowerCase().includes(q)) {
+															return (
+																<>
+																	{name
+																		.split(new RegExp(`(${q})`, "ig"))
+																		.map((part: string, i: number) =>
+																			part.toLowerCase() === q.toLowerCase() ? (
+																				<Box
+																					key={i}
+																					component="span"
+																					sx={{
+																						bgcolor: "rgba(255, 235, 59, 0.5)",
+																						borderRadius: "4px",
+																						px: 0.5,
+																					}}>
+																					{part}
+																				</Box>
+																			) : (
+																				<Box key={i} component="span">
+																					{part}
+																				</Box>
+																			)
+																		)}
+																</>
+															);
+														}
+														return name;
+													})()}
+													subtitle={
+														chart.config?.x_axis?.display_name &&
+														chart.config?.y_axis?.display_name
+															? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
+															: "Data visualization"
+													}
+													action={
+														chart.config?.filters && (
+															<FormControl size="small" sx={{ minWidth: 120 }}>
+																<InputLabel
+																	id={`bar-chart-dropdown-${chartId}`}>
+																	Filter
+																</InputLabel>
+																<Select
+																	labelId={`bar-chart-dropdown-${chartId}`}
+																	value={selectedValue}
+																	label="Filter"
+																	onChange={(e) =>
+																		handleDropdownChange(
+																			chartId,
+																			e.target.value
+																		)
+																	}>
+																	<MenuItem value="all">All</MenuItem>
+																	{Object.values(chart.config.filters)
+																		.flat()
+																		.map((option: any) => (
+																			<MenuItem
+																				key={option.value}
+																				value={option.value}>
+																				{option.label}
+																			</MenuItem>
+																		))}
+																</Select>
+															</FormControl>
+														)
+													}
+												/>
+												<CardContent>
+													<Box sx={{ height: 300, width: "100%" }}>
+														<BarChart
+															dataset={filteredData.map((item: any) => {
+																// Get the actual field names from chart config
+																const xField =
+																	chart.config?.x_axis?.field || "name";
+																const yField =
+																	chart.config?.y_axis?.field || "value";
+
+																// Create normalized object with both original and normalized fields
+																const normalizedItem = { ...item };
+																const labelValue =
+																	item[xField] ||
+																	item.name ||
+																	item.id ||
+																	"Unknown";
+																normalizedItem[xField] =
+																	typeof labelValue === "object"
+																		? JSON.stringify(labelValue)
+																		: String(labelValue);
+																normalizedItem[yField] = Number(
+																	item[yField] || item.value || 0
+																);
+
+																return normalizedItem;
+															})}
+															xAxis={[
+																{
+																	scaleType: "band",
+																	dataKey:
+																		chart.config?.x_axis?.field || "name",
+																	tickPlacement: "middle",
+																	tickLabelPlacement: "middle",
+																},
+															]}
+															series={[
+																{
+																	dataKey:
+																		chart.config?.y_axis?.field || "value",
+																	label:
+																		chart.config?.y_axis?.display_name ||
+																		"Value",
+																	valueFormatter: (value: any) => {
+																		// Handle case where value might be an object
+																		const actualValue =
+																			typeof value === "object" &&
+																			value !== null
+																				? value.value || value
+																				: value;
+
+																		if (actualValue == null) return "0";
+																		if (
+																			typeof actualValue === "number" &&
+																			actualValue > 100
+																		) {
+																			return `$${actualValue.toLocaleString()}`;
+																		}
+																		return actualValue.toString();
+																	},
+																},
+															]}
+															height={300}
+															sx={{ width: "100%" }}
+															margin={{
+																top: 20,
+																bottom: 60,
+																left: 70,
+																right: 20,
+															}}
+														/>
+													</Box>
+												</CardContent>
+											</Card>
+										</Grid>
+									);
+
+								case "line":
+									return (
+										<Grid key={index} size={getChartSize()}>
+											<Card>
+												<CardHeader
+													title={chart.display_name}
+													subtitle={
+														chart.config?.x_axis?.display_name &&
+														chart.config?.y_axis?.display_name
+															? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
+															: "Data visualization"
+													}
+													action={
+														chart.config?.filters && (
+															<FormControl size="small" sx={{ minWidth: 120 }}>
+																<InputLabel
+																	id={`line-chart-dropdown-${chartId}`}>
+																	Filter
+																</InputLabel>
+																<Select
+																	labelId={`line-chart-dropdown-${chartId}`}
+																	value={selectedValue}
+																	label="Filter"
+																	onChange={(e) =>
+																		handleDropdownChange(
+																			chartId,
+																			e.target.value
+																		)
+																	}>
+																	<MenuItem value="all">All</MenuItem>
+																	{Object.values(chart.config.filters)
+																		.flat()
+																		.map((option: any) => (
+																			<MenuItem
+																				key={option.value}
+																				value={option.value}>
+																				{option.label}
+																			</MenuItem>
+																		))}
+																</Select>
+															</FormControl>
+														)
+													}
+												/>
+												<CardContent>
+													<Box sx={{ height: 300, width: "100%" }}>
+														<LineChart
+															dataset={filteredData.map((item: any) => {
+																// Get the actual field names from chart config
+																const xField =
+																	chart.config?.x_axis?.field || "name";
+																const yField =
+																	chart.config?.y_axis?.field || "value";
+
+																// Create normalized object with both original and normalized fields
+																const normalizedItem = { ...item };
+																const labelValue =
+																	item[xField] ||
+																	item.name ||
+																	item.id ||
+																	"Unknown";
+																normalizedItem[xField] =
+																	typeof labelValue === "object"
+																		? JSON.stringify(labelValue)
+																		: String(labelValue);
+																normalizedItem[yField] = Number(
+																	item[yField] || item.value || 0
+																);
+
+																return normalizedItem;
+															})}
+															xAxis={[
+																{
+																	scaleType: "point",
+																	dataKey:
+																		chart.config?.x_axis?.field || "name",
+																},
+															]}
+															series={[
+																{
+																	dataKey:
+																		chart.config?.y_axis?.field || "value",
+																	label:
+																		chart.config?.y_axis?.display_name ||
+																		"Value",
+																	curve: "linear",
+																	valueFormatter: (value: any) => {
+																		// Handle case where value might be an object
+																		const actualValue =
+																			typeof value === "object" &&
+																			value !== null
+																				? value.value || value
+																				: value;
+
+																		if (actualValue == null) return "0";
+																		if (
+																			typeof actualValue === "number" &&
+																			actualValue > 100
+																		) {
+																			return `$${actualValue.toLocaleString()}`;
+																		}
+																		return actualValue.toString();
+																	},
+																},
+															]}
+															height={300}
+															sx={{ width: "100%" }}
+															margin={{
+																top: 20,
+																bottom: 60,
+																left: 70,
+																right: 20,
+															}}
+														/>
+													</Box>
+												</CardContent>
+											</Card>
+										</Grid>
+									);
+
+								case "radar":
+									return (
+										<Grid key={index} size={getChartSize()}>
+											<Card>
+												<CardHeader
+													title={chart.display_name}
+													subtitle="Multi-dimensional performance analysis"
+												/>
+												<CardContent>
+													<Box sx={{ height: 300, width: "100%" }}>
+														<Charts.RadarChart
+															data={filteredData}
+															title={chart.display_name}
+														/>
+													</Box>
+												</CardContent>
+											</Card>
+										</Grid>
+									);
+
+								case "scatter":
+									return (
+										<Grid key={index} size={getChartSize()}>
+											<Card>
+												<CardHeader
+													title={chart.display_name}
+													subtitle="Correlation and relationship analysis"
+												/>
+												<CardContent>
+													<Box sx={{ height: 300, width: "100%" }}>
+														<Charts.ScatterChart
+															data={filteredData}
+															title={chart.display_name}
+															xAxisLabel={
+																chart.config?.x_axis?.display_name || "X Axis"
+															}
+															yAxisLabel={
+																chart.config?.y_axis?.display_name || "Y Axis"
+															}
+														/>
+													</Box>
+												</CardContent>
+											</Card>
+										</Grid>
+									);
+
+								case "heatmap":
+									return (
+										<Grid key={index} size={getChartSize()}>
+											<Card>
+												<CardHeader
+													title={chart.display_name}
+													subtitle="Pattern and intensity visualization"
+												/>
+												<CardContent>
+													<Box sx={{ height: 300, width: "100%" }}>
+														<Charts.HeatmapChart
+															data={filteredData}
+															title={chart.display_name}
+															xAxisLabel={
+																chart.config?.x_axis?.display_name ||
+																"Categories"
+															}
+															yAxisLabel={
+																chart.config?.y_axis?.display_name || "Metrics"
+															}
+														/>
+													</Box>
+												</CardContent>
+											</Card>
+										</Grid>
+									);
+
+								case "radial":
+									return (
+										<Grid key={index} size={getChartSize()}>
+											<Card>
+												<CardHeader
+													title={chart.display_name}
+													subtitle="Progress and completion tracking"
+												/>
+												<CardContent>
+													<Box
+														sx={{
+															height: 300,
+															width: "100%",
+															display: "flex",
+															justifyContent: "center",
+															alignItems: "center",
+														}}>
+														<PieChart
+															series={[
+																{
+																	data: filteredData
+																		.slice(0, 6)
+																		.map((item: any, i: number) => {
+																			const value = Number(
+																				item.value ||
+																					item.count ||
+																					item.total ||
+																					0
+																			);
+																			return {
+																				id: i,
+																				value: isNaN(value) ? 0 : value,
+																				label: String(
 																					item.name ||
-																					`Item ${idx}`
-																			),
-																		};
-																	}
-																),
-																valueFormatter: (value: any) => {
-																	// Handle case where value might be an object
-																	const actualValue =
-																		typeof value === "object" && value !== null
-																			? value.value || value
-																			: value;
-
-																	if (actualValue == null) return "0";
-																	if (
-																		typeof actualValue === "number" &&
-																		actualValue > 100
-																	) {
-																		return `$${actualValue.toLocaleString()}`;
-																	}
-																	return actualValue.toString();
+																						item.label ||
+																						item.category ||
+																						`Item ${i + 1}`
+																				),
+																			};
+																		})
+																		.filter((item: any) => item.value > 0),
+																	highlightScope: {
+																		fade: "global",
+																		highlight: "item",
+																	} as const,
+																	innerRadius: 50,
+																	outerRadius: 100,
 																},
-															},
-														]}
-														height={280}
-														sx={{ width: "100%" }}
-														margin={{
-															top: 40,
-															bottom: 40,
-															left: 40,
-															right: 40,
-														}}
-													/>
-												</Box>
-											</CardContent>
-										</Card>
-									</Grid>
-								);
+															]}
+															height={280}
+															sx={{ width: "100%" }}
+															skipAnimation={true}
+															slotProps={{
+																noDataOverlay: { message: "No data available" },
+															}}
+														/>
+													</Box>
+												</CardContent>
+											</Card>
+										</Grid>
+									);
 
-							case "bar":
-								return (
-									<Grid key={index} size={getChartSize()}>
-										<Card>
-                                            <CardHeader
-                                                title={(() => {
-                                                    const name = chart.display_name || '';
-                                                    const q = highlightQuery;
-                                                    if (q && name.toLowerCase().includes(q)) {
-                                                        return (
-                                                            <>
-                                                                {name.split(new RegExp(`(${q})`, 'ig')).map((part: string, i: number) => (
-                                                                    part.toLowerCase() === q.toLowerCase() ? (
-                                                                        <Box key={i} component="span" sx={{ bgcolor: 'rgba(255, 235, 59, 0.5)', borderRadius: '4px', px: 0.5 }}>
-                                                                            {part}
-                                                                        </Box>
-                                                                    ) : (
-                                                                        <Box key={i} component="span">{part}</Box>
-                                                                    )
-                                                                ))}
-                                                            </>
-                                                        );
-                                                    }
-                                                    return name;
-                                                })()}
-												subtitle={
-													chart.config?.x_axis?.display_name &&
-													chart.config?.y_axis?.display_name
-														? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
-														: "Data visualization"
-												}
-												action={
-													chart.config?.filters && (
-														<FormControl size="small" sx={{ minWidth: 120 }}>
-															<InputLabel id={`bar-chart-dropdown-${chartId}`}>
-																Filter
-															</InputLabel>
-															<Select
-																labelId={`bar-chart-dropdown-${chartId}`}
-																value={selectedValue}
-																label="Filter"
-																onChange={(e) =>
-																	handleDropdownChange(chartId, e.target.value)
-																}>
-																<MenuItem value="all">All</MenuItem>
-																{Object.values(chart.config.filters)
-																	.flat()
-																	.map((option: any) => (
-																		<MenuItem
-																			key={option.value}
-																			value={option.value}>
-																			{option.label}
-																		</MenuItem>
-																	))}
-															</Select>
-														</FormControl>
-													)
-												}
-											/>
-                                            <CardContent>
-                                                <Box sx={{ height: 300, width: '100%' }}>
-                                                    <BarChart
-										dataset={filteredData.map((item: any) => {
-											// Get the actual field names from chart config
-											const xField = chart.config?.x_axis?.field || "name";
-											const yField = chart.config?.y_axis?.field || "value";
-											
-											// Create normalized object with both original and normalized fields
-											const normalizedItem = { ...item };
-											const labelValue = item[xField] || item.name || item.id || "Unknown";
-											normalizedItem[xField] = typeof labelValue === 'object' ? JSON.stringify(labelValue) : String(labelValue);
-											normalizedItem[yField] = Number(item[yField] || item.value || 0);
-											
-											return normalizedItem;
-										})}
-														xAxis={[
-															{
-																scaleType: "band",
-																dataKey: chart.config?.x_axis?.field || "name",
-																tickPlacement: "middle",
-																tickLabelPlacement: "middle",
-															},
-														]}
-														series={[
-															{
-																dataKey: chart.config?.y_axis?.field || "value",
-																label:
-																	chart.config?.y_axis?.display_name || "Value",
-																valueFormatter: (value: any) => {
-																	// Handle case where value might be an object
-																	const actualValue =
-																		typeof value === "object" && value !== null
-																			? value.value || value
-																			: value;
-
-																	if (actualValue == null) return "0";
-																	if (
-																		typeof actualValue === "number" &&
-																		actualValue > 100
-																	) {
-																		return `$${actualValue.toLocaleString()}`;
-																	}
-																	return actualValue.toString();
-																},
-															},
-														]}
-														height={300}
-														sx={{ width: "100%" }}
-														margin={{
-															top: 20,
-															bottom: 60,
-															left: 70,
-															right: 20,
-														}}
-													/>
-												</Box>
-											</CardContent>
-										</Card>
-									</Grid>
-								);
-
-							case "line":
-								return (
-									<Grid key={index} size={getChartSize()}>
-										<Card>
-											<CardHeader
-												title={chart.display_name}
-												subtitle={
-													chart.config?.x_axis?.display_name &&
-													chart.config?.y_axis?.display_name
-														? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
-														: "Data visualization"
-												}
-												action={
-													chart.config?.filters && (
-														<FormControl size="small" sx={{ minWidth: 120 }}>
-															<InputLabel id={`line-chart-dropdown-${chartId}`}>
-																Filter
-															</InputLabel>
-															<Select
-																labelId={`line-chart-dropdown-${chartId}`}
-																value={selectedValue}
-																label="Filter"
-																onChange={(e) =>
-																	handleDropdownChange(chartId, e.target.value)
-																}>
-																<MenuItem value="all">All</MenuItem>
-																{Object.values(chart.config.filters)
-																	.flat()
-																	.map((option: any) => (
-																		<MenuItem
-																			key={option.value}
-																			value={option.value}>
-																			{option.label}
-																		</MenuItem>
-																	))}
-															</Select>
-														</FormControl>
-													)
-												}
-											/>
-											<CardContent>
-												<Box sx={{ height: 300, width: "100%" }}>
-													<LineChart
-														dataset={filteredData.map((item: any) => {
-															// Get the actual field names from chart config
-															const xField =
-																chart.config?.x_axis?.field || "name";
-															const yField =
-																chart.config?.y_axis?.field || "value";
-
-															// Create normalized object with both original and normalized fields
-															const normalizedItem = { ...item };
-															const labelValue = item[xField] || item.name || item.id || "Unknown";
-											normalizedItem[xField] = typeof labelValue === 'object' ? JSON.stringify(labelValue) : String(labelValue);
-															normalizedItem[yField] = Number(item[yField] || item.value || 0);
-															
-															return normalizedItem;
-														})}
-														xAxis={[
-															{
-																scaleType: "point",
-																dataKey: chart.config?.x_axis?.field || "name",
-															},
-														]}
-														series={[
-															{
-																dataKey: chart.config?.y_axis?.field || "value",
-																label:
-																	chart.config?.y_axis?.display_name || "Value",
-																curve: "linear",
-																valueFormatter: (value: any) => {
-																	// Handle case where value might be an object
-																	const actualValue =
-																		typeof value === "object" && value !== null
-																			? value.value || value
-																			: value;
-
-																	if (actualValue == null) return "0";
-																	if (
-																		typeof actualValue === "number" &&
-																		actualValue > 100
-																	) {
-																		return `$${actualValue.toLocaleString()}`;
-																	}
-																	return actualValue.toString();
-																},
-															},
-														]}
-														height={300}
-														sx={{ width: "100%" }}
-														margin={{
-															top: 20,
-															bottom: 60,
-															left: 70,
-															right: 20,
-														}}
-													/>
-												</Box>
-											</CardContent>
-										</Card>
-									</Grid>
-								);
-
-							case "radar":
-								return (
-									<Grid key={index} size={getChartSize()}>
-										<Card>
-											<CardHeader
-												title={chart.display_name}
-												subtitle="Multi-dimensional performance analysis"
-											/>
-											<CardContent>
-												<Box sx={{ height: 300, width: "100%" }}>
-													<Charts.RadarChart
-														data={filteredData}
-														title={chart.display_name}
-													/>
-												</Box>
-											</CardContent>
-										</Card>
-									</Grid>
-								);
-
-							case "scatter":
-								return (
-									<Grid key={index} size={getChartSize()}>
-										<Card>
-											<CardHeader
-												title={chart.display_name}
-												subtitle="Correlation and relationship analysis"
-											/>
-											<CardContent>
-												<Box sx={{ height: 300, width: "100%" }}>
-													<Charts.ScatterChart
-														data={filteredData}
-														title={chart.display_name}
-														xAxisLabel={
-															chart.config?.x_axis?.display_name || "X Axis"
+								case "donut":
+									return (
+										<Grid key={index} size={getChartSize()}>
+											<Card>
+												<CardHeader
+													title={(() => {
+														const name = chart.display_name || "";
+														const q = highlightQuery;
+														if (q && name.toLowerCase().includes(q)) {
+															return (
+																<>
+																	{name
+																		.split(new RegExp(`(${q})`, "ig"))
+																		.map((part: string, i: number) =>
+																			part.toLowerCase() === q.toLowerCase() ? (
+																				<Box
+																					key={i}
+																					component="span"
+																					sx={{
+																						bgcolor: "rgba(25,118,210,0.15)",
+																						borderRadius: "4px",
+																						px: 0.5,
+																					}}>
+																					{part}
+																				</Box>
+																			) : (
+																				<Box key={i} component="span">
+																					{part}
+																				</Box>
+																			)
+																		)}
+																</>
+															);
 														}
-														yAxisLabel={
-															chart.config?.y_axis?.display_name || "Y Axis"
-														}
-													/>
-												</Box>
-											</CardContent>
-										</Card>
-									</Grid>
-								);
+														return name;
+													})()}
+													subtitle={
+														chart.config?.y_axis?.display_name ||
+														"Donut chart visualization"
+													}
+												/>
+												<CardContent>
+													<Box sx={{ height: 300, width: "100%" }}>
+														<Charts.PieChart
+															data={filteredData}
+															title={chart.display_name}
+															chartType="donut"
+															labelField={chart.config?.x_axis?.field || "name"}
+															valueField={
+																chart.config?.y_axis?.field || "value"
+															}
+														/>
+													</Box>
+												</CardContent>
+											</Card>
+										</Grid>
+									);
 
-							case "heatmap":
-								return (
-									<Grid key={index} size={getChartSize()}>
-										<Card>
-											<CardHeader
-												title={chart.display_name}
-												subtitle="Pattern and intensity visualization"
-											/>
-											<CardContent>
-												<Box sx={{ height: 300, width: "100%" }}>
-													<Charts.HeatmapChart
-														data={filteredData}
-														title={chart.display_name}
-														xAxisLabel={
-															chart.config?.x_axis?.display_name || "Categories"
-														}
-														yAxisLabel={
-															chart.config?.y_axis?.display_name || "Metrics"
-														}
-													/>
-												</Box>
-											</CardContent>
-										</Card>
-									</Grid>
-								);
-
-							case "radial":
-								return (
-									<Grid key={index} size={getChartSize()}>
-										<Card>
-											<CardHeader
-												title={chart.display_name}
-												subtitle="Progress and completion tracking"
-											/>
-											<CardContent>
-												<Box
-													sx={{
-														height: 300,
-														width: "100%",
-														display: "flex",
-														justifyContent: "center",
-														alignItems: "center",
-													}}>
-													<PieChart
-														series={[
-															{
-																data: filteredData
-																	.slice(0, 6)
-																	.map((item: any, i: number) => {
-																		const value = Number(
-																			item.value ||
-																				item.count ||
-																				item.total ||
-																				0
-																		);
-																		return {
-																			id: i,
-																			value: isNaN(value) ? 0 : value,
-																			label: String(
-																				item.name ||
-																					item.label ||
-																					item.category ||
-																					`Item ${i + 1}`
-																			),
-																		};
-																	})
-																	.filter((item: any) => item.value > 0),
-																highlightScope: {
-																	fade: "global",
-																	highlight: "item",
-																} as const,
-																innerRadius: 50,
-																outerRadius: 100,
-															},
-														]}
-														height={280}
-														sx={{ width: "100%" }}
-														skipAnimation={true}
-														slotProps={{
-															noDataOverlay: { message: "No data available" },
-														}}
-													/>
-												</Box>
-											</CardContent>
-										</Card>
-									</Grid>
-								);
-
-                            case "donut":
-                                return (
-                                    <Grid key={index} size={getChartSize()}>
-                                        <Card>
-                                            <CardHeader
-                                                title={(() => {
-                                                    const name = chart.display_name || '';
-                                                    const q = highlightQuery;
-                                                    if (q && name.toLowerCase().includes(q)) {
-                                                        return (
-                                                            <>
-                                                                {name.split(new RegExp(`(${q})`, 'ig')).map((part: string, i: number) => (
-                                                                    part.toLowerCase() === q.toLowerCase() ? (
-                                                                        <Box key={i} component="span" sx={{ bgcolor: 'rgba(25,118,210,0.15)', borderRadius: '4px', px: 0.5 }}>
-                                                                            {part}
-                                                                        </Box>
-                                                                    ) : (
-                                                                        <Box key={i} component="span">{part}</Box>
-                                                                    )
-                                                                ))}
-                                                            </>
-                                                        );
-                                                    }
-                                                    return name;
-                                                })()}
-                                                subtitle={chart.config?.y_axis?.display_name || "Donut chart visualization"}
-                                            />
-                                            <CardContent>
-                                                <Box sx={{ height: 300, width: '100%' }}>
-                                                    <Charts.PieChart
-                                                        data={filteredData}
-                                                        title={chart.display_name}
-                                                        chartType="donut"
-                                                        labelField={chart.config?.x_axis?.field || 'name'}
-                                                        valueField={chart.config?.y_axis?.field || 'value'}
-                                                    />
-                                                </Box>
-                                            </CardContent>
-                                        </Card>
-                                    </Grid>
-                                );
-
-							default:
-								console.warn(`⚠️ Unknown chart type: ${chart.chart_type}`);
-								return null;
-						}
-					})}
+								default:
+									console.warn(`⚠️ Unknown chart type: ${chart.chart_type}`);
+									return null;
+							}
+						})}
 				</Grid>
 			)}
 
@@ -1645,7 +1765,19 @@ function TemplateDashboard({
 							value: kpi.value,
 							title: kpi.display_name,
 							trend: {
-								value: `${kpi.trend.percentage}%`,
+								value: (() => {
+									if (!kpi.trend?.percentage && kpi.trend?.percentage !== 0) {
+										return "0%";
+									}
+									const numPercentage = parseFloat(
+										kpi.trend.percentage.toString()
+									);
+									if (isNaN(numPercentage)) {
+										return "0%";
+									}
+									const sign = numPercentage > 0 ? "+" : "";
+									return `${sign}${numPercentage}%`;
+								})(),
 								isPositive: kpi.trend.direction === "up",
 							},
 							source: "standardized",
@@ -2143,13 +2275,18 @@ function TemplateDashboard({
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
-							data: chart.data.map((item: any) => item[yField] || item.value || 0),
+							data: chart.data.map(
+								(item: any) => item[yField] || item.value || 0
+							),
 							labels: chart.data.map((item: any) => {
 								const label = item[xField] || item.name || item.id || "Unknown";
-								return typeof label === 'object' ? JSON.stringify(label) : String(label);
+								return typeof label === "object"
+									? JSON.stringify(label)
+									: String(label);
 							}),
-							insights: chart.insights || `${chart.display_name} analysis from AI`,
-							config: chart.config
+							insights:
+								chart.insights || `${chart.display_name} analysis from AI`,
+							config: chart.config,
 						};
 					} else if (
 						chart.chart_type === "line" ||
@@ -2158,13 +2295,19 @@ function TemplateDashboard({
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
-							data: chart.data.map((item: any) => item[yField] || item.value || 0),
+							data: chart.data.map(
+								(item: any) => item[yField] || item.value || 0
+							),
 							labels: chart.data.map((item: any) => {
 								const label = item[xField] || item.name || item.id || "Unknown";
-								return typeof label === 'object' ? JSON.stringify(label) : String(label);
+								return typeof label === "object"
+									? JSON.stringify(label)
+									: String(label);
 							}),
-							insights: chart.insights || `${chart.display_name} trends from AI analysis`,
-							config: chart.config
+							insights:
+								chart.insights ||
+								`${chart.display_name} trends from AI analysis`,
+							config: chart.config,
 						};
 					}
 				});
@@ -2178,7 +2321,17 @@ function TemplateDashboard({
 						title: kpi.display_name,
 						value: kpi.value,
 						trend: kpi.trend,
-						change: kpi.trend?.percentage + "%",
+						change: (() => {
+							if (!kpi.trend?.percentage && kpi.trend?.percentage !== 0) {
+								return "0%";
+							}
+							const numPercentage = parseFloat(kpi.trend.percentage.toString());
+							if (isNaN(numPercentage)) {
+								return "0%";
+							}
+							const sign = numPercentage > 0 ? "+" : "";
+							return `${sign}${numPercentage}%`;
+						})(),
 						icon: "💼",
 					})) || [],
 				showDataTable: true,
@@ -2217,13 +2370,19 @@ function TemplateDashboard({
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
-							data: chart.data.map((item: any) => item[yField] || item.value || 0),
+							data: chart.data.map(
+								(item: any) => item[yField] || item.value || 0
+							),
 							labels: chart.data.map((item: any) => {
 								const label = item[xField] || item.name || item.id || "Unknown";
-								return typeof label === 'object' ? JSON.stringify(label) : String(label);
+								return typeof label === "object"
+									? JSON.stringify(label)
+									: String(label);
 							}),
-							insights: chart.insights || `${chart.display_name} performance analysis from AI`,
-							config: chart.config
+							insights:
+								chart.insights ||
+								`${chart.display_name} performance analysis from AI`,
+							config: chart.config,
 						};
 					} else if (
 						chart.chart_type === "line" ||
@@ -2233,13 +2392,19 @@ function TemplateDashboard({
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
-							data: chart.data.map((item: any) => item[yField] || item.value || 0),
+							data: chart.data.map(
+								(item: any) => item[yField] || item.value || 0
+							),
 							labels: chart.data.map((item: any) => {
 								const label = item[xField] || item.name || item.id || "Unknown";
-								return typeof label === 'object' ? JSON.stringify(label) : String(label);
+								return typeof label === "object"
+									? JSON.stringify(label)
+									: String(label);
 							}),
-							insights: chart.insights || `${chart.display_name} performance trends from AI analysis`,
-							config: chart.config
+							insights:
+								chart.insights ||
+								`${chart.display_name} performance trends from AI analysis`,
+							config: chart.config,
 						};
 					}
 				});
@@ -2253,7 +2418,17 @@ function TemplateDashboard({
 						title: kpi.display_name,
 						value: kpi.value,
 						trend: kpi.trend,
-						change: kpi.trend?.percentage + "%",
+						change: (() => {
+							if (!kpi.trend?.percentage && kpi.trend?.percentage !== 0) {
+								return "0%";
+							}
+							const numPercentage = parseFloat(kpi.trend.percentage.toString());
+							if (isNaN(numPercentage)) {
+								return "0%";
+							}
+							const sign = numPercentage > 0 ? "+" : "";
+							return `${sign}${numPercentage}%`;
+						})(),
 						icon: "⚡",
 					})) || [],
 				showDataTable: true,
@@ -2669,8 +2844,22 @@ function TemplateDashboard({
 																	textShadow: "0 1px 2px rgba(0,0,0,0.3)",
 																	fontWeight: "bold",
 																}}>
-																{kpi.trend.percentage > 0 ? "+" : ""}
-																{kpi.trend.percentage}%
+																{(() => {
+																	if (
+																		!kpi.trend?.percentage &&
+																		kpi.trend?.percentage !== 0
+																	) {
+																		return "0%";
+																	}
+																	const numPercentage = parseFloat(
+																		kpi.trend.percentage.toString()
+																	);
+																	if (isNaN(numPercentage)) {
+																		return "0%";
+																	}
+																	const sign = numPercentage > 0 ? "+" : "";
+																	return `${sign}${numPercentage}%`;
+																})()}
 															</Box>
 															<Box
 																component="span"
@@ -3536,8 +3725,22 @@ function TemplateDashboard({
 																	textShadow: "0 1px 2px rgba(0,0,0,0.3)",
 																	fontWeight: "bold",
 																}}>
-																{kpi.trend.percentage > 0 ? "+" : ""}
-																{kpi.trend.percentage}%
+																{(() => {
+																	if (
+																		!kpi.trend?.percentage &&
+																		kpi.trend?.percentage !== 0
+																	) {
+																		return "0%";
+																	}
+																	const numPercentage = parseFloat(
+																		kpi.trend.percentage.toString()
+																	);
+																	if (isNaN(numPercentage)) {
+																		return "0%";
+																	}
+																	const sign = numPercentage > 0 ? "+" : "";
+																	return `${sign}${numPercentage}%`;
+																})()}
 															</Box>
 															<Box
 																component="span"

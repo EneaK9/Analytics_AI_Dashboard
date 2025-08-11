@@ -6,13 +6,13 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import Stack from "@mui/material/Stack";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
-import AnalyticsRoundedIcon from "@mui/icons-material/AnalyticsRounded";
-import PeopleRoundedIcon from "@mui/icons-material/PeopleRounded";
-import AssignmentRoundedIcon from "@mui/icons-material/AssignmentRounded";
+// import AnalyticsRoundedIcon from "@mui/icons-material/AnalyticsRounded";
+// import PeopleRoundedIcon from "@mui/icons-material/PeopleRounded";
+// import AssignmentRoundedIcon from "@mui/icons-material/AssignmentRounded";
 import TableViewIcon from "@mui/icons-material/TableView";
-import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
-import InfoRoundedIcon from "@mui/icons-material/InfoRounded";
-import HelpRoundedIcon from "@mui/icons-material/HelpRounded";
+// import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
+// import InfoRoundedIcon from "@mui/icons-material/InfoRounded";
+// import HelpRoundedIcon from "@mui/icons-material/HelpRounded";
 
 interface MenuContentProps {
 	selectedSection?: string;
@@ -27,10 +27,14 @@ const mainListItems = [
 	// { text: "Tasks", icon: <AssignmentRoundedIcon />, id: "tasks" },
 ];
 
-const secondaryListItems = [
-	{ text: "Settings", icon: <SettingsRoundedIcon />, id: "settings" },
-	{ text: "About", icon: <InfoRoundedIcon />, id: "about" },
-	{ text: "Feedback", icon: <HelpRoundedIcon />, id: "feedback" },
+const secondaryListItems: Array<{
+	text: string;
+	icon: React.ReactElement;
+	id: string;
+}> = [
+	// { text: "Settings", icon: <SettingsRoundedIcon />, id: "settings" },
+	// { text: "About", icon: <InfoRoundedIcon />, id: "about" },
+	// { text: "Feedback", icon: <HelpRoundedIcon />, id: "feedback" },
 ];
 
 export default function MenuContent({

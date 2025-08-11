@@ -113,7 +113,7 @@ export interface MUIDashboardData {
 const MUI_CHART_MAP: Record<string, string> = {
 	// Primary chart types to MUI chart types
 	pie: "PieChart",
-	bar: "BarChart", 
+	bar: "BarChart",
 	line: "LineChart",
 	area: "AreaChart",
 	radar: "RadarChart",
@@ -253,11 +253,22 @@ class MUIDashboardService {
 
 					// Format trend value based on percentage
 					const formatTrendValue = (trend: any): string => {
-						if (trend.percentage === 0) {
+						if (
+							!trend ||
+							trend.percentage === null ||
+							trend.percentage === undefined
+						) {
 							return "0%";
 						}
-						const sign = trend.percentage > 0 ? "+" : "";
-						return `${sign}${trend.percentage}%`;
+						const numPercentage = parseFloat(trend.percentage.toString());
+						if (isNaN(numPercentage)) {
+							return "0%";
+						}
+						if (numPercentage === 0) {
+							return "0%";
+						}
+						const sign = numPercentage > 0 ? "+" : "";
+						return `${sign}${numPercentage}%`;
 					};
 
 					// Format the KPI value based on its format type
@@ -352,7 +363,9 @@ class MUIDashboardService {
 							case "radialchart":
 								return "RadialChart";
 							default:
-								console.warn(`⚠️ Unknown chart type: ${chartType}, defaulting to BarChart`);
+								console.warn(
+									`⚠️ Unknown chart type: ${chartType}, defaulting to BarChart`
+								);
 								return "BarChart"; // Default fallback
 						}
 					};
@@ -419,16 +432,16 @@ class MUIDashboardService {
 						} else if (type === "radial") {
 							// Radial charts: Pass raw values to let the component calculate percentages
 							console.log("🔄 MUIService processing radial data:", data);
-							
+
 							return data.map((item, index) => {
 								const rawValue = Number(item.value) || 0;
-								
+
 								console.log(`🔄 MUIService radial item ${index}:`, {
 									name: item.name,
 									originalValue: item.value,
-									rawValue: rawValue
+									rawValue: rawValue,
 								});
-								
+
 								return {
 									name: item.name || `Metric ${index}`,
 									value: rawValue, // Pass raw value to let RadialChart calculate percentage
@@ -576,16 +589,24 @@ class MUIDashboardService {
 			const formatTrendValue = (trend: any): string => {
 				if (!trend) return "0%";
 
-				// If trend.value is already formatted (like "0%"), use it directly
+				// If trend.value is already formatted (like "0%"), validate it first
 				if (typeof trend.value === "string" && trend.value.includes("%")) {
-					return trend.value;
+					// Extract numeric part and validate
+					const numPart = parseFloat(trend.value.replace("%", ""));
+					if (!isNaN(numPart)) {
+						return trend.value;
+					}
 				}
 
 				// If trend.percentage exists, format it
-				if (trend.percentage !== undefined) {
-					if (trend.percentage === 0) return "0%";
-					const sign = trend.percentage > 0 ? "+" : "";
-					return `${sign}${trend.percentage}%`;
+				if (trend.percentage !== undefined && trend.percentage !== null) {
+					const numPercentage = parseFloat(trend.percentage.toString());
+					if (isNaN(numPercentage)) {
+						return "0%";
+					}
+					if (numPercentage === 0) return "0%";
+					const sign = numPercentage > 0 ? "+" : "";
+					return `${sign}${numPercentage}%`;
 				}
 
 				return "0%";

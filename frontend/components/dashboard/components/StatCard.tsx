@@ -1,147 +1,155 @@
-import * as React from 'react';
-import { useTheme } from '@mui/material/styles';
-import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import Chip from '@mui/material/Chip';
-import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
-import { SparkLineChart } from '@mui/x-charts/SparkLineChart';
-import { areaElementClasses } from '@mui/x-charts/LineChart';
+import * as React from "react";
+import { useTheme } from "@mui/material/styles";
+import Box from "@mui/material/Box";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Chip from "@mui/material/Chip";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
+import { SparkLineChart } from "@mui/x-charts/SparkLineChart";
+import { areaElementClasses } from "@mui/x-charts/LineChart";
 
 export type StatCardProps = {
-  title: string;
-  value: string;
-  interval: string;
-  trend: 'up' | 'down' | 'neutral';
-  trendValue?: string; // Optional: actual percentage like "-34.6%" or "+5.2%"
-  data: number[];
-  highlight?: boolean;
-  highlightText?: string;
+	title: string;
+	value: string;
+	interval: string;
+	trend: "up" | "down" | "neutral";
+	trendValue?: string; // Optional: actual percentage like "-34.6%" or "+5.2%"
+	data: number[];
+	highlight?: boolean;
+	highlightText?: string;
 };
 
-
-
 function AreaGradient({ color, id }: { color: string; id: string }) {
-  return (
-    <defs>
-      <linearGradient id={id} x1="50%" y1="0%" x2="50%" y2="100%">
-        <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-        <stop offset="100%" stopColor={color} stopOpacity={0} />
-      </linearGradient>
-    </defs>
-  );
+	return (
+		<defs>
+			<linearGradient id={id} x1="50%" y1="0%" x2="50%" y2="100%">
+				<stop offset="0%" stopColor={color} stopOpacity={0.3} />
+				<stop offset="100%" stopColor={color} stopOpacity={0} />
+			</linearGradient>
+		</defs>
+	);
 }
 
 export default function StatCard({
-  title,
-  value,
-  interval,
-  trend,
-  trendValue,
-  data,
-  highlight = false,
-  highlightText,
+	title,
+	value,
+	interval,
+	trend,
+	trendValue,
+	data,
+	highlight = false,
+	highlightText,
 }: StatCardProps) {
-  
-  // DEBUG: Log what StatCard is receiving
-  console.log(`📊 StatCard "${title}" received:`, {
-    value,
-    trend,
-    trendValue: trendValue,
-    trendValueType: typeof trendValue,
-    interval
-  });
-  const theme = useTheme();
-  // Generate generic period labels instead of specific month/day combinations
-  const daysInWeek = Array.from({ length: data.length }, (_, i) => `Period ${i + 1}`);
+	// DEBUG: Log what StatCard is receiving
+	console.log(`📊 StatCard "${title}" received:`, {
+		value,
+		trend,
+		trendValue: trendValue,
+		trendValueType: typeof trendValue,
+		interval,
+	});
+	const theme = useTheme();
+	// Generate generic period labels instead of specific month/day combinations
+	const daysInWeek = Array.from(
+		{ length: data.length },
+		(_, i) => `Period ${i + 1}`
+	);
 
-  const trendColors = {
-    up:
-      theme.palette.mode === 'light'
-        ? theme.palette.success.main
-        : theme.palette.success.dark,
-    down:
-      theme.palette.mode === 'light'
-        ? theme.palette.error.main
-        : theme.palette.error.dark,
-    neutral:
-      theme.palette.mode === 'light'
-        ? theme.palette.grey[400]
-        : theme.palette.grey[700],
-  };
+	const trendColors = {
+		up:
+			theme.palette.mode === "light"
+				? theme.palette.success.main
+				: theme.palette.success.dark,
+		down:
+			theme.palette.mode === "light"
+				? theme.palette.error.main
+				: theme.palette.error.dark,
+		neutral:
+			theme.palette.mode === "light"
+				? theme.palette.grey[400]
+				: theme.palette.grey[700],
+	};
 
-  const labelColors = {
-    up: 'success' as const,
-    down: 'error' as const,
-    neutral: 'default' as const,
-  };
+	const labelColors = {
+		up: "success" as const,
+		down: "error" as const,
+		neutral: "default" as const,
+	};
 
-  const color = labelColors[trend];
-  const chartColor = trendColors[trend];
-  
-  // Use real trend value from backend if provided, otherwise fallback to defaults
+	const color = labelColors[trend];
+	const chartColor = trendColors[trend];
 
-  return (
-    <Card variant="outlined" sx={{ height: '100%', flexGrow: 1 }}>
-      <CardContent>
-        <Typography component="h2" variant="subtitle2" gutterBottom>
-          {highlight && highlightText ? (
-            <>
-              {title.split(new RegExp(`(${highlightText})`, 'ig')).map((part, idx) => (
-                part.toLowerCase() === highlightText.toLowerCase() ? (
-                  <Box key={idx} component="span" sx={{ bgcolor: 'rgba(255, 235, 59, 0.5)', borderRadius: '4px', px: 0.5 }}>
-                    {part}
-                  </Box>
-                ) : (
-                  <Box key={idx} component="span">{part}</Box>
-                )
-              ))}
-            </>
-          ) : (
-            title
-          )}
-        </Typography>
-        <Stack
-          direction="column"
-          sx={{ justifyContent: 'space-between', flexGrow: '1', gap: 1 }}
-        >
-          <Stack sx={{ justifyContent: 'space-between' }}>
-            <Stack
-              direction="row"
-              sx={{ justifyContent: 'space-between', alignItems: 'center' }}
-            >
-              <Typography variant="h4" component="p">
-                {value}
-              </Typography>
-                              <Chip size="small" color={color} label={trendValue} />
-            </Stack>
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {interval}
-            </Typography>
-          </Stack>
-          <Box sx={{ width: '100%', height: 50 }}>
-            <SparkLineChart
-              color={chartColor}
-              data={data}
-              area
-              showHighlight
-              showTooltip
-              xAxis={{
-                scaleType: 'band',
-                data: daysInWeek, // Use the correct property 'data' for xAxis
-              }}
-              sx={{
-                [`& .${areaElementClasses.root}`]: {
-                  fill: `url(#area-gradient-${value})`,
-                },
-              }}
-            >
-              <AreaGradient color={chartColor} id={`area-gradient-${value}`} />
-            </SparkLineChart>
-          </Box>
-        </Stack>
-      </CardContent>
-    </Card>
-  );
+	// Use real trend value from backend if provided, otherwise fallback to defaults
+
+	return (
+		<Card variant="outlined" sx={{ height: "100%", flexGrow: 1 }}>
+			<CardContent>
+				<Typography component="h2" variant="subtitle2" gutterBottom>
+					{highlight && highlightText ? (
+						<>
+							{title
+								.split(new RegExp(`(${highlightText})`, "ig"))
+								.map((part, idx) =>
+									part.toLowerCase() === highlightText.toLowerCase() ? (
+										<Box
+											key={idx}
+											component="span"
+											sx={{
+												bgcolor: "rgba(255, 235, 59, 0.5)",
+												borderRadius: "4px",
+												px: 0.5,
+											}}>
+											{part}
+										</Box>
+									) : (
+										<Box key={idx} component="span">
+											{part}
+										</Box>
+									)
+								)}
+						</>
+					) : (
+						title
+					)}
+				</Typography>
+				<Stack
+					direction="column"
+					sx={{ justifyContent: "space-between", flexGrow: "1", gap: 1 }}>
+					<Stack sx={{ justifyContent: "space-between" }}>
+						<Stack
+							direction="row"
+							sx={{ justifyContent: "space-between", alignItems: "center" }}>
+							<Typography variant="h4" component="p">
+								{value}
+							</Typography>
+							<Chip size="small" color={color} label={trendValue} />
+						</Stack>
+						<Typography variant="caption" sx={{ color: "text.secondary" }}>
+							{interval}
+						</Typography>
+					</Stack>
+					<Box sx={{ width: "100%", height: 50 }}>
+						<SparkLineChart
+							color={chartColor}
+							data={data}
+							area
+							showHighlight
+							showTooltip
+							xAxis={{
+								scaleType: "band",
+								data: daysInWeek, // Use the correct property 'data' for xAxis
+							}}
+							sx={{
+								[`& .${areaElementClasses.root}`]: {
+									fill: `url(#area-gradient-${value})`,
+								},
+							}}>
+							<AreaGradient color={chartColor} id={`area-gradient-${value}`} />
+						</SparkLineChart>
+					</Box>
+				</Stack>
+			</CardContent>
+		</Card>
+	);
 }

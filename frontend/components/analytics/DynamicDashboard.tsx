@@ -489,9 +489,9 @@ export default function DynamicDashboard({
 
 		// Multiple columns - create multi-dimensional data
 		const [categoryCol, ...valueColumns] = columns;
-		const result = data.slice(0, 10).map(item => {
+		const result = data.slice(0, 10).map((item) => {
 			const dataPoint: any = { name: String(item[categoryCol] || "Unknown") };
-			valueColumns.forEach(col => {
+			valueColumns.forEach((col) => {
 				dataPoint[col] = Number(item[col]) || 0;
 			});
 			return dataPoint;
@@ -513,11 +513,11 @@ export default function DynamicDashboard({
 
 		const [xCol, yCol] = columns;
 		return data
-			.filter(item => item[xCol] !== null && item[yCol] !== null)
-			.map(item => ({
+			.filter((item) => item[xCol] !== null && item[yCol] !== null)
+			.map((item) => ({
 				x: Number(item[xCol]) || 0,
 				y: Number(item[yCol]) || 0,
-				name: String(item[xCol]) || "Point"
+				name: String(item[xCol]) || "Point",
 			}))
 			.slice(0, 50); // Limit for performance
 	};
@@ -534,22 +534,24 @@ export default function DynamicDashboard({
 		}
 
 		const [xCol, yCol, valueCol] = columns;
-		
+
 		if (valueCol) {
 			// Three columns: x, y, value format
-			return data.map(item => ({
-				x: String(item[xCol] || "Unknown"),
-				y: String(item[yCol] || "Unknown"),
-				value: Number(item[valueCol]) || 0
-			})).slice(0, 100);
+			return data
+				.map((item) => ({
+					x: String(item[xCol] || "Unknown"),
+					y: String(item[yCol] || "Unknown"),
+					value: Number(item[valueCol]) || 0,
+				}))
+				.slice(0, 100);
 		} else {
 			// Two columns: create frequency heatmap
 			const heatmapData: { [key: string]: { [key: string]: number } } = {};
-			
-			data.forEach(item => {
+
+			data.forEach((item) => {
 				const x = String(item[xCol] || "Unknown");
 				const y = String(item[yCol] || "Unknown");
-				
+
 				if (!heatmapData[y]) heatmapData[y] = {};
 				heatmapData[y][x] = (heatmapData[y][x] || 0) + 1;
 			});
