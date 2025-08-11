@@ -619,23 +619,49 @@ class UniversalDataParser:
             # Check if content is empty
             if not content or len(content.strip()) < 50:
                 print("❌ .bak file content is empty or too small to parse")
-                return []
+                return self._create_bak_error_record(content, Exception("BAK file content is empty or too small"))
             
             # STEP 1: Try to extract SQL data structures from the backup
-            sql_records = self._extract_sql_from_bak(content)
-            if sql_records:
-                return sql_records
+            try:
+                print("🔍 Step 1: Attempting SQL structure extraction...")
+                sql_records = self._extract_sql_from_bak(content)
+                if sql_records:
+                    print(f"✅ SQL extraction successful: {len(sql_records)} records")
+                    return sql_records
+                print("⚠️ No SQL structures found")
+            except Exception as e:
+                print(f"⚠️ SQL extraction failed: {e}")
             
             # STEP 2: If SQL extraction fails, try to find database schema information
-            schema_records = self._extract_database_schema(content)
-            if schema_records:
-                return schema_records
+            try:
+                print("🔍 Step 2: Attempting database schema extraction...")
+                schema_records = self._extract_database_schema(content)
+                if schema_records:
+                    print(f"✅ Schema extraction successful: {len(schema_records)} records")
+                    return schema_records
+                print("⚠️ No database schema found")
+            except Exception as e:
+                print(f"⚠️ Schema extraction failed: {e}")
             
             # STEP 3: Last resort - extract meaningful text patterns but parse them better
-            return self._extract_structured_data_from_bak(content)
+            try:
+                print("🔍 Step 3: Attempting structured data extraction...")
+                structured_records = self._extract_structured_data_from_bak(content)
+                if structured_records:
+                    print(f"✅ Structured data extraction successful: {len(structured_records)} records")
+                    return structured_records
+                print("⚠️ No structured data found")
+            except Exception as e:
+                print(f"⚠️ Structured data extraction failed: {e}")
+            
+            # If all methods fail, return a helpful error record
+            print("❌ All BAK parsing methods failed, returning error record")
+            return self._create_bak_error_record(content, Exception("All BAK parsing methods failed to extract meaningful data"))
             
         except Exception as e:
-            print(f"❌ .bak file parsing failed: {e}")
+            print(f"❌ .bak file parsing failed with unexpected error: {e}")
+            import traceback
+            print(f"Full traceback: {traceback.format_exc()}")
             return self._create_bak_error_record(content, e)
     
     def _extract_sql_from_bak(self, content: str) -> List[Dict[str, Any]]:
@@ -841,18 +867,28 @@ class UniversalDataParser:
         """Create error record when BAK parsing fails"""
         error_type = "unicode_error" if "unicode" in str(error).lower() else "parsing_error"
         
+        # Try to extract at least some basic info even on failure
+        basic_stats = {
+            'content_length': len(content) if content else 0,
+            'line_count': len(content.split('\n')) if content else 0,
+            'has_sql_keywords': any(keyword in content.upper() for keyword in ['CREATE', 'INSERT', 'SELECT', 'TABLE']) if content else False,
+            'has_database_patterns': any(pattern in content.upper() for pattern in ['DATABASE', 'SCHEMA', 'INDEX']) if content else False
+        }
+        
         return [{
             'id': 1,
             'filename': 'backup_file.bak',
             'error': str(error)[:200],
             'error_type': error_type,
-            'content_length': len(content) if content else 0,
             'content_preview': content[:100] if content else 'empty',
-            'record_type': 'parse_error',
+            'record_type': 'bak_file_info',
+            'data_type': 'bak',
+            'source': 'database',
             '_backup_file': True,
             '_original_format': 'bak',
             '_parse_failed': True,
-            'recovery_message': 'BAK file parsing failed - try converting to CSV or SQL format'
+            'recovery_message': 'BAK file detected but content extraction failed. This is a database backup file.',
+            **basic_stats
         }]
     
     def _sanitize_text(self, text: str) -> str:

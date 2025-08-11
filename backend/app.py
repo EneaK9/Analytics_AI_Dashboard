@@ -332,14 +332,7 @@ async def superadmin_login(admin_data: SuperAdminLogin):
         SUPERADMIN_USERNAME = os.getenv("SUPERADMIN_USERNAME", "admin")
         SUPERADMIN_PASSWORD = os.getenv("SUPERADMIN_PASSWORD", "admin123")
         
-        # Debug logging
-        logger.info(f"🔐 Superadmin login attempt - Username: {admin_data.username}")
-        logger.info(f"🔐 Expected username: {SUPERADMIN_USERNAME}")
-        logger.info(f"🔐 Expected password: {SUPERADMIN_PASSWORD}")
-        logger.info(f"🔐 Received password: {admin_data.password}")
-        
         if admin_data.username != SUPERADMIN_USERNAME or admin_data.password != SUPERADMIN_PASSWORD:
-            logger.warning(f"❌ Invalid superadmin credentials - Username: {admin_data.username}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Create access token
@@ -518,15 +511,6 @@ async def create_client_superadmin(
 ):
     """Superadmin: Create a new client account with INSTANT dashboard - AI works in background"""
     try:
-        # 🔍 DEBUG: Log all incoming form data
-        logger.info(f"🔍 CLIENT CREATION REQUEST:")
-        logger.info(f"   - company_name: {company_name}")
-        logger.info(f"   - email: {email}")
-        logger.info(f"   - data_type: {data_type}")
-        logger.info(f"   - input_method: {input_method}")
-        logger.info(f"   - file_count: {file_count}")
-        logger.info(f"   - data_content length: {len(data_content) if data_content else 0}")
-        
         # Verify superadmin token
         verify_superadmin_token(token.credentials)
         
@@ -990,21 +974,123 @@ async def create_client_superadmin(
         
         return client_response
             
-    except HTTPException as http_ex:
-        logger.error(f"❌ CLIENT CREATION HTTP ERROR: {http_ex.status_code} - {http_ex.detail}")
-        logger.error(f"   - Email: {email}")
-        logger.error(f"   - Company: {company_name}")
+    except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Superadmin client creation failed: {e}")
         logger.error(f"   - Email: {email}")
         logger.error(f"   - Company: {company_name}")
+        logger.error(f"   - Data type: {data_type}")
+        logger.error(f"   - Input method: {input_method}")
+        logger.error(f"   - File count: {file_count}")
         logger.error(f"   - Error type: {type(e).__name__}")
         import traceback
         logger.error(f"   - Full traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Client creation failed: {str(e)}")
+        
+        # Provide more specific error messages for different failure types
+        if "bak" in str(e).lower() or "parsing" in str(e).lower():
+            raise HTTPException(status_code=400, detail=f"BAK file processing failed: {str(e)}")
+        elif "database" in str(e).lower() or "connection" in str(e).lower():
+            raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
+        elif "validation" in str(e).lower():
+            raise HTTPException(status_code=400, detail=f"Data validation failed: {str(e)}")
+        else:
+            raise HTTPException(status_code=500, detail=f"Client creation failed: {str(e)}")
 
 # REMOVED: No more background AI processing - direct storage only!
+
+@app.post("/api/superadmin/test-bak-upload")
+async def test_bak_upload(
+    token: str = Depends(security),
+    uploaded_file: UploadFile = File(...)
+):
+    """Test endpoint to debug BAK file upload issues"""
+    try:
+        verify_superadmin_token(token.credentials)
+        
+        logger.info(f"🔍 Testing BAK file upload:")
+        logger.info(f"   - Filename: {uploaded_file.filename}")
+        logger.info(f"   - Content type: {uploaded_file.content_type}")
+        logger.info(f"   - Size: {uploaded_file.size if hasattr(uploaded_file, 'size') else 'unknown'}")
+        
+        # Read file content
+        file_content = await uploaded_file.read()
+        logger.info(f"   - Actual content length: {len(file_content)} bytes")
+        
+        # Test encoding detection
+        encoding_results = []
+        for encoding in ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']:
+            try:
+                decoded = file_content.decode(encoding)
+                encoding_results.append({
+                    'encoding': encoding,
+                    'success': True,
+                    'decoded_length': len(decoded),
+                    'preview': decoded[:100]
+                })
+                logger.info(f"   ✅ {encoding}: {len(decoded)} chars")
+            except UnicodeDecodeError as e:
+                encoding_results.append({
+                    'encoding': encoding,
+                    'success': False,
+                    'error': str(e)[:100]
+                })
+                logger.info(f"   ❌ {encoding}: {str(e)[:50]}")
+        
+        # Test BAK parsing
+        from universal_data_parser import universal_parser
+        
+        # Try with the first successful encoding
+        successful_encoding = next((r for r in encoding_results if r['success']), None)
+        if successful_encoding:
+            logger.info(f"🔄 Testing BAK parsing with {successful_encoding['encoding']} encoding...")
+            
+            try:
+                decoded_content = file_content.decode(successful_encoding['encoding'])
+                parsed_records = universal_parser.parse_to_json(decoded_content, 'bak')
+                
+                return {
+                    "success": True,
+                    "file_info": {
+                        "filename": uploaded_file.filename,
+                        "content_type": uploaded_file.content_type,
+                        "size_bytes": len(file_content),
+                        "successful_encoding": successful_encoding['encoding']
+                    },
+                    "encoding_results": encoding_results,
+                    "parsing_result": {
+                        "records_extracted": len(parsed_records),
+                        "sample_records": parsed_records[:3] if parsed_records else []
+                    }
+                }
+                
+            except Exception as parse_error:
+                logger.error(f"❌ BAK parsing failed: {parse_error}")
+                return {
+                    "success": False,
+                    "error": f"BAK parsing failed: {str(parse_error)}",
+                    "file_info": {
+                        "filename": uploaded_file.filename,
+                        "size_bytes": len(file_content)
+                    },
+                    "encoding_results": encoding_results
+                }
+        else:
+            return {
+                "success": False,
+                "error": "Could not decode file with any encoding",
+                "file_info": {
+                    "filename": uploaded_file.filename,
+                    "size_bytes": len(file_content)
+                },
+                "encoding_results": encoding_results
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ BAK upload test failed: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"BAK upload test failed: {str(e)}")
 
 @app.get("/api/superadmin/clients")
 async def list_clients_superadmin(token: str = Depends(security)):
