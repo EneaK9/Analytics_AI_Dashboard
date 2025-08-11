@@ -269,21 +269,26 @@ class AIDataAnalyzer:
         except Exception as e:
             logger.error(f"❌ Failed to update optimized upload status: {e}")
     
-    async def get_client_data_optimized(self, client_id: str) -> Dict[str, Any]:
-        """Retrieve client data using optimized database operations with caching"""
+    async def get_client_data_optimized(self, client_id: str, start_date: str = None, end_date: str = None) -> Dict[str, Any]:
+        """Retrieve client data using optimized database operations with caching.
+
+        Accepts optional start_date/end_date ISO strings to return a full-range dataset without sampling."""
         try:
             logger.info(f"⚡ Fast data retrieval for client {client_id}")
-            
-            # Use the optimized database manager for ultra-fast lookups
+
             manager = get_db_manager()
-            result = await manager.fast_client_data_lookup(client_id, use_cache=True)
-            
-            # 🔑 ADD CLIENT_ID FOR CACHING SYSTEM
+            result = await manager.fast_client_data_lookup(
+                client_id, use_cache=True, start_date=start_date, end_date=end_date
+            )
+
+            # Ensure client_id is present for hashing
             result['client_id'] = client_id
-            
-            logger.info(f"✅ Retrieved {result['row_count']} records in {result.get('query_time', 0):.3f}s")
+
+            logger.info(
+                f"✅ Retrieved {result['row_count']} records in {result.get('query_time', 0):.3f}s"
+            )
             return result
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to retrieve client data: {e}")
             raise Exception(f"Failed to retrieve data: {str(e)}")

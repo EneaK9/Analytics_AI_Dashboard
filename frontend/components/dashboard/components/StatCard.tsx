@@ -16,6 +16,8 @@ export type StatCardProps = {
   trend: 'up' | 'down' | 'neutral';
   trendValue?: string; // Optional: actual percentage like "-34.6%" or "+5.2%"
   data: number[];
+  highlight?: boolean;
+  highlightText?: string;
 };
 
 
@@ -38,6 +40,8 @@ export default function StatCard({
   trend,
   trendValue,
   data,
+  highlight = false,
+  highlightText,
 }: StatCardProps) {
   
   // DEBUG: Log what StatCard is receiving
@@ -82,7 +86,21 @@ export default function StatCard({
     <Card variant="outlined" sx={{ height: '100%', flexGrow: 1 }}>
       <CardContent>
         <Typography component="h2" variant="subtitle2" gutterBottom>
-          {title}
+          {highlight && highlightText ? (
+            <>
+              {title.split(new RegExp(`(${highlightText})`, 'ig')).map((part, idx) => (
+                part.toLowerCase() === highlightText.toLowerCase() ? (
+                  <Box key={idx} component="span" sx={{ bgcolor: 'rgba(255, 235, 59, 0.5)', borderRadius: '4px', px: 0.5 }}>
+                    {part}
+                  </Box>
+                ) : (
+                  <Box key={idx} component="span">{part}</Box>
+                )
+              ))}
+            </>
+          ) : (
+            title
+          )}
         </Typography>
         <Stack
           direction="column"

@@ -188,55 +188,67 @@ class PerformanceOptimizedDatabaseManager:
         except Exception as e:
             logger.error(f"❌ Batch execution failed: {e}")
     
-    async def fast_client_data_lookup(self, client_id: str, use_cache: bool = True) -> Dict:
-        """Ultra-fast client data lookup with aggressive caching"""
-        cache_key = self._cache_key("client_data", client_id)
-        
+    async def fast_client_data_lookup(self, client_id: str, use_cache: bool = True, start_date: str = None, end_date: str = None, limit: int = None) -> Dict:
+        """Ultra-fast client data lookup with aggressive caching and optional date range.
+
+        If start_date/end_date provided, returns all records within the period (no artificial limit).
+        Dates are ISO strings (YYYY-MM-DD or full ISO)."""
+        # Build a cache key that considers range and limit
+        cache_fragments = ["client_data", client_id]
+        if start_date:
+            cache_fragments.append(f"from:{start_date}")
+        if end_date:
+            cache_fragments.append(f"to:{end_date}")
+        if limit:
+            cache_fragments.append(f"limit:{limit}")
+        cache_key = self._cache_key("|".join(cache_fragments), client_id)
+
         if use_cache:
             cached_result = self._get_from_cache(cache_key)
             if cached_result:
                 return cached_result
-        
+
         try:
             start_time = time.time()
             client = self._get_pooled_admin_client()
-            
-            # Use a single optimized query with proper indexing - NO LIMIT for complete data processing
-            response = client.table("client_data") \
-                .select("data, table_name, created_at") \
-                .eq("client_id", client_id) \
-                .order("created_at", desc=True) \
-                .execute()
-            
-            if response.data:
-                # Process and structure the data efficiently
-                data_records = [record["data"] for record in response.data]
-                
-                result = {
-                    "client_id": client_id,
-                    "data": data_records,
-                    "row_count": len(data_records),
-                    "query_time": time.time() - start_time,
-                    "cached": False
-                }
-                
-                # Cache the result for fast future access
-                self._set_cache(cache_key, result, ttl_seconds=180)  # 3 minutes cache
-                
-                logger.info(f"⚡ Fast lookup completed in {result['query_time']:.3f}s - {len(data_records)} records")
-                return result
-            else:
-                # Cache empty result too
-                empty_result = {
-                    "client_id": client_id,
-                    "data": [],
-                    "row_count": 0,
-                    "query_time": time.time() - start_time,
-                    "cached": False
-                }
-                self._set_cache(cache_key, empty_result, ttl_seconds=60)  # 1 minute cache for empty
-                return empty_result
-                
+
+            # Base query
+            query = client.table("client_data").select("data, table_name, created_at").eq("client_id", client_id)
+
+            # Date filtering
+            if start_date:
+                query = query.gte("created_at", start_date)
+            if end_date:
+                query = query.lte("created_at", end_date)
+
+            # Ordering newest first for consistency
+            query = query.order("created_at", desc=True)
+
+            # Apply limit only if explicitly requested and no date range
+            if limit and not (start_date or end_date):
+                query = query.limit(limit)
+
+            response = query.execute()
+
+            data_records = [record["data"] for record in (response.data or [])]
+
+            result = {
+                "client_id": client_id,
+                "data": data_records,
+                "row_count": len(data_records),
+                "query_time": time.time() - start_time,
+                "cached": False,
+            }
+
+            # Cache the result for fast future access (shorter TTL for unbounded queries)
+            ttl = 180 if not (start_date or end_date) else 60
+            self._set_cache(cache_key, result, ttl_seconds=ttl)
+
+            logger.info(
+                f"⚡ Fast lookup completed in {result['query_time']:.3f}s - {len(data_records)} records"
+            )
+            return result
+
         except Exception as e:
             logger.error(f"❌ Fast client data lookup failed: {e}")
             raise Exception(f"Database lookup failed: {str(e)}")
@@ -345,6 +357,137 @@ class PerformanceOptimizedDatabaseManager:
         except Exception as e:
             logger.error(f"❌ Batch insert failed: {e}")
             raise Exception(f"Database insert failed: {str(e)}")
+
+    def _compute_record_fingerprint(self, record: Dict[str, Any]) -> str:
+        """Compute a stable fingerprint for a record to support deduplication.
+
+        Prefers stable unique keys if present; otherwise hashes a normalized JSON excluding volatile fields."""
+        import hashlib, json
+
+        # Prefer common unique identifiers if present
+        candidate_keys = [
+            "id", "uuid", "order_id", "transaction_id", "customer_id", "invoice_id",
+            "event_id", "record_id", "external_id", "sku", "product_id"
+        ]
+
+        for key in candidate_keys:
+            if key in record and record[key] is not None and str(record[key]).strip() != "":
+                return f"key:{key}:{str(record[key])}"
+
+        # Remove volatile fields commonly present in API payloads
+        volatile_fields = {
+            "updated_at", "created_at", "retrieved_at", "last_updated", "timestamp",
+            "request_id", "processing_time", "query_time", "fetch_time"
+        }
+        stable_copy = {k: v for k, v in record.items() if k not in volatile_fields}
+        try:
+            normalized = json.dumps(stable_copy, sort_keys=True, default=str)
+        except Exception:
+            normalized = str(stable_copy)
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    async def dedup_and_batch_insert_client_data(
+        self,
+        table_name: str,
+        data: List[Dict[str, Any]],
+        client_id: str,
+        dedup_scope: str = "day",
+    ) -> int:
+        """Insert only new records for the current scope (default day).
+
+        - Fetches existing records for the scope and computes fingerprints
+        - Skips incoming records whose fingerprint already exists
+        - If a stable unique key exists and the record changed, updates existing row
+        - Inserts only new records using batch_insert_client_data
+        """
+        if not data:
+            return 0
+
+        # Determine scope window (start/end)
+        from datetime import datetime, timedelta
+        scope_start = None
+        scope_end = None
+        now = datetime.utcnow()
+        if dedup_scope == "day":
+            scope_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+            scope_end = now.replace(hour=23, minute=59, second=59, microsecond=999000).isoformat()
+        elif dedup_scope == "hour":
+            scope_start = now.replace(minute=0, second=0, microsecond=0).isoformat()
+            scope_end = (now.replace(minute=59, second=59, microsecond=999000)).isoformat()
+
+        # Build set of existing fingerprints in scope and index by stable unique key
+        existing_fingerprints: set[str] = set()
+        existing_by_key: Dict[str, Dict[str, Any]] = {}
+        try:
+            client = self._get_pooled_admin_client()
+            resp = client.table("client_data").select("id,data,created_at").eq("client_id", client_id) \
+                .gte("created_at", scope_start).lte("created_at", scope_end).order("created_at", desc=True).execute()
+            for row in resp.data or []:
+                rec = row.get("data")
+                if isinstance(rec, dict):
+                    fp = self._compute_record_fingerprint(rec)
+                    existing_fingerprints.add(fp)
+                    # Try to capture a stable key
+                    for key_name in [
+                        "id", "uuid", "order_id", "transaction_id", "customer_id", "invoice_id",
+                        "event_id", "record_id", "external_id", "sku", "product_id"
+                    ]:
+                        if key_name in rec and rec[key_name] is not None and str(rec[key_name]).strip() != "":
+                            existing_by_key[f"{key_name}:{rec[key_name]}"] = {"row_id": row.get("id"), "data": rec}
+                            break
+        except Exception as e:
+            logger.warning(f"⚠️ Could not load existing scope records for dedup/update: {e}")
+
+        # Filter incoming
+        unique_records: List[Dict[str, Any]] = []
+        updates: List[Dict[str, Any]] = []  # {row_id, new_data}
+        for rec in data:
+            try:
+                record_obj = rec if isinstance(rec, dict) else {"value": rec}
+                fp = self._compute_record_fingerprint(record_obj)
+                # Detect stable key-based update
+                stable_key = None
+                for key_name in [
+                    "id", "uuid", "order_id", "transaction_id", "customer_id", "invoice_id",
+                    "event_id", "record_id", "external_id", "sku", "product_id"
+                ]:
+                    if key_name in record_obj and record_obj[key_name] is not None and str(record_obj[key_name]).strip() != "":
+                        stable_key = f"{key_name}:{record_obj[key_name]}"
+                        break
+
+                if stable_key and stable_key in existing_by_key:
+                    existing_entry = existing_by_key[stable_key]
+                    # If content differs, schedule update
+                    if self._compute_record_fingerprint(existing_entry["data"]) != fp:
+                        updates.append({"row_id": existing_entry["row_id"], "new_data": record_obj})
+                    # Whether updated or same, do not insert as new
+                    continue
+
+                # No exact existing key match; use fingerprint dedup
+                if fp not in existing_fingerprints:
+                    unique_records.append(record_obj)
+                    existing_fingerprints.add(fp)
+            except Exception:
+                # If fingerprinting fails, keep the record to avoid data loss
+                unique_records.append(rec if isinstance(rec, dict) else {"value": rec})
+
+        # Apply updates first
+        updated_count = 0
+        if updates:
+            client = self._get_pooled_admin_client()
+            for upd in updates:
+                try:
+                    client.table("client_data").update({"data": upd["new_data"], "updated_at": "now()"}).eq("id", upd["row_id"]).execute()
+                    updated_count += 1
+                except Exception as ue:
+                    logger.warning(f"⚠️ Failed to update row {upd['row_id']}: {ue}")
+
+        if not unique_records:
+            logger.info(f"ℹ️ No new unique records to insert after dedup; {updated_count} updated")
+            return updated_count
+
+        inserted = await self.batch_insert_client_data(table_name, unique_records, client_id)
+        return inserted + updated_count
     
     async def fast_dashboard_config_save(self, client_id: str, dashboard_config: Dict) -> bool:
         """Ultra-fast dashboard config save with optimized queries"""

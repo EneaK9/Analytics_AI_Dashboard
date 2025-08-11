@@ -39,10 +39,10 @@ interface DashboardMetricsResponse {
 }
 
 interface UseDashboardMetricsReturn {
-	data: LLMAnalysis | null;
-	loading: boolean;
-	error: string | null;
-	refetch: () => Promise<void>;
+    data: LLMAnalysis | null;
+    loading: boolean;
+    error: string | null;
+    refetch: (opts?: { startDate?: string; endDate?: string; preset?: string }) => Promise<void>;
 }
 
 export function useDashboardMetrics(userId?: string): UseDashboardMetricsReturn {
@@ -50,7 +50,7 @@ export function useDashboardMetrics(userId?: string): UseDashboardMetricsReturn 
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
-	const fetchData = useCallback(async () => {
+    const fetchData = useCallback(async (opts?: { startDate?: string; endDate?: string; preset?: string }) => {
 		if (!userId) {
 			setData(null);
 			setLoading(false);
@@ -62,7 +62,12 @@ export function useDashboardMetrics(userId?: string): UseDashboardMetricsReturn 
 			setError(null);
 			
 			console.log("🚀 Fetching dashboard metrics from hook");
-			const response = await api.get("/dashboard/metrics?fast_mode=true");
+            const params: string[] = ["fast_mode=true"];
+            if (opts?.startDate) params.push(`start_date=${encodeURIComponent(opts.startDate)}`);
+            if (opts?.endDate) params.push(`end_date=${encodeURIComponent(opts.endDate)}`);
+            if (opts?.preset) params.push(`preset=${encodeURIComponent(opts.preset)}`);
+            const query = params.length ? `?${params.join("&")}` : "";
+            const response = await api.get(`/dashboard/metrics${query}`);
 
 			if (response.data && response.data.llm_analysis) {
 				const analysis = response.data.llm_analysis;
@@ -87,7 +92,7 @@ export function useDashboardMetrics(userId?: string): UseDashboardMetricsReturn 
 		} finally {
 			setLoading(false);
 		}
-	}, [userId]);
+    }, [userId]);
 
 	// Initial load
 	useEffect(() => {

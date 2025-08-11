@@ -29,9 +29,10 @@ import {
 import * as Charts from "../../charts";
 
 // Import MUI X Charts
-import { LineChart } from "@mui/x-charts/LineChart";
-import { PieChart } from "@mui/x-charts/PieChart";
-import { BarChart } from "@mui/x-charts/BarChart";
+import { LineChart } from '@mui/x-charts/LineChart';
+import TimelineTrendsCard from './TimelineTrendsCard';
+import { PieChart } from '@mui/x-charts/PieChart';
+import { BarChart } from '@mui/x-charts/BarChart';
 
 // Chart data validation function for LLM response format
 // Helper function to format KPI values based on format type (shared between components)
@@ -277,7 +278,7 @@ export default function MainGrid({
 }
 
 // Original Main Dashboard Component - Uses REAL BACKEND DATA
-function OriginalMainGrid({
+export function OriginalMainGrid({
 	dashboardData,
 	user,
 	dateRange,
@@ -294,6 +295,39 @@ function OriginalMainGrid({
 	const [loading, setLoading] = React.useState(true);
 	const [error, setError] = React.useState<string | null>(null);
 	const [isLoadingDateFilter, setIsLoadingDateFilter] = React.useState(false);
+
+	// Build timeline series from llm_analysis.timeline when present
+	const timelineSeries = React.useMemo(() => {
+		if (!llmAnalysis || !llmAnalysis.timeline || !Array.isArray(llmAnalysis.timeline)) {
+			return null;
+		}
+		const dates: string[] = [];
+		const kpiSeriesMap: Record<string, number[]> = {};
+		for (const dayEntry of llmAnalysis.timeline) {
+			const date = dayEntry.date;
+			const analysis = dayEntry.llm_analysis || {};
+			dates.push(date);
+			if (analysis.kpis && Array.isArray(analysis.kpis)) {
+				for (const kpi of analysis.kpis) {
+					const key = kpi.display_name || kpi.name || "KPI";
+					const valNum = typeof kpi.value === 'number' ? kpi.value : parseFloat(String(kpi.value ?? 0));
+					if (!kpiSeriesMap[key]) kpiSeriesMap[key] = [];
+					kpiSeriesMap[key].push(isNaN(valNum) ? 0 : valNum);
+				}
+			}
+		}
+		// Convert to chart-compatible arrays
+		const series = Object.entries(kpiSeriesMap).map(([name, data]) => ({ name, data }));
+		return { categories: dates, series };
+	}, [llmAnalysis]);
+
+	// Search highlight state - listens for global dashboard-search events
+	const [highlightQuery, setHighlightQuery] = React.useState<string>("");
+	React.useEffect(() => {
+		const handler = (e: any) => setHighlightQuery(((e?.detail?.query) || '').toString().toLowerCase());
+		window.addEventListener('dashboard-search', handler);
+		return () => window.removeEventListener('dashboard-search', handler);
+	}, []);
 
 	// State for chart dropdown selections
 	const [chartDropdownSelections, setChartDropdownSelections] = React.useState<{
@@ -369,7 +403,16 @@ function OriginalMainGrid({
 
 			if (response.data && response.data.llm_analysis) {
 				console.log("✅ Date-filtered main dashboard data loaded");
-				setLlmAnalysis(response.data.llm_analysis);
+				const analysis = response.data.llm_analysis;
+				// Ensure timeline visibility for multi-day ranges even if backend didn't return timeline
+				const startDate = dateRange.start?.format ? dateRange.start.format('YYYY-MM-DD') : dateRange.start;
+				const endDate = dateRange.end?.format ? dateRange.end.format('YYYY-MM-DD') : dateRange.end;
+				if (startDate && endDate && startDate !== endDate && !Array.isArray((analysis as any).timeline)) {
+					console.log('ℹ️ Backend returned no timeline; wrapping single analysis into timeline for visibility');
+					setLlmAnalysis({ timeline: [{ date: endDate, llm_analysis: analysis }] });
+				} else {
+					setLlmAnalysis(analysis);
+				}
 			} else {
 				console.error("❌ No LLM analysis in date-filtered response");
 			}
@@ -839,15 +882,26 @@ function OriginalMainGrid({
 			)}
 			*/}
 
+
+			{/* Timeline charts when a date range is selected and timeline is available */}
+            {llmAnalysis?.timeline && Array.isArray(llmAnalysis.timeline) && (
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                    <Grid size={{ xs: 12 }} data-timeline>
+                        <TimelineTrendsCard timeline={llmAnalysis.timeline} />
+                    </Grid>
+                </Grid>
+            )}
+
 			{/* KPI Cards - Only render if kpis array exists and has items */}
 			{llmAnalysis?.kpis && llmAnalysis.kpis.length > 0 && (
 				<Grid container spacing={2} sx={{ mb: 3 }}>
 					{llmAnalysis.kpis.map((kpi: any, index: number) => {
 						const trendDisplay = getTrendDisplay(kpi.trend);
 
-						return (
+					const isHit = highlightQuery && (kpi.display_name || '').toLowerCase().includes(highlightQuery);
+					return (
 							<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
-								<StatCard
+                                <StatCard
 									title={kpi.display_name}
 									value={formatKPIValue(kpi.value, kpi.format)}
 									interval={kpi.trend.description}
@@ -859,6 +913,8 @@ function OriginalMainGrid({
 										{ length: 30 },
 										() => parseFloat(kpi.value) || 0
 									)}
+                                        highlight={Boolean(isHit)}
+                                        highlightText={isHit ? highlightQuery : undefined}
 								/>
 							</Grid>
 						);
@@ -873,18 +929,16 @@ function OriginalMainGrid({
 					spacing={{ xs: 2, sm: 3, md: 3 }}
 					sx={{
 						mb: { xs: 2, md: 4 },
-						alignItems: "stretch",
-					}}>
-					{llmAnalysis.charts.map((chart: any, index: number) => {
-						// Skip if no data or invalid chart type
-						if (
-							!chart.data ||
-							!Array.isArray(chart.data) ||
-							chart.data.length === 0
-						) {
-							return null;
-						}
-
+						alignItems: 'stretch'
+					}}
+				>
+					{llmAnalysis.charts
+						.filter((chart: any) => 
+							chart.data && 
+							Array.isArray(chart.data) && 
+							chart.data.length > 0
+						)
+						.map((chart: any, index: number) => {
 						const chartId = `chart-${index}`;
 						const selectedValue = chartDropdownSelections[chartId] || "all";
 
@@ -904,27 +958,26 @@ function OriginalMainGrid({
 						}
 
 						// Adaptive chart sizing - No empty space!
-						const totalCharts = llmAnalysis.charts.filter(
-							(c: any) => c.data && Array.isArray(c.data) && c.data.length > 0
-						).length;
-
-						const getChartSize = () => {
-							if (totalCharts === 1) return { xs: 12 };
-							if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each - fills full width
-							// For 3+ charts, cap at 3 per row; if last row has 2, use 50% each; if last row has 1, use full width
-							const chartsPerRowMd = 3;
-							const remainder = totalCharts % chartsPerRowMd;
-							const isInLastRow =
-								index >=
-								totalCharts - (remainder === 0 ? chartsPerRowMd : remainder);
-							if (remainder === 2 && index >= totalCharts - 2) {
-								return { xs: 12, sm: 6, md: 6 };
-							}
-							if (remainder === 1 && index === totalCharts - 1) {
-								return { xs: 12 };
-							}
-							return { xs: 12, sm: 6, md: 4 };
-						};
+						const validCharts = llmAnalysis.charts.filter((c: any) => 
+							c.data && Array.isArray(c.data) && c.data.length > 0
+						);
+						const totalCharts = validCharts.length;
+						
+                        const getChartSize = () => {
+                            if (totalCharts === 1) return { xs: 12 };
+                            if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each - fills full width
+                            // For 3+ charts, cap at 3 per row; if last row has 2, use 50% each; if last row has 1, use full width
+                            const chartsPerRowMd = 3;
+                            const remainder = totalCharts % chartsPerRowMd;
+                            const isInLastRow = index >= totalCharts - (remainder === 0 ? chartsPerRowMd : remainder);
+                            if (remainder === 2 && index >= totalCharts - 2) {
+                                return { xs: 12, sm: 6, md: 6 };
+                            }
+                            if (remainder === 1 && index === totalCharts - 1) {
+                                return { xs: 12 };
+                            }
+                            return { xs: 12, sm: 6, md: 4 };
+                        };
 
 						// Render based on chart type
 						switch (chart.chart_type?.toLowerCase()) {
@@ -932,8 +985,27 @@ function OriginalMainGrid({
 								return (
 									<Grid key={index} size={getChartSize()}>
 										<Card>
-											<CardHeader
-												title={chart.display_name}
+                                            <CardHeader
+                                                title={(() => {
+                                                    const name = chart.display_name || '';
+                                                    const q = highlightQuery;
+                                                    if (q && name.toLowerCase().includes(q)) {
+                                                        return (
+                                                            <>
+                                                                {name.split(new RegExp(`(${q})`, 'ig')).map((part: string, i: number) => (
+                                                                    part.toLowerCase() === q.toLowerCase() ? (
+                                                                        <Box key={i} component="span" sx={{ bgcolor: 'rgba(255, 235, 59, 0.5)', borderRadius: '4px', px: 0.5 }}>
+                                                                            {part}
+                                                                        </Box>
+                                                                    ) : (
+                                                                        <Box key={i} component="span">{part}</Box>
+                                                                    )
+                                                                ))}
+                                                            </>
+                                                        );
+                                                    }
+                                                    return name;
+                                                })()}
 												subtitle={
 													chart.config?.x_axis?.display_name &&
 													chart.config?.y_axis?.display_name
@@ -1038,8 +1110,27 @@ function OriginalMainGrid({
 								return (
 									<Grid key={index} size={getChartSize()}>
 										<Card>
-											<CardHeader
-												title={chart.display_name}
+                                            <CardHeader
+                                                title={(() => {
+                                                    const name = chart.display_name || '';
+                                                    const q = highlightQuery;
+                                                    if (q && name.toLowerCase().includes(q)) {
+                                                        return (
+                                                            <>
+                                                                {name.split(new RegExp(`(${q})`, 'ig')).map((part: string, i: number) => (
+                                                                    part.toLowerCase() === q.toLowerCase() ? (
+                                                                        <Box key={i} component="span" sx={{ bgcolor: 'rgba(255, 235, 59, 0.5)', borderRadius: '4px', px: 0.5 }}>
+                                                                            {part}
+                                                                        </Box>
+                                                                    ) : (
+                                                                        <Box key={i} component="span">{part}</Box>
+                                                                    )
+                                                                ))}
+                                                            </>
+                                                        );
+                                                    }
+                                                    return name;
+                                                })()}
 												subtitle={
 													chart.config?.x_axis?.display_name &&
 													chart.config?.y_axis?.display_name
@@ -1074,30 +1165,22 @@ function OriginalMainGrid({
 													)
 												}
 											/>
-											<CardContent>
-												<Box sx={{ height: 300, width: "100%" }}>
-													<BarChart
-														dataset={filteredData.map((item: any) => {
-															// Get the actual field names from chart config
-															const xField =
-																chart.config?.x_axis?.field || "name";
-															const yField =
-																chart.config?.y_axis?.field || "value";
-
-															// Create normalized object with both original and normalized fields
-															const normalizedItem = { ...item };
-															normalizedItem[xField] = String(
-																item[xField] ||
-																	item.name ||
-																	item.id ||
-																	"Unknown"
-															);
-															normalizedItem[yField] = Number(
-																item[yField] || item.value || 0
-															);
-
-															return normalizedItem;
-														})}
+                                            <CardContent>
+                                                <Box sx={{ height: 300, width: '100%' }}>
+                                                    <BarChart
+										dataset={filteredData.map((item: any) => {
+											// Get the actual field names from chart config
+											const xField = chart.config?.x_axis?.field || "name";
+											const yField = chart.config?.y_axis?.field || "value";
+											
+											// Create normalized object with both original and normalized fields
+											const normalizedItem = { ...item };
+											const labelValue = item[xField] || item.name || item.id || "Unknown";
+											normalizedItem[xField] = typeof labelValue === 'object' ? JSON.stringify(labelValue) : String(labelValue);
+											normalizedItem[yField] = Number(item[yField] || item.value || 0);
+											
+											return normalizedItem;
+										})}
 														xAxis={[
 															{
 																scaleType: "band",
@@ -1196,16 +1279,10 @@ function OriginalMainGrid({
 
 															// Create normalized object with both original and normalized fields
 															const normalizedItem = { ...item };
-															normalizedItem[xField] = String(
-																item[xField] ||
-																	item.name ||
-																	item.id ||
-																	"Unknown"
-															);
-															normalizedItem[yField] = Number(
-																item[yField] || item.value || 0
-															);
-
+															const labelValue = item[xField] || item.name || item.id || "Unknown";
+											normalizedItem[xField] = typeof labelValue === 'object' ? JSON.stringify(labelValue) : String(labelValue);
+															normalizedItem[yField] = Number(item[yField] || item.value || 0);
+															
 															return normalizedItem;
 														})}
 														xAxis={[
@@ -1387,31 +1464,47 @@ function OriginalMainGrid({
 									</Grid>
 								);
 
-							case "donut":
-								return (
-									<Grid key={index} size={getChartSize()}>
-										<Card>
-											<CardHeader
-												title={chart.display_name}
-												subtitle={
-													chart.config?.y_axis?.display_name ||
-													"Donut chart visualization"
-												}
-											/>
-											<CardContent>
-												<Box sx={{ height: 300, width: "100%" }}>
-													<Charts.PieChart
-														data={filteredData}
-														title={chart.display_name}
-														chartType="donut"
-														labelField={chart.config?.x_axis?.field || "name"}
-														valueField={chart.config?.y_axis?.field || "value"}
-													/>
-												</Box>
-											</CardContent>
-										</Card>
-									</Grid>
-								);
+                            case "donut":
+                                return (
+                                    <Grid key={index} size={getChartSize()}>
+                                        <Card>
+                                            <CardHeader
+                                                title={(() => {
+                                                    const name = chart.display_name || '';
+                                                    const q = highlightQuery;
+                                                    if (q && name.toLowerCase().includes(q)) {
+                                                        return (
+                                                            <>
+                                                                {name.split(new RegExp(`(${q})`, 'ig')).map((part: string, i: number) => (
+                                                                    part.toLowerCase() === q.toLowerCase() ? (
+                                                                        <Box key={i} component="span" sx={{ bgcolor: 'rgba(25,118,210,0.15)', borderRadius: '4px', px: 0.5 }}>
+                                                                            {part}
+                                                                        </Box>
+                                                                    ) : (
+                                                                        <Box key={i} component="span">{part}</Box>
+                                                                    )
+                                                                ))}
+                                                            </>
+                                                        );
+                                                    }
+                                                    return name;
+                                                })()}
+                                                subtitle={chart.config?.y_axis?.display_name || "Donut chart visualization"}
+                                            />
+                                            <CardContent>
+                                                <Box sx={{ height: 300, width: '100%' }}>
+                                                    <Charts.PieChart
+                                                        data={filteredData}
+                                                        title={chart.display_name}
+                                                        chartType="donut"
+                                                        labelField={chart.config?.x_axis?.field || 'name'}
+                                                        valueField={chart.config?.y_axis?.field || 'value'}
+                                                    />
+                                                </Box>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                );
 
 							default:
 								console.warn(`⚠️ Unknown chart type: ${chart.chart_type}`);
@@ -1505,30 +1598,7 @@ function OriginalMainGrid({
 				</Grid>
 			)} */}
 
-			{/* No Data Message - Only show if no data at all */}
-			{(!llmAnalysis ||
-				((!llmAnalysis.kpis || llmAnalysis.kpis.length === 0) &&
-					(!llmAnalysis.charts || llmAnalysis.charts.length === 0) &&
-					(!llmAnalysis.tables || llmAnalysis.tables.length === 0))) && (
-				<Grid container spacing={2} sx={{ mb: 3 }}>
-					<Grid size={{ xs: 12 }}>
-						<Card
-							sx={{
-								bgcolor: "grey.50",
-								border: "2px dashed #ccc",
-							}}>
-							<CardContent sx={{ textAlign: "center", py: 4 }}>
-								<Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
-									📊 Dashboard Data
-								</Typography>
-								<Typography variant="body2" color="text.secondary">
-									No KPIs, charts, or tables available in the current analysis
-								</Typography>
-							</CardContent>
-						</Card>
-					</Grid>
-				</Grid>
-			)}
+			{/* No Data Message removed per request */}
 
 			<Copyright sx={{ my: 4 }} />
 		</Box>
@@ -2073,15 +2143,13 @@ function TemplateDashboard({
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
-							data: chart.data.map(
-								(item: any) => item[yField] || item.value || 0
-							),
-							labels: chart.data.map(
-								(item: any) => item[xField] || item.name || "Unknown"
-							),
-							insights:
-								chart.insights || `${chart.display_name} analysis from AI`,
-							config: chart.config,
+							data: chart.data.map((item: any) => item[yField] || item.value || 0),
+							labels: chart.data.map((item: any) => {
+								const label = item[xField] || item.name || item.id || "Unknown";
+								return typeof label === 'object' ? JSON.stringify(label) : String(label);
+							}),
+							insights: chart.insights || `${chart.display_name} analysis from AI`,
+							config: chart.config
 						};
 					} else if (
 						chart.chart_type === "line" ||
@@ -2090,16 +2158,13 @@ function TemplateDashboard({
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
-							data: chart.data.map(
-								(item: any) => item[yField] || item.value || 0
-							),
-							labels: chart.data.map(
-								(item: any) => item[xField] || item.name || "Unknown"
-							),
-							insights:
-								chart.insights ||
-								`${chart.display_name} trends from AI analysis`,
-							config: chart.config,
+							data: chart.data.map((item: any) => item[yField] || item.value || 0),
+							labels: chart.data.map((item: any) => {
+								const label = item[xField] || item.name || item.id || "Unknown";
+								return typeof label === 'object' ? JSON.stringify(label) : String(label);
+							}),
+							insights: chart.insights || `${chart.display_name} trends from AI analysis`,
+							config: chart.config
 						};
 					}
 				});
@@ -2152,16 +2217,13 @@ function TemplateDashboard({
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
-							data: chart.data.map(
-								(item: any) => item[yField] || item.value || 0
-							),
-							labels: chart.data.map(
-								(item: any) => item[xField] || item.name || "Unknown"
-							),
-							insights:
-								chart.insights ||
-								`${chart.display_name} performance analysis from AI`,
-							config: chart.config,
+							data: chart.data.map((item: any) => item[yField] || item.value || 0),
+							labels: chart.data.map((item: any) => {
+								const label = item[xField] || item.name || item.id || "Unknown";
+								return typeof label === 'object' ? JSON.stringify(label) : String(label);
+							}),
+							insights: chart.insights || `${chart.display_name} performance analysis from AI`,
+							config: chart.config
 						};
 					} else if (
 						chart.chart_type === "line" ||
@@ -2171,16 +2233,13 @@ function TemplateDashboard({
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
-							data: chart.data.map(
-								(item: any) => item[yField] || item.value || 0
-							),
-							labels: chart.data.map(
-								(item: any) => item[xField] || item.name || "Unknown"
-							),
-							insights:
-								chart.insights ||
-								`${chart.display_name} performance trends from AI analysis`,
-							config: chart.config,
+							data: chart.data.map((item: any) => item[yField] || item.value || 0),
+							labels: chart.data.map((item: any) => {
+								const label = item[xField] || item.name || item.id || "Unknown";
+								return typeof label === 'object' ? JSON.stringify(label) : String(label);
+							}),
+							insights: chart.insights || `${chart.display_name} performance trends from AI analysis`,
+							config: chart.config
 						};
 					}
 				});

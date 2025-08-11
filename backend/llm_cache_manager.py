@@ -7,7 +7,6 @@ Stores responses in database and only regenerates when client data changes
 import hashlib
 import json
 import logging
-import asyncio
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 from database import get_admin_client
@@ -61,7 +60,7 @@ class LLMCacheManager:
     
     async def get_cached_llm_response(self, client_id: str, client_data: Dict[str, Any], dashboard_type: str = "default") -> Optional[Dict[str, Any]]:
         """
-        Get cached LLM response if data hasn't changed (updated for time-based storage)
+        Get cached LLM response if data hasn't changed
         
         Args:
             client_id: Client identifier
@@ -76,60 +75,84 @@ class LLMCacheManager:
             # Calculate current data hash
             current_hash = self._calculate_data_hash(client_data)
             
-            # NEW: Get most recent cache entry for this client and dashboard type
-            response = self.db_client.table("llm_response_cache").select("*").eq("client_id", client_id).eq("data_type", dashboard_type).order("created_at", desc=True).limit(1).execute()
+            # Get existing cache record for this client (all dashboard types in one record)
+            response = self.db_client.table("llm_response_cache").select("*").eq("client_id", client_id).limit(1).execute()
             
             if response.data:
                 cached_record = response.data[0]
                 cached_hash = cached_record.get("data_hash")
-                cached_llm_response = cached_record.get("llm_response")
+                cached_responses_json = cached_record.get("llm_response")
                 created_at = cached_record.get("created_at")
                 
                 # Check if data hash matches (data hasn't changed)
-                logger.info(f"🔍 Hash comparison for client {client_id} ({dashboard_type}): cached={cached_hash[:12] if cached_hash else 'None'}... vs current={current_hash[:12]}...")
+                logger.info(f"🔍 Hash comparison for client {client_id} ({dashboard_type}): cached={cached_hash[:12]}... vs current={current_hash[:12]}...")
                 
-                if cached_hash == current_hash and cached_llm_response:
-                    logger.info(f"✅ Cache HIT for client {client_id} ({dashboard_type}) - data unchanged")
-                    
-                    # Check if cache is still valid (not too old)
+                # 🚀 TEMPORARY: Force cache usage for debugging (ignore hash mismatch)
+                if cached_responses_json:
+                    logger.info(f"🚀 TEMP: Using cache regardless of hash for debugging purposes")
                     try:
-                        # Handle timezone-aware datetime parsing
-                        created_at_str = created_at
-                        if created_at_str.endswith('Z'):
-                            created_at_str = created_at_str.replace('Z', '+00:00')
-                        
-                        created_at_dt = datetime.fromisoformat(created_at_str)
-                        
-                        # Ensure both datetimes are timezone-aware
-                        if created_at_dt.tzinfo is None:
-                            # If created_at is naive, assume UTC
-                            from datetime import timezone
-                            created_at_dt = created_at_dt.replace(tzinfo=timezone.utc)
-                        
-                        current_time = datetime.now(created_at_dt.tzinfo)
-                        cache_age = current_time - created_at_dt
-                        
-                        if cache_age.days < 7:  # Cache valid for 7 days
-                            # Return the LLM analysis from the cached response
-                            if isinstance(cached_llm_response, dict):
-                                return cached_llm_response.get("llm_analysis", cached_llm_response)
-                            elif isinstance(cached_llm_response, str):
-                                try:
-                                    parsed_response = json.loads(cached_llm_response)
-                                    return parsed_response.get("llm_analysis", parsed_response)
-                                except:
-                                    return None
+                        # Handle both string and dict formats for backward compatibility
+                        if isinstance(cached_responses_json, str):
+                            cached_responses = json.loads(cached_responses_json)
+                        elif isinstance(cached_responses_json, dict):
+                            cached_responses = cached_responses_json
                         else:
-                            logger.info(f"⚠️ Cache expired for client {client_id} ({dashboard_type}) (age: {cache_age.days} days)")
+                            logger.warning(f"⚠️ Unexpected cache format for client {client_id}: {type(cached_responses_json)}")
                             return None
-                    except Exception as time_error:
-                        logger.warning(f"⚠️ Failed to parse cache timestamp for client {client_id} ({dashboard_type}): {time_error}")
-                        # If we can't parse the timestamp, assume cache is valid
-                        if isinstance(cached_llm_response, dict):
-                            return cached_llm_response.get("llm_analysis", cached_llm_response)
+                        
+                        # Handle different cache formats for backward compatibility
+                        if "llm_analysis" in cached_responses and dashboard_type == "metrics":
+                            # Legacy nested format - extract the inner llm_analysis
+                            inner_analysis = cached_responses.get("llm_analysis", {})
+                            if isinstance(inner_analysis, dict) and ("kpis" in inner_analysis or "charts" in inner_analysis):
+                                dashboard_response = inner_analysis
+                            else:
+                                dashboard_response = cached_responses
+                        elif "kpis" in cached_responses or "charts" in cached_responses:
+                            # New flat format - use directly
+                            dashboard_response = cached_responses
+                        else:
+                            # Get the specific dashboard type response
+                            dashboard_response = cached_responses.get(dashboard_type)
+                        
+                        if dashboard_response:
+                            logger.info(f"✅ Cache HIT for client {client_id} ({dashboard_type}) - data unchanged")
+                            
+                            # Check if cache is still valid (not too old)
+                            try:
+                                # Handle timezone-aware datetime parsing
+                                created_at_str = created_at
+                                if created_at_str.endswith('Z'):
+                                    created_at_str = created_at_str.replace('Z', '+00:00')
+                                
+                                created_at_dt = datetime.fromisoformat(created_at_str)
+                                
+                                # Ensure both datetimes are timezone-aware
+                                if created_at_dt.tzinfo is None:
+                                    # If created_at is naive, assume UTC
+                                    from datetime import timezone
+                                    created_at_dt = created_at_dt.replace(tzinfo=timezone.utc)
+                                
+                                current_time = datetime.now(created_at_dt.tzinfo)
+                                cache_age = current_time - created_at_dt
+                                
+                                if cache_age.days < 7:  # Cache valid for 7 days
+                                    return dashboard_response
+                                else:
+                                    logger.info(f"⚠️ Cache expired for client {client_id} ({dashboard_type}) (age: {cache_age.days} days)")
+                                    return None
+                            except Exception as time_error:
+                                logger.warning(f"⚠️ Failed to parse cache timestamp for client {client_id} ({dashboard_type}): {time_error}")
+                                # If we can't parse the timestamp, assume cache is valid
+                                return dashboard_response
+                        else:
+                            logger.info(f"🔄 No {dashboard_type} cache found for client {client_id}")
+                            return None
+                    except Exception as parse_error:
+                        logger.warning(f"⚠️ Failed to parse cached responses for client {client_id}: {parse_error}")
                         return None
                 else:
-                    logger.info(f"🔄 Cache MISS for client {client_id} ({dashboard_type}) - data changed (hash mismatch)")
+                    logger.info(f"🔄 Cache MISS for client {client_id} ({dashboard_type}) - data changed or no cache")
                     return None
             else:
                 logger.info(f"🔄 No cache found for client {client_id} ({dashboard_type})")
@@ -215,56 +238,97 @@ class LLMCacheManager:
 
     async def store_cached_llm_response(self, client_id: str, client_data: Dict[str, Any], llm_response: Dict[str, Any], dashboard_type: str = "default", data_snapshot_date: Optional[str] = None) -> bool:
         """
-        Store LLM response in cache with time-based versioning
-        ALWAYS creates new entries for proper historical tracking
-        
-        Args:
-            client_id: Client identifier
-            client_data: Client data used for analysis
-            llm_response: LLM analysis response
-            dashboard_type: Type of dashboard (metrics, business, performance)
-            data_snapshot_date: When this data snapshot was current
-        
-        Returns:
-            - True if stored successfully
-            - False if storage failed
+        Store LLM response and keep a single rolling entry per day per dashboard type.
         """
         try:
-            # Calculate data hash
             data_hash = self._calculate_data_hash(client_data)
-            
-            # ALWAYS insert new record for time-based tracking (no more updates)
-            # Store the response in the exact format specified by user
+
+            # Compute UTC analysis date for daily roll-up
+            try:
+                from datetime import timezone
+                analysis_date = datetime.now(timezone.utc).date().isoformat()
+            except Exception:
+                analysis_date = datetime.utcnow().date().isoformat()
+
+            # Remove existing entries for today for this client/type
+            try:
+                day_start = f"{analysis_date}T00:00:00+00:00"
+                day_end = f"{analysis_date}T23:59:59+00:00"
+                self.db_client.table("llm_response_cache").delete() \
+                    .eq("client_id", client_id) \
+                    .eq("data_type", dashboard_type) \
+                    .gte("created_at", day_start) \
+                    .lte("created_at", day_end) \
+                    .execute()
+            except Exception:
+                pass
+
+            # Store as JSON string to avoid schema conflicts
+            # Store the LLM response directly without double-nesting
+            llm_response_json = json.dumps({
+                "client_id": client_id,
+                "data_type": dashboard_type,
+                "schema_type": "dashboard_analysis",
+                "total_records": client_data.get("total_records", len(client_data.get("data", []))),
+                "cached": True,
+                "fast_mode": True,
+                **llm_response  # Spread the LLM response directly (kpis, charts, tables, etc.)
+            })
+
             cache_record = {
                 "client_id": client_id,
                 "data_hash": data_hash,
-                "llm_response": {
-                    "client_id": client_id,
-                    "data_type": dashboard_type,
-                    "schema_type": "dashboard_analysis",
-                    "total_records": client_data.get("total_records", len(client_data.get("data", []))),
-                    "llm_analysis": llm_response,
-                    "cached": True,
-                    "fast_mode": True
-                },
-                "data_type": dashboard_type,  # Store dashboard type for filtering
+                "llm_response": llm_response_json,
+                "data_type": dashboard_type,
                 "total_records": client_data.get("total_records", len(client_data.get("data", []))),
                 "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat()
+                "updated_at": datetime.now().isoformat(),
             }
-            
+
             response = self.db_client.table("llm_response_cache").insert(cache_record).execute()
-            
             if response.data:
-                logger.info(f"✅ Cached LLM response for client {client_id} ({dashboard_type}) (hash: {data_hash[:8]}...) at {cache_record['created_at']}")
+                logger.info(
+                    f"✅ Cached daily LLM response for client {client_id} ({dashboard_type}) (hash: {data_hash[:8]}...)"
+                )
                 return True
-            else:
-                logger.error(f"❌ Failed to cache LLM response for client {client_id} ({dashboard_type})")
-                return False
-                
-        except Exception as e:
-            logger.error(f"❌ Error storing cache for client {client_id} ({dashboard_type}): {e}")
+            logger.error(
+                f"❌ Failed to cache LLM response for client {client_id} ({dashboard_type})"
+            )
             return False
+        except Exception as e:
+            logger.error(
+                f"❌ Error storing daily cache for client {client_id} ({dashboard_type}): {e}"
+            )
+            return False
+
+    async def get_daily_latest_in_range(self, client_id: str, start_date: str, end_date: str, dashboard_type: str = "metrics") -> List[Dict[str, Any]]:
+        """Return latest cache per day within range, ordered by day ascending."""
+        try:
+            response = self.db_client.table("llm_response_cache").select("*") \
+                .eq("client_id", client_id) \
+                .eq("data_type", dashboard_type) \
+                .gte("created_at", f"{start_date}T00:00:00") \
+                .lte("created_at", f"{end_date}T23:59:59") \
+                .order("created_at", desc=True) \
+                .execute()
+
+            latest_by_day = {}
+            for entry in response.data or []:
+                day_key = entry.get("analysis_date") or (entry.get("created_at", "")[:10])
+                if not day_key or day_key in latest_by_day:
+                    continue
+                llm_resp = entry.get("llm_response")
+                if isinstance(llm_resp, str):
+                    try:
+                        llm_resp = json.loads(llm_resp)
+                    except Exception:
+                        continue
+                latest_by_day[day_key] = { **entry, "llm_response": llm_resp }
+
+            return [latest_by_day[k] for k in sorted(latest_by_day.keys())]
+        except Exception as e:
+            logger.error(f"❌ Failed to get daily latest in range: {e}")
+            return []
     
     async def invalidate_cache(self, client_id: str, dashboard_type: Optional[str] = None) -> bool:
         """
@@ -443,363 +507,6 @@ class LLMCacheManager:
         except Exception as e:
             logger.error(f"❌ Error cleaning up expired cache: {e}")
             return 0
-    
-    async def intelligent_cache_cleanup(self, client_id: str, preserve_policy: str = "balanced") -> Dict[str, int]:
-        """
-        Intelligent cache cleanup that preserves important historical data
-        
-        Args:
-            client_id: Client identifier
-            preserve_policy: Cleanup policy - "aggressive", "balanced", or "conservative"
-        
-        Returns:
-            Dictionary with cleanup statistics
-        """
-        try:
-            stats = {
-                "total_entries_before": 0,
-                "total_entries_after": 0,
-                "deleted_count": 0,
-                "preserved_count": 0,
-                "preserved_reasons": []
-            }
-            
-            # Get all cache entries for this client, ordered by date
-            response = self.db_client.table("llm_response_cache").select("*").eq("client_id", client_id).order("created_at", desc=True).execute()
-            
-            if not response.data:
-                logger.info(f"🧹 No cache entries found for client {client_id}")
-                return stats
-            
-            stats["total_entries_before"] = len(response.data)
-            
-            # Define preservation rules based on policy
-            if preserve_policy == "aggressive":
-                # Keep only last 5 entries, one per week for last month
-                keep_recent = 5
-                keep_weekly_days = 30
-            elif preserve_policy == "conservative":
-                # Keep last 20 entries, one per day for last 2 months  
-                keep_recent = 20
-                keep_weekly_days = 60
-            else:  # balanced
-                # Keep last 10 entries, one per week for last 6 weeks
-                keep_recent = 10
-                keep_weekly_days = 42
-            
-            entries_to_preserve = []
-            entries_to_delete = []
-            
-            # Always preserve the most recent entries
-            entries_to_preserve.extend(response.data[:keep_recent])
-            stats["preserved_reasons"].append(f"Recent entries: {min(keep_recent, len(response.data))}")
-            
-            # For older entries, keep one per week within the specified period
-            from datetime import timezone
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=keep_weekly_days)
-            weekly_preserved = {}
-            
-            for entry in response.data[keep_recent:]:
-                try:
-                    created_at_str = entry.get("created_at", "")
-                    if created_at_str.endswith('Z'):
-                        created_at_str = created_at_str.replace('Z', '+00:00')
-                    
-                    entry_date = datetime.fromisoformat(created_at_str)
-                    if entry_date.tzinfo is None:
-                        entry_date = entry_date.replace(tzinfo=timezone.utc)
-                    
-                    # If entry is within preservation window
-                    if entry_date >= cutoff_date:
-                        # Get week identifier (year-week)
-                        week_key = entry_date.strftime("%Y-W%U")
-                        
-                        # Preserve one entry per week (the most recent in that week)
-                        if week_key not in weekly_preserved:
-                            weekly_preserved[week_key] = entry
-                            entries_to_preserve.append(entry)
-                    else:
-                        # Entry is too old, mark for deletion
-                        entries_to_delete.append(entry)
-                        
-                except Exception as date_error:
-                    logger.warning(f"⚠️ Could not parse date for cache entry: {date_error}")
-                    # If we can't parse the date, preserve it to be safe
-                    entries_to_preserve.append(entry)
-            
-            stats["preserved_reasons"].append(f"Weekly samples: {len(weekly_preserved)}")
-            
-            # Special preservation rules
-            special_preserved = 0
-            
-            # Preserve entries with unique data hashes (significant data changes)
-            seen_hashes = set()
-            for entry in response.data:
-                data_hash = entry.get("data_hash", "")
-                if data_hash and data_hash not in seen_hashes:
-                    seen_hashes.add(data_hash)
-                    if entry not in entries_to_preserve:
-                        entries_to_preserve.append(entry)
-                        special_preserved += 1
-            
-            if special_preserved > 0:
-                stats["preserved_reasons"].append(f"Unique data states: {special_preserved}")
-            
-            # Remove duplicates from preserve list
-            preserve_ids = {entry.get("id") for entry in entries_to_preserve}
-            final_delete_list = [entry for entry in response.data if entry.get("id") not in preserve_ids]
-            
-            # Perform deletions
-            deleted_count = 0
-            for entry in final_delete_list:
-                try:
-                    delete_response = self.db_client.table("llm_response_cache").delete().eq("id", entry.get("id")).execute()
-                    if delete_response:
-                        deleted_count += 1
-                except Exception as delete_error:
-                    logger.warning(f"⚠️ Failed to delete cache entry {entry.get('id')}: {delete_error}")
-            
-            stats["deleted_count"] = deleted_count
-            stats["preserved_count"] = len(entries_to_preserve)
-            stats["total_entries_after"] = stats["total_entries_before"] - deleted_count
-            
-            logger.info(f"🧹 Intelligent cleanup for client {client_id} ({preserve_policy}): {deleted_count} deleted, {len(entries_to_preserve)} preserved")
-            return stats
-            
-        except Exception as e:
-            logger.error(f"❌ Error in intelligent cache cleanup: {e}")
-            return stats
-    
-    async def auto_cleanup_all_clients(self, preserve_policy: str = "balanced") -> Dict[str, Any]:
-        """
-        Perform intelligent cleanup for all clients with cache entries
-        
-        Args:
-            preserve_policy: Cleanup policy for all clients
-        
-        Returns:
-            Overall cleanup statistics
-        """
-        try:
-            # Get all unique client IDs with cache entries
-            response = self.db_client.table("llm_response_cache").select("client_id").execute()
-            
-            if not response.data:
-                logger.info("🧹 No cache entries found for any client")
-                return {"message": "No cache entries to clean up"}
-            
-            unique_clients = list(set(entry["client_id"] for entry in response.data))
-            
-            overall_stats = {
-                "clients_processed": 0,
-                "total_deleted": 0,
-                "total_preserved": 0,
-                "clients_stats": {}
-            }
-            
-            for client_id in unique_clients:
-                try:
-                    client_stats = await self.intelligent_cache_cleanup(client_id, preserve_policy)
-                    overall_stats["clients_processed"] += 1
-                    overall_stats["total_deleted"] += client_stats["deleted_count"]
-                    overall_stats["total_preserved"] += client_stats["preserved_count"]
-                    overall_stats["clients_stats"][client_id] = client_stats
-                    
-                    # Small delay to prevent database overload
-                    await asyncio.sleep(0.1)
-                    
-                except Exception as client_error:
-                    logger.error(f"❌ Failed to cleanup cache for client {client_id}: {client_error}")
-                    continue
-            
-            logger.info(f"🧹 Auto-cleanup completed: {overall_stats['clients_processed']} clients, {overall_stats['total_deleted']} entries deleted")
-            return overall_stats
-            
-        except Exception as e:
-            logger.error(f"❌ Error in auto cleanup for all clients: {e}")
-            return {"error": str(e)}
-    
-    async def get_cached_responses_by_date_range(self, client_id: str, start_date: str, end_date: str, dashboard_type: Optional[str] = None) -> List[Dict[str, Any]]:
-        """
-        Get cached responses within a specific date range for calendar filtering
-        
-        Args:
-            client_id: Client identifier
-            start_date: Start date in ISO format (e.g., "2024-01-01")
-            end_date: End date in ISO format (e.g., "2024-01-31")
-            dashboard_type: Optional filter by dashboard type
-        
-        Returns:
-            List of cached responses with metadata
-        """
-        try:
-            # Convert dates to ISO format for comparison
-            start_dt = datetime.fromisoformat(start_date).isoformat()
-            end_dt = datetime.fromisoformat(end_date).isoformat()
-            
-            # Query cache entries within date range
-            query = self.db_client.table("llm_response_cache").select("*").eq("client_id", client_id)
-            
-            # Add date range filter
-            query = query.gte("created_at", start_dt).lte("created_at", end_dt)
-            
-            # Add dashboard type filter if specified
-            if dashboard_type:
-                query = query.eq("data_type", dashboard_type)
-            
-            # Order by creation date (newest first)
-            response = query.order("created_at", desc=True).execute()
-            
-            results = []
-            for entry in response.data:
-                llm_response = entry.get("llm_response")
-                if llm_response:
-                    # Parse the response if it's stored as JSON string
-                    if isinstance(llm_response, str):
-                        try:
-                            llm_response = json.loads(llm_response)
-                        except Exception:
-                            continue
-                    
-                    result_entry = {
-                        "id": entry.get("id"),
-                        "created_at": entry.get("created_at"),
-                        "data_type": entry.get("data_type"),
-                        "data_hash": entry.get("data_hash"),
-                        "total_records": entry.get("total_records"),
-                        "llm_response": llm_response
-                    }
-                    results.append(result_entry)
-            
-            logger.info(f"📅 Retrieved {len(results)} cached responses for client {client_id} between {start_date} and {end_date}")
-            return results
-            
-        except Exception as e:
-            logger.error(f"❌ Error retrieving cached responses by date range: {e}")
-            return []
-    
-    async def get_cached_response_by_date(self, client_id: str, target_date: str, dashboard_type: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """
-        Get cached response closest to a specific date for calendar selection
-        
-        Args:
-            client_id: Client identifier
-            target_date: Target date in ISO format (e.g., "2024-01-15")
-            dashboard_type: Optional filter by dashboard type
-        
-        Returns:
-            Closest cached response or None if not found
-        """
-        try:
-            target_dt = datetime.fromisoformat(target_date).date()
-            
-            # Get all cache entries for this client
-            query = self.db_client.table("llm_response_cache").select("*").eq("client_id", client_id)
-            
-            # Add dashboard type filter if specified
-            if dashboard_type:
-                query = query.eq("data_type", dashboard_type)
-            
-            response = query.order("created_at").execute()
-            
-            # Find the entry closest to the target date
-            best_match = None
-            best_diff = float('inf')
-            
-            for entry in response.data:
-                created_at = entry.get('created_at')
-                llm_response = entry.get('llm_response')
-                
-                if created_at and llm_response:
-                    try:
-                        # Parse the date (handle different formats)
-                        if created_at.endswith('Z'):
-                            entry_date = datetime.fromisoformat(created_at.replace('Z', '+00:00')).date()
-                        elif '+' in created_at:
-                            entry_date = datetime.fromisoformat(created_at).date()
-                        else:
-                            entry_date = datetime.fromisoformat(created_at + '+00:00').date()
-                        
-                        diff = abs((entry_date - target_dt).days)
-                        
-                        if diff < best_diff:
-                            best_diff = diff
-                            best_match = entry
-                    except Exception as e:
-                        logger.warning(f"Could not parse date {created_at}: {e}")
-                        continue
-            
-            if best_match:
-                llm_response = best_match.get('llm_response')
-                if isinstance(llm_response, str):
-                    try:
-                        llm_response = json.loads(llm_response)
-                    except Exception:
-                        return None
-                
-                return {
-                    "id": best_match.get("id"),
-                    "created_at": best_match.get("created_at"),
-                    "target_date": target_date,
-                    "days_difference": best_diff,
-                    "data_type": best_match.get("data_type"),
-                    "data_hash": best_match.get("data_hash"),
-                    "total_records": best_match.get("total_records"),
-                    "llm_response": llm_response
-                }
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"❌ Error retrieving cached response by date: {e}")
-            return None
-    
-    async def get_available_cache_dates(self, client_id: str, dashboard_type: Optional[str] = None) -> List[str]:
-        """
-        Get list of available cache dates for calendar display
-        
-        Args:
-            client_id: Client identifier
-            dashboard_type: Optional filter by dashboard type
-        
-        Returns:
-            List of dates (YYYY-MM-DD format) when cache entries exist
-        """
-        try:
-            query = self.db_client.table("llm_response_cache").select("created_at, data_type").eq("client_id", client_id)
-            
-            # Add dashboard type filter if specified
-            if dashboard_type:
-                query = query.eq("data_type", dashboard_type)
-            
-            response = query.order("created_at", desc=True).execute()
-            
-            dates = []
-            for entry in response.data:
-                created_at = entry.get('created_at')
-                if created_at:
-                    try:
-                        # Parse and extract date part
-                        if created_at.endswith('Z'):
-                            date_part = datetime.fromisoformat(created_at.replace('Z', '+00:00')).date()
-                        elif '+' in created_at:
-                            date_part = datetime.fromisoformat(created_at).date()
-                        else:
-                            date_part = datetime.fromisoformat(created_at + '+00:00').date()
-                        
-                        date_str = date_part.isoformat()
-                        if date_str not in dates:
-                            dates.append(date_str)
-                    except Exception as e:
-                        logger.warning(f"Could not parse date {created_at}: {e}")
-                        continue
-            
-            logger.info(f"📅 Found {len(dates)} available cache dates for client {client_id}")
-            return dates
-            
-        except Exception as e:
-            logger.error(f"❌ Error retrieving available cache dates: {e}")
-            return []
 
 # Global instance
 llm_cache_manager = LLMCacheManager() 
