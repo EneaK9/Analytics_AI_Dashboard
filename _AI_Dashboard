@@ -1,0 +1,152 @@
+warning: in the working copy of 'backend/dashboard_orchestrator.py', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/backend/dashboard_orchestrator.py b/backend/dashboard_orchestrator.py[m
+[1mindex ed87a57..8584b6b 100644[m
+[1m--- a/backend/dashboard_orchestrator.py[m
+[1m+++ b/backend/dashboard_orchestrator.py[m
+[36m@@ -1113,9 +1113,13 @@[m [mclass DashboardOrchestrator:[m
+                     for val in sample_values:[m
+ [m
+                         try:[m
+[31m-[m
+[31m-                            pd.to_datetime(val)[m
+[31m-[m
+[32m+[m[32m                            # Handle timezone parsing more gracefully[m
+[32m+[m[32m                            val_str = str(val).strip()[m
+[32m+[m[32m                            # Remove problematic timezone abbreviations and let pandas handle UTC conversion[m
+[32m+[m[32m                            if 'PST' in val_str or 'EST' in val_str or 'MST' in val_str or 'CST' in val_str:[m
+[32m+[m[32m                                # Replace timezone abbreviations with UTC offset for better parsing[m
+[32m+[m[32m                                val_str = val_str.replace(' PST', '-08:00').replace(' EST', '-05:00').replace(' MST', '-07:00').replace(' CST', '-06:00')[m
+[32m+[m[32m                            pd.to_datetime(val_str)[m
+                             date_patterns += 1[m
+ [m
+                         except:[m
+[36m@@ -8943,6 +8947,10 @@[m [mReturn ONLY the JSON response, no additional text or explanations.[m
+             import os[m
+ [m
+             from openai import AsyncOpenAI[m
+[32m+[m[32m            from dotenv import load_dotenv[m
+[32m+[m
+[32m+[m[32m            # Force reload environment variables[m
+[32m+[m[32m            load_dotenv(override=True)[m
+ [m
+ [m
+ [m
+[36m@@ -8964,7 +8972,12 @@[m [mReturn ONLY the JSON response, no additional text or explanations.[m
+ [m
+                     raise Exception("OpenAI API key not configured - tried OPENAI_API_KEY, OPENAI_KEY, OPENAI_API_TOKEN")[m
+ [m
+[32m+[m[32m            # Validate API key format[m
+[32m+[m[32m            if not api_key.startswith("sk-"):[m
+[32m+[m[32m                logger.error(f"❌ Invalid API key format - doesn't start with 'sk-': {api_key[:20]}...")[m
+[32m+[m[32m                raise Exception("Invalid OpenAI API key format")[m
+ [m
+[32m+[m[32m            logger.info(f"🔑 Using OpenAI API key: {api_key[:20]}... (length: {len(api_key)})")[m
+ [m
+             # Initialize OpenAI client[m
+ [m
+[36m@@ -8975,6 +8988,12 @@[m [mReturn ONLY the JSON response, no additional text or explanations.[m
+             logger.info(f"🤖 Sending prompt to LLM for analysis")[m
+ [m
+             logger.info(f"🤖 Using model: gpt-4o")[m
+[32m+[m[32m            logger.info(f"📏 Prompt length: {len(prompt)} characters")[m
+[32m+[m
+[32m+[m[32m            # Validate prompt size (OpenAI has token limits)[m
+[32m+[m[32m            if len(prompt) > 50000:  # Rough character limit to avoid token issues[m
+[32m+[m[32m                logger.warning(f"⚠️ Prompt is very large ({len(prompt)} chars), truncating...")[m
+[32m+[m[32m                prompt = prompt[:45000] + "\n\n[Truncated due to size limits]"[m
+ [m
+ [m
+ [m
+[36m@@ -9001,7 +9020,6 @@[m [mReturn ONLY the JSON response, no additional text or explanations.[m
+                 temperature=0.2,  # Slightly higher for more creative analysis while staying accurate[m
+ [m
+                 max_tokens=6000,  # Increased for more detailed analysis[m
+[31m-[m
+             )[m
+ [m
+ [m
+[36m@@ -9021,27 +9039,24 @@[m [mReturn ONLY the JSON response, no additional text or explanations.[m
+         except openai.AuthenticationError as e:[m
+ [m
+             logger.error(f"❌ OpenAI authentication failed: {e}")[m
+[31m-[m
+[31m-            raise Exception(f"OpenAI authentication failed: {e}")[m
+[31m-[m
+[32m+[m[32m            logger.error(f"❌ API key preview: {api_key[:20] if api_key else 'None'}...")[m
+[32m+[m[32m            raise Exception(f"OpenAI authentication failed - check API key: {str(e)}")[m
+         except openai.RateLimitError as e:[m
+ [m
+             logger.error(f"❌ OpenAI rate limit exceeded: {e}")[m
+[31m-[m
+[31m-            raise Exception(f"OpenAI rate limit exceeded: {e}")[m
+[31m-[m
+[32m+[m[32m            raise Exception(f"OpenAI rate limit exceeded: {str(e)}")[m
+         except openai.APIError as e:[m
+ [m
+             logger.error(f"❌ OpenAI API error: {e}")[m
+[31m-[m
+[31m-            raise Exception(f"OpenAI API error: {e}")[m
+[31m-[m
+[32m+[m[32m            raise Exception(f"OpenAI API error: {str(e)}")[m
+         except Exception as e:[m
+ [m
+             logger.error(f"❌ LLM analysis failed: {e}")[m
+ [m
+             logger.error(f"❌ Error type: {type(e).__name__}")[m
+[31m-[m
+[32m+[m[32m            logger.error(f"❌ API key status: {'exists' if api_key else 'missing'}")[m
+[32m+[m[32m            if api_key:[m
+[32m+[m[32m                logger.error(f"❌ API key preview: {api_key[:20]}...")[m
+             raise e[m
+ [m
+ [m
+[36m@@ -9549,15 +9564,13 @@[m [mDATASET SUMMARY (computed over ALL records): """ + dataset_summary_json + """[m
+ Total Records: """ + str(len(data_records)) + """[m
+ Data Fields: """ + fields_json + """[m
+ [m
+[31m-ANALYZE THE ACTUAL CLIENT DATA and generate REAL insights based on DATA PATTERNS you discover. [m
+[31m-[m
+[31m-STEPS:[m
+[31m-1. EXAMINE the data fields and values to understand the business[m
+[31m-2. CALCULATE real metrics from the actual data [m
+[31m-3. IDENTIFY genuine patterns and trends[m
+[31m-4. GENERATE meaningful KPIs based on what you find in the data[m
+[31m-5. CREATE charts that visualize actual data distributions and relationships[m
+[31m-6. BUILD tables from real data rows and columns[m
+[32m+[m[32m🚀 SMART ANALYSIS STEPS:[m
+[32m+[m[32m1. BUSINESS INTELLIGENCE: Examine data fields to determine business type and key value drivers[m
+[32m+[m[32m2. CALCULATE MEANINGFUL METRICS: Generate KPIs that actually matter for this specific business[m
+[32m+[m[32m3. IDENTIFY PATTERNS: Find trends, bottlenecks, and opportunities in the actual data[m
+[32m+[m[32m4. VALUE-DRIVEN INSIGHTS: Focus on metrics that drive revenue, reduce costs, or improve efficiency[m
+[32m+[m[32m5. ACTIONABLE RECOMMENDATIONS: Provide specific, data-backed suggestions for improvement[m
+[32m+[m[32m6. RELEVANT VISUALIZATIONS: Create charts that show the most important business relationships[m
+ [m
+ 🚨🚨🚨 CRITICAL REQUIREMENT - RESPONSE WILL BE REJECTED IF NOT MET 🚨🚨🚨[m
+ YOU MUST GENERATE EXACTLY:[m
+[36m@@ -11279,7 +11292,7 @@[m [mData Fields: {list(sample_data[0].keys()) if sample_data else []}[m
+ [m
+ [m
+     def _fix_malformed_json(self, json_string: str) -> str:[m
+[31m-        """Fix common JSON syntax errors from LLM responses"""[m
+[32m+[m[32m        """Fix common JSON syntax errors from LLM responses including control characters"""[m
+         try:[m
+             import re[m
+ [m
+[36m@@ -11310,13 +11323,18 @@[m [mData Fields: {list(sample_data[0].keys()) if sample_data else []}[m
+             fixed_lines = [][m
+ [m
+             for line in lines:[m
+[31m-                if ':' in line and '"' in line:[m
+[31m-                    # Check if this looks like a key-value pair[m
+[31m-                    if line.strip().startswith('"') and '":' in line:[m
+[31m-                        # Split at the first ": [m
+[31m-                        parts = line.split('": ', 1)[m
+[32m+[m[32m                try:[m
+[32m+[m[32m                    # Skip empty lines and comments[m
+[32m+[m[32m                    if not line.strip() or line.strip().startswith('//'):[m
+[32m+[m[32m                        fixed_lines.append(line)[m
+[32m+[m[32m                        continue[m
+[32m+[m[41m                    [m
+[32m+[m[32m                    # If line looks like a key-value pair, clean the value[m
+[32m+[m[32m                    if '"' in line and ":" in line:[m
+[
