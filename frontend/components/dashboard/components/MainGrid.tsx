@@ -247,7 +247,7 @@ export default function MainGrid({
 }
 
 // Original Main Dashboard Component - Uses REAL BACKEND DATA
-function OriginalMainGrid({
+export function OriginalMainGrid({
 	dashboardData,
 	user,
 	dateRange,
@@ -1082,7 +1082,8 @@ function OriginalMainGrid({
 											
 											// Create normalized object with both original and normalized fields
 											const normalizedItem = { ...item };
-											normalizedItem[xField] = String(item[xField] || item.name || item.id || "Unknown");
+											const labelValue = item[xField] || item.name || item.id || "Unknown";
+											normalizedItem[xField] = typeof labelValue === 'object' ? JSON.stringify(labelValue) : String(labelValue);
 											normalizedItem[yField] = Number(item[yField] || item.value || 0);
 											
 											return normalizedItem;
@@ -1184,7 +1185,8 @@ function OriginalMainGrid({
 															
 															// Create normalized object with both original and normalized fields
 															const normalizedItem = { ...item };
-															normalizedItem[xField] = String(item[xField] || item.name || item.id || "Unknown");
+															const labelValue = item[xField] || item.name || item.id || "Unknown";
+											normalizedItem[xField] = typeof labelValue === 'object' ? JSON.stringify(labelValue) : String(labelValue);
 															normalizedItem[yField] = Number(item[yField] || item.value || 0);
 															
 															return normalizedItem;
@@ -1984,7 +1986,10 @@ function TemplateDashboard({
 							title: chart.display_name,
 							type: chart.chart_type,
 							data: chart.data.map((item: any) => item[yField] || item.value || 0),
-							labels: chart.data.map((item: any) => item[xField] || item.name || "Unknown"),
+							labels: chart.data.map((item: any) => {
+								const label = item[xField] || item.name || item.id || "Unknown";
+								return typeof label === 'object' ? JSON.stringify(label) : String(label);
+							}),
 							insights: chart.insights || `${chart.display_name} analysis from AI`,
 							config: chart.config
 						};
@@ -1993,7 +1998,10 @@ function TemplateDashboard({
 							title: chart.display_name,
 							type: chart.chart_type,
 							data: chart.data.map((item: any) => item[yField] || item.value || 0),
-							labels: chart.data.map((item: any) => item[xField] || item.name || "Unknown"),
+							labels: chart.data.map((item: any) => {
+								const label = item[xField] || item.name || item.id || "Unknown";
+								return typeof label === 'object' ? JSON.stringify(label) : String(label);
+							}),
 							insights: chart.insights || `${chart.display_name} trends from AI analysis`,
 							config: chart.config
 						};
@@ -2040,7 +2048,10 @@ function TemplateDashboard({
 							title: chart.display_name,
 							type: chart.chart_type,
 							data: chart.data.map((item: any) => item[yField] || item.value || 0),
-							labels: chart.data.map((item: any) => item[xField] || item.name || "Unknown"),
+							labels: chart.data.map((item: any) => {
+								const label = item[xField] || item.name || item.id || "Unknown";
+								return typeof label === 'object' ? JSON.stringify(label) : String(label);
+							}),
 							insights: chart.insights || `${chart.display_name} performance analysis from AI`,
 							config: chart.config
 						};
@@ -2049,7 +2060,10 @@ function TemplateDashboard({
 							title: chart.display_name,
 							type: chart.chart_type,
 							data: chart.data.map((item: any) => item[yField] || item.value || 0),
-							labels: chart.data.map((item: any) => item[xField] || item.name || "Unknown"),
+							labels: chart.data.map((item: any) => {
+								const label = item[xField] || item.name || item.id || "Unknown";
+								return typeof label === 'object' ? JSON.stringify(label) : String(label);
+							}),
 							insights: chart.insights || `${chart.display_name} performance trends from AI analysis`,
 							config: chart.config
 						};

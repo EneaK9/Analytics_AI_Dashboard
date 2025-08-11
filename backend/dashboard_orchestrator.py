@@ -1562,7 +1562,7 @@ class DashboardOrchestrator:
 
                     temperature=0.7,  # Higher temperature for more creative and varied chart selection
 
-                    max_tokens=800,  # More tokens for detailed analysis
+                    max_tokens=2000,  # Much more tokens for comprehensive analysis
 
                     timeout=45,  # Longer timeout for thorough analysis
 
@@ -2130,7 +2130,7 @@ class DashboardOrchestrator:
 
                     ],
 
-                    max_tokens=1000,
+                    max_tokens=2000,
 
                     temperature=0.3,
 
@@ -7980,9 +7980,9 @@ class DashboardOrchestrator:
 
 
 
-            # Sample the flattened data for LLM analysis (first 3 records to avoid token limits)
+            # Use comprehensive data for LLM analysis (up to 50 records for maximum insights)
 
-            sample_data = flattened_data[:3] if len(flattened_data) > 3 else flattened_data
+            sample_data = flattened_data[:50] if len(flattened_data) > 50 else flattened_data
 
 
 
@@ -8688,7 +8688,22 @@ COMPREHENSIVE ANALYSIS REQUIREMENTS:
 
 1. Generate EXACTLY this structure - no extra fields, no missing fields
 
-2. Generate 6-8 meaningful KPIs covering multiple business aspects:
+2. Generate 10-15 meaningful KPIs covering multiple business aspects:
+FOR SHOPIFY ORDER DATA, CALCULATE THESE SPECIFIC KPIs:
+- Total Revenue (sum of total_price)
+- Average Order Value (mean total_price)  
+- Discount Penetration Rate (% orders with discount_codes)
+- Average Discount Amount (mean discount value)
+- Geographic Concentration (top states percentage)
+- Fulfillment Success Rate (% fulfilled orders)
+- Payment Success Rate (% paid orders)
+- Tax Collection Rate (total_tax/subtotal_price ratio)
+- Customer Email Domain Analysis (business vs personal emails)
+- Order Processing Time (updated_at - created_at)
+- Shipping vs Billing Mismatch Rate (different addresses)
+- Line Items per Order Average
+- Web vs Mobile Conversion (source_name analysis)
+- Military/Special Discount Usage
 
    - Revenue metrics (total revenue, average order value, revenue per customer)
 
@@ -8700,7 +8715,20 @@ COMPREHENSIVE ANALYSIS REQUIREMENTS:
 
    - Inventory metrics (stock levels, turnover, availability)
 
-3. Generate 6-8 DIVERSE charts with strategic chart type selection:
+3. Generate 8-12 DIVERSE charts with strategic chart type selection:
+FOR SHOPIFY ORDER DATA, CREATE THESE SPECIFIC CHARTS:
+- Revenue Trends Over Time (line chart: created_at vs total_price)
+- Top States by Order Volume (bar chart: province counts)
+- Order Value Distribution (histogram/bar chart: total_price ranges)
+- Discount Code Usage (pie chart: with vs without discounts)
+- Fulfillment Status Distribution (donut chart: fulfillment_status)
+- Payment Status Breakdown (pie chart: financial_status)
+- Order Source Analysis (bar chart: source_name)
+- Geographic Revenue Heatmap (heatmap: state vs revenue)
+- Discount Amount vs Order Value (scatter plot)
+- Daily Order Patterns (line chart: orders by day)
+- Tax Collection by State (bar chart: total_tax by province)
+- Customer Email Domain Distribution (pie chart: domain types)
 
    - Distribution charts (pie, radial) for market share and proportions
 
@@ -8714,7 +8742,7 @@ COMPREHENSIVE ANALYSIS REQUIREMENTS:
 
    - Quality/efficiency charts (radar, heatmap) for operational excellence
 
-4. Generate 3-8 comprehensive tables with actionable data:
+4. Generate 5-10 comprehensive tables with actionable data:
 
    - Top performers (products, customers, regions)
 
@@ -8730,9 +8758,38 @@ COMPREHENSIVE ANALYSIS REQUIREMENTS:
 
 7. Make insights business-relevant and actionable
 
+CRITICAL SHOPIFY E-COMMERCE ANALYSIS REQUIREMENTS:
+REVENUE METRICS: total_price trends, subtotal_price analysis, total_tax patterns, discount impact on revenue
+CUSTOMER INSIGHTS: customer_email domains, repeat customers, customer_id patterns, geographic distribution  
+OPERATIONAL EFFICIENCY: financial_status (paid/pending), fulfillment_status patterns, order processing times
+GEOGRAPHIC ANALYSIS: billing_address vs shipping_address differences, state/province distribution, international vs domestic
+DISCOUNT STRATEGY: discount_codes usage, percentage vs fixed discounts, discount code effectiveness, military/special codes
+PLATFORM PERFORMANCE: source_name analysis (web vs mobile vs social), platform conversion, traffic sources
+TEMPORAL PATTERNS: created_at vs updated_at analysis, order timing, seasonal trends, processing delays
+ORDER COMPOSITION: line_items_count analysis, basket size patterns, product mix insights
+LOGISTICS: shipping zones, address verification, delivery patterns, fulfillment geography
+PAYMENT ANALYSIS: gateway usage, currency patterns, tax collection efficiency
+GEOGRAPHIC DEEP ANALYSIS: 
+- billing_address.province vs shipping_address.province patterns (home vs gift shipping)
+- zip code concentration and revenue density mapping
+- state-by-state performance: order volume, average order value, fulfillment rates
+- city-level analysis for top metropolitan areas
+- latitude/longitude clustering for delivery optimization
+- country_code analysis for international vs domestic sales
+- address1 vs address2 patterns (apartments, businesses, PO boxes)
+
 8. Ensure all IDs are unique and descriptive
 
 9. Chart data should be aggregated/summarized appropriately
+
+10. CRITICAL CHART DATA FORMAT REQUIREMENTS:
+- ALL chart data objects must have simple string/number values, NEVER nested objects
+- Use vendor names as strings (e.g., "Makihon", "Amazon", "Shopify") NOT objects
+- Example CORRECT format: {"name": "Makihon", "value": 70, "percentage": "70%"}
+- Example WRONG format: {"name": {"vendor": "Makihon"}, "value": 70}
+- For vendor analysis: extract vendor names as simple strings from order data
+- For geographic data: use state names like "California", "Texas" as strings
+- For product data: use product titles/names as strings, not product objects
 
 10. Tables should use list format for data and string format for columns
 
@@ -8744,7 +8801,7 @@ COMPREHENSIVE ANALYSIS REQUIREMENTS:
 
 DETAILED ANALYSIS GUIDELINES:
 
-- For ecommerce data: Focus on sales, products, customers, inventory, conversion rates, customer lifetime value
+- For ecommerce data: EXTRACT COMPREHENSIVE INSIGHTS including sales volume, revenue trends, product performance, customer behavior, inventory turnover, conversion funnels, customer lifetime value, order frequency patterns, seasonal trends, payment method analysis, shipping cost optimization, product category performance, geographic distribution, discount effectiveness, refund patterns, fulfillment efficiency, customer acquisition channels, repeat purchase behavior, average order value trends, cart abandonment insights
 
 - For customer data: Focus on demographics, behavior, segments, lifetime value, acquisition costs, retention rates
 
@@ -9058,11 +9115,29 @@ Return ONLY the JSON response, no additional text or explanations.
 
                 charts = parsed_data.get("charts", [])
                 
-                # 🔧 Fix unsupported chart types  
+                # 🔧 Fix unsupported chart types and clean data format
                 for chart in charts:
                     if chart.get("chart_type") == "histogram":
                         chart["chart_type"] = "bar"
                         logger.info(f"🔧 Converted histogram to bar chart: {chart.get('display_name')}")
+                    
+                    # 🔧 Ensure chart data has proper string labels, not objects
+                    if chart.get("data") and isinstance(chart["data"], list):
+                        cleaned_data = []
+                        for item in chart["data"]:
+                            if isinstance(item, dict):
+                                cleaned_item = {}
+                                for key, value in item.items():
+                                    # Convert object values to strings for labels
+                                    if isinstance(value, (dict, list)):
+                                        cleaned_item[key] = str(value) if value else "Unknown"
+                                    else:
+                                        cleaned_item[key] = value
+                                cleaned_data.append(cleaned_item)
+                            else:
+                                cleaned_data.append(item)
+                        chart["data"] = cleaned_data
+                        logger.info(f"🔧 Cleaned chart data format: {chart.get('display_name')}")
 
                 tables = parsed_data.get("tables", [])
 
@@ -9153,11 +9228,29 @@ Return ONLY the JSON response, no additional text or explanations.
                 kpis = parsed_data.get("kpis", [])
                 charts = parsed_data.get("charts", [])
                 
-                # 🔧 Fix unsupported chart types  
+                # 🔧 Fix unsupported chart types and clean data format
                 for chart in charts:
                     if chart.get("chart_type") == "histogram":
                         chart["chart_type"] = "bar"
                         logger.info(f"🔧 Converted histogram to bar chart: {chart.get('display_name')}")
+                    
+                    # 🔧 Ensure chart data has proper string labels, not objects
+                    if chart.get("data") and isinstance(chart["data"], list):
+                        cleaned_data = []
+                        for item in chart["data"]:
+                            if isinstance(item, dict):
+                                cleaned_item = {}
+                                for key, value in item.items():
+                                    # Convert object values to strings for labels
+                                    if isinstance(value, (dict, list)):
+                                        cleaned_item[key] = str(value) if value else "Unknown"
+                                    else:
+                                        cleaned_item[key] = value
+                                cleaned_data.append(cleaned_item)
+                            else:
+                                cleaned_data.append(item)
+                        chart["data"] = cleaned_data
+                        logger.info(f"🔧 Cleaned chart data format: {chart.get('display_name')}")
                         
                 tables = parsed_data.get("tables", [])
 
@@ -9230,9 +9323,9 @@ Return ONLY the JSON response, no additional text or explanations.
             fields_json = json.dumps(list(dataset_summary.get('all_fields', [])))
             
             main_prompt = """
-You are a data analyst creating a MAIN DASHBOARD overview. Analyze this data and provide COMPREHENSIVE OVERVIEW insights.
+You are a senior e-commerce business analyst specializing in Shopify order data analysis. Create a MAIN DASHBOARD with COMPREHENSIVE insights that extract maximum value from order records.
 
-Focus on MAIN DASHBOARD metrics:
+Focus on SHOPIFY ORDER ANALYSIS for MAIN DASHBOARD:
 - Key performance indicators (KPIs) that give overall health view
 - High-level trends and patterns
 - Overall business performance summary
@@ -9325,9 +9418,12 @@ CRITICAL REQUIREMENTS:
 
                 from llm_cache_manager import llm_cache_manager
 
-                # 🗑️ TEMPORARY: Clear existing cache to fix double-nesting issue
-                await llm_cache_manager.invalidate_cache(str(client_id), "main")
-                await llm_cache_manager.invalidate_cache(str(client_id), "metrics")
+                            # 🗑️ FORCE FRESH ANALYSIS: Clear all cache to apply enhanced prompts
+            await llm_cache_manager.invalidate_cache(str(client_id), "main")
+            await llm_cache_manager.invalidate_cache(str(client_id), "metrics")
+            await llm_cache_manager.invalidate_cache(str(client_id), "business")
+            await llm_cache_manager.invalidate_cache(str(client_id), "performance")
+            logger.info(f"🔄 Forced cache invalidation for enhanced analysis - client {client_id}")
 
                 await llm_cache_manager.store_cached_llm_response(
 
@@ -9440,9 +9536,9 @@ CRITICAL REQUIREMENTS:
 
             flattened_data = self._extract_business_entities_for_llm(data_records)
 
-            # Send more data to LLM for better business analysis (first 10 records)
+            # Send comprehensive data to LLM for better business analysis (up to 50 records)
 
-            sample_data = flattened_data[:10] if len(flattened_data) > 10 else flattened_data
+            sample_data = flattened_data[:50] if len(flattened_data) > 50 else flattened_data
 
             logger.info(f"📊 Sending {len(sample_data)} sample records to LLM for BUSINESS dashboard analysis")
 
@@ -9948,9 +10044,9 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
             flattened_data = self._extract_business_entities_for_llm(data_records)
 
-            # Send more data to LLM for better performance analysis (first 10 records)
+            # Send comprehensive data to LLM for better performance analysis (up to 50 records)
 
-            sample_data = flattened_data[:10] if len(flattened_data) > 10 else flattened_data
+            sample_data = flattened_data[:50] if len(flattened_data) > 50 else flattened_data
 
             logger.info(f"📊 Sending {len(sample_data)} sample records to LLM for PERFORMANCE dashboard analysis")
 
