@@ -680,7 +680,8 @@ class UniversalDataParser:
             
             for pattern in sql_patterns:
                 matches = re.findall(pattern, content, re.IGNORECASE | re.MULTILINE)
-                for match in matches[:50]:  # Limit to 50 matches per pattern
+                print(f"🔍 Found {len(matches)} matches for SQL pattern")
+                for match in matches:  # NO LIMITS - process all SQL matches
                     if len(match) >= 2:
                         record = {
                             'table_name': self._sanitize_text(match[0]),
@@ -692,7 +693,7 @@ class UniversalDataParser:
             
             if records:
                 print(f"✅ Extracted {len(records)} SQL structure records from BAK")
-                return records[:100]  # Limit total records
+                return records  # NO LIMITS - return all SQL data
             
             return []
             
@@ -714,7 +715,7 @@ class UniversalDataParser:
             
             # Extract table schemas
             table_matches = re.findall(table_pattern, content, re.IGNORECASE)
-            for table_name, columns_text in table_matches[:20]:  # Limit to 20 tables
+            for table_name, columns_text in table_matches:  # NO LIMITS - process all tables
                 column_matches = re.findall(column_pattern, columns_text, re.IGNORECASE)
                 
                 if column_matches:
@@ -733,7 +734,7 @@ class UniversalDataParser:
                 data_pattern = r'\b' + re.escape(table_name) + r'\b.*?(\d+(?:\s*,\s*[^\s,]+)*)'
                 data_matches = re.findall(data_pattern, content, re.IGNORECASE)
                 
-                for i, data_match in enumerate(data_matches[:10]):  # Limit to 10 data records per table
+                for i, data_match in enumerate(data_matches):  # NO LIMITS - process all data records
                     values = [v.strip().strip("'\"") for v in data_match.split(',')]
                     
                     data_record = {
@@ -765,6 +766,9 @@ class UniversalDataParser:
         try:
             import re
             
+            print(f"🔍 Processing complete BAK file content ({len(content)} characters)...")
+            # Process the entire content - no size limitations
+            
             # Look for structured data patterns
             patterns = [
                 r'(\w+):\s*([^\n\r]+)',  # Key-value pairs
@@ -786,7 +790,8 @@ class UniversalDataParser:
             ]:
                 matches = re.findall(pattern, content, re.MULTILINE)
                 if matches:
-                    extracted_data[pattern_name] = matches[:20]  # Limit matches
+                    print(f"🔍 Found {len(matches)} {pattern_name} patterns")
+                    extracted_data[pattern_name] = matches  # NO LIMITS - capture all patterns
             
             # Create records from extracted patterns
             record_id = 1
@@ -817,7 +822,7 @@ class UniversalDataParser:
             
             if records:
                 print(f"✅ Extracted {len(records)} structured data records from BAK")
-                return records[:100]  # Limit to 100 records
+                return records  # NO LIMITS - return all structured data
             
             # If no structured patterns found, extract clean text lines
             return self._extract_clean_text_from_bak(content)
@@ -829,8 +834,12 @@ class UniversalDataParser:
     def _extract_clean_text_from_bak(self, content: str) -> List[Dict[str, Any]]:
         """Extract clean readable text from BAK content"""
         try:
+            print(f"🔍 Processing complete BAK file for text extraction ({len(content)} characters)...")
+            
             lines = content.split('\n')
             records = []
+            
+            print(f"📄 Processing all {len(lines)} lines from BAK file...")
             
             for line_num, line in enumerate(lines):
                 # Extract only readable ASCII text
@@ -846,15 +855,18 @@ class UniversalDataParser:
                     record = {
                         'id': len(records) + 1,
                         'line_number': line_num + 1,
-                        'text_content': clean_line[:200],  # Limit length
+                        'text_content': clean_line,  # Full content - no length limit
                         'content_length': len(clean_line),
                         'record_type': 'text_line',
                         '_source_format': 'bak_text_extraction'
                     }
                     records.append(record)
                     
-                    if len(records) >= 100:  # Limit total records
-                        break
+                    # Progress logging for large files (but no limits)
+                    if len(records) % 10000 == 0 and len(records) > 0:
+                        print(f"⚡ Processed {len(records)} text records so far...")
+                    
+                    # NO LIMITS - process all content
             
             print(f"✅ Extracted {len(records)} clean text records from BAK")
             return records
@@ -899,8 +911,8 @@ class UniversalDataParser:
         # Remove non-printable characters
         sanitized = ''.join(char for char in text if ord(char) >= 32 or char in ['\n', '\t'])
         
-        # Limit length and strip
-        return sanitized[:500].strip()
+        # No length limit - return full content
+        return sanitized.strip()
     
     def _convert_value_by_type(self, value: str, data_type: str) -> Any:
         """Convert string value to appropriate type based on SQL data type"""

@@ -50,6 +50,12 @@ api.interceptors.request.use(
 			}
 		}
 		
+		// Set longer timeout for client creation with file uploads (especially BAK files)
+		if (config.url?.includes('/superadmin/clients') && config.method?.toLowerCase() === 'post') {
+			config.timeout = 30000000; // ~8 hours for processing very large BAK files
+			console.log("🔧 Setting extended timeout for large BAK file processing:", config.url);
+		}
+		
 		console.log("🔧 Request config timeout:", config.timeout, "for URL:", config.url);
 
 		return config;
