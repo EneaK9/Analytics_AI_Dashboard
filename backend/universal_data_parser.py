@@ -647,12 +647,12 @@ class UniversalDataParser:
             
             print(f"✅ Extracted {len(clean_text_lines)} lines of clean text")
             
-            # STEP 2: TAKE 10% SAMPLE AS REQUESTED
+            # STEP 2: TAKE 6% SAMPLE AS REQUESTED
             total_lines = len(clean_text_lines)
-            sample_size = max(1, total_lines // 10)  # 10% sampling
-            sampled_lines = clean_text_lines[:sample_size]  # Take first 10%
+            sample_size = max(1, int(total_lines * 0.06))  # 6% sampling (0.06 = 6/100)
+            sampled_lines = clean_text_lines[:sample_size]  # Take first 6%
             
-            print(f"⚡ SAMPLING: Taking 10% sample = {len(sampled_lines)}/{total_lines} lines")
+            print(f"⚡ SAMPLING: Taking 6% sample = {len(sampled_lines)}/{total_lines} lines")
             
             # STEP 3: CONVERT TO SIMPLE JSON STRUCTURE
             json_records = []

@@ -9719,8 +9719,9 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
                     await llm_cache_manager.invalidate_cache(str(client_id), "analytics")
                     # Clear any other possible cache entries
                     try:
-                        from database import database_manager
-                        await database_manager.execute_query(
+                        from database import get_db_manager
+                        db_manager = get_db_manager()
+                        await db_manager.execute_query(
                             "DELETE FROM llm_response_cache WHERE client_id = %s",
                             (str(client_id),)
                         )

@@ -64,27 +64,37 @@ class PerformanceOptimizedDatabaseManager:
             
             # Try to create a simple client first to test the connection
             try:
+                # 🚀 CUSTOM TIMEOUT SETTINGS - Use correct supabase-py format
                 test_client = create_client(self.supabase_url, self.supabase_key)
-                logger.info("✅ Supabase connection test successful")
+                # Set timeout on the underlying httpx client
+                if hasattr(test_client, '_client') and hasattr(test_client._client, 'timeout'):
+                    test_client._client.timeout = 120.0
+                logger.info("✅ Supabase connection test successful with 120s timeout")
             except Exception as e:
                 logger.error(f"❌ Supabase connection test failed: {e}")
                 raise
             
-            # Create regular client pool
+            # Create regular client pool with extended timeouts
             for i in range(self.pool_size):
                 try:
                     client = create_client(self.supabase_url, self.supabase_key)
+                    # Set timeout on the underlying httpx client
+                    if hasattr(client, '_client') and hasattr(client._client, 'timeout'):
+                        client._client.timeout = 120.0
                     self.client_pool.append(client)
                 except Exception as e:
                     logger.warning(f"⚠️  Failed to create client {i+1}: {e}")
                     if i == 0:  # If first client fails, abort
                         raise
             
-            # Create admin client pool
+            # Create admin client pool with extended timeouts
             if self.supabase_service_key:
                 for i in range(self.pool_size):
                     try:
                         admin_client = create_client(self.supabase_url, self.supabase_service_key)
+                        # Set timeout on the underlying httpx client
+                        if hasattr(admin_client, '_client') and hasattr(admin_client._client, 'timeout'):
+                            admin_client._client.timeout = 120.0
                         self.admin_pool.append(admin_client)
                     except Exception as e:
                         logger.warning(f"⚠️  Failed to create admin client {i+1}: {e}")
@@ -99,10 +109,17 @@ class PerformanceOptimizedDatabaseManager:
             # Fallback: Create minimal single client
             try:
                 logger.info("🔄 Attempting fallback to single client mode...")
-                self.client_pool = [create_client(self.supabase_url, self.supabase_key)]
+                fallback_client = create_client(self.supabase_url, self.supabase_key)
+                # Set timeout on fallback client
+                if hasattr(fallback_client, '_client') and hasattr(fallback_client._client, 'timeout'):
+                    fallback_client._client.timeout = 120.0
+                self.client_pool = [fallback_client]
                 if self.supabase_service_key:
-                    self.admin_pool = [create_client(self.supabase_url, self.supabase_service_key)]
-                logger.info("✅ Fallback single client mode initialized")
+                    fallback_admin = create_client(self.supabase_url, self.supabase_service_key)
+                    if hasattr(fallback_admin, '_client') and hasattr(fallback_admin._client, 'timeout'):
+                        fallback_admin._client.timeout = 120.0
+                    self.admin_pool = [fallback_admin]
+                logger.info("✅ Fallback single client mode initialized with 120s timeout")
             except Exception as fallback_error:
                 logger.error(f"❌ Fallback initialization also failed: {fallback_error}")
                 raise
@@ -655,13 +672,21 @@ class SimpleDatabaseManager:
         """Get simple client without pooling"""
         if not self.supabase_url or not self.supabase_key:
             return None
-        return create_client(self.supabase_url, self.supabase_key)
+        # 🚀 EXTENDED TIMEOUT for simple client too
+        client = create_client(self.supabase_url, self.supabase_key)
+        if hasattr(client, '_client') and hasattr(client._client, 'timeout'):
+            client._client.timeout = 120.0
+        return client
     
     def get_admin_client(self):
         """Get simple admin client without pooling"""
         if not self.supabase_url or not self.supabase_service_key:
             return None
-        return create_client(self.supabase_url, self.supabase_service_key)
+        # 🚀 EXTENDED TIMEOUT for simple admin client too
+        admin_client = create_client(self.supabase_url, self.supabase_service_key)
+        if hasattr(admin_client, '_client') and hasattr(admin_client._client, 'timeout'):
+            admin_client._client.timeout = 120.0
+        return admin_client
     
     async def test_connection(self):
         """Test database connection"""

@@ -332,7 +332,14 @@ async def superadmin_login(admin_data: SuperAdminLogin):
         SUPERADMIN_USERNAME = os.getenv("SUPERADMIN_USERNAME", "admin")
         SUPERADMIN_PASSWORD = os.getenv("SUPERADMIN_PASSWORD", "admin123")
         
+        # Debug logging
+        logger.info(f"🔐 Superadmin login attempt - Username: {admin_data.username}")
+        logger.info(f"🔐 Expected username: {SUPERADMIN_USERNAME}")
+        logger.info(f"🔐 Expected password: {SUPERADMIN_PASSWORD}")
+        logger.info(f"🔐 Received password: {admin_data.password}")
+        
         if admin_data.username != SUPERADMIN_USERNAME or admin_data.password != SUPERADMIN_PASSWORD:
+            logger.warning(f"❌ Invalid superadmin credentials - Username: {admin_data.username}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Create access token
@@ -511,6 +518,15 @@ async def create_client_superadmin(
 ):
     """Superadmin: Create a new client account with INSTANT dashboard - AI works in background"""
     try:
+        # 🔍 DEBUG: Log all incoming form data
+        logger.info(f"🔍 CLIENT CREATION REQUEST:")
+        logger.info(f"   - company_name: {company_name}")
+        logger.info(f"   - email: {email}")
+        logger.info(f"   - data_type: {data_type}")
+        logger.info(f"   - input_method: {input_method}")
+        logger.info(f"   - file_count: {file_count}")
+        logger.info(f"   - data_content length: {len(data_content) if data_content else 0}")
+        
         # Verify superadmin token
         verify_superadmin_token(token.credentials)
         
@@ -974,10 +990,18 @@ async def create_client_superadmin(
         
         return client_response
             
-    except HTTPException:
+    except HTTPException as http_ex:
+        logger.error(f"❌ CLIENT CREATION HTTP ERROR: {http_ex.status_code} - {http_ex.detail}")
+        logger.error(f"   - Email: {email}")
+        logger.error(f"   - Company: {company_name}")
         raise
     except Exception as e:
         logger.error(f"❌ Superadmin client creation failed: {e}")
+        logger.error(f"   - Email: {email}")
+        logger.error(f"   - Company: {company_name}")
+        logger.error(f"   - Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"   - Full traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Client creation failed: {str(e)}")
 
 # REMOVED: No more background AI processing - direct storage only!
