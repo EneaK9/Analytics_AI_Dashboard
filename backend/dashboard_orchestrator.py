@@ -8070,19 +8070,53 @@ class DashboardOrchestrator:
 
             for record in data_records:
 
+                # Handle string JSON records from database
+
+                processed_record = record
+
+                if isinstance(record, str):
+
+                    try:
+
+                        import json
+
+                        processed_record = json.loads(record)
+
+                        logger.info(f"🔄 Parsed JSON string record to dict with {len(processed_record)} keys")
+
+                    except (json.JSONDecodeError, TypeError) as e:
+
+                        logger.warning(f"⚠️ Failed to parse JSON string: {e}")
+
+                        continue
+
+                
+
+                # Ensure we have a dictionary
+
+                if not isinstance(processed_record, dict):
+
+                    logger.warning(f"⚠️ Skipping non-dict record: {type(processed_record)}")
+
+                    continue
+
+                
+
                 # Check if this is a complex business data structure
 
-                if self._is_business_data_structure(record):
+                if self._is_business_data_structure(processed_record):
 
-                    entities = self._extract_entities_from_business_structure(record)
+                    entities = self._extract_entities_from_business_structure(processed_record)
 
                     all_entities.extend(entities)
+
+                    logger.info(f"🏢 Extracted {len(entities)} entities from business structure")
 
                 else:
 
                     # Use regular flattening for simple structures
 
-                    flattened = self._flatten_simple_record(record)
+                    flattened = self._flatten_simple_record(processed_record)
 
                     all_entities.append(flattened)
 
@@ -8098,6 +8132,10 @@ class DashboardOrchestrator:
 
             logger.error(f"❌ Business entity extraction failed: {e}")
 
+            import traceback
+
+            logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+
             # Fallback to simple flattening
 
             return self._flatten_nested_data_for_llm(data_records)
@@ -8112,7 +8150,15 @@ class DashboardOrchestrator:
 
             'business_info', 'sales_transactions', 'customer_data', 
 
-            'product_inventory', 'monthly_summary', 'performance_metrics'
+            'product_inventory', 'monthly_summary', 'performance_metrics',
+
+            # Additional keys for comprehensive business data
+
+            'client_info', 'financial_metrics', 'sales_data', 'operational_metrics',
+
+            'marketing_data', 'inventory_data', 'hr_analytics', 'risk_compliance',
+
+            'environmental_social', 'forecasts_predictions', 'competitive_analysis'
 
         ]
 
@@ -8122,17 +8168,37 @@ class DashboardOrchestrator:
 
     def _extract_entities_from_business_structure(self, record: Dict) -> List[Dict]:
 
-        """Extract individual business entities from nested structure"""
+        """Extract individual business entities from comprehensive nested structure"""
 
         entities = []
 
         
 
-        # Extract business context
+        # Extract business context from client_info or business_info
 
         business_context = {}
 
-        if 'business_info' in record:
+        if 'client_info' in record:
+
+            client_info = record['client_info']
+
+            business_context.update({
+
+                'company_name': client_info.get('company_name'),
+
+                'industry': client_info.get('industry'), 
+
+                'headquarters': client_info.get('headquarters'),
+
+                'employee_count': client_info.get('employee_count'),
+
+                'annual_revenue': client_info.get('annual_revenue'),
+
+                'established': client_info.get('established')
+
+            })
+
+        elif 'business_info' in record:
 
             business_info = record['business_info']
 
@@ -8150,31 +8216,251 @@ class DashboardOrchestrator:
 
         
 
-        # Extract performance metrics context
+        # Extract monthly revenue data
 
-        performance_context = {}
+        if 'financial_metrics' in record and 'revenue' in record['financial_metrics']:
 
-        if 'performance_metrics' in record:
+            revenue_data = record['financial_metrics']['revenue']
 
-            performance_context = record['performance_metrics']
+            
+
+            # Monthly revenue records
+
+            if 'monthly_revenue' in revenue_data:
+
+                for month_data in revenue_data['monthly_revenue']:
+
+                    entity = {
+
+                        'entity_type': 'monthly_revenue',
+
+                        **business_context,
+
+                        **month_data,
+
+                        'metric_category': 'financial'
+
+                    }
+
+                    entities.append(entity)
+
+            
+
+            # Quarterly revenue records
+
+            if 'quarterly_revenue' in revenue_data:
+
+                for quarter_data in revenue_data['quarterly_revenue']:
+
+                    entity = {
+
+                        'entity_type': 'quarterly_revenue',
+
+                        **business_context,
+
+                        **quarter_data,
+
+                        'metric_category': 'financial'
+
+                    }
+
+                    entities.append(entity)
+
+            
+
+            # Revenue by product
+
+            if 'revenue_by_product' in revenue_data:
+
+                for product_data in revenue_data['revenue_by_product']:
+
+                    entity = {
+
+                        'entity_type': 'product_revenue',
+
+                        **business_context,
+
+                        **product_data,
+
+                        'metric_category': 'financial'
+
+                    }
+
+                    entities.append(entity)
+
+            
+
+            # Revenue by region
+
+            if 'revenue_by_region' in revenue_data:
+
+                for region_data in revenue_data['revenue_by_region']:
+
+                    entity = {
+
+                        'entity_type': 'regional_revenue',
+
+                        **business_context,
+
+                        **region_data,
+
+                        'metric_category': 'financial'
+
+                    }
+
+                    entities.append(entity)
 
         
 
-        # Extract individual transactions
+        # Extract customer data
 
-        if 'sales_transactions' in record and record['sales_transactions']:
+        if 'customer_data' in record:
 
-            for transaction in record['sales_transactions']:
+            customer_data = record['customer_data']
+
+            
+
+            # Customer demographics
+
+            if 'customer_demographics' in customer_data:
+
+                demo_data = customer_data['customer_demographics']
+
+                
+
+                # New customers monthly
+
+                if 'new_customers_monthly' in demo_data:
+
+                    for month_data in demo_data['new_customers_monthly']:
+
+                        entity = {
+
+                            'entity_type': 'new_customers',
+
+                            **business_context,
+
+                            **month_data,
+
+                            'metric_category': 'customer'
+
+                        }
+
+                        entities.append(entity)
+
+                
+
+                # Customer segments
+
+                if 'customer_segments' in demo_data:
+
+                    for segment_data in demo_data['customer_segments']:
+
+                        entity = {
+
+                            'entity_type': 'customer_segment',
+
+                            **business_context,
+
+                            **segment_data,
+
+                            'metric_category': 'customer'
+
+                        }
+
+                        entities.append(entity)
+
+                
+
+                # Geographic distribution
+
+                if 'geographic_distribution' in demo_data:
+
+                    for geo_data in demo_data['geographic_distribution']:
+
+                        entity = {
+
+                            'entity_type': 'customer_geography',
+
+                            **business_context,
+
+                            **geo_data,
+
+                            'metric_category': 'customer'
+
+                        }
+
+                        entities.append(entity)
+
+        
+
+        # Extract sales data
+
+        if 'sales_data' in record:
+
+            sales_data = record['sales_data']
+
+            
+
+            # Sales team performance
+
+            if 'sales_team' in sales_data:
+
+                for rep_data in sales_data['sales_team']:
+
+                    entity = {
+
+                        'entity_type': 'sales_rep',
+
+                        **business_context,
+
+                        **rep_data,
+
+                        'metric_category': 'sales'
+
+                    }
+
+                    entities.append(entity)
+
+            
+
+            # Pipeline data by stage
+
+            if 'pipeline_data' in sales_data and 'pipeline_by_stage' in sales_data['pipeline_data']:
+
+                for stage_data in sales_data['pipeline_data']['pipeline_by_stage']:
+
+                    entity = {
+
+                        'entity_type': 'pipeline_stage',
+
+                        **business_context,
+
+                        **stage_data,
+
+                        'metric_category': 'sales'
+
+                    }
+
+                    entities.append(entity)
+
+        
+
+        # Extract marketing campaign data
+
+        if 'marketing_data' in record and 'campaign_performance' in record['marketing_data']:
+
+            for campaign_data in record['marketing_data']['campaign_performance']:
 
                 entity = {
 
-                    'entity_type': 'transaction',
+                    'entity_type': 'marketing_campaign',
 
                     **business_context,
 
-                    **transaction,
+                    **campaign_data,
 
-                    'performance_metrics': performance_context
+                    'metric_category': 'marketing'
 
                 }
 
@@ -8182,21 +8468,73 @@ class DashboardOrchestrator:
 
         
 
-        # Extract individual customers
+        # Extract HR analytics
 
-        if 'customer_data' in record and record['customer_data']:
+        if 'hr_analytics' in record:
 
-            for customer in record['customer_data']:
+            hr_data = record['hr_analytics']
+
+            
+
+            # Age distribution
+
+            if 'diversity' in hr_data and 'age_distribution' in hr_data['diversity']:
+
+                for age_data in hr_data['diversity']['age_distribution']:
+
+                    entity = {
+
+                        'entity_type': 'employee_age_group',
+
+                        **business_context,
+
+                        **age_data,
+
+                        'metric_category': 'hr'
+
+                    }
+
+                    entities.append(entity)
+
+            
+
+            # Salary ranges
+
+            if 'compensation' in hr_data and 'salary_ranges' in hr_data['compensation']:
+
+                for salary_data in hr_data['compensation']['salary_ranges']:
+
+                    entity = {
+
+                        'entity_type': 'salary_range',
+
+                        **business_context,
+
+                        **salary_data,
+
+                        'metric_category': 'hr'
+
+                    }
+
+                    entities.append(entity)
+
+        
+
+        # Extract product inventory
+
+        if 'inventory_data' in record and 'product_inventory' in record['inventory_data']:
+
+            for product_data in record['inventory_data']['product_inventory']:
 
                 entity = {
 
-                    'entity_type': 'customer',
+                    'entity_type': 'product_inventory',
 
                     **business_context,
 
-                    **customer,
+                    **product_data,
 
-                    'performance_metrics': performance_context
+                    'metric_category': 'inventory'
 
                 }
 
@@ -8204,21 +8542,21 @@ class DashboardOrchestrator:
 
         
 
-        # Extract individual products
+        # Extract forecasts
 
-        if 'product_inventory' in record and record['product_inventory']:
+        if 'forecasts_predictions' in record and 'revenue_forecast' in record['forecasts_predictions']:
 
-            for product in record['product_inventory']:
+            for forecast_data in record['forecasts_predictions']['revenue_forecast']:
 
                 entity = {
 
-                    'entity_type': 'product',
+                    'entity_type': 'revenue_forecast',
 
                     **business_context,
 
-                    **product,
+                    **forecast_data,
 
-                    'performance_metrics': performance_context
+                    'metric_category': 'forecast'
 
                 }
 
@@ -8226,21 +8564,21 @@ class DashboardOrchestrator:
 
         
 
-        # Extract monthly summaries
+        # Extract competitor data
 
-        if 'monthly_summary' in record and record['monthly_summary']:
+        if 'competitive_analysis' in record and 'competitors' in record['competitive_analysis']:
 
-            for month_data in record['monthly_summary']:
+            for competitor_data in record['competitive_analysis']['competitors']:
 
                 entity = {
 
-                    'entity_type': 'monthly_summary',
+                    'entity_type': 'competitor',
 
                     **business_context,
 
-                    **month_data,
+                    **competitor_data,
 
-                    'performance_metrics': performance_context
+                    'metric_category': 'competitive'
 
                 }
 
@@ -8248,23 +8586,35 @@ class DashboardOrchestrator:
 
         
 
-        # If no entities found, create one combined record
+        # If no specific entities found, create business overview entities
 
         if not entities:
 
-            entities.append({
+            # Create summary entities from main sections
 
-                'entity_type': 'business_overview',
+            for section_key, section_data in record.items():
 
-                **business_context,
+                if isinstance(section_data, dict) and section_key != 'client_info':
 
-                **performance_context
+                    entity = {
 
-            })
+                        'entity_type': f'{section_key}_overview',
+
+                        **business_context,
+
+                        'section': section_key,
+
+                        'data_summary': str(section_data)[:500] + '...' if len(str(section_data)) > 500 else str(section_data),
+
+                        'metric_category': 'overview'
+
+                    }
+
+                    entities.append(entity)
 
         
 
-        logger.info(f"🔧 Extracted {len(entities)} entities from business structure")
+        logger.info(f"🔧 Extracted {len(entities)} entities from comprehensive business structure")
 
         return entities
 
