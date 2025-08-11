@@ -40,20 +40,26 @@ const formatKPIValue = (value: any, format: string): string => {
 	// Handle object format (e.g., status distributions, breakdowns)
 	if (format === "object" && typeof value === "object" && value !== null) {
 		const entries = Object.entries(value);
-		
+
 		// Calculate total if all values are numbers
 		const total = entries.reduce((sum, [key, val]) => {
-			const num = typeof val === 'number' ? val : parseFloat(String(val));
+			const num = typeof val === "number" ? val : parseFloat(String(val));
 			return !isNaN(num) ? sum + num : sum;
 		}, 0);
-		
+
 		// Show total with breakdown hint
-		const breakdown = entries.map(([key, val]) => `${key}: ${val}`).join(', ');
+		const breakdown = entries.map(([key, val]) => `${key}: ${val}`).join(", ");
 		return `${total} total (${breakdown})`;
 	}
 
 	const numValue = parseFloat(value);
-	if (isNaN(numValue) || numValue === null || numValue === undefined || value === null || value === undefined) {
+	if (
+		isNaN(numValue) ||
+		numValue === null ||
+		numValue === undefined ||
+		value === null ||
+		value === undefined
+	) {
 		// Return safe string representation if value can't be parsed as number
 		return String(value || "0");
 	}
@@ -71,61 +77,79 @@ const formatKPIValue = (value: any, format: string): string => {
 
 const isValidChartData = (chartData: any) => {
 	if (!chartData) {
-		console.log('❌ isValidChartData: No chartData provided');
+		console.log("❌ isValidChartData: No chartData provided");
 		return false;
 	}
-	
-	console.log('🔍 isValidChartData checking:', {
+
+	console.log("🔍 isValidChartData checking:", {
 		hasData: !!chartData.data,
-		dataType: Array.isArray(chartData.data) ? 'array' : typeof chartData.data,
+		dataType: Array.isArray(chartData.data) ? "array" : typeof chartData.data,
 		dataLength: chartData.data?.length,
 		hasLabels: !!chartData.labels,
-		labelsType: Array.isArray(chartData.labels) ? 'array' : typeof chartData.labels,
+		labelsType: Array.isArray(chartData.labels)
+			? "array"
+			: typeof chartData.labels,
 		labelsLength: chartData.labels?.length,
 		firstDataItem: chartData.data?.[0],
 		firstLabel: chartData.labels?.[0],
-		hasConfig: !!chartData.config
+		hasConfig: !!chartData.config,
 	});
-	
+
 	// Check for transformed format first (labels + data arrays)
-	if (chartData.labels && Array.isArray(chartData.labels) && 
-		chartData.data && Array.isArray(chartData.data)) {
-		
-		const hasValidLabels = chartData.labels.length > 0 &&
-		chartData.labels.every((label: any) => label != null);
-		
-		const hasValidData = chartData.data.length > 0 &&
-		chartData.data.every((value: any) => value != null && !isNaN(Number(value)));
-		
+	if (
+		chartData.labels &&
+		Array.isArray(chartData.labels) &&
+		chartData.data &&
+		Array.isArray(chartData.data)
+	) {
+		const hasValidLabels =
+			chartData.labels.length > 0 &&
+			chartData.labels.every((label: any) => label != null);
+
+		const hasValidData =
+			chartData.data.length > 0 &&
+			chartData.data.every(
+				(value: any) => value != null && !isNaN(Number(value))
+			);
+
 		const sameLength = chartData.labels.length === chartData.data.length;
-		
+
 		const isValid = hasValidLabels && hasValidData && sameLength;
-		console.log('✅ Transformed format validation:', { hasValidLabels, hasValidData, sameLength, isValid });
+		console.log("✅ Transformed format validation:", {
+			hasValidLabels,
+			hasValidData,
+			sameLength,
+			isValid,
+		});
 		return isValid;
 	}
-	
+
 	// Check if it's LLM format with data array of objects
-	if (chartData.data && Array.isArray(chartData.data) && chartData.data.length > 0) {
+	if (
+		chartData.data &&
+		Array.isArray(chartData.data) &&
+		chartData.data.length > 0
+	) {
 		// For LLM format: validate that data array contains objects with field values
 		const hasValidDataObjects = chartData.data.every((item: any) => {
-			if (!item || typeof item !== 'object') return false;
-			
+			if (!item || typeof item !== "object") return false;
+
 			// Get field names from config or use defaults
 			const xField = chartData.config?.x_axis?.field || "name";
 			const yField = chartData.config?.y_axis?.field || "value";
-			
+
 			// Check if the item has the required fields
 			const hasXField = item[xField] != null;
 			const hasYField = item[yField] != null && !isNaN(Number(item[yField]));
-			
+
 			return hasXField && hasYField;
 		});
-		
-		console.log('✅ LLM format validation:', { hasValidDataObjects });
+
+		console.log("✅ LLM format validation:", { hasValidDataObjects });
 		return hasValidDataObjects;
 	}
-	
-	console.log('❌ No valid format detected');
+
+	console.log("❌ No valid format detected");
 	return false;
 };
 
@@ -232,7 +256,14 @@ export default function MainGrid({
 	// Route to the appropriate dashboard template
 	// Main dashboard uses the original OriginalMainGrid with rich LLM analysis
 	if (dashboardType === "main") {
-		return <OriginalMainGrid dashboardData={dashboardData} user={user} dateRange={dateRange} sharedDashboardMetrics={sharedDashboardMetrics} />;
+		return (
+			<OriginalMainGrid
+				dashboardData={dashboardData}
+				user={user}
+				dateRange={dateRange}
+				sharedDashboardMetrics={sharedDashboardMetrics}
+			/>
+		);
 	}
 
 	// For other dashboard types, use the dynamic template system
@@ -306,22 +337,31 @@ export function OriginalMainGrid({
 	// Helper function to check if dateRange represents "today" (no filtering needed)
 	const isDateRangeToday = React.useCallback((dateRange: any) => {
 		if (!dateRange || !dateRange.start) return false;
-		
+
 		const today = new Date();
-		const selectedDate = dateRange.start?.format ? 
-			new Date(dateRange.start.format('YYYY-MM-DD')) : 
-			new Date(dateRange.start);
-		
+		const selectedDate = dateRange.start?.format
+			? new Date(dateRange.start.format("YYYY-MM-DD"))
+			: new Date(dateRange.start);
+
 		return selectedDate.toDateString() === today.toDateString();
 	}, []);
 
 	// Date filtering for main dashboard
 	const loadDateFilteredData = React.useCallback(async () => {
 		// Check if no date filter or if the date is today (use shared data)
-		if (!user?.client_id || !dateRange || (!dateRange.start && !dateRange.end) || isDateRangeToday(dateRange)) {
+		if (
+			!user?.client_id ||
+			!dateRange ||
+			(!dateRange.start && !dateRange.end) ||
+			isDateRangeToday(dateRange)
+		) {
 			const isToday = isDateRangeToday(dateRange);
-			console.log(isToday ? "📅 Today selected - using shared data (no filtering needed)" : "🏠 No date filter applied - using shared data if available");
-			
+			console.log(
+				isToday
+					? "📅 Today selected - using shared data (no filtering needed)"
+					: "🏠 No date filter applied - using shared data if available"
+			);
+
 			if (sharedDashboardMetrics?.data && !sharedDashboardMetrics.loading) {
 				console.log("✅ Using shared dashboard metrics for current data");
 				setLlmAnalysis(sharedDashboardMetrics.data);
@@ -331,28 +371,36 @@ export function OriginalMainGrid({
 		}
 
 		console.log("📅 Loading date-filtered data for main dashboard:", {
-			start: dateRange.start?.format ? dateRange.start.format('YYYY-MM-DD') : dateRange.start,
-			end: dateRange.end?.format ? dateRange.end.format('YYYY-MM-DD') : dateRange.end,
-			label: dateRange.label
+			start: dateRange.start?.format
+				? dateRange.start.format("YYYY-MM-DD")
+				: dateRange.start,
+			end: dateRange.end?.format
+				? dateRange.end.format("YYYY-MM-DD")
+				: dateRange.end,
+			label: dateRange.label,
 		});
 
 		setIsLoadingDateFilter(true);
 
 		try {
 			const params = new URLSearchParams();
-			params.append('fast_mode', 'true');
-			
+			params.append("fast_mode", "true");
+
 			if (dateRange.start) {
-				const startDate = dateRange.start?.format ? dateRange.start.format('YYYY-MM-DD') : dateRange.start;
-				params.append('start_date', startDate);
+				const startDate = dateRange.start?.format
+					? dateRange.start.format("YYYY-MM-DD")
+					: dateRange.start;
+				params.append("start_date", startDate);
 			}
 			if (dateRange.end) {
-				const endDate = dateRange.end?.format ? dateRange.end.format('YYYY-MM-DD') : dateRange.end;
-				params.append('end_date', endDate);
+				const endDate = dateRange.end?.format
+					? dateRange.end.format("YYYY-MM-DD")
+					: dateRange.end;
+				params.append("end_date", endDate);
 			}
 
 			const response = await api.get(`/dashboard/metrics?${params.toString()}`);
-			
+
 			if (response.data && response.data.llm_analysis) {
 				console.log("✅ Date-filtered main dashboard data loaded");
 				const analysis = response.data.llm_analysis;
@@ -378,23 +426,36 @@ export function OriginalMainGrid({
 
 	// Trigger date filtering when dateRange changes
 	React.useEffect(() => {
-		if (dateRange && (dateRange.start || dateRange.end) && !isDateRangeToday(dateRange)) {
-			console.log("🗓️ Main dashboard: Date range changed, loading filtered data");
+		if (
+			dateRange &&
+			(dateRange.start || dateRange.end) &&
+			!isDateRangeToday(dateRange)
+		) {
+			console.log(
+				"🗓️ Main dashboard: Date range changed, loading filtered data"
+			);
 			loadDateFilteredData();
 		} else {
 			// Reset to shared data when no date filter is applied or when today is selected
 			const isToday = isDateRangeToday(dateRange);
-			console.log(isToday ? "📅 Today selected - resetting to shared data" : "🏠 Main dashboard: No date filter, resetting to shared data");
-			
+			console.log(
+				isToday
+					? "📅 Today selected - resetting to shared data"
+					: "🏠 Main dashboard: No date filter, resetting to shared data"
+			);
+
 			if (sharedDashboardMetrics?.data && !sharedDashboardMetrics.loading) {
 				console.log("✅ Resetting to shared dashboard metrics data");
 				setLlmAnalysis(sharedDashboardMetrics.data);
 				setError(null);
 			}
 		}
-	}, [dateRange, loadDateFilteredData, sharedDashboardMetrics, isDateRangeToday]);
-
-
+	}, [
+		dateRange,
+		loadDateFilteredData,
+		sharedDashboardMetrics,
+		isDateRangeToday,
+	]);
 
 	// Helper function to get trend direction icon and color
 	const getTrendDisplay = (trend: any) => {
@@ -478,8 +539,6 @@ export function OriginalMainGrid({
 		}
 	}, [user?.client_id]);
 
-
-
 	// Fetch REAL BACKEND DATA for main dashboard with AI-POWERED CUSTOM TEMPLATES
 	React.useEffect(() => {
 		const fetchRealData = async () => {
@@ -490,13 +549,17 @@ export function OriginalMainGrid({
 
 				// 🚀 Use shared data if available, otherwise make API call
 				let analysis = null;
-				
+
 				if (sharedDashboardMetrics?.data && !sharedDashboardMetrics.loading) {
-					console.log("✅ Using shared dashboard metrics data (no additional API call)");
+					console.log(
+						"✅ Using shared dashboard metrics data (no additional API call)"
+					);
 					analysis = sharedDashboardMetrics.data;
 				} else {
-					console.log("🔗 Loading main dashboard with rich LLM analysis via API");
-					
+					console.log(
+						"🔗 Loading main dashboard with rich LLM analysis via API"
+					);
+
 					// Load rich LLM analysis for main dashboard (cached when possible)
 					let endpoint = "/dashboard/metrics?fast_mode=true";
 					console.log(`🔗 Calling LLM endpoint: ${endpoint}`);
@@ -506,9 +569,8 @@ export function OriginalMainGrid({
 						analysis = response.data.llm_analysis;
 					}
 				}
-				
-				if (analysis) {
 
+				if (analysis) {
 					console.log("🚨 CRITICAL DEBUG - LLM Analysis received:", {
 						hasKpis: !!analysis.kpis,
 						kpisCount: analysis.kpis?.length || 0,
@@ -563,16 +625,16 @@ export function OriginalMainGrid({
 						console.warn("⚠️ NO Tables found in llm_analysis!");
 					}
 
-									setLlmAnalysis(analysis);
-				setError(null);
-			} else {
-				console.error("❌ No llm_analysis found in response");
-				setError("No analysis data available");
-				setLlmAnalysis(null);
-			}
+					setLlmAnalysis(analysis);
+					setError(null);
+				} else {
+					console.error("❌ No llm_analysis found in response");
+					setError("No analysis data available");
+					setLlmAnalysis(null);
+				}
 
-			// Load client data using the SAME method as template dashboard
-			await loadClientData();
+				// Load client data using the SAME method as template dashboard
+				await loadClientData();
 			} catch (error) {
 				console.error("❌ CRITICAL ERROR loading dashboard data:", error);
 				setError("Failed to load dashboard data");
@@ -591,7 +653,7 @@ export function OriginalMainGrid({
 				<Typography component="h2" variant="h6" sx={{ mb: 2 }}>
 					Loading Analytics Dashboard...
 				</Typography>
-				<Grid container spacing={2} >
+				<Grid container spacing={2}>
 					{Array.from({ length: 4 }).map((_, index) => (
 						<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
 							<Card sx={{ height: 150, bgcolor: "grey.100" }}>
@@ -622,19 +684,29 @@ export function OriginalMainGrid({
 	}
 
 	return (
-		<Box sx={{ 
-			width: "100%", 
-			maxWidth: { sm: "100%", md: "1700px" },
-			px: 0,
-			overflow: 'hidden'
-		}}>
+		<Box
+			sx={{
+				width: "100%",
+				maxWidth: { sm: "100%", md: "1700px" },
+				px: 0,
+				overflow: "hidden",
+			}}>
 			{/* Date Filter Indicators for Main Dashboard */}
 			{isLoadingDateFilter && (
-				<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: { xs: 1, md: 2 } }}>
-					<Typography variant="caption" color="primary" sx={{ 
-						fontWeight: 500,
-						fontSize: { xs: '0.7rem', sm: '0.75rem' }
+				<Box
+					sx={{
+						display: "flex",
+						alignItems: "center",
+						gap: 1,
+						mb: { xs: 1, md: 2 },
 					}}>
+					<Typography
+						variant="caption"
+						color="primary"
+						sx={{
+							fontWeight: 500,
+							fontSize: { xs: "0.7rem", sm: "0.75rem" },
+						}}>
 						🗓️ Loading data for selected date range...
 					</Typography>
 				</Box>
@@ -642,18 +714,29 @@ export function OriginalMainGrid({
 
 			{dateRange && (dateRange.start || dateRange.end) && (
 				<Box sx={{ mb: 3 }}>
-					<Typography variant="caption" sx={{ 
-						color: "info.main", 
-						bgcolor: "info.light", 
-						px: 1.5, 
-						py: 0.5, 
-						borderRadius: 1,
-						fontWeight: 500
-					}}>
-						📅 Data Filtered: {dateRange.label || 'Custom Range'}
+					<Typography
+						variant="caption"
+						sx={{
+							color: "info.main",
+							bgcolor: "info.light",
+							px: 1.5,
+							py: 0.5,
+							borderRadius: 1,
+							fontWeight: 500,
+						}}>
+						📅 Data Filtered: {dateRange.label || "Custom Range"}
 						{dateRange.start && dateRange.end && (
 							<span style={{ opacity: 0.8 }}>
-								{" "}({dateRange.start?.format ? dateRange.start.format('MMM DD') : dateRange.start} - {dateRange.end?.format ? dateRange.end.format('MMM DD, YYYY') : dateRange.end})
+								{" "}
+								(
+								{dateRange.start?.format
+									? dateRange.start.format("MMM DD")
+									: dateRange.start}{" "}
+								-{" "}
+								{dateRange.end?.format
+									? dateRange.end.format("MMM DD, YYYY")
+									: dateRange.end}
+								)
 							</span>
 						)}
 					</Typography>
@@ -811,7 +894,7 @@ export function OriginalMainGrid({
 
 			{/* KPI Cards - Only render if kpis array exists and has items */}
 			{llmAnalysis?.kpis && llmAnalysis.kpis.length > 0 && (
-				<Grid container spacing={2}  sx={{ mb: 3 }}>
+				<Grid container spacing={2} sx={{ mb: 3 }}>
 					{llmAnalysis.kpis.map((kpi: any, index: number) => {
 						const trendDisplay = getTrendDisplay(kpi.trend);
 
@@ -823,7 +906,9 @@ export function OriginalMainGrid({
 									value={formatKPIValue(kpi.value, kpi.format)}
 									interval={kpi.trend.description}
 									trend={kpi.trend.direction || "neutral"}
-									trendValue={kpi.trend?.percentage ? `${kpi.trend.percentage}%` : "0%"}
+									trendValue={
+										kpi.trend?.percentage ? `${kpi.trend.percentage}%` : "0%"
+									}
 									data={Array.from(
 										{ length: 30 },
 										() => parseFloat(kpi.value) || 0
@@ -839,10 +924,10 @@ export function OriginalMainGrid({
 
 			{/* Charts - Only render if charts array exists and has items */}
 			{llmAnalysis?.charts && llmAnalysis.charts.length > 0 && (
-				<Grid 
-					container 
-					spacing={{ xs: 2, sm: 3, md: 3 }} 
-					sx={{ 
+				<Grid
+					container
+					spacing={{ xs: 2, sm: 3, md: 3 }}
+					sx={{
 						mb: { xs: 2, md: 4 },
 						alignItems: 'stretch'
 					}}
@@ -955,28 +1040,36 @@ export function OriginalMainGrid({
 													)
 												}
 											/>
-                                        <CardContent>
-                                            <Box
-                                                sx={{
-                                                    height: 300,
-                                                    width: '100%',
-                                                    display: "flex",
-                                                    justifyContent: "center",
-                                                    alignItems: "center",
-                                                }}>
-                                                <PieChart
+											<CardContent>
+												<Box
+													sx={{
+														height: 300,
+														width: "100%",
+														display: "flex",
+														justifyContent: "center",
+														alignItems: "center",
+													}}>
+													<PieChart
 														series={[
 															{
 																data: filteredData.map(
 																	(item: any, idx: number) => {
 																		// Get the actual field names from chart config
-																		const xField = chart.config?.x_axis?.field || "name";
-																		const yField = chart.config?.y_axis?.field || "value";
-																		
+																		const xField =
+																			chart.config?.x_axis?.field || "name";
+																		const yField =
+																			chart.config?.y_axis?.field || "value";
+
 																		return {
-																		id: item.id || idx,
-																			value: Number(item[yField] || item.value || 0),
-																			label: String(item[xField] || item.name || `Item ${idx}`),
+																			id: item.id || idx,
+																			value: Number(
+																				item[yField] || item.value || 0
+																			),
+																			label: String(
+																				item[xField] ||
+																					item.name ||
+																					`Item ${idx}`
+																			),
 																		};
 																	}
 																),
@@ -998,8 +1091,8 @@ export function OriginalMainGrid({
 																},
 															},
 														]}
-                                                    height={280}
-                                                    sx={{ width: '100%' }}
+														height={280}
+														sx={{ width: "100%" }}
 														margin={{
 															top: 40,
 															bottom: 40,
@@ -1014,8 +1107,8 @@ export function OriginalMainGrid({
 								);
 
 							case "bar":
-                                return (
-                                    <Grid key={index} size={getChartSize()}>
+								return (
+									<Grid key={index} size={getChartSize()}>
 										<Card>
                                             <CardHeader
                                                 title={(() => {
@@ -1091,14 +1184,14 @@ export function OriginalMainGrid({
 														xAxis={[
 															{
 																scaleType: "band",
-												dataKey: chart.config?.x_axis?.field || "name",
+																dataKey: chart.config?.x_axis?.field || "name",
 																tickPlacement: "middle",
 																tickLabelPlacement: "middle",
 															},
 														]}
 														series={[
 															{
-												dataKey: chart.config?.y_axis?.field || "value",
+																dataKey: chart.config?.y_axis?.field || "value",
 																label:
 																	chart.config?.y_axis?.display_name || "Value",
 																valueFormatter: (value: any) => {
@@ -1119,9 +1212,8 @@ export function OriginalMainGrid({
 																},
 															},
 														]}
-														
-                                                        height={300}
-                                                        sx={{ width: '100%' }}
+														height={300}
+														sx={{ width: "100%" }}
 														margin={{
 															top: 20,
 															bottom: 60,
@@ -1136,8 +1228,8 @@ export function OriginalMainGrid({
 								);
 
 							case "line":
-                                return (
-                                    <Grid key={index} size={getChartSize()}>
+								return (
+									<Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
@@ -1175,14 +1267,16 @@ export function OriginalMainGrid({
 													)
 												}
 											/>
-                                            <CardContent>
-                                                <Box sx={{ height: 300, width: '100%' }}>
-                                                    <LineChart
+											<CardContent>
+												<Box sx={{ height: 300, width: "100%" }}>
+													<LineChart
 														dataset={filteredData.map((item: any) => {
 															// Get the actual field names from chart config
-															const xField = chart.config?.x_axis?.field || "name";
-															const yField = chart.config?.y_axis?.field || "value";
-															
+															const xField =
+																chart.config?.x_axis?.field || "name";
+															const yField =
+																chart.config?.y_axis?.field || "value";
+
 															// Create normalized object with both original and normalized fields
 															const normalizedItem = { ...item };
 															const labelValue = item[xField] || item.name || item.id || "Unknown";
@@ -1221,9 +1315,8 @@ export function OriginalMainGrid({
 																},
 															},
 														]}
-														
-                                                        height={300}
-                                                        sx={{ width: '100%' }}
+														height={300}
+														sx={{ width: "100%" }}
 														margin={{
 															top: 20,
 															bottom: 60,
@@ -1238,15 +1331,15 @@ export function OriginalMainGrid({
 								);
 
 							case "radar":
-                                return (
-                                    <Grid key={index} size={getChartSize()}>
+								return (
+									<Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
 												subtitle="Multi-dimensional performance analysis"
 											/>
-                                            <CardContent>
-                                                <Box sx={{ height: 300, width: '100%' }}>
+											<CardContent>
+												<Box sx={{ height: 300, width: "100%" }}>
 													<Charts.RadarChart
 														data={filteredData}
 														title={chart.display_name}
@@ -1258,20 +1351,24 @@ export function OriginalMainGrid({
 								);
 
 							case "scatter":
-                                return (
-                                    <Grid key={index} size={getChartSize()}>
+								return (
+									<Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
 												subtitle="Correlation and relationship analysis"
 											/>
-                                            <CardContent>
-                                                <Box sx={{ height: 300, width: '100%' }}>
+											<CardContent>
+												<Box sx={{ height: 300, width: "100%" }}>
 													<Charts.ScatterChart
 														data={filteredData}
 														title={chart.display_name}
-														xAxisLabel={chart.config?.x_axis?.display_name || "X Axis"}
-														yAxisLabel={chart.config?.y_axis?.display_name || "Y Axis"}
+														xAxisLabel={
+															chart.config?.x_axis?.display_name || "X Axis"
+														}
+														yAxisLabel={
+															chart.config?.y_axis?.display_name || "Y Axis"
+														}
 													/>
 												</Box>
 											</CardContent>
@@ -1280,20 +1377,24 @@ export function OriginalMainGrid({
 								);
 
 							case "heatmap":
-                                return (
-                                    <Grid key={index} size={getChartSize()}>
+								return (
+									<Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
 												subtitle="Pattern and intensity visualization"
 											/>
-                                            <CardContent>
-                                                <Box sx={{ height: 300, width: '100%' }}>
+											<CardContent>
+												<Box sx={{ height: 300, width: "100%" }}>
 													<Charts.HeatmapChart
 														data={filteredData}
 														title={chart.display_name}
-														xAxisLabel={chart.config?.x_axis?.display_name || "Categories"}
-														yAxisLabel={chart.config?.y_axis?.display_name || "Metrics"}
+														xAxisLabel={
+															chart.config?.x_axis?.display_name || "Categories"
+														}
+														yAxisLabel={
+															chart.config?.y_axis?.display_name || "Metrics"
+														}
 													/>
 												</Box>
 											</CardContent>
@@ -1302,35 +1403,59 @@ export function OriginalMainGrid({
 								);
 
 							case "radial":
-                                return (
-                                    <Grid key={index} size={getChartSize()}>
+								return (
+									<Grid key={index} size={getChartSize()}>
 										<Card>
 											<CardHeader
 												title={chart.display_name}
 												subtitle="Progress and completion tracking"
 											/>
-                                            <CardContent>
-                                                <Box sx={{ height: 300, width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                                                    <PieChart
-														series={[{
-															data: filteredData.slice(0, 6).map((item: any, i: number) => {
-																const value = Number(item.value || item.count || item.total || 0);
-																return {
-																	id: i,
-																	value: isNaN(value) ? 0 : value,
-																	label: String(item.name || item.label || item.category || `Item ${i + 1}`)
-																};
-															}).filter((item: any) => item.value > 0),
-															highlightScope: { fade: 'global', highlight: 'item' } as const,
-															innerRadius: 50,
-															outerRadius: 100,
-														}]}
-                                                        height={280}
-                                                        sx={{ width: '100%' }}
-
+											<CardContent>
+												<Box
+													sx={{
+														height: 300,
+														width: "100%",
+														display: "flex",
+														justifyContent: "center",
+														alignItems: "center",
+													}}>
+													<PieChart
+														series={[
+															{
+																data: filteredData
+																	.slice(0, 6)
+																	.map((item: any, i: number) => {
+																		const value = Number(
+																			item.value ||
+																				item.count ||
+																				item.total ||
+																				0
+																		);
+																		return {
+																			id: i,
+																			value: isNaN(value) ? 0 : value,
+																			label: String(
+																				item.name ||
+																					item.label ||
+																					item.category ||
+																					`Item ${i + 1}`
+																			),
+																		};
+																	})
+																	.filter((item: any) => item.value > 0),
+																highlightScope: {
+																	fade: "global",
+																	highlight: "item",
+																} as const,
+																innerRadius: 50,
+																outerRadius: 100,
+															},
+														]}
+														height={280}
+														sx={{ width: "100%" }}
 														skipAnimation={true}
 														slotProps={{
-															noDataOverlay: { message: 'No data available' }
+															noDataOverlay: { message: "No data available" },
 														}}
 													/>
 												</Box>
@@ -1492,12 +1617,13 @@ function TemplateDashboard({
 	const [dataColumns, setDataColumns] = React.useState<string[]>([]);
 	const [aiMetrics, setAiMetrics] = React.useState<any[]>([]);
 	const [specializedData, setSpecializedData] = React.useState<any>(null);
-	
-	// Frontend cache for date-filtered analyses
-	const [analysisCache, setAnalysisCache] = React.useState<Map<string, any>>(new Map());
-	const [isLoadingWithDateFilter, setIsLoadingWithDateFilter] = React.useState(false);
-	
 
+	// Frontend cache for date-filtered analyses
+	const [analysisCache, setAnalysisCache] = React.useState<Map<string, any>>(
+		new Map()
+	);
+	const [isLoadingWithDateFilter, setIsLoadingWithDateFilter] =
+		React.useState(false);
 
 	// Convert new standardized format to legacy format for compatibility
 	const convertStandardizedToLegacyFormat = (
@@ -1583,14 +1709,18 @@ function TemplateDashboard({
 
 			// Use specialized LLM-powered endpoints for business and performance templates
 			if (dashboardType === "business") {
-				console.log("🤖 Loading Business Intelligence data with LLM analysis...");
+				console.log(
+					"🤖 Loading Business Intelligence data with LLM analysis..."
+				);
 				// Load rich business insights (cached when possible)
-				const businessResponse = await api.get("/dashboard/business-insights?fast_mode=true");
-				
+				const businessResponse = await api.get(
+					"/dashboard/business-insights?fast_mode=true"
+				);
+
 				if (businessResponse.data && businessResponse.data.llm_analysis) {
 					// Process the LLM analysis data directly
 					const analysis = businessResponse.data.llm_analysis;
-					
+
 					// Store specialized business data from LLM analysis
 					setSpecializedData({
 						type: "business_intelligence",
@@ -1599,14 +1729,14 @@ function TemplateDashboard({
 						charts: analysis.charts || [],
 						insights: analysis.business_analysis || analysis.insights || {},
 						tables: analysis.tables || [],
-						llm_analysis: analysis
+						llm_analysis: analysis,
 					});
-					
+
 					console.log("✅ Business Intelligence LLM data loaded:", {
 						kpis: analysis.kpis?.length || 0,
 						charts: analysis.charts?.length || 0,
 						tables: analysis.tables?.length || 0,
-						business_analysis: !!analysis.business_analysis
+						business_analysis: !!analysis.business_analysis,
 					});
 				} else {
 					console.error("❌ Business Intelligence LLM analysis not available");
@@ -1614,12 +1744,14 @@ function TemplateDashboard({
 			} else if (dashboardType === "performance") {
 				console.log("⚡ Loading Performance Hub data with LLM analysis...");
 				// Load rich performance insights (cached when possible)
-				const performanceResponse = await api.get("/dashboard/performance?fast_mode=true");
-				
+				const performanceResponse = await api.get(
+					"/dashboard/performance?fast_mode=true"
+				);
+
 				if (performanceResponse.data && performanceResponse.data.llm_analysis) {
 					// Process the LLM analysis data directly
 					const analysis = performanceResponse.data.llm_analysis;
-					
+
 					// Store specialized performance data from LLM analysis
 					setSpecializedData({
 						type: "performance_hub",
@@ -1628,14 +1760,14 @@ function TemplateDashboard({
 						charts: analysis.charts || [],
 						insights: analysis.business_analysis || analysis.insights || {},
 						tables: analysis.tables || [],
-						llm_analysis: analysis
+						llm_analysis: analysis,
 					});
-					
+
 					console.log("✅ Performance Hub LLM data loaded:", {
 						kpis: analysis.kpis?.length || 0,
 						charts: analysis.charts?.length || 0,
 						tables: analysis.tables?.length || 0,
-						business_analysis: !!analysis.business_analysis
+						business_analysis: !!analysis.business_analysis,
 					});
 				} else {
 					console.error("❌ Performance Hub LLM analysis not available");
@@ -1644,59 +1776,61 @@ function TemplateDashboard({
 				// Main dashboard - use existing logic
 				console.log("🏠 Loading Main dashboard data...");
 
-			// Fetch real client data with proper query parameters
-			const clientDataResponse = await api.post(
-				`/dashboard/generate-template?template_type=${dashboardType}&force_regenerate=false`
-			);
+				// Fetch real client data with proper query parameters
+				const clientDataResponse = await api.post(
+					`/dashboard/generate-template?template_type=${dashboardType}&force_regenerate=false`
+				);
 
-			if (clientDataResponse.data.success) {
-				setClientData(clientDataResponse.data.client_data || []);
-				setDataColumns(clientDataResponse.data.data_columns || []);
-				console.log("✅ Client data loaded:", {
-					records: clientDataResponse.data.client_data?.length || 0,
-					columns: clientDataResponse.data.data_columns?.length || 0,
-					dashboardType,
-				});
-			}
-
-			// Fetch AI-generated metrics and charts (NEW STANDARDIZED FORMAT)
-			try {
-				// Call appropriate endpoint based on dashboard type
-				let endpoint = "/dashboard/metrics"; // default
-				if (dashboardType === "business") {
-									endpoint = "/dashboard/business-insights?fast_mode=true";
-				} else if (dashboardType === "performance") {
-				endpoint = "/dashboard/performance?fast_mode=true";
+				if (clientDataResponse.data.success) {
+					setClientData(clientDataResponse.data.client_data || []);
+					setDataColumns(clientDataResponse.data.data_columns || []);
+					console.log("✅ Client data loaded:", {
+						records: clientDataResponse.data.client_data?.length || 0,
+						columns: clientDataResponse.data.data_columns?.length || 0,
+						dashboardType,
+					});
 				}
-				
-				console.log(`🔗 Calling endpoint: ${endpoint} for dashboard type: ${dashboardType}`);
-				const metricsResponse = await api.get(endpoint);
-				if (metricsResponse.data) {
-					// Handle new standardized response format
-					const standardizedResponse = metricsResponse.data;
 
-					if (
-						standardizedResponse.success &&
-						standardizedResponse.dashboard_data
-					) {
-						// Convert standardized format to legacy format for compatibility
-						const legacyMetrics =
-							convertStandardizedToLegacyFormat(standardizedResponse);
-						setAiMetrics(legacyMetrics);
-						console.log(
-							"🤖 AI Metrics loaded and converted:",
-							legacyMetrics.length
-						);
-					} else {
-						console.warn(
-							"⚠️ Backend returned unsuccessful response or no dashboard data"
-						);
-						setAiMetrics([]);
+				// Fetch AI-generated metrics and charts (NEW STANDARDIZED FORMAT)
+				try {
+					// Call appropriate endpoint based on dashboard type
+					let endpoint = "/dashboard/metrics"; // default
+					if (dashboardType === "business") {
+						endpoint = "/dashboard/business-insights?fast_mode=true";
+					} else if (dashboardType === "performance") {
+						endpoint = "/dashboard/performance?fast_mode=true";
 					}
-				}
-			} catch (error) {
-				console.warn("⚠️ AI metrics not available:", error);
-				setAiMetrics([]);
+
+					console.log(
+						`🔗 Calling endpoint: ${endpoint} for dashboard type: ${dashboardType}`
+					);
+					const metricsResponse = await api.get(endpoint);
+					if (metricsResponse.data) {
+						// Handle new standardized response format
+						const standardizedResponse = metricsResponse.data;
+
+						if (
+							standardizedResponse.success &&
+							standardizedResponse.dashboard_data
+						) {
+							// Convert standardized format to legacy format for compatibility
+							const legacyMetrics =
+								convertStandardizedToLegacyFormat(standardizedResponse);
+							setAiMetrics(legacyMetrics);
+							console.log(
+								"🤖 AI Metrics loaded and converted:",
+								legacyMetrics.length
+							);
+						} else {
+							console.warn(
+								"⚠️ Backend returned unsuccessful response or no dashboard data"
+							);
+							setAiMetrics([]);
+						}
+					}
+				} catch (error) {
+					console.warn("⚠️ AI metrics not available:", error);
+					setAiMetrics([]);
 				}
 			}
 		} catch (error) {
@@ -1743,13 +1877,13 @@ function TemplateDashboard({
 			// Main dashboard date filtering is handled in OriginalMainGrid
 			return;
 		}
-		
+
 		if (dateRange && (dateRange.start || dateRange.end)) {
-			console.log(`📊 ${dashboardType} dashboard: Date filter ignored - showing comprehensive analysis`);
+			console.log(
+				`📊 ${dashboardType} dashboard: Date filter ignored - showing comprehensive analysis`
+			);
 		}
 	}, [dateRange, dashboardType]);
-
-
 
 	// Filter data based on date range
 	const getFilteredData = React.useCallback(
@@ -1778,9 +1912,9 @@ function TemplateDashboard({
 			if (!dateRange || (!dateRange.start && !dateRange.end)) {
 				return `${baseKey}_all_time`;
 			}
-			
-			const startKey = dateRange.start?.format('YYYY-MM-DD') || 'no_start';
-			const endKey = dateRange.end?.format('YYYY-MM-DD') || 'no_end';
+
+			const startKey = dateRange.start?.format("YYYY-MM-DD") || "no_start";
+			const endKey = dateRange.end?.format("YYYY-MM-DD") || "no_end";
 			return `${baseKey}_${startKey}_to_${endKey}`;
 		},
 		[dateRange]
@@ -1795,14 +1929,14 @@ function TemplateDashboard({
 				const now = Date.now();
 				const cacheAge = now - cached.timestamp;
 				const maxAge = 5 * 60 * 1000; // 5 minutes
-				
+
 				if (cacheAge < maxAge) {
 					console.log(`⚡ Using cached analysis for key: ${cacheKey}`);
 					return cached.data;
 				} else {
 					console.log(`🕒 Cache expired for key: ${cacheKey}`);
 					// Remove expired cache
-					setAnalysisCache(prev => {
+					setAnalysisCache((prev) => {
 						const newCache = new Map(prev);
 						newCache.delete(cacheKey);
 						return newCache;
@@ -1814,48 +1948,51 @@ function TemplateDashboard({
 		[analysisCache]
 	);
 
-	const setCachedAnalysis = React.useCallback(
-		(cacheKey: string, data: any) => {
-			console.log(`💾 Caching analysis for key: ${cacheKey}`);
-			setAnalysisCache(prev => {
-				const newCache = new Map(prev);
-				newCache.set(cacheKey, {
-					data,
-					timestamp: Date.now()
-				});
-				return newCache;
+	const setCachedAnalysis = React.useCallback((cacheKey: string, data: any) => {
+		console.log(`💾 Caching analysis for key: ${cacheKey}`);
+		setAnalysisCache((prev) => {
+			const newCache = new Map(prev);
+			newCache.set(cacheKey, {
+				data,
+				timestamp: Date.now(),
 			});
-		},
-		[]
-	);
+			return newCache;
+		});
+	}, []);
 
 	// Load date-filtered analysis with smart caching (MAIN DASHBOARD ONLY)
 	const loadDateFilteredAnalysis = React.useCallback(async () => {
 		// Only apply date filtering to main dashboard
 		if (dashboardType !== "main") {
-			console.log(`📊 ${dashboardType} dashboard shows comprehensive analysis - date filter ignored`);
+			console.log(
+				`📊 ${dashboardType} dashboard shows comprehensive analysis - date filter ignored`
+			);
 			return;
 		}
 
-		if (!user?.client_id || !dateRange || (!dateRange.start && !dateRange.end)) {
+		if (
+			!user?.client_id ||
+			!dateRange ||
+			(!dateRange.start && !dateRange.end)
+		) {
 			// No date filter applied, use regular loadClientData
 			return;
 		}
 
 		const cacheKey = generateDateAwareCacheKey(`main_analysis`);
-		
+
 		// Check cache first
 		const cachedResult = getCachedAnalysis(cacheKey);
 		if (cachedResult) {
 			console.log(`⚡ Using cached date-filtered analysis for main dashboard`);
-							setSpecializedData(cachedResult);
+			setSpecializedData(cachedResult);
 			setIsLoadingWithDateFilter(false);
 			return;
 		}
 
 		console.log(`🗓️ Loading date-filtered analysis for main dashboard:`, {
-			start: dateRange.start?.format('YYYY-MM-DD'),
-			end: dateRange.end?.format('YYYY-MM-DD')
+			start: dateRange.start?.format("YYYY-MM-DD"),
+			end: dateRange.end?.format("YYYY-MM-DD"),
 		});
 
 		setIsLoadingWithDateFilter(true);
@@ -1863,7 +2000,7 @@ function TemplateDashboard({
 		try {
 			// Filter existing client data by date range
 			const filteredData = getFilteredData(clientData);
-			
+
 			if (filteredData.length === 0) {
 				console.log(`⚠️ No data found for date range`);
 				setSpecializedData(null);
@@ -1873,17 +2010,19 @@ function TemplateDashboard({
 
 			// Main dashboard uses metrics endpoint with date parameters
 			const params = new URLSearchParams();
-			params.append('fast_mode', 'true');
+			params.append("fast_mode", "true");
 			if (dateRange.start) {
-				params.append('start_date', dateRange.start.format('YYYY-MM-DD'));
+				params.append("start_date", dateRange.start.format("YYYY-MM-DD"));
 			}
 			if (dateRange.end) {
-				params.append('end_date', dateRange.end.format('YYYY-MM-DD'));
+				params.append("end_date", dateRange.end.format("YYYY-MM-DD"));
 			}
-			
+
 			const endpointWithParams = `/dashboard/metrics?${params.toString()}`;
-			
-			console.log(`🔗 Calling date-filtered main dashboard: ${endpointWithParams}`);
+
+			console.log(
+				`🔗 Calling date-filtered main dashboard: ${endpointWithParams}`
+			);
 			const response = await api.get(endpointWithParams);
 
 			if (response.data && response.data.llm_analysis) {
@@ -1891,26 +2030,39 @@ function TemplateDashboard({
 					...response.data,
 					dateFiltered: true,
 					dateRange: {
-						start: dateRange.start?.format('YYYY-MM-DD'),
-						end: dateRange.end?.format('YYYY-MM-DD'),
-						label: dateRange.label
-					}
+						start: dateRange.start?.format("YYYY-MM-DD"),
+						end: dateRange.end?.format("YYYY-MM-DD"),
+						label: dateRange.label,
+					},
 				};
 
 				// Cache the result
 				setCachedAnalysis(cacheKey, analysisData);
 				setSpecializedData(analysisData);
-				
-				console.log(`✅ Date-filtered main dashboard analysis loaded and cached`);
+
+				console.log(
+					`✅ Date-filtered main dashboard analysis loaded and cached`
+				);
 			} else {
 				console.error(`❌ Date-filtered main dashboard analysis not available`);
 			}
 		} catch (error) {
-			console.error(`❌ Failed to load date-filtered analysis for main dashboard:`, error);
+			console.error(
+				`❌ Failed to load date-filtered analysis for main dashboard:`,
+				error
+			);
 		} finally {
 			setIsLoadingWithDateFilter(false);
 		}
-	}, [user?.client_id, dateRange, generateDateAwareCacheKey, getCachedAnalysis, setCachedAnalysis, getFilteredData, clientData]);
+	}, [
+		user?.client_id,
+		dateRange,
+		generateDateAwareCacheKey,
+		getCachedAnalysis,
+		setCachedAnalysis,
+		getFilteredData,
+		clientData,
+	]);
 
 	// Helper function to get AI-generated chart data
 	const getAIChartData = (chartName: string) => {
@@ -1969,19 +2121,25 @@ function TemplateDashboard({
 	const getTemplateConfig = () => {
 		const filteredData = getFilteredData(clientData);
 		// Use LLM response total_records if available, otherwise fall back to filtered data length
-		const totalRecords = specializedData?.total_records || specializedData?.llm_analysis?.total_records || filteredData.length;
+		const totalRecords =
+			specializedData?.total_records ||
+			specializedData?.llm_analysis?.total_records ||
+			filteredData.length;
 
 		// Handle Business Intelligence template with LLM Analysis
 		if (dashboardType === "business" && specializedData?.llm_analysis?.charts) {
 			// Transform LLM charts to UI format using actual field names from config
 			const transformedCharts: any = {};
-			if (specializedData.llm_analysis.charts && Array.isArray(specializedData.llm_analysis.charts)) {
+			if (
+				specializedData.llm_analysis.charts &&
+				Array.isArray(specializedData.llm_analysis.charts)
+			) {
 				specializedData.llm_analysis.charts.forEach((chart: any) => {
 					// Get actual field names from chart config
 					const xField = chart.config?.x_axis?.field || "name";
 					const yField = chart.config?.y_axis?.field || "value";
-					
-					if (chart.chart_type === 'pie' || chart.chart_type === 'radial') {
+
+					if (chart.chart_type === "pie" || chart.chart_type === "radial") {
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
@@ -1993,7 +2151,10 @@ function TemplateDashboard({
 							insights: chart.insights || `${chart.display_name} analysis from AI`,
 							config: chart.config
 						};
-					} else if (chart.chart_type === 'line' || chart.chart_type === 'bar') {
+					} else if (
+						chart.chart_type === "line" ||
+						chart.chart_type === "bar"
+					) {
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
@@ -2012,13 +2173,14 @@ function TemplateDashboard({
 			return {
 				title: "Business Intelligence Dashboard",
 				subtitle: `AI-Powered Revenue & Growth Analytics • ${totalRecords} records`,
-				cards: specializedData.llm_analysis.kpis?.map((kpi: any) => ({
-					title: kpi.display_name,
-					value: kpi.value,
-					trend: kpi.trend,
-					change: kpi.trend?.percentage + '%',
-					icon: '💼'
-				})) || [],
+				cards:
+					specializedData.llm_analysis.kpis?.map((kpi: any) => ({
+						title: kpi.display_name,
+						value: kpi.value,
+						trend: kpi.trend,
+						change: kpi.trend?.percentage + "%",
+						icon: "💼",
+					})) || [],
 				showDataTable: true,
 				showCharts: true,
 				templateType: "business_intelligence",
@@ -2026,24 +2188,32 @@ function TemplateDashboard({
 				llm_analysis: specializedData.llm_analysis,
 				kpis: specializedData.llm_analysis.kpis || [],
 				charts: transformedCharts,
-				insights: specializedData.llm_analysis?.business_analysis?.business_insights || [],
+				insights:
+					specializedData.llm_analysis?.business_analysis?.business_insights ||
+					[],
 				tables: specializedData.llm_analysis.tables || [],
 				analytics: specializedData.analytics,
-				theme: "business"
+				theme: "business",
 			};
 		}
 
 		// Handle Performance Hub template with LLM Analysis
-		if (dashboardType === "performance" && specializedData?.llm_analysis?.charts) {
+		if (
+			dashboardType === "performance" &&
+			specializedData?.llm_analysis?.charts
+		) {
 			// Transform LLM charts to UI format using actual field names from config
 			const transformedCharts: any = {};
-			if (specializedData.llm_analysis.charts && Array.isArray(specializedData.llm_analysis.charts)) {
+			if (
+				specializedData.llm_analysis.charts &&
+				Array.isArray(specializedData.llm_analysis.charts)
+			) {
 				specializedData.llm_analysis.charts.forEach((chart: any) => {
 					// Get actual field names from chart config
 					const xField = chart.config?.x_axis?.field || "name";
 					const yField = chart.config?.y_axis?.field || "value";
-					
-					if (chart.chart_type === 'pie' || chart.chart_type === 'radial') {
+
+					if (chart.chart_type === "pie" || chart.chart_type === "radial") {
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
@@ -2055,7 +2225,11 @@ function TemplateDashboard({
 							insights: chart.insights || `${chart.display_name} performance analysis from AI`,
 							config: chart.config
 						};
-					} else if (chart.chart_type === 'line' || chart.chart_type === 'bar' || chart.chart_type === 'radar') {
+					} else if (
+						chart.chart_type === "line" ||
+						chart.chart_type === "bar" ||
+						chart.chart_type === "radar"
+					) {
 						transformedCharts[chart.id] = {
 							title: chart.display_name,
 							type: chart.chart_type,
@@ -2074,13 +2248,14 @@ function TemplateDashboard({
 			return {
 				title: "Performance Hub Dashboard",
 				subtitle: `AI-Powered Operational Efficiency • ${totalRecords} records`,
-				cards: specializedData.llm_analysis.kpis?.map((kpi: any) => ({
-					title: kpi.display_name,
-					value: kpi.value,
-					trend: kpi.trend,
-					change: kpi.trend?.percentage + '%',
-					icon: '⚡'
-				})) || [],
+				cards:
+					specializedData.llm_analysis.kpis?.map((kpi: any) => ({
+						title: kpi.display_name,
+						value: kpi.value,
+						trend: kpi.trend,
+						change: kpi.trend?.percentage + "%",
+						icon: "⚡",
+					})) || [],
 				showDataTable: true,
 				showCharts: true,
 				templateType: "performance_hub",
@@ -2088,10 +2263,12 @@ function TemplateDashboard({
 				llm_analysis: specializedData.llm_analysis,
 				kpis: specializedData.llm_analysis.kpis || [],
 				charts: transformedCharts,
-				insights: specializedData.llm_analysis?.business_analysis?.business_insights || [],
+				insights:
+					specializedData.llm_analysis?.business_analysis?.business_insights ||
+					[],
 				tables: specializedData.llm_analysis.tables || [],
 				analytics: specializedData.analytics,
-				theme: "performance"
+				theme: "performance",
 			};
 		}
 
@@ -2170,14 +2347,14 @@ function TemplateDashboard({
 		try {
 			return getTemplateConfig();
 		} catch (error) {
-			console.error('Error in getTemplateConfig:', error);
+			console.error("Error in getTemplateConfig:", error);
 			return {
-				title: 'Dashboard',
-				subtitle: 'Loading...',
+				title: "Dashboard",
+				subtitle: "Loading...",
 				cards: [],
 				showDataTable: false,
 				showCharts: false,
-				templateType: 'fallback'
+				templateType: "fallback",
 			};
 		}
 	}, [dashboardType, specializedData, clientData]);
@@ -2188,7 +2365,7 @@ function TemplateDashboard({
 				<Typography component="h2" variant="h6" sx={{ mb: 2 }}>
 					Loading {dashboardType} Dashboard...
 				</Typography>
-				<Grid container spacing={2} >
+				<Grid container spacing={2}>
 					{Array.from({ length: 4 }).map((_, index) => (
 						<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
 							<Card sx={{ height: 150, bgcolor: "grey.100" }}>
@@ -2204,34 +2381,43 @@ function TemplateDashboard({
 	}
 
 	return (
-		<Box sx={{ 
-			width: "100%", 
-			maxWidth: { sm: "100%", md: "1700px" },
-			px: 0,
-			overflow: 'hidden'
-		}}>
-			{/* Dashboard Header - Responsive */}
-			<Typography component="h1" variant="h4" sx={{ 
-				mb: { xs: 1, md: 2 }, 
-				fontWeight: 600,
-				fontSize: { xs: '1.5rem', sm: '2rem', md: '2.25rem' },
-				lineHeight: 1.2
+		<Box
+			sx={{
+				width: "100%",
+				maxWidth: { sm: "100%", md: "1700px" },
+				px: 0,
+				overflow: "hidden",
 			}}>
+			{/* Dashboard Header - Responsive */}
+			<Typography
+				component="h1"
+				variant="h4"
+				sx={{
+					mb: { xs: 1, md: 2 },
+					fontWeight: 600,
+					fontSize: { xs: "1.5rem", sm: "2rem", md: "2.25rem" },
+					lineHeight: 1.2,
+				}}>
 				{config.title}
 			</Typography>
-			<Typography variant="body1" sx={{ 
-				mb: { xs: 2, md: 3 }, 
-				color: "text.secondary",
-				fontSize: { xs: '0.9rem', sm: '1rem' },
-				lineHeight: 1.4
-			}}>
+			<Typography
+				variant="body1"
+				sx={{
+					mb: { xs: 2, md: 3 },
+					color: "text.secondary",
+					fontSize: { xs: "0.9rem", sm: "1rem" },
+					lineHeight: 1.4,
+				}}>
 				{config.subtitle}
 			</Typography>
 
 			{/* Date Range & Loading Indicators */}
-			{isLoadingWithDateFilter && dashboardType === 'main' && (
-				<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-					<Typography variant="caption" color="primary" sx={{ fontWeight: 500 }}>
+			{isLoadingWithDateFilter && dashboardType === "main" && (
+				<Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+					<Typography
+						variant="caption"
+						color="primary"
+						sx={{ fontWeight: 500 }}>
 						🗓️ Analyzing operational data for selected date range...
 					</Typography>
 				</Box>
@@ -2239,32 +2425,41 @@ function TemplateDashboard({
 
 			{dateRange && (dateRange.start || dateRange.end) && (
 				<Box sx={{ mb: 3 }}>
-					{dashboardType === 'main' ? (
-						<Typography variant="caption" sx={{ 
-							color: "info.main", 
-							bgcolor: "info.light", 
-							px: 1.5, 
-							py: 0.5, 
-							borderRadius: 1,
-							fontWeight: 500
-						}}>
+					{dashboardType === "main" ? (
+						<Typography
+							variant="caption"
+							sx={{
+								color: "info.main",
+								bgcolor: "info.light",
+								px: 1.5,
+								py: 0.5,
+								borderRadius: 1,
+								fontWeight: 500,
+							}}>
 							📅 Data Filtered: {dateRange.label}
 							{dateRange.start && dateRange.end && (
 								<span style={{ opacity: 0.8 }}>
-									{" "}({dateRange.start.format('MMM DD')} - {dateRange.end.format('MMM DD, YYYY')})
+									{" "}
+									({dateRange.start.format("MMM DD")} -{" "}
+									{dateRange.end.format("MMM DD, YYYY")})
 								</span>
 							)}
 						</Typography>
 					) : (
-						<Typography variant="caption" sx={{ 
-							color: "grey.600", 
-							bgcolor: "grey.100", 
-							px: 1.5, 
-							py: 0.5, 
-							borderRadius: 1,
-							fontWeight: 500
-						}}>
-							📊 Comprehensive Analysis - Date filter not applicable for {dashboardType === 'business' ? 'strategic insights' : 'operational excellence'}
+						<Typography
+							variant="caption"
+							sx={{
+								color: "grey.600",
+								bgcolor: "grey.100",
+								px: 1.5,
+								py: 0.5,
+								borderRadius: 1,
+								fontWeight: 500,
+							}}>
+							📊 Comprehensive Analysis - Date filter not applicable for{" "}
+							{dashboardType === "business"
+								? "strategic insights"
+								: "operational excellence"}
 						</Typography>
 					)}
 				</Box>
@@ -2290,1912 +2485,2672 @@ function TemplateDashboard({
 			</Grid>
 			*/}
 
-
-
 			{/* LLM-Generated Business Intelligence Analysis */}
-			{(config as any).templateType === "business_intelligence" && (config as any)?.llm_analysis && (
-				<>
-					{/* Business Intelligence KPIs Grid - Optimized for Full Width */}
-					<Grid container spacing={{ xs: 1, sm: 2, md: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
-						{(config as any).kpis && (config as any).kpis.map((kpi: any, index: number) => (
-							<Grid key={kpi.id || index} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-								<Card sx={{ 
-									height: '100%',
-									background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-									color: 'white',
-									transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-									position: 'relative',
-									overflow: 'hidden',
-									'&:hover': {
-										transform: 'translateY(-4px)',
-										boxShadow: '0 8px 25px rgba(0,0,0,0.15)'
-									},
-									'&::before': {
-										content: '""',
-										position: 'absolute',
-										top: 0,
-										left: 0,
-										right: 0,
-										bottom: 0,
-										background: 'rgba(0,0,0,0.1)',
-										zIndex: 0
-									}
-								}}>
-									<CardContent sx={{ 
-										p: { xs: 1.5, sm: 2, md: 3 },
-										height: '100%',
-										display: 'flex',
-										flexDirection: 'column',
-										justifyContent: 'space-between',
-										position: 'relative',
-										zIndex: 1
-									}}>
-										<Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: { xs: 1, md: 2 } }}>
-											<Box sx={{ 
-												width: { xs: 40, sm: 48 }, 
-												height: { xs: 40, sm: 48 }, 
-												borderRadius: 2, 
-												bgcolor: 'rgba(255,255,255,0.25)', 
-												display: 'flex', 
-												alignItems: 'center', 
-												justifyContent: 'center',
-												backdropFilter: 'blur(10px)',
-												border: '1px solid rgba(255,255,255,0.1)'
+			{(config as any).templateType === "business_intelligence" &&
+				(config as any)?.llm_analysis && (
+					<>
+						{/* Business Intelligence KPIs Grid - Optimized for Full Width */}
+						<Grid
+							container
+							spacing={{ xs: 1, sm: 2, md: 3 }}
+							sx={{ mb: { xs: 2, md: 4 } }}>
+							{(config as any).kpis &&
+								(config as any).kpis.map((kpi: any, index: number) => (
+									<Grid
+										key={kpi.id || index}
+										size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+										<Card
+											sx={{
+												height: "100%",
+												background:
+													"linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+												color: "white",
+												transition:
+													"transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out",
+												position: "relative",
+												overflow: "hidden",
+												"&:hover": {
+													transform: "translateY(-4px)",
+													boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
+												},
+												"&::before": {
+													content: '""',
+													position: "absolute",
+													top: 0,
+													left: 0,
+													right: 0,
+													bottom: 0,
+													background: "rgba(0,0,0,0.1)",
+													zIndex: 0,
+												},
 											}}>
-												<Typography variant="h6" sx={{ 
-													fontWeight: 'bold',
-													fontSize: { xs: '1rem', sm: '1.25rem' },
-													color: 'white',
-													textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+											<CardContent
+												sx={{
+													p: { xs: 1.5, sm: 2, md: 3 },
+													height: "100%",
+													display: "flex",
+													flexDirection: "column",
+													justifyContent: "space-between",
+													position: "relative",
+													zIndex: 1,
 												}}>
-													{kpi.category === 'revenue' ? '💰' : 
-													 kpi.category === 'customer' ? '👥' : 
-													 kpi.category === 'growth' ? '📈' : 
-													 kpi.category === 'sales' ? '🛒' : 
-													 kpi.category === 'profitability' ? '💎' : '📊'}
-												</Typography>
-											</Box>
-											{kpi.trend && (
-												<Box sx={{ 
-													display: 'flex', 
-													alignItems: 'center',
-													px: { xs: 0.5, sm: 1 },
-													py: 0.5,
-													borderRadius: 1,
-													bgcolor: kpi.trend.direction === 'upward' ? 'rgba(76, 175, 80, 0.2)' : 
-															 kpi.trend.direction === 'downward' ? 'rgba(244, 67, 54, 0.2)' : 'rgba(158, 158, 158, 0.2)'
-												}}>
-													<Typography variant="caption" sx={{ 
-														fontWeight: 600,
-														fontSize: { xs: '0.7rem', sm: '0.75rem' }
+												<Box
+													sx={{
+														display: "flex",
+														alignItems: "flex-start",
+														justifyContent: "space-between",
+														mb: { xs: 1, md: 2 },
 													}}>
-														{kpi.trend.direction === 'upward' ? '↗' : kpi.trend.direction === 'downward' ? '↘' : '→'}
+													<Box
+														sx={{
+															width: { xs: 40, sm: 48 },
+															height: { xs: 40, sm: 48 },
+															borderRadius: 2,
+															bgcolor: "rgba(255,255,255,0.25)",
+															display: "flex",
+															alignItems: "center",
+															justifyContent: "center",
+															backdropFilter: "blur(10px)",
+															border: "1px solid rgba(255,255,255,0.1)",
+														}}>
+														<Typography
+															variant="h6"
+															sx={{
+																fontWeight: "bold",
+																fontSize: { xs: "1rem", sm: "1.25rem" },
+																color: "white",
+																textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+															}}>
+															{kpi.category === "revenue"
+																? "💰"
+																: kpi.category === "customer"
+																? "👥"
+																: kpi.category === "growth"
+																? "📈"
+																: kpi.category === "sales"
+																? "🛒"
+																: kpi.category === "profitability"
+																? "💎"
+																: "📊"}
+														</Typography>
+													</Box>
+													{kpi.trend && (
+														<Box
+															sx={{
+																display: "flex",
+																alignItems: "center",
+																px: { xs: 0.5, sm: 1 },
+																py: 0.5,
+																borderRadius: 1,
+																bgcolor:
+																	kpi.trend.direction === "upward"
+																		? "rgba(76, 175, 80, 0.2)"
+																		: kpi.trend.direction === "downward"
+																		? "rgba(244, 67, 54, 0.2)"
+																		: "rgba(158, 158, 158, 0.2)",
+															}}>
+															<Typography
+																variant="caption"
+																sx={{
+																	fontWeight: 600,
+																	fontSize: { xs: "0.7rem", sm: "0.75rem" },
+																}}>
+																{kpi.trend.direction === "upward"
+																	? "↗"
+																	: kpi.trend.direction === "downward"
+																	? "↘"
+																	: "→"}
+															</Typography>
+														</Box>
+													)}
+												</Box>
+
+												<Box
+													sx={{
+														flex: 1,
+														display: "flex",
+														flexDirection: "column",
+														justifyContent: "center",
+													}}>
+													<Typography
+														variant="h3"
+														component="div"
+														sx={{
+															fontWeight: "bold",
+															mb: { xs: 0.5, md: 1 },
+															fontSize: {
+																xs: "1.25rem",
+																sm: "1.75rem",
+																md: "2rem",
+																lg: "2.25rem",
+															},
+															lineHeight: 1.2,
+															color: "white",
+															textShadow: "0 1px 3px rgba(0,0,0,0.4)",
+															letterSpacing: "-0.02em",
+														}}>
+														{formatKPIValue(kpi.value, kpi.format)}
+													</Typography>
+													<Typography
+														variant="body1"
+														sx={{
+															opacity: 0.95,
+															fontWeight: 500,
+															fontSize: {
+																xs: "0.8rem",
+																sm: "0.9rem",
+																md: "1rem",
+															},
+															lineHeight: 1.3,
+															color: "white",
+															textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+														}}>
+														{kpi.display_name || kpi.title}
+													</Typography>
+													{kpi.trend?.percentage && (
+														<Typography
+															variant="body2"
+															sx={{
+																fontWeight: 600,
+																display: "flex",
+																alignItems: "center",
+																gap: 0.5,
+																mt: 0.5,
+															}}>
+															<Box
+																component="span"
+																sx={{
+																	color:
+																		kpi.trend.direction === "upward"
+																			? "#81c784"
+																			: kpi.trend.direction === "downward"
+																			? "#e57373"
+																			: "#bdbdbd",
+																	textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+																	fontWeight: "bold",
+																}}>
+																{kpi.trend.percentage > 0 ? "+" : ""}
+																{kpi.trend.percentage}%
+															</Box>
+															<Box
+																component="span"
+																sx={{
+																	opacity: 0.8,
+																	fontSize: "0.75rem",
+																	color: "white",
+																	textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+																}}>
+																{kpi.trend?.description || "vs last period"}
+															</Box>
+														</Typography>
+													)}
+												</Box>
+											</CardContent>
+										</Card>
+									</Grid>
+								))}
+						</Grid>
+
+						{/* Business Intelligence Insights Section */}
+						<Grid container sx={{ mb: 3 }}>
+							<Grid size={{ xs: 12 }}>
+								<Card
+									sx={{
+										background:
+											"linear-gradient(135deg, #f8f9ff 0%, #e8f2ff 100%)",
+										border: "1px solid #e3f2fd",
+										boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+									}}>
+									<CardHeader
+										title={
+											<Box
+												sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+												<Box
+													sx={{
+														width: 48,
+														height: 48,
+														borderRadius: 2,
+														background:
+															"linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+														display: "flex",
+														alignItems: "center",
+														justifyContent: "center",
+													}}>
+													<Typography variant="h6" color="white">
+														🤖
 													</Typography>
 												</Box>
-											)}
-										</Box>
-										
-										<Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-											<Typography variant="h3" component="div" sx={{ 
-												fontWeight: 'bold', 
-												mb: { xs: 0.5, md: 1 },
-												fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2rem', lg: '2.25rem' },
-												lineHeight: 1.2,
-												color: 'white',
-												textShadow: '0 1px 3px rgba(0,0,0,0.4)',
-												letterSpacing: '-0.02em'
-											}}>
-												{formatKPIValue(kpi.value, kpi.format)}
-											</Typography>
-											<Typography variant="body1" sx={{ 
-												opacity: 0.95,
-												fontWeight: 500,
-												fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
-												lineHeight: 1.3,
-												color: 'white',
-												textShadow: '0 1px 2px rgba(0,0,0,0.3)'
-											}}>
-												{kpi.display_name || kpi.title}
-											</Typography>
-											{kpi.trend?.percentage && (
-												<Typography 
-													variant="body2" 
-													sx={{ 
-														fontWeight: 600,
-														display: 'flex',
-														alignItems: 'center',
-														gap: 0.5,
-														mt: 0.5
-													}}
-												>
-													<Box component="span" sx={{ 
-														color: kpi.trend.direction === 'upward' ? '#81c784' : 
-															   kpi.trend.direction === 'downward' ? '#e57373' : '#bdbdbd',
-														textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-														fontWeight: 'bold'
-													}}>
-														{kpi.trend.percentage > 0 ? '+' : ''}{kpi.trend.percentage}%
-													</Box>
-													<Box component="span" sx={{ 
-														opacity: 0.8, 
-														fontSize: '0.75rem',
-														color: 'white',
-														textShadow: '0 1px 2px rgba(0,0,0,0.3)'
-													}}>
-														{kpi.trend?.description || 'vs last period'}
-													</Box>
-												</Typography>
-											)}
+												<Box>
+													<Typography
+														variant="h5"
+														sx={{ fontWeight: "bold", color: "primary.main" }}>
+														AI-Powered Business Insights
+													</Typography>
+													<Typography variant="body2" color="text.secondary">
+														{(config as any)?.llm_analysis
+															?.business_type_detected ||
+															"Sustainable Energy"}{" "}
+														Industry Analysis
+													</Typography>
+												</Box>
+											</Box>
+										}
+										sx={{ pb: 2 }}
+									/>
+									<CardContent sx={{ pt: 0 }}>
+										<Box sx={{ mb: 2 }}>
+											{(config as any)?.insights &&
+												(config as any).insights.map(
+													(insight: string, index: number) => (
+														<Box
+															key={index}
+															sx={{
+																display: "flex",
+																alignItems: "flex-start",
+																mb: 3,
+																p: 2,
+																borderRadius: 2,
+																bgcolor: "white",
+																boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+																border: "1px solid #f0f0f0",
+																transition: "transform 0.2s ease-in-out",
+																"&:hover": {
+																	transform: "translateX(4px)",
+																	boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+																},
+															}}>
+															<Box
+																sx={{
+																	minWidth: 32,
+																	height: 32,
+																	borderRadius: "50%",
+																	background:
+																		"linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+																	display: "flex",
+																	alignItems: "center",
+																	justifyContent: "center",
+																	mr: 2,
+																	mt: 0.5,
+																	boxShadow:
+																		"0 2px 8px rgba(102, 126, 234, 0.3)",
+																}}>
+																<Typography
+																	variant="body2"
+																	color="white"
+																	sx={{ fontWeight: "bold" }}>
+																	{index + 1}
+																</Typography>
+															</Box>
+															<Typography
+																variant="body1"
+																color="text.primary"
+																sx={{
+																	fontWeight: 500,
+																	lineHeight: 1.6,
+																	flex: 1,
+																}}>
+																{insight}
+															</Typography>
+														</Box>
+													)
+												)}
 										</Box>
 									</CardContent>
 								</Card>
 							</Grid>
-						))}
-					</Grid>
-
-					{/* Business Intelligence Insights Section */}
-					<Grid container sx={{ mb: 3 }}>
-						<Grid size={{ xs: 12 }}>
-							<Card sx={{ 
-								background: 'linear-gradient(135deg, #f8f9ff 0%, #e8f2ff 100%)',
-								border: '1px solid #e3f2fd',
-								boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
-							}}>
-								<CardHeader
-									title={
-										<Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-											<Box sx={{ 
-												width: 48, 
-												height: 48, 
-												borderRadius: 2,
-												background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-												display: 'flex', 
-												alignItems: 'center', 
-												justifyContent: 'center'
-											}}>
-												<Typography variant="h6" color="white">🤖</Typography>
-											</Box>
-											<Box>
-												<Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-													AI-Powered Business Insights
-												</Typography>
-												<Typography variant="body2" color="text.secondary">
-													{(config as any)?.llm_analysis?.business_type_detected || 'Sustainable Energy'} Industry Analysis
-												</Typography>
-											</Box>
-										</Box>
-									}
-									sx={{ pb: 2 }}
-								/>
-								<CardContent sx={{ pt: 0 }}>
-									<Box sx={{ mb: 2 }}>
-										{(config as any)?.insights && (config as any).insights.map((insight: string, index: number) => (
-											<Box key={index} sx={{ 
-												display: 'flex', 
-												alignItems: 'flex-start', 
-												mb: 3,
-												p: 2,
-												borderRadius: 2,
-												bgcolor: 'white',
-												boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-												border: '1px solid #f0f0f0',
-												transition: 'transform 0.2s ease-in-out',
-												'&:hover': {
-													transform: 'translateX(4px)',
-													boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-												}
-											}}>
-												<Box sx={{ 
-													minWidth: 32, 
-													height: 32, 
-													borderRadius: '50%', 
-													background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-													display: 'flex', 
-													alignItems: 'center', 
-													justifyContent: 'center',
-													mr: 2,
-													mt: 0.5,
-													boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)'
-												}}>
-													<Typography variant="body2" color="white" sx={{ fontWeight: 'bold' }}>
-														{index + 1}
-													</Typography>
-												</Box>
-												<Typography 
-													variant="body1" 
-													color="text.primary"
-													sx={{ 
-														fontWeight: 500, 
-														lineHeight: 1.6,
-														flex: 1
-													}}
-												>
-													{insight}
-												</Typography>
-											</Box>
-										))}
-									</Box>
-								</CardContent>
-							</Card>
 						</Grid>
-					</Grid>
 
-					{/* Business Intelligence Charts - Edge-to-Edge Layout */}
-					{(config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
-						<Grid 
-							container 
-							spacing={{ xs: 2, sm: 3, md: 3 }} 
-							sx={{ 
-								mb: { xs: 2, md: 4 },
-								alignItems: 'stretch'
-							}}
-						>
-							{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => {
-								console.log(`🔍 Rendering business chart ${chartKey}:`, {
-									chartKey,
-									index,
-									chartData: {
-										title: chartData.title,
-										type: chartData.type,
-										hasData: !!chartData.data,
-										dataLength: chartData.data?.length,
-										dataFirstItem: chartData.data?.[0],
-										hasLabels: !!chartData.labels,
-										labelsLength: chartData.labels?.length,
-										labelsFirstItem: chartData.labels?.[0],
-										hasConfig: !!chartData.config,
-										fullData: chartData
-									}
-								});
-								
-								// Equal spacing chart sizing - No empty space!
-								const totalCharts = Object.keys((config as any).charts).length;
-                                const getChartSize = () => {
-                                    if (totalCharts === 1) return { xs: 12 };
-                                    if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each
-                                    // For 3+ charts, cap at 3 per row; make final row 50% when exactly 2 remain
-                                    const chartsPerRowMd = 3;
-                                    const remainder = totalCharts % chartsPerRowMd;
-                                    if (remainder === 2 && index >= totalCharts - 2) {
-                                        return { xs: 12, sm: 6, md: 6 };
-                                    }
-                                    if (remainder === 1 && index === totalCharts - 1) {
-                                        return { xs: 12 };
-                                    }
-                                    return { xs: 12, sm: 6, md: 4 };
-                                };
-								
-								return (
-								<Grid key={chartKey} size={getChartSize()}>
-									<Card sx={{ 
-										height: { xs: 'auto', sm: '400px', md: '450px', lg: '480px' },
-										minHeight: { xs: '350px', sm: '380px' },
-										display: 'flex',
-										flexDirection: 'column'
+						{/* Business Intelligence Charts - Edge-to-Edge Layout */}
+						{(config as any)?.charts &&
+							Object.keys((config as any).charts).length > 0 && (
+								<Grid
+									container
+									spacing={{ xs: 2, sm: 3, md: 3 }}
+									sx={{
+										mb: { xs: 2, md: 4 },
+										alignItems: "stretch",
 									}}>
-										<CardHeader
-											title={chartData.title || chartKey}
-											subheader={`${chartData.type?.toUpperCase() || 'CHART'} • AI Analysis`}
-											sx={{
-												pb: 1,
-												'& .MuiCardHeader-title': {
-													fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' },
-													fontWeight: 600,
-													lineHeight: 1.3
+									{Object.entries((config as any).charts).map(
+										([chartKey, chartData]: [string, any], index: number) => {
+											console.log(`🔍 Rendering business chart ${chartKey}:`, {
+												chartKey,
+												index,
+												chartData: {
+													title: chartData.title,
+													type: chartData.type,
+													hasData: !!chartData.data,
+													dataLength: chartData.data?.length,
+													dataFirstItem: chartData.data?.[0],
+													hasLabels: !!chartData.labels,
+													labelsLength: chartData.labels?.length,
+													labelsFirstItem: chartData.labels?.[0],
+													hasConfig: !!chartData.config,
+													fullData: chartData,
 												},
-												'& .MuiCardHeader-subheader': {
-													fontSize: { xs: '0.75rem', sm: '0.8rem' }
+											});
+
+											// Equal spacing chart sizing - No empty space!
+											const totalCharts = Object.keys(
+												(config as any).charts
+											).length;
+											const getChartSize = () => {
+												if (totalCharts === 1) return { xs: 12 };
+												if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each
+												// For 3+ charts, cap at 3 per row; make final row 50% when exactly 2 remain
+												const chartsPerRowMd = 3;
+												const remainder = totalCharts % chartsPerRowMd;
+												if (remainder === 2 && index >= totalCharts - 2) {
+													return { xs: 12, sm: 6, md: 6 };
 												}
-											}}
-										/>
-										<CardContent sx={{ 
-											pt: 0, 
-											pb: { xs: 1, sm: 2 },
-											px: 0,
-											flex: 1,
-											display: 'flex',
-											flexDirection: 'column'
-										}}>
-											<Box sx={{ 
-												flex: 1,
-												height: '100%', 
-												width: '100%',
-												display: 'flex', 
-												flexDirection: 'column',
-												justifyContent: 'center',
-												alignItems: 'center',
-												minHeight: { xs: '280px', sm: '320px', md: '360px' }
-											}}>
-												{isValidChartData(chartData) ? (
-													<>
-																												{/* Render Actual Chart Components - Responsive */}
-														<Box sx={{ 
-															flex: 1, 
-															minHeight: { xs: 180, sm: 220, md: 260 },
-															width: '100%',
-															position: 'relative'
+												if (remainder === 1 && index === totalCharts - 1) {
+													return { xs: 12 };
+												}
+												return { xs: 12, sm: 6, md: 4 };
+											};
+
+											return (
+												<Grid key={chartKey} size={getChartSize()}>
+													<Card
+														sx={{
+															height: {
+																xs: "auto",
+																sm: "400px",
+																md: "450px",
+																lg: "480px",
+															},
+															minHeight: { xs: "350px", sm: "380px" },
+															display: "flex",
+															flexDirection: "column",
 														}}>
-															{chartData.type === 'line' && (
-																<Box sx={{ 
-																	width: '100%', 
-																	height: '100%',
-																	minHeight: { xs: '180px', sm: '220px', md: '260px' }
+														<CardHeader
+															title={chartData.title || chartKey}
+															subheader={`${
+																chartData.type?.toUpperCase() || "CHART"
+															} • AI Analysis`}
+															sx={{
+																pb: 1,
+																"& .MuiCardHeader-title": {
+																	fontSize: {
+																		xs: "1rem",
+																		sm: "1.1rem",
+																		md: "1.25rem",
+																	},
+																	fontWeight: 600,
+																	lineHeight: 1.3,
+																},
+																"& .MuiCardHeader-subheader": {
+																	fontSize: { xs: "0.75rem", sm: "0.8rem" },
+																},
+															}}
+														/>
+														<CardContent
+															sx={{
+																pt: 0,
+																pb: { xs: 1, sm: 2 },
+																px: 0,
+																flex: 1,
+																display: "flex",
+																flexDirection: "column",
+															}}>
+															<Box
+																sx={{
+																	flex: 1,
+																	height: "100%",
+																	width: "100%",
+																	display: "flex",
+																	flexDirection: "column",
+																	justifyContent: "center",
+																	alignItems: "center",
+																	minHeight: {
+																		xs: "280px",
+																		sm: "320px",
+																		md: "360px",
+																	},
 																}}>
-																	<LineChart
-																		series={[{
-																			data: chartData.data.map((val: any) => {
-																				const num = Number(val);
-																				return isNaN(num) ? 0 : num;
-																			}),
-																			label: chartData.title || 'Revenue',
-																			color: '#1976d2'
-																		}]}
-																		xAxis={[{
-																			data: chartData.labels.map((label: any) => String(label || '')),
-																			scaleType: 'point'
-																		}]}
-																		height={260}
-																		margin={{ 
-																			left: 40, 
-																			right: 20, 
-																			top: 20, 
-																			bottom: 40 
-																		}}
-																		skipAnimation={true}
-																		slotProps={{
-																			noDataOverlay: { message: 'No data available' }
-																		}}
-																	/>
-																</Box>
-															)}
-															
-															{chartData.type === 'pie' && (
-																<Box sx={{ 
-																	width: '100%', 
-																	height: '100%',
-																	minHeight: { xs: '180px', sm: '220px', md: '260px' },
-																	display: 'flex', 
-																	justifyContent: 'center',
-																	alignItems: 'center'
-																}}>
-																	<PieChart
-																		series={[{
-																			data: chartData.labels.map((label: string, i: number) => {
-																				const value = Number(chartData.data[i]);
-																				return {
-																					id: i,
-																					value: isNaN(value) ? 0 : value,
-																					label: String(label || `Item ${i + 1}`)
-																				};
-																			}).filter((item: any) => item.value > 0),
-																			highlightScope: { fade: 'global', highlight: 'item' } as const,
-																		}]}
-																		height={240}
-			
-																		skipAnimation={true}
-																		slotProps={{
-																			noDataOverlay: { message: 'No data available' }
-																		}}
-																	/>
-																</Box>
-															)}
+																{isValidChartData(chartData) ? (
+																	<>
+																		{/* Render Actual Chart Components - Responsive */}
+																		<Box
+																			sx={{
+																				flex: 1,
+																				minHeight: {
+																					xs: 180,
+																					sm: 220,
+																					md: 260,
+																				},
+																				width: "100%",
+																				position: "relative",
+																			}}>
+																			{chartData.type === "line" && (
+																				<Box
+																					sx={{
+																						width: "100%",
+																						height: "100%",
+																						minHeight: {
+																							xs: "180px",
+																							sm: "220px",
+																							md: "260px",
+																						},
+																					}}>
+																					<LineChart
+																						series={[
+																							{
+																								data: chartData.data.map(
+																									(val: any) => {
+																										const num = Number(val);
+																										return isNaN(num) ? 0 : num;
+																									}
+																								),
+																								label:
+																									chartData.title || "Revenue",
+																								color: "#1976d2",
+																							},
+																						]}
+																						xAxis={[
+																							{
+																								data: chartData.labels.map(
+																									(label: any) =>
+																										String(label || "")
+																								),
+																								scaleType: "point",
+																							},
+																						]}
+																						height={260}
+																						margin={{
+																							left: 40,
+																							right: 20,
+																							top: 20,
+																							bottom: 40,
+																						}}
+																						skipAnimation={true}
+																						slotProps={{
+																							noDataOverlay: {
+																								message: "No data available",
+																							},
+																						}}
+																					/>
+																				</Box>
+																			)}
 
-															{chartData.type === 'radial' && (
-																<div style={{ width: '100%', height: '200px', display: 'flex', justifyContent: 'center' }}>
-																	<PieChart
-																		series={[{
-																			data: chartData.labels.map((label: string, i: number) => {
-																				const value = Number(chartData.data[i]);
-																				return {
-																					id: i,
-																					value: isNaN(value) ? 0 : value,
-																					label: String(label || `Item ${i + 1}`)
-																				};
-																			}).filter((item: any) => item.value > 0),
-																			highlightScope: { fade: 'global', highlight: 'item' } as const,
-																			innerRadius: 50,
-																			outerRadius: 90,
-																		}]}
-																		height={200}
-			
-																		skipAnimation={true}
-																		slotProps={{
-																			noDataOverlay: { message: 'No data available' }
-																		}}
-																	/>
-																</div>
-															)}
-															
-															{chartData.type === 'scatter' && (
-																<div style={{ width: '100%', height: '200px' }}>
-																	<Charts.ScatterChart
-																		data={chartData.labels.map((label: string, i: number) => {
-																			const xValue = Number(chartData.data[i]);
-																			const yValue = Number(chartData.data[i]) * (Math.random() * 0.5 + 0.75); // Add some variation
-																			return {
-																				x: isNaN(xValue) ? i : xValue,
-																				y: isNaN(yValue) ? i : yValue,
-																				label: String(label || `Point ${i + 1}`)
-																			};
-																		}).filter((item: any) => item.x >= 0 && item.y >= 0)}
-																		title={chartData.title}
-																		xAxisLabel="X Value"
-																		yAxisLabel="Y Value"
-																	/>
-																</div>
-															)}
-															
-															{chartData.type === 'bar' && (
-																<div style={{ width: '100%', height: '200px' }}>
-																	<BarChart
-																		series={[{
-																			data: chartData.data.map((val: any) => {
-																				const num = Number(val);
-																				return isNaN(num) ? 0 : num;
-																			}),
-																			label: chartData.title || 'Metrics',
-																			color: '#ed6c02'
-																		}]}
-																		xAxis={[{
-																			data: chartData.labels.map((label: any) => String(label || '')),
-																			scaleType: 'band'
-																		}]}
-																		height={200}
-																		margin={{ left: 50, right: 50, top: 20, bottom: 50 }}
-																		skipAnimation={true}
-																		slotProps={{
-																			noDataOverlay: { message: 'No data available' }
-																		}}
-																	/>
-																</div>
-															)}
+																			{chartData.type === "pie" && (
+																				<Box
+																					sx={{
+																						width: "100%",
+																						height: "100%",
+																						minHeight: {
+																							xs: "180px",
+																							sm: "220px",
+																							md: "260px",
+																						},
+																						display: "flex",
+																						justifyContent: "center",
+																						alignItems: "center",
+																					}}>
+																					<PieChart
+																						series={[
+																							{
+																								data: chartData.labels
+																									.map(
+																										(
+																											label: string,
+																											i: number
+																										) => {
+																											const value = Number(
+																												chartData.data[i]
+																											);
+																											return {
+																												id: i,
+																												value: isNaN(value)
+																													? 0
+																													: value,
+																												label: String(
+																													label ||
+																														`Item ${i + 1}`
+																												),
+																											};
+																										}
+																									)
+																									.filter(
+																										(item: any) =>
+																											item.value > 0
+																									),
+																								highlightScope: {
+																									fade: "global",
+																									highlight: "item",
+																								} as const,
+																							},
+																						]}
+																						height={240}
+																						skipAnimation={true}
+																						slotProps={{
+																							noDataOverlay: {
+																								message: "No data available",
+																							},
+																						}}
+																					/>
+																				</Box>
+																			)}
 
-															{/* Handle special chart types that might cause offsetY errors */}
-															{(chartData.type === 'radar' || chartData.type === 'heatmap') && (
-																<Box sx={{ 
-																	display: 'flex', 
-																	alignItems: 'center', 
-																	justifyContent: 'center',
-																	height: 200,
-																	bgcolor: 'grey.50',
-																	borderRadius: 1,
-																	border: '1px dashed',
-																	borderColor: 'grey.300'
-																}}>
-																	<Typography variant="body1" color="text.secondary">
-																		📊 {chartData.type.toUpperCase()} Chart: {chartData.title}
+																			{chartData.type === "radial" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																						display: "flex",
+																						justifyContent: "center",
+																					}}>
+																					<PieChart
+																						series={[
+																							{
+																								data: chartData.labels
+																									.map(
+																										(
+																											label: string,
+																											i: number
+																										) => {
+																											const value = Number(
+																												chartData.data[i]
+																											);
+																											return {
+																												id: i,
+																												value: isNaN(value)
+																													? 0
+																													: value,
+																												label: String(
+																													label ||
+																														`Item ${i + 1}`
+																												),
+																											};
+																										}
+																									)
+																									.filter(
+																										(item: any) =>
+																											item.value > 0
+																									),
+																								highlightScope: {
+																									fade: "global",
+																									highlight: "item",
+																								} as const,
+																								innerRadius: 50,
+																								outerRadius: 90,
+																							},
+																						]}
+																						height={200}
+																						skipAnimation={true}
+																						slotProps={{
+																							noDataOverlay: {
+																								message: "No data available",
+																							},
+																						}}
+																					/>
+																				</div>
+																			)}
+
+																			{chartData.type === "scatter" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																					}}>
+																					<Charts.ScatterChart
+																						data={chartData.labels
+																							.map(
+																								(label: string, i: number) => {
+																									const xValue = Number(
+																										chartData.data[i]
+																									);
+																									const yValue =
+																										Number(chartData.data[i]) *
+																										(Math.random() * 0.5 +
+																											0.75); // Add some variation
+																									return {
+																										x: isNaN(xValue)
+																											? i
+																											: xValue,
+																										y: isNaN(yValue)
+																											? i
+																											: yValue,
+																										label: String(
+																											label || `Point ${i + 1}`
+																										),
+																									};
+																								}
+																							)
+																							.filter(
+																								(item: any) =>
+																									item.x >= 0 && item.y >= 0
+																							)}
+																						title={chartData.title}
+																						xAxisLabel="X Value"
+																						yAxisLabel="Y Value"
+																					/>
+																				</div>
+																			)}
+
+																			{chartData.type === "bar" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																					}}>
+																					<BarChart
+																						series={[
+																							{
+																								data: chartData.data.map(
+																									(val: any) => {
+																										const num = Number(val);
+																										return isNaN(num) ? 0 : num;
+																									}
+																								),
+																								label:
+																									chartData.title || "Metrics",
+																								color: "#ed6c02",
+																							},
+																						]}
+																						xAxis={[
+																							{
+																								data: chartData.labels.map(
+																									(label: any) =>
+																										String(label || "")
+																								),
+																								scaleType: "band",
+																							},
+																						]}
+																						height={200}
+																						margin={{
+																							left: 50,
+																							right: 50,
+																							top: 20,
+																							bottom: 50,
+																						}}
+																						skipAnimation={true}
+																						slotProps={{
+																							noDataOverlay: {
+																								message: "No data available",
+																							},
+																						}}
+																					/>
+																				</div>
+																			)}
+
+																			{/* Handle special chart types that might cause offsetY errors */}
+																			{(chartData.type === "radar" ||
+																				chartData.type === "heatmap") && (
+																				<Box
+																					sx={{
+																						display: "flex",
+																						alignItems: "center",
+																						justifyContent: "center",
+																						height: 200,
+																						bgcolor: "grey.50",
+																						borderRadius: 1,
+																						border: "1px dashed",
+																						borderColor: "grey.300",
+																					}}>
+																					<Typography
+																						variant="body1"
+																						color="text.secondary">
+																						📊 {chartData.type.toUpperCase()}{" "}
+																						Chart: {chartData.title}
+																					</Typography>
+																				</Box>
+																			)}
+																		</Box>
+
+																		{/* Chart Insights */}
+																		{chartData.insights && (
+																			<Box
+																				sx={{
+																					p: 2,
+																					mt: 2,
+																					bgcolor: "info.50",
+																					borderRadius: 1,
+																					border: "1px solid",
+																					borderColor: "info.200",
+																				}}>
+																				<Typography
+																					variant="body2"
+																					color="info.main"
+																					sx={{
+																						fontStyle: "italic",
+																						lineHeight: 1.5,
+																					}}>
+																					💡 {chartData.insights}
+																				</Typography>
+																			</Box>
+																		)}
+																	</>
+																) : (
+																	<Box
+																		sx={{
+																			display: "flex",
+																			alignItems: "center",
+																			justifyContent: "center",
+																			height: 200,
+																			bgcolor: "grey.50",
+																			borderRadius: 1,
+																			border: "1px dashed",
+																			borderColor: "grey.300",
+																		}}>
+																		<Typography
+																			variant="body1"
+																			color="text.secondary">
+																			📊 Chart data is loading or unavailable
+																		</Typography>
+																	</Box>
+																)}
+															</Box>
+														</CardContent>
+													</Card>
+												</Grid>
+											);
+										}
+									)}
+								</Grid>
+							)}
+
+						{/* Business Intelligence Tables */}
+						{(config as any)?.tables && (config as any).tables.length > 0 && (
+							<Grid container spacing={2} sx={{ mb: 3 }}>
+								{(config as any).tables.map((table: any, index: number) => (
+									<Grid key={index} size={{ xs: 12 }}>
+										<Card>
+											<CardHeader
+												title={
+													table.display_name ||
+													table.title ||
+													`Business Analysis ${index + 1}`
+												}
+												subheader="Data-driven insights from your business metrics"
+											/>
+											<CardContent>
+												{table.columns && table.data && (
+													<Box sx={{ overflow: "auto" }}>
+														{/* Table Header */}
+														<Box
+															sx={{
+																display: "flex",
+																bgcolor: "grey.100",
+																p: 1,
+																borderRadius: 1,
+																mb: 1,
+															}}>
+															{table.columns.map(
+																(column: string, colIndex: number) => (
+																	<Typography
+																		key={colIndex}
+																		variant="subtitle2"
+																		sx={{
+																			flex: 1,
+																			fontWeight: "bold",
+																			textAlign:
+																				colIndex === 0 ? "left" : "right",
+																		}}>
+																		{column}
 																	</Typography>
-																</Box>
+																)
 															)}
 														</Box>
 
-														{/* Chart Insights */}
-														{chartData.insights && (
-															<Box sx={{ 
-																p: 2, 
-																mt: 2,
-																bgcolor: 'info.50', 
-																borderRadius: 1,
-																border: '1px solid',
-																borderColor: 'info.200'
-															}}>
-																<Typography variant="body2" color="info.main" sx={{ fontStyle: 'italic', lineHeight: 1.5 }}>
-																	💡 {chartData.insights}
-																</Typography>
+														{/* Table Data */}
+														{table.data.map((row: any, rowIndex: number) => (
+															<Box
+																key={rowIndex}
+																sx={{
+																	display: "flex",
+																	p: 1,
+																	borderBottom: "1px solid",
+																	borderColor: "grey.200",
+																	"&:hover": { bgcolor: "grey.50" },
+																}}>
+																{Array.isArray(row)
+																	? // Handle array format (row is an array)
+																	  row.map((cell: any, cellIndex: number) => (
+																			<Typography
+																				key={cellIndex}
+																				variant="body2"
+																				sx={{
+																					flex: 1,
+																					textAlign:
+																						cellIndex === 0 ? "left" : "right",
+																					fontWeight:
+																						cellIndex === 0 ? 500 : 400,
+																				}}>
+																				{cell}
+																			</Typography>
+																	  ))
+																	: // Handle object format (row is an object)
+																	  table.columns.map(
+																			(column: string, cellIndex: number) => (
+																				<Typography
+																					key={cellIndex}
+																					variant="body2"
+																					sx={{
+																						flex: 1,
+																						textAlign:
+																							cellIndex === 0
+																								? "left"
+																								: "right",
+																						fontWeight:
+																							cellIndex === 0 ? 500 : 400,
+																					}}>
+																					{String(row[column] || "-")}
+																				</Typography>
+																			)
+																	  )}
 															</Box>
-														)}
-													</>
-												) : (
-													<Box sx={{ 
-														display: 'flex', 
-														alignItems: 'center', 
-														justifyContent: 'center',
-														height: 200,
-														bgcolor: 'grey.50',
-														borderRadius: 1,
-														border: '1px dashed',
-														borderColor: 'grey.300'
-													}}>
-														<Typography variant="body1" color="text.secondary">
-															📊 Chart data is loading or unavailable
-														</Typography>
-													</Box>
-												)}
-											</Box>
-										</CardContent>
-									</Card>
-								</Grid>
-								);
-							})}
-						</Grid>
-					)}
-
-					{/* Business Intelligence Tables */}
-					{(config as any)?.tables && (config as any).tables.length > 0 && (
-						<Grid container spacing={2}  sx={{ mb: 3 }}>
-							{(config as any).tables.map((table: any, index: number) => (
-								<Grid key={index} size={{ xs: 12 }}>
-									<Card>
-										<CardHeader
-											title={table.display_name || table.title || `Business Analysis ${index + 1}`}
-											subheader="Data-driven insights from your business metrics"
-										/>
-										<CardContent>
-											{table.columns && table.data && (
-												<Box sx={{ overflow: 'auto' }}>
-													{/* Table Header */}
-													<Box sx={{ 
-														display: 'flex', 
-														bgcolor: 'grey.100', 
-														p: 1, 
-														borderRadius: 1,
-														mb: 1
-													}}>
-														{table.columns.map((column: string, colIndex: number) => (
-															<Typography 
-																key={colIndex} 
-																variant="subtitle2" 
-																sx={{ 
-																	flex: 1, 
-																	fontWeight: 'bold',
-																	textAlign: colIndex === 0 ? 'left' : 'right'
-																}}
-															>
-																{column}
-															</Typography>
 														))}
 													</Box>
-													
-													{/* Table Data */}
-													{table.data.map((row: any, rowIndex: number) => (
-														<Box key={rowIndex} sx={{ 
-															display: 'flex', 
-															p: 1, 
-															borderBottom: '1px solid',
-															borderColor: 'grey.200',
-															'&:hover': { bgcolor: 'grey.50' }
-														}}>
-															{Array.isArray(row) ? (
-																// Handle array format (row is an array)
-																row.map((cell: any, cellIndex: number) => (
-																<Typography 
-																	key={cellIndex} 
-																	variant="body2" 
-																	sx={{ 
-																		flex: 1,
-																		textAlign: cellIndex === 0 ? 'left' : 'right',
-																		fontWeight: cellIndex === 0 ? 500 : 400
-																	}}
-																>
-																	{cell}
-																</Typography>
-																))
-															) : (
-																// Handle object format (row is an object)
-																table.columns.map((column: string, cellIndex: number) => (
-																	<Typography 
-																		key={cellIndex} 
-																		variant="body2" 
-																		sx={{ 
-																			flex: 1,
-																			textAlign: cellIndex === 0 ? 'left' : 'right',
-																			fontWeight: cellIndex === 0 ? 500 : 400
-																		}}
-																	>
-																		{String(row[column] || "-")}
-																	</Typography>
-																))
-															)}
-														</Box>
-													))}
-												</Box>
-											)}
-										</CardContent>
-									</Card>
-								</Grid>
-							))}
-						</Grid>
-					)}
-				</>
-			)}
+												)}
+											</CardContent>
+										</Card>
+									</Grid>
+								))}
+							</Grid>
+						)}
+					</>
+				)}
 
 			{/* LLM-Generated Performance Hub Analysis */}
-			{config.templateType === "performance_hub" && (config as any)?.llm_analysis && (
-				<>
-					{/* Performance Hub KPIs Grid - Optimized for Full Width */}
-					<Grid container spacing={{ xs: 1, sm: 2, md: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
-						{(config as any).kpis && (config as any).kpis.map((kpi: any, index: number) => (
-							<Grid key={kpi.id || index} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-								<Card sx={{ 
-									height: '100%',
-									background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
-									color: 'white',
-									transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-									position: 'relative',
-									overflow: 'hidden',
-									'&:hover': {
-										transform: 'translateY(-4px)',
-										boxShadow: '0 8px 25px rgba(0,0,0,0.15)'
-									},
-									'&::before': {
-										content: '""',
-										position: 'absolute',
-										top: 0,
-										left: 0,
-										right: 0,
-										bottom: 0,
-										background: 'rgba(0,0,0,0.1)',
-										zIndex: 0
-									}
-								}}>
-									<CardContent sx={{ 
-										p: { xs: 1.5, sm: 2, md: 3 },
-										height: '100%',
-										display: 'flex',
-										flexDirection: 'column',
-										justifyContent: 'space-between',
-										position: 'relative',
-										zIndex: 1
-									}}>
-										<Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: { xs: 1, md: 2 } }}>
-											<Box sx={{ 
-												width: { xs: 40, sm: 48 }, 
-												height: { xs: 40, sm: 48 }, 
-												borderRadius: 2, 
-												bgcolor: 'rgba(255,255,255,0.25)', 
-												display: 'flex', 
-												alignItems: 'center', 
-												justifyContent: 'center',
-												backdropFilter: 'blur(10px)',
-												border: '1px solid rgba(255,255,255,0.1)'
+			{config.templateType === "performance_hub" &&
+				(config as any)?.llm_analysis && (
+					<>
+						{/* Performance Hub KPIs Grid - Optimized for Full Width */}
+						<Grid
+							container
+							spacing={{ xs: 1, sm: 2, md: 3 }}
+							sx={{ mb: { xs: 2, md: 4 } }}>
+							{(config as any).kpis &&
+								(config as any).kpis.map((kpi: any, index: number) => (
+									<Grid
+										key={kpi.id || index}
+										size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+										<Card
+											sx={{
+												height: "100%",
+												background:
+													"linear-gradient(135deg, #ff9800 0%, #f57c00 100%)",
+												color: "white",
+												transition:
+													"transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out",
+												position: "relative",
+												overflow: "hidden",
+												"&:hover": {
+													transform: "translateY(-4px)",
+													boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
+												},
+												"&::before": {
+													content: '""',
+													position: "absolute",
+													top: 0,
+													left: 0,
+													right: 0,
+													bottom: 0,
+													background: "rgba(0,0,0,0.1)",
+													zIndex: 0,
+												},
 											}}>
-												<Typography variant="h6" color="white" sx={{ 
-													fontWeight: 'bold',
-													fontSize: { xs: '1rem', sm: '1.25rem' },
-													color: 'white',
-													textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+											<CardContent
+												sx={{
+													p: { xs: 1.5, sm: 2, md: 3 },
+													height: "100%",
+													display: "flex",
+													flexDirection: "column",
+													justifyContent: "space-between",
+													position: "relative",
+													zIndex: 1,
 												}}>
-													{kpi.category === 'efficiency' ? '⚡' : 
-													 kpi.category === 'reliability' ? '🛡️' : 
-													 kpi.category === 'quality' ? '⭐' : 
-													 kpi.category === 'speed' ? '🚀' : 
-													 kpi.category === 'performance' ? '📊' : '⚙️'}
-												</Typography>
-											</Box>
-											{kpi.trend && (
-												<Box sx={{ 
-													display: 'flex', 
-													alignItems: 'center',
-													px: { xs: 0.5, sm: 1 },
-													py: 0.5,
-													borderRadius: 1,
-													bgcolor: kpi.trend.direction === 'upward' ? 'rgba(76, 175, 80, 0.2)' : 
-															 kpi.trend.direction === 'downward' ? 'rgba(244, 67, 54, 0.2)' : 'rgba(158, 158, 158, 0.2)'
-												}}>
-													<Typography variant="caption" sx={{ 
-														fontWeight: 600,
-														fontSize: { xs: '0.7rem', sm: '0.75rem' }
+												<Box
+													sx={{
+														display: "flex",
+														alignItems: "flex-start",
+														justifyContent: "space-between",
+														mb: { xs: 1, md: 2 },
 													}}>
-														{kpi.trend.direction === 'upward' ? '↗' : kpi.trend.direction === 'downward' ? '↘' : '→'}
+													<Box
+														sx={{
+															width: { xs: 40, sm: 48 },
+															height: { xs: 40, sm: 48 },
+															borderRadius: 2,
+															bgcolor: "rgba(255,255,255,0.25)",
+															display: "flex",
+															alignItems: "center",
+															justifyContent: "center",
+															backdropFilter: "blur(10px)",
+															border: "1px solid rgba(255,255,255,0.1)",
+														}}>
+														<Typography
+															variant="h6"
+															color="white"
+															sx={{
+																fontWeight: "bold",
+																fontSize: { xs: "1rem", sm: "1.25rem" },
+																color: "white",
+																textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+															}}>
+															{kpi.category === "efficiency"
+																? "⚡"
+																: kpi.category === "reliability"
+																? "🛡️"
+																: kpi.category === "quality"
+																? "⭐"
+																: kpi.category === "speed"
+																? "🚀"
+																: kpi.category === "performance"
+																? "📊"
+																: "⚙️"}
+														</Typography>
+													</Box>
+													{kpi.trend && (
+														<Box
+															sx={{
+																display: "flex",
+																alignItems: "center",
+																px: { xs: 0.5, sm: 1 },
+																py: 0.5,
+																borderRadius: 1,
+																bgcolor:
+																	kpi.trend.direction === "upward"
+																		? "rgba(76, 175, 80, 0.2)"
+																		: kpi.trend.direction === "downward"
+																		? "rgba(244, 67, 54, 0.2)"
+																		: "rgba(158, 158, 158, 0.2)",
+															}}>
+															<Typography
+																variant="caption"
+																sx={{
+																	fontWeight: 600,
+																	fontSize: { xs: "0.7rem", sm: "0.75rem" },
+																}}>
+																{kpi.trend.direction === "upward"
+																	? "↗"
+																	: kpi.trend.direction === "downward"
+																	? "↘"
+																	: "→"}
+															</Typography>
+														</Box>
+													)}
+												</Box>
+
+												<Box
+													sx={{
+														flex: 1,
+														display: "flex",
+														flexDirection: "column",
+														justifyContent: "center",
+													}}>
+													<Typography
+														variant="h3"
+														component="div"
+														sx={{
+															fontWeight: "bold",
+															mb: { xs: 0.5, md: 1 },
+															fontSize: {
+																xs: "1.25rem",
+																sm: "1.75rem",
+																md: "2rem",
+																lg: "2.25rem",
+															},
+															lineHeight: 1.2,
+															color: "white",
+															textShadow: "0 1px 3px rgba(0,0,0,0.4)",
+															letterSpacing: "-0.02em",
+														}}>
+														{formatKPIValue(kpi.value, kpi.format)}
+													</Typography>
+													<Typography
+														variant="body1"
+														sx={{
+															opacity: 0.95,
+															fontWeight: 500,
+															fontSize: {
+																xs: "0.8rem",
+																sm: "0.9rem",
+																md: "1rem",
+															},
+															lineHeight: 1.3,
+															color: "white",
+															textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+														}}>
+														{kpi.display_name || kpi.title}
+													</Typography>
+													{kpi.trend?.percentage && (
+														<Typography
+															variant="body2"
+															sx={{
+																fontWeight: 600,
+																display: "flex",
+																alignItems: "center",
+																gap: 0.5,
+																mt: 0.5,
+															}}>
+															<Box
+																component="span"
+																sx={{
+																	color:
+																		kpi.trend.direction === "upward"
+																			? "#81c784"
+																			: kpi.trend.direction === "downward"
+																			? "#e57373"
+																			: "#bdbdbd",
+																	textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+																	fontWeight: "bold",
+																}}>
+																{kpi.trend.percentage > 0 ? "+" : ""}
+																{kpi.trend.percentage}%
+															</Box>
+															<Box
+																component="span"
+																sx={{
+																	opacity: 0.8,
+																	fontSize: "0.75rem",
+																	color: "white",
+																	textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+																}}>
+																{kpi.trend?.description || "vs last period"}
+															</Box>
+														</Typography>
+													)}
+												</Box>
+											</CardContent>
+										</Card>
+									</Grid>
+								))}
+						</Grid>
+
+						{/* Performance Hub Insights Section */}
+						<Grid container sx={{ mb: 3 }}>
+							<Grid size={{ xs: 12 }}>
+								<Card
+									sx={{
+										background:
+											"linear-gradient(135deg, #fff8e1 0%, #ffe0b2 100%)",
+										border: "1px solid #ffcc02",
+										boxShadow: "0 4px 20px rgba(255, 152, 0, 0.1)",
+									}}>
+									<CardHeader
+										title={
+											<Box
+												sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+												<Box
+													sx={{
+														width: 48,
+														height: 48,
+														borderRadius: 2,
+														background:
+															"linear-gradient(135deg, #ff9800 0%, #f57c00 100%)",
+														display: "flex",
+														alignItems: "center",
+														justifyContent: "center",
+													}}>
+													<Typography variant="h6" color="white">
+														⚡
 													</Typography>
 												</Box>
-											)}
+												<Box>
+													<Typography
+														variant="h5"
+														sx={{ fontWeight: "bold", color: "orange.main" }}>
+														AI-Powered Performance Analysis
+													</Typography>
+													<Typography variant="body2" color="text.secondary">
+														{(config as any)?.llm_analysis
+															?.performance_type_detected ||
+															"Operational Efficiency"}{" "}
+														Performance Insights
+													</Typography>
+												</Box>
+											</Box>
+										}
+										sx={{ pb: 2 }}
+									/>
+									<CardContent sx={{ pt: 0 }}>
+										<Box sx={{ mb: 2 }}>
+											{(config as any)?.insights &&
+												(config as any).insights.map(
+													(insight: string, index: number) => (
+														<Box
+															key={index}
+															sx={{
+																display: "flex",
+																alignItems: "flex-start",
+																mb: 3,
+																p: 2,
+																borderRadius: 2,
+																bgcolor: "white",
+																boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+																border: "1px solid #ffe0b2",
+																transition: "transform 0.2s ease-in-out",
+																"&:hover": {
+																	transform: "translateX(4px)",
+																	boxShadow:
+																		"0 4px 12px rgba(255, 152, 0, 0.15)",
+																},
+															}}>
+															<Box
+																sx={{
+																	minWidth: 32,
+																	height: 32,
+																	borderRadius: "50%",
+																	background:
+																		"linear-gradient(135deg, #ff9800 0%, #f57c00 100%)",
+																	display: "flex",
+																	alignItems: "center",
+																	justifyContent: "center",
+																	mr: 2,
+																	mt: 0.5,
+																	boxShadow: "0 2px 8px rgba(255, 152, 0, 0.3)",
+																}}>
+																<Typography
+																	variant="body2"
+																	color="white"
+																	sx={{ fontWeight: "bold" }}>
+																	{index + 1}
+																</Typography>
+															</Box>
+															<Typography
+																variant="body1"
+																color="text.primary"
+																sx={{
+																	fontWeight: 500,
+																	lineHeight: 1.6,
+																	flex: 1,
+																}}>
+																{insight}
+															</Typography>
+														</Box>
+													)
+												)}
 										</Box>
-										
-										<Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-											<Typography variant="h3" component="div" sx={{ 
-												fontWeight: 'bold', 
-												mb: { xs: 0.5, md: 1 },
-												fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2rem', lg: '2.25rem' },
-												lineHeight: 1.2,
-												color: 'white',
-												textShadow: '0 1px 3px rgba(0,0,0,0.4)',
-												letterSpacing: '-0.02em'
-											}}>
-												{formatKPIValue(kpi.value, kpi.format)}
-											</Typography>
-											<Typography variant="body1" sx={{ 
-												opacity: 0.95,
-												fontWeight: 500,
-												fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
-												lineHeight: 1.3,
-												color: 'white',
-												textShadow: '0 1px 2px rgba(0,0,0,0.3)'
-											}}>
-												{kpi.display_name || kpi.title}
-											</Typography>
-											{kpi.trend?.percentage && (
-												<Typography 
-													variant="body2" 
-													sx={{ 
-														fontWeight: 600,
-														display: 'flex',
-														alignItems: 'center',
-														gap: 0.5,
-														mt: 0.5
-													}}
-												>
-													<Box component="span" sx={{ 
-														color: kpi.trend.direction === 'upward' ? '#81c784' : 
-															   kpi.trend.direction === 'downward' ? '#e57373' : '#bdbdbd',
-														textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-														fontWeight: 'bold'
-													}}>
-														{kpi.trend.percentage > 0 ? '+' : ''}{kpi.trend.percentage}%
+									</CardContent>
+								</Card>
+							</Grid>
+						</Grid>
+
+						{/* Performance Hub Charts - Edge-to-Edge Layout */}
+						{config.templateType === "performance_hub" &&
+							(config as any)?.charts &&
+							Object.keys((config as any).charts).length > 0 && (
+								<Grid
+									container
+									spacing={{ xs: 2, sm: 3, md: 3 }}
+									sx={{
+										mb: { xs: 2, md: 4 },
+										alignItems: "stretch",
+									}}>
+									{Object.entries((config as any).charts).map(
+										([chartKey, chartData]: [string, any], index: number) => {
+											console.log(
+												`🔍 Rendering performance chart ${chartKey}:`,
+												{
+													chartKey,
+													index,
+													chartData: {
+														title: chartData.title,
+														type: chartData.type,
+														hasData: !!chartData.data,
+														dataLength: chartData.data?.length,
+														dataFirstItem: chartData.data?.[0],
+														hasLabels: !!chartData.labels,
+														labelsLength: chartData.labels?.length,
+														labelsFirstItem: chartData.labels?.[0],
+														hasConfig: !!chartData.config,
+														fullData: chartData,
+													},
+												}
+											);
+
+											// Equal spacing chart sizing for Performance Dashboard
+											const totalCharts = Object.keys(
+												(config as any).charts
+											).length;
+											const getChartSize = () => {
+												if (totalCharts === 1) return { xs: 12 };
+												if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each
+												const chartsPerRowMd = 3;
+												const remainder = totalCharts % chartsPerRowMd;
+												if (remainder === 2 && index >= totalCharts - 2) {
+													return { xs: 12, sm: 6, md: 6 };
+												}
+												if (remainder === 1 && index === totalCharts - 1) {
+													return { xs: 12 };
+												}
+												return { xs: 12, sm: 6, md: 4 };
+											};
+
+											return (
+												<Grid key={chartKey} size={getChartSize()}>
+													<Card
+														sx={{
+															height: {
+																xs: "auto",
+																sm: "400px",
+																md: "450px",
+																lg: "480px",
+															},
+															minHeight: { xs: "350px", sm: "380px" },
+															display: "flex",
+															flexDirection: "column",
+														}}>
+														<CardHeader
+															title={chartData.title || chartKey}
+															subheader={`${
+																chartData.type?.toUpperCase() || "CHART"
+															} • Performance Analytics`}
+														/>
+														<CardContent
+															sx={{
+																flex: 1,
+																display: "flex",
+																flexDirection: "column",
+																p: { xs: 1, sm: 2, md: 3 },
+															}}>
+															<Box
+																sx={{
+																	flex: 1,
+																	display: "flex",
+																	flexDirection: "column",
+																	minHeight: { xs: "250px", sm: "300px" },
+																}}>
+																{isValidChartData(chartData) ? (
+																	<>
+																		{/* Render Actual Chart Components */}
+																		<Box sx={{ flex: 1, minHeight: 200 }}>
+																			{chartData.type === "line" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																					}}>
+																					<LineChart
+																						series={[
+																							{
+																								data: chartData.data.map(
+																									(val: any) => {
+																										const num = Number(val);
+																										return isNaN(num) ? 0 : num;
+																									}
+																								),
+																								label:
+																									chartData.title ||
+																									"Performance",
+																								color: "#ff9800",
+																							},
+																						]}
+																						xAxis={[
+																							{
+																								data: chartData.labels.map(
+																									(label: any) =>
+																										String(label || "")
+																								),
+																								scaleType: "point",
+																							},
+																						]}
+																						height={200}
+																						margin={{
+																							left: 50,
+																							right: 50,
+																							top: 20,
+																							bottom: 50,
+																						}}
+																						skipAnimation={true}
+																						slotProps={{
+																							noDataOverlay: {
+																								message: "No data available",
+																							},
+																						}}
+																					/>
+																				</div>
+																			)}
+
+																			{chartData.type === "scatter" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																					}}>
+																					<Charts.ScatterChart
+																						data={chartData.labels
+																							.map(
+																								(label: string, i: number) => {
+																									const xValue = Number(
+																										chartData.data[i]
+																									);
+																									const yValue =
+																										Number(chartData.data[i]) *
+																										(Math.random() * 0.5 +
+																											0.75); // Add some variation
+																									return {
+																										x: isNaN(xValue)
+																											? i
+																											: xValue,
+																										y: isNaN(yValue)
+																											? i
+																											: yValue,
+																										label: String(
+																											label || `Point ${i + 1}`
+																										),
+																									};
+																								}
+																							)
+																							.filter(
+																								(item: any) =>
+																									item.x >= 0 && item.y >= 0
+																							)}
+																						title={chartData.title}
+																						xAxisLabel="X Value"
+																						yAxisLabel="Y Value"
+																					/>
+																				</div>
+																			)}
+
+																			{chartData.type === "bar" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																					}}>
+																					<BarChart
+																						series={[
+																							{
+																								data: chartData.data.map(
+																									(val: any) => {
+																										const num = Number(val);
+																										return isNaN(num) ? 0 : num;
+																									}
+																								),
+																								label:
+																									chartData.title ||
+																									"Performance",
+																								color: "#ff9800",
+																							},
+																						]}
+																						xAxis={[
+																							{
+																								data: chartData.labels.map(
+																									(label: any) =>
+																										String(label || "")
+																								),
+																								scaleType: "band",
+																							},
+																						]}
+																						height={200}
+																						margin={{
+																							left: 50,
+																							right: 50,
+																							top: 20,
+																							bottom: 50,
+																						}}
+																						skipAnimation={true}
+																						slotProps={{
+																							noDataOverlay: {
+																								message: "No data available",
+																							},
+																						}}
+																					/>
+																				</div>
+																			)}
+
+																			{chartData.type === "pie" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																						display: "flex",
+																						justifyContent: "center",
+																					}}>
+																					<PieChart
+																						series={[
+																							{
+																								data: chartData.labels
+																									.map(
+																										(
+																											label: string,
+																											i: number
+																										) => {
+																											const value = Number(
+																												chartData.data[i]
+																											);
+																											return {
+																												id: i,
+																												value: isNaN(value)
+																													? 0
+																													: value,
+																												label: String(
+																													label ||
+																														`Item ${i + 1}`
+																												),
+																											};
+																										}
+																									)
+																									.filter(
+																										(item: any) =>
+																											item.value > 0
+																									),
+																								highlightScope: {
+																									fade: "global",
+																									highlight: "item",
+																								} as const,
+																							},
+																						]}
+																						height={200}
+																						skipAnimation={true}
+																						slotProps={{
+																							noDataOverlay: {
+																								message: "No data available",
+																							},
+																						}}
+																					/>
+																				</div>
+																			)}
+
+																			{chartData.type === "radial" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																						display: "flex",
+																						justifyContent: "center",
+																					}}>
+																					<PieChart
+																						series={[
+																							{
+																								data: chartData.labels
+																									.map(
+																										(
+																											label: string,
+																											i: number
+																										) => {
+																											const value = Number(
+																												chartData.data[i]
+																											);
+																											return {
+																												id: i,
+																												value: isNaN(value)
+																													? 0
+																													: value,
+																												label: String(
+																													label ||
+																														`Item ${i + 1}`
+																												),
+																											};
+																										}
+																									)
+																									.filter(
+																										(item: any) =>
+																											item.value > 0
+																									),
+																								highlightScope: {
+																									fade: "global",
+																									highlight: "item",
+																								} as const,
+																								innerRadius: 40,
+																								outerRadius: 80,
+																							},
+																						]}
+																						height={200}
+																						skipAnimation={true}
+																						slotProps={{
+																							noDataOverlay: {
+																								message: "No data available",
+																							},
+																						}}
+																					/>
+																				</div>
+																			)}
+
+																			{chartData.type === "scatter" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																					}}>
+																					<Charts.ScatterChart
+																						data={chartData.labels
+																							.map(
+																								(label: string, i: number) => {
+																									const xValue = Number(
+																										chartData.data[i]
+																									);
+																									const yValue =
+																										Number(chartData.data[i]) *
+																										(Math.random() * 0.5 +
+																											0.75); // Add some variation
+																									return {
+																										x: isNaN(xValue)
+																											? i
+																											: xValue,
+																										y: isNaN(yValue)
+																											? i
+																											: yValue,
+																										label: String(
+																											label || `Point ${i + 1}`
+																										),
+																									};
+																								}
+																							)
+																							.filter(
+																								(item: any) =>
+																									item.x >= 0 && item.y >= 0
+																							)}
+																						title={chartData.title}
+																						xAxisLabel="X Value"
+																						yAxisLabel="Y Value"
+																					/>
+																				</div>
+																			)}
+
+																			{/* Handle special chart types that might cause offsetY errors */}
+																			{(chartData.type === "radar" ||
+																				chartData.type === "heatmap") && (
+																				<Box
+																					sx={{
+																						display: "flex",
+																						alignItems: "center",
+																						justifyContent: "center",
+																						height: 200,
+																						bgcolor: "orange.50",
+																						borderRadius: 1,
+																						border: "1px dashed",
+																						borderColor: "orange.300",
+																					}}>
+																					<Typography
+																						variant="body1"
+																						color="text.secondary">
+																						⚡ {chartData.type.toUpperCase()}{" "}
+																						Chart: {chartData.title}
+																					</Typography>
+																				</Box>
+																			)}
+																		</Box>
+
+																		{/* Chart Insights */}
+																		{chartData.insights && (
+																			<Box
+																				sx={{
+																					p: 2,
+																					mt: 2,
+																					bgcolor: "warning.50",
+																					borderRadius: 1,
+																					border: "1px solid",
+																					borderColor: "warning.200",
+																				}}>
+																				<Typography
+																					variant="body2"
+																					color="warning.main"
+																					sx={{
+																						fontStyle: "italic",
+																						lineHeight: 1.5,
+																					}}>
+																					⚡ {chartData.insights}
+																				</Typography>
+																			</Box>
+																		)}
+																	</>
+																) : (
+																	<Box
+																		sx={{
+																			display: "flex",
+																			alignItems: "center",
+																			justifyContent: "center",
+																			height: 200,
+																			bgcolor: "orange.50",
+																			borderRadius: 1,
+																			border: "1px dashed",
+																			borderColor: "orange.300",
+																		}}>
+																		<Typography
+																			variant="body1"
+																			color="text.secondary">
+																			⚡ Chart data is loading or unavailable
+																		</Typography>
+																	</Box>
+																)}
+															</Box>
+														</CardContent>
+													</Card>
+												</Grid>
+											);
+										}
+									)}
+								</Grid>
+							)}
+						{(config as any)?.charts &&
+							Object.keys((config as any).charts).length > 0 &&
+							config.templateType !== "performance_hub" && (
+								<Grid
+									container
+									spacing={{ xs: 2, sm: 3, md: 4 }}
+									sx={{
+										mb: { xs: 2, md: 4 },
+										justifyContent: "center",
+										alignItems: "stretch",
+										px: 0,
+									}}>
+									{Object.entries((config as any).charts).map(
+										([chartKey, chartData]: [string, any], index: number) => {
+											const totalCharts = Object.keys(
+												(config as any).charts
+											).length;
+											const getChartSize = () => {
+												if (totalCharts === 1) return { xs: 12 };
+												if (totalCharts === 2) return { xs: 12, md: 6 };
+												const chartsPerRowMd = 3;
+												const remainder = totalCharts % chartsPerRowMd;
+												if (remainder === 2 && index >= totalCharts - 2) {
+													return { xs: 12, sm: 6, md: 6 };
+												}
+												if (remainder === 1 && index === totalCharts - 1) {
+													return { xs: 12 };
+												}
+												return { xs: 12, sm: 6, md: 4 };
+											};
+
+											return (
+												<Grid key={chartKey} size={getChartSize()}>
+													<Card sx={{ height: "100%" }}>
+														<CardHeader
+															title={chartData.title || chartKey}
+															subheader={`${
+																chartData.type?.toUpperCase() || "PERFORMANCE"
+															} • AI Analysis`}
+														/>
+														<CardContent>
+															<Box
+																sx={{
+																	height: 300,
+																	display: "flex",
+																	flexDirection: "column",
+																}}>
+																{isValidChartData(chartData) ? (
+																	<>
+																		{/* Render Actual Chart Components */}
+																		<Box sx={{ flex: 1, minHeight: 200 }}>
+																			{chartData.type === "line" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																					}}>
+																					<LineChart
+																						series={[
+																							{
+																								data: chartData.data.map(
+																									(val: any) => {
+																										const num = Number(val);
+																										return isNaN(num) ? 0 : num;
+																									}
+																								),
+																								label:
+																									chartData.title ||
+																									"Performance",
+																								color: "#ff9800",
+																							},
+																						]}
+																						xAxis={[
+																							{
+																								data: chartData.labels.map(
+																									(label: any) =>
+																										String(label || "")
+																								),
+																								scaleType: "point",
+																							},
+																						]}
+																						height={200}
+																						margin={{
+																							left: 50,
+																							right: 50,
+																							top: 20,
+																							bottom: 50,
+																						}}
+																						skipAnimation={true}
+																						slotProps={{
+																							noDataOverlay: {
+																								message: "No data available",
+																							},
+																						}}
+																					/>
+																				</div>
+																			)}
+
+																			{chartData.type === "pie" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																						display: "flex",
+																						justifyContent: "center",
+																					}}>
+																					<PieChart
+																						series={[
+																							{
+																								data: chartData.labels
+																									.map(
+																										(
+																											label: string,
+																											i: number
+																										) => {
+																											const value = Number(
+																												chartData.data[i]
+																											);
+																											return {
+																												id: i,
+																												value: isNaN(value)
+																													? 0
+																													: value,
+																												label: String(
+																													label ||
+																														`Item ${i + 1}`
+																												),
+																											};
+																										}
+																									)
+																									.filter(
+																										(item: any) =>
+																											item.value > 0
+																									),
+																								highlightScope: {
+																									fade: "global",
+																									highlight: "item",
+																								} as const,
+																							},
+																						]}
+																						height={200}
+																						skipAnimation={true}
+																						slotProps={{
+																							noDataOverlay: {
+																								message: "No data available",
+																							},
+																						}}
+																					/>
+																				</div>
+																			)}
+
+																			{chartData.type === "radial" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																						display: "flex",
+																						justifyContent: "center",
+																					}}>
+																					<PieChart
+																						series={[
+																							{
+																								data: chartData.labels
+																									.map(
+																										(
+																											label: string,
+																											i: number
+																										) => {
+																											const value = Number(
+																												chartData.data[i]
+																											);
+																											return {
+																												id: i,
+																												value: isNaN(value)
+																													? 0
+																													: value,
+																												label: String(
+																													label ||
+																														`Item ${i + 1}`
+																												),
+																											};
+																										}
+																									)
+																									.filter(
+																										(item: any) =>
+																											item.value > 0
+																									),
+																								highlightScope: {
+																									fade: "global",
+																									highlight: "item",
+																								} as const,
+																								innerRadius: 40,
+																								outerRadius: 80,
+																							},
+																						]}
+																						height={200}
+																						skipAnimation={true}
+																						slotProps={{
+																							noDataOverlay: {
+																								message: "No data available",
+																							},
+																						}}
+																					/>
+																				</div>
+																			)}
+
+																			{chartData.type === "radar" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																					}}>
+																					<Charts.RadarChart
+																						data={chartData.labels
+																							.map(
+																								(label: string, i: number) => {
+																									const value = Number(
+																										chartData.data[i]
+																									);
+																									return {
+																										category: String(
+																											label ||
+																												`Category ${i + 1}`
+																										),
+																										value: isNaN(value)
+																											? 0
+																											: value,
+																									};
+																								}
+																							)
+																							.filter(
+																								(item: any) => item.value > 0
+																							)}
+																						title={chartData.title}
+																						minimal={true}
+																					/>
+																				</div>
+																			)}
+
+																			{chartData.type === "heatmap" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																					}}>
+																					<Charts.HeatmapChart
+																						data={chartData.labels
+																							.map(
+																								(label: string, i: number) => {
+																									const value = Number(
+																										chartData.data[i]
+																									);
+																									return {
+																										name: String(
+																											label || `Item ${i + 1}`
+																										),
+																										value: isNaN(value)
+																											? 0
+																											: value,
+																									};
+																								}
+																							)
+																							.filter(
+																								(item: any) => item.value > 0
+																							)}
+																						title={chartData.title}
+																						minimal={true}
+																					/>
+																				</div>
+																			)}
+
+																			{chartData.type === "bar" && (
+																				<div
+																					style={{
+																						width: "100%",
+																						height: "200px",
+																					}}>
+																					<BarChart
+																						series={[
+																							{
+																								data: chartData.data.map(
+																									(val: any) => {
+																										const num = Number(val);
+																										return isNaN(num) ? 0 : num;
+																									}
+																								),
+																								label:
+																									chartData.title ||
+																									"Performance",
+																								color: "#f44336",
+																							},
+																						]}
+																						xAxis={[
+																							{
+																								data: chartData.labels.map(
+																									(label: any) =>
+																										String(label || "")
+																								),
+																								scaleType: "band",
+																							},
+																						]}
+																						height={200}
+																						margin={{
+																							left: 50,
+																							right: 50,
+																							top: 20,
+																							bottom: 50,
+																						}}
+																						skipAnimation={true}
+																						slotProps={{
+																							noDataOverlay: {
+																								message: "No data available",
+																							},
+																						}}
+																					/>
+																				</div>
+																			)}
+																		</Box>
+
+																		{/* Chart Insights */}
+																		{chartData.insights && (
+																			<Box
+																				sx={{
+																					p: 2,
+																					mt: 2,
+																					bgcolor: "warning.50",
+																					borderRadius: 1,
+																					border: "1px solid",
+																					borderColor: "warning.200",
+																				}}>
+																				<Typography
+																					variant="body2"
+																					color="warning.main"
+																					sx={{
+																						fontStyle: "italic",
+																						lineHeight: 1.5,
+																					}}>
+																					⚡ {chartData.insights}
+																				</Typography>
+																			</Box>
+																		)}
+																	</>
+																) : (
+																	<Box
+																		sx={{
+																			display: "flex",
+																			alignItems: "center",
+																			justifyContent: "center",
+																			height: 200,
+																			bgcolor: "grey.50",
+																			borderRadius: 1,
+																			border: "1px dashed",
+																			borderColor: "grey.300",
+																		}}>
+																		<Typography
+																			variant="body1"
+																			color="text.secondary">
+																			📊 Chart data is loading or unavailable
+																		</Typography>
+																	</Box>
+																)}
+															</Box>
+														</CardContent>
+													</Card>
+												</Grid>
+											);
+										}
+									)}
+								</Grid>
+							)}
+
+						{/* Performance Hub Tables */}
+						{(config as any)?.tables && (config as any).tables.length > 0 && (
+							<Grid container spacing={2} sx={{ mb: 3 }}>
+								{(config as any).tables.map((table: any, index: number) => (
+									<Grid key={index} size={{ xs: 12 }}>
+										<Card>
+											<CardHeader
+												title={
+													table.title || `Performance Analysis ${index + 1}`
+												}
+												subheader="Performance metrics and operational insights"
+											/>
+											<CardContent>
+												{table.columns && table.data && (
+													<Box sx={{ overflow: "auto" }}>
+														{/* Table Header */}
+														<Box
+															sx={{
+																display: "flex",
+																bgcolor: "secondary.100",
+																p: 1,
+																borderRadius: 1,
+																mb: 1,
+															}}>
+															{table.columns.map(
+																(column: string, colIndex: number) => (
+																	<Typography
+																		key={colIndex}
+																		variant="subtitle2"
+																		sx={{
+																			flex: 1,
+																			fontWeight: "bold",
+																			textAlign:
+																				colIndex === 0 ? "left" : "right",
+																		}}>
+																		{column}
+																	</Typography>
+																)
+															)}
+														</Box>
+
+														{/* Table Data */}
+														{table.data.map((row: any, rowIndex: number) => (
+															<Box
+																key={rowIndex}
+																sx={{
+																	display: "flex",
+																	p: 1,
+																	borderBottom: "1px solid",
+																	borderColor: "grey.200",
+																	"&:hover": { bgcolor: "secondary.50" },
+																}}>
+																{Array.isArray(row)
+																	? // Handle array format (row is an array)
+																	  row.map((cell: any, cellIndex: number) => (
+																			<Typography
+																				key={cellIndex}
+																				variant="body2"
+																				sx={{
+																					flex: 1,
+																					textAlign:
+																						cellIndex === 0 ? "left" : "right",
+																					fontWeight:
+																						cellIndex === 0 ? 500 : 400,
+																				}}>
+																				{cell}
+																			</Typography>
+																	  ))
+																	: // Handle object format (row is an object)
+																	  table.columns.map(
+																			(column: string, cellIndex: number) => (
+																				<Typography
+																					key={cellIndex}
+																					variant="body2"
+																					sx={{
+																						flex: 1,
+																						textAlign:
+																							cellIndex === 0
+																								? "left"
+																								: "right",
+																						fontWeight:
+																							cellIndex === 0 ? 500 : 400,
+																					}}>
+																					{String(row[column] || "-")}
+																				</Typography>
+																			)
+																	  )}
+															</Box>
+														))}
 													</Box>
-													<Box component="span" sx={{ 
-														opacity: 0.8, 
-														fontSize: '0.75rem',
-														color: 'white',
-														textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+												)}
+											</CardContent>
+										</Card>
+									</Grid>
+								))}
+							</Grid>
+						)}
+					</>
+				)}
+
+			{/* Default Charts for Main Template */}
+			{config.showCharts &&
+				config.templateType !== "business_intelligence" &&
+				config.templateType !== "performance_hub" && (
+					<>
+						{/* First Row - Trading Volume and Portfolio Charts */}
+						<Grid
+							container
+							spacing={{ xs: 2, sm: 3, md: 3 }}
+							sx={{
+								mb: { xs: 2, md: 4 },
+								justifyContent: "center",
+								alignItems: "stretch",
+							}}>
+							<Grid size={{ xs: 12, md: 6 }}>
+								<Card
+									sx={{
+										height: "100%",
+										boxShadow: { xs: 2, md: 4 },
+										borderRadius: 2,
+										transition:
+											"transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out",
+										"&:hover": {
+											transform: "translateY(-2px)",
+											boxShadow: 6,
+										},
+									}}>
+									<CardHeader
+										title="Trading Volume Analysis"
+										subheader={`Stock trading patterns • ${clientData.length} transactions analyzed`}
+									/>
+									<CardContent
+										sx={{
+											p: { xs: 2, sm: 3 },
+											height: "calc(100% - 80px)",
+											display: "flex",
+											flexDirection: "column",
+										}}>
+										<Box
+											sx={{
+												flex: 1,
+												display: "flex",
+												justifyContent: "center",
+												alignItems: "center",
+												minHeight: { xs: 280, sm: 320, md: 350 },
+											}}>
+											{clientData.length > 0 ? (
+												<div
+													style={{
+														width: "100%",
+														height: "100%",
+														minHeight: "280px",
+														display: "flex",
+														justifyContent: "center",
+														alignItems: "center",
 													}}>
-														{kpi.trend?.description || 'vs last period'}
-													</Box>
+													<LineChart
+														xAxis={[
+															{
+																data: (() => {
+																	// Try to get AI-generated chart labels first
+																	const aiData =
+																		getAIChartData("volume") ||
+																		getAIChartData("trend") ||
+																		getAIChartData("quarterly");
+																	if (
+																		aiData &&
+																		aiData.labels &&
+																		Array.isArray(aiData.labels)
+																	) {
+																		return aiData.labels.slice(0, 10);
+																	}
+
+																	// Fallback: Create dynamic labels from data
+																	const numericFields = dataColumns.filter(
+																		(col) => {
+																			const values = clientData
+																				.map((record) => record[col])
+																				.filter((v) => v != null);
+																			return (
+																				values.length > 0 &&
+																				!isNaN(parseFloat(values[0]))
+																			);
+																		}
+																	);
+
+																	if (numericFields.length > 0) {
+																		const labelField =
+																			dataColumns.find(
+																				(col) =>
+																					typeof clientData[0][col] === "string"
+																			) || dataColumns[0];
+																		const chartData = createDynamicChartData(
+																			clientData,
+																			labelField,
+																			numericFields[0],
+																			10
+																		);
+																		return chartData.map(
+																			(item, index) =>
+																				item.name || `Item ${index + 1}`
+																		);
+																	}
+
+																	// Last resort: use period labels
+																	return [
+																		"Period 1",
+																		"Period 2",
+																		"Period 3",
+																		"Period 4",
+																		"Period 5",
+																		"Period 6",
+																		"Period 7",
+																		"Period 8",
+																		"Period 9",
+																		"Period 10",
+																	];
+																})(),
+																scaleType: "point",
+															},
+														]}
+														series={[
+															{
+																data: (() => {
+																	// Try to get AI-generated chart data first
+																	const aiData =
+																		getAIChartData("volume") ||
+																		getAIChartData("trend") ||
+																		getAIChartData("quarterly");
+																	if (
+																		aiData &&
+																		aiData.data &&
+																		Array.isArray(aiData.data)
+																	) {
+																		return aiData.data
+																			.slice(0, 10)
+																			.map(
+																				(item: any) =>
+																					item.value || item.desktop || 0
+																			);
+																	}
+
+																	// Fallback: Create dynamic chart from any numeric field
+																	const numericFields = dataColumns.filter(
+																		(col) => {
+																			const values = clientData
+																				.map((record) => record[col])
+																				.filter((v) => v != null);
+																			return (
+																				values.length > 0 &&
+																				!isNaN(parseFloat(values[0]))
+																			);
+																		}
+																	);
+
+																	if (numericFields.length > 0) {
+																		const field = numericFields[0]; // Use first numeric field
+																		const chartData = createDynamicChartData(
+																			clientData,
+																			dataColumns.find(
+																				(col) =>
+																					typeof clientData[0][col] === "string"
+																			) || dataColumns[0],
+																			field,
+																			10
+																		);
+																		return chartData.map((item) => item.value);
+																	}
+
+																	return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+																})(),
+																label: `${dataColumns[0] || "Data"} Analysis`,
+																color: "#1976d2",
+															},
+															{
+																data: (() => {
+																	// Try to get second AI chart or use second numeric field
+																	const aiData =
+																		getAIChartData("price") ||
+																		getAIChartData("revenue") ||
+																		getAIChartData("performance");
+																	if (
+																		aiData &&
+																		aiData.data &&
+																		Array.isArray(aiData.data)
+																	) {
+																		return aiData.data
+																			.slice(0, 10)
+																			.map(
+																				(item: any) =>
+																					item.value || item.mobile || 0
+																			);
+																	}
+
+																	// Fallback: Use second numeric field
+																	const numericFields = dataColumns.filter(
+																		(col) => {
+																			const values = clientData
+																				.map((record) => record[col])
+																				.filter((v) => v != null);
+																			return (
+																				values.length > 0 &&
+																				!isNaN(parseFloat(values[0]))
+																			);
+																		}
+																	);
+
+																	if (numericFields.length > 1) {
+																		const field = numericFields[1]; // Use second numeric field
+																		const chartData = createDynamicChartData(
+																			clientData,
+																			dataColumns.find(
+																				(col) =>
+																					typeof clientData[0][col] === "string"
+																			) || dataColumns[0],
+																			field,
+																			10
+																		);
+																		return chartData.map((item) => item.value);
+																	}
+
+																	return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+																})(),
+																label: `${
+																	dataColumns[1] || "Secondary"
+																} Metric`,
+																color: "#dc004e",
+															},
+														]}
+														height={250}
+														skipAnimation={true}
+														slotProps={{
+															noDataOverlay: { message: "No data available" },
+														}}
+													/>
+												</div>
+											) : (
+												<Typography
+													color="text.secondary"
+													sx={{
+														display: "flex",
+														justifyContent: "center",
+														alignItems: "center",
+														height: "100%",
+													}}>
+													No data available
 												</Typography>
 											)}
 										</Box>
 									</CardContent>
 								</Card>
 							</Grid>
-						))}
-					</Grid>
-
-					{/* Performance Hub Insights Section */}
-					<Grid container sx={{ mb: 3 }}>
-						<Grid size={{ xs: 12 }}>
-							<Card sx={{ 
-								background: 'linear-gradient(135deg, #fff8e1 0%, #ffe0b2 100%)',
-								border: '1px solid #ffcc02',
-								boxShadow: '0 4px 20px rgba(255, 152, 0, 0.1)'
-							}}>
-								<CardHeader
-									title={
-										<Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-											<Box sx={{ 
-												width: 48, 
-												height: 48, 
-												borderRadius: 2,
-												background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
-												display: 'flex', 
-												alignItems: 'center', 
-												justifyContent: 'center'
-											}}>
-												<Typography variant="h6" color="white">⚡</Typography>
-											</Box>
-											<Box>
-												<Typography variant="h5" sx={{ fontWeight: 'bold', color: 'orange.main' }}>
-													AI-Powered Performance Analysis
-												</Typography>
-												<Typography variant="body2" color="text.secondary">
-													{(config as any)?.llm_analysis?.performance_type_detected || 'Operational Efficiency'} Performance Insights
-												</Typography>
-											</Box>
-										</Box>
-									}
-									sx={{ pb: 2 }}
-								/>
-								<CardContent sx={{ pt: 0 }}>
-									<Box sx={{ mb: 2 }}>
-										{(config as any)?.insights && (config as any).insights.map((insight: string, index: number) => (
-											<Box key={index} sx={{ 
-												display: 'flex', 
-												alignItems: 'flex-start', 
-												mb: 3,
-												p: 2,
-												borderRadius: 2,
-												bgcolor: 'white',
-												boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-												border: '1px solid #ffe0b2',
-												transition: 'transform 0.2s ease-in-out',
-												'&:hover': {
-													transform: 'translateX(4px)',
-													boxShadow: '0 4px 12px rgba(255, 152, 0, 0.15)'
-												}
-											}}>
-												<Box sx={{ 
-													minWidth: 32, 
-													height: 32, 
-													borderRadius: '50%', 
-													background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
-													display: 'flex', 
-													alignItems: 'center', 
-													justifyContent: 'center',
-													mr: 2,
-													mt: 0.5,
-													boxShadow: '0 2px 8px rgba(255, 152, 0, 0.3)'
-												}}>
-													<Typography variant="body2" color="white" sx={{ fontWeight: 'bold' }}>
-														{index + 1}
-													</Typography>
-												</Box>
-												<Typography 
-													variant="body1" 
-													color="text.primary"
-													sx={{ 
-														fontWeight: 500, 
-														lineHeight: 1.6,
-														flex: 1
-													}}
-												>
-													{insight}
-												</Typography>
-											</Box>
-										))}
-									</Box>
-								</CardContent>
-							</Card>
-						</Grid>
-					</Grid>
-
-					{/* Performance Hub Charts - Edge-to-Edge Layout */}
-			{config.templateType === "performance_hub" && (config as any)?.charts && Object.keys((config as any).charts).length > 0 && (
-				<Grid 
-					container 
-					spacing={{ xs: 2, sm: 3, md: 3 }} 
-					sx={{ 
-						mb: { xs: 2, md: 4 },
-						alignItems: 'stretch'
-					}}
-				>
-					{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => {
-						console.log(`🔍 Rendering performance chart ${chartKey}:`, {
-							chartKey,
-							index,
-							chartData: {
-								title: chartData.title,
-								type: chartData.type,
-								hasData: !!chartData.data,
-								dataLength: chartData.data?.length,
-								dataFirstItem: chartData.data?.[0],
-								hasLabels: !!chartData.labels,
-								labelsLength: chartData.labels?.length,
-								labelsFirstItem: chartData.labels?.[0],
-								hasConfig: !!chartData.config,
-								fullData: chartData
-							}
-						});
-						
-						// Equal spacing chart sizing for Performance Dashboard
-						const totalCharts = Object.keys((config as any).charts).length;
-                        const getChartSize = () => {
-                            if (totalCharts === 1) return { xs: 12 };
-                            if (totalCharts === 2) return { xs: 12, md: 6 }; // 50% each
-                            const chartsPerRowMd = 3;
-                            const remainder = totalCharts % chartsPerRowMd;
-                            if (remainder === 2 && index >= totalCharts - 2) {
-                                return { xs: 12, sm: 6, md: 6 };
-                            }
-                            if (remainder === 1 && index === totalCharts - 1) {
-                                return { xs: 12 };
-                            }
-                            return { xs: 12, sm: 6, md: 4 };
-                        };
-						
-						return (
-						<Grid key={chartKey} size={getChartSize()}>
-							<Card sx={{ 
-								height: { xs: 'auto', sm: '400px', md: '450px', lg: '480px' },
-								minHeight: { xs: '350px', sm: '380px' },
-								display: 'flex',
-								flexDirection: 'column'
-							}}>
-								<CardHeader
-									title={chartData.title || chartKey}
-									subheader={`${chartData.type?.toUpperCase() || 'CHART'} • Performance Analytics`}
-								/>
-								<CardContent sx={{ 
-									flex: 1,
-									display: 'flex',
-									flexDirection: 'column',
-									p: { xs: 1, sm: 2, md: 3 }
-								}}>
-									<Box sx={{ 
-										flex: 1, 
-										display: 'flex', 
-										flexDirection: 'column',
-										minHeight: { xs: '250px', sm: '300px' }
+							<Grid size={{ xs: 12, md: 6 }}>
+								<Card
+									sx={{
+										height: "100%",
+										boxShadow: { xs: 2, md: 4 },
+										borderRadius: 2,
+										transition:
+											"transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out",
+										"&:hover": {
+											transform: "translateY(-2px)",
+											boxShadow: 6,
+										},
 									}}>
-										{isValidChartData(chartData) ? (
-											<>
-												{/* Render Actual Chart Components */}
-												<Box sx={{ flex: 1, minHeight: 200 }}>
-													{chartData.type === 'line' && (
-														<div style={{ width: '100%', height: '200px' }}>
-															<LineChart
-																series={[{
-																	data: chartData.data.map((val: any) => {
-																		const num = Number(val);
-																		return isNaN(num) ? 0 : num;
-																	}),
-																	label: chartData.title || 'Performance',
-																	color: '#ff9800'
-																}]}
-																xAxis={[{
-																	data: chartData.labels.map((label: any) => String(label || '')),
-																	scaleType: 'point'
-																}]}
-																height={200}
-																margin={{ left: 50, right: 50, top: 20, bottom: 50 }}
-																skipAnimation={true}
-																slotProps={{
-																	noDataOverlay: { message: 'No data available' }
-																}}
-															/>
-														</div>
-													)}
-
-													{chartData.type === 'scatter' && (
-														<div style={{ width: '100%', height: '200px' }}>
-															<Charts.ScatterChart
-																data={chartData.labels.map((label: string, i: number) => {
-																	const xValue = Number(chartData.data[i]);
-																	const yValue = Number(chartData.data[i]) * (Math.random() * 0.5 + 0.75); // Add some variation
-																	return {
-																		x: isNaN(xValue) ? i : xValue,
-																		y: isNaN(yValue) ? i : yValue,
-																		label: String(label || `Point ${i + 1}`)
-																	};
-																}).filter((item: any) => item.x >= 0 && item.y >= 0)}
-																title={chartData.title}
-																xAxisLabel="X Value"
-																yAxisLabel="Y Value"
-															/>
-														</div>
-													)}
-													
-													{chartData.type === 'bar' && (
-														<div style={{ width: '100%', height: '200px' }}>
-															<BarChart
-																series={[{
-																	data: chartData.data.map((val: any) => {
-																		const num = Number(val);
-																		return isNaN(num) ? 0 : num;
-																	}),
-																	label: chartData.title || 'Performance',
-																	color: '#ff9800'
-																}]}
-																xAxis={[{
-																	data: chartData.labels.map((label: any) => String(label || '')),
-																	scaleType: 'band'
-																}]}
-																height={200}
-																margin={{ left: 50, right: 50, top: 20, bottom: 50 }}
-																skipAnimation={true}
-																slotProps={{
-																	noDataOverlay: { message: 'No data available' }
-																}}
-															/>
-														</div>
-													)}
-
-													{chartData.type === 'pie' && (
-														<div style={{ width: '100%', height: '200px', display: 'flex', justifyContent: 'center' }}>
-															<PieChart
-																series={[{
-																	data: chartData.labels.map((label: string, i: number) => {
-																		const value = Number(chartData.data[i]);
-																		return {
-																			id: i,
-																			value: isNaN(value) ? 0 : value,
-																			label: String(label || `Item ${i + 1}`)
-																		};
-																	}).filter((item: any) => item.value > 0),
-																	highlightScope: { fade: 'global', highlight: 'item' } as const,
-																}]}
-																height={200}
-																skipAnimation={true}
-																slotProps={{
-																	noDataOverlay: { message: 'No data available' }
-																}}
-															/>
-														</div>
-													)}
-
-													{chartData.type === 'radial' && (
-														<div style={{ width: '100%', height: '200px', display: 'flex', justifyContent: 'center' }}>
-															<PieChart
-																series={[{
-																	data: chartData.labels.map((label: string, i: number) => {
-																		const value = Number(chartData.data[i]);
-																		return {
-																			id: i,
-																			value: isNaN(value) ? 0 : value,
-																			label: String(label || `Item ${i + 1}`)
-																		};
-																	}).filter((item: any) => item.value > 0),
-																	highlightScope: { fade: 'global', highlight: 'item' } as const,
-																	innerRadius: 40,
-																	outerRadius: 80,
-																}]}
-																height={200}
-																skipAnimation={true}
-																slotProps={{
-																	noDataOverlay: { message: 'No data available' }
-																}}
-															/>
-														</div>
-													)}
-
-													{chartData.type === 'scatter' && (
-														<div style={{ width: '100%', height: '200px' }}>
-															<Charts.ScatterChart
-																data={chartData.labels.map((label: string, i: number) => {
-																	const xValue = Number(chartData.data[i]);
-																	const yValue = Number(chartData.data[i]) * (Math.random() * 0.5 + 0.75); // Add some variation
-																	return {
-																		x: isNaN(xValue) ? i : xValue,
-																		y: isNaN(yValue) ? i : yValue,
-																		label: String(label || `Point ${i + 1}`)
-																	};
-																}).filter((item: any) => item.x >= 0 && item.y >= 0)}
-																title={chartData.title}
-																xAxisLabel="X Value"
-																yAxisLabel="Y Value"
-															/>
-														</div>
-													)}
-
-													{/* Handle special chart types that might cause offsetY errors */}
-													{(chartData.type === 'radar' || chartData.type === 'heatmap') && (
-														<Box sx={{ 
-															display: 'flex', 
-															alignItems: 'center', 
-															justifyContent: 'center',
-															height: 200,
-															bgcolor: 'orange.50',
-															borderRadius: 1,
-															border: '1px dashed',
-															borderColor: 'orange.300'
-														}}>
-															<Typography variant="body1" color="text.secondary">
-																⚡ {chartData.type.toUpperCase()} Chart: {chartData.title}
-															</Typography>
-														</Box>
-													)}
-												</Box>
-
-												{/* Chart Insights */}
-												{chartData.insights && (
-													<Box sx={{ 
-														p: 2, 
-														mt: 2,
-														bgcolor: 'warning.50', 
-														borderRadius: 1,
-														border: '1px solid',
-														borderColor: 'warning.200'
-													}}>
-														<Typography variant="body2" color="warning.main" sx={{ fontStyle: 'italic', lineHeight: 1.5 }}>
-															⚡ {chartData.insights}
-														</Typography>
-													</Box>
-												)}
-											</>
-										) : (
-											<Box sx={{ 
-												display: 'flex', 
-												alignItems: 'center', 
-												justifyContent: 'center',
-												height: 200,
-												bgcolor: 'orange.50',
-												borderRadius: 1,
-												border: '1px dashed',
-												borderColor: 'orange.300'
+									<CardHeader
+										title="Portfolio Breakdown"
+										subheader="Investment distribution"
+									/>
+									<CardContent
+										sx={{
+											p: { xs: 2, sm: 3 },
+											height: "calc(100% - 80px)",
+											display: "flex",
+											flexDirection: "column",
+										}}>
+										<Box
+											sx={{
+												flex: 1,
+												display: "flex",
+												justifyContent: "center",
+												alignItems: "center",
+												minHeight: { xs: 280, sm: 320, md: 350 },
 											}}>
-												<Typography variant="body1" color="text.secondary">
-													⚡ Chart data is loading or unavailable
-												</Typography>
-											</Box>
-										)}
-									</Box>
-								</CardContent>
-							</Card>
-						</Grid>
-						);
-					})}
-				</Grid>
-			)}
-					{(config as any)?.charts && Object.keys((config as any).charts).length > 0 && config.templateType !== "performance_hub" && (
-						<Grid 
-							container 
-							spacing={{ xs: 2, sm: 3, md: 4 }} 
-							sx={{ 
-								mb: { xs: 2, md: 4 },
-								justifyContent: 'center',
-								alignItems: 'stretch',
-								px: 0
-							}}
-						>
-							{Object.entries((config as any).charts).map(([chartKey, chartData]: [string, any], index: number) => {
-								const totalCharts = Object.keys((config as any).charts).length;
-                                const getChartSize = () => {
-                                    if (totalCharts === 1) return { xs: 12 };
-                                    if (totalCharts === 2) return { xs: 12, md: 6 };
-                                    const chartsPerRowMd = 3;
-                                    const remainder = totalCharts % chartsPerRowMd;
-                                    if (remainder === 2 && index >= totalCharts - 2) {
-                                        return { xs: 12, sm: 6, md: 6 };
-                                    }
-                                    if (remainder === 1 && index === totalCharts - 1) {
-                                        return { xs: 12 };
-                                    }
-                                    return { xs: 12, sm: 6, md: 4 };
-                                };
-								
-								return (
-									<Grid key={chartKey} size={getChartSize()}>
-									<Card sx={{ height: '100%' }}>
-										<CardHeader
-											title={chartData.title || chartKey}
-											subheader={`${chartData.type?.toUpperCase() || 'PERFORMANCE'} • AI Analysis`}
-										/>
-										<CardContent>
-											<Box sx={{ height: 300, display: 'flex', flexDirection: 'column' }}>
-												{isValidChartData(chartData) ? (
-													<>
-														{/* Render Actual Chart Components */}
-														<Box sx={{ flex: 1, minHeight: 200 }}>
-															{chartData.type === 'line' && (
-																<div style={{ width: '100%', height: '200px' }}>
-																	<LineChart
-																		series={[{
-																			data: chartData.data.map((val: any) => {
-																				const num = Number(val);
-																				return isNaN(num) ? 0 : num;
-																			}),
-																			label: chartData.title || 'Performance',
-																			color: '#ff9800'
-																		}]}
-																		xAxis={[{
-																			data: chartData.labels.map((label: any) => String(label || '')),
-																			scaleType: 'point'
-																		}]}
-																		height={200}
-																		margin={{ left: 50, right: 50, top: 20, bottom: 50 }}
-																		skipAnimation={true}
-																		slotProps={{
-																			noDataOverlay: { message: 'No data available' }
-																		}}
-																	/>
-																</div>
-															)}
-
-															{chartData.type === 'pie' && (
-																<div style={{ width: '100%', height: '200px', display: 'flex', justifyContent: 'center' }}>
-																	<PieChart
-																		series={[{
-																			data: chartData.labels.map((label: string, i: number) => {
-																				const value = Number(chartData.data[i]);
-																				return {
-																					id: i,
-																					value: isNaN(value) ? 0 : value,
-																					label: String(label || `Item ${i + 1}`)
-																				};
-																			}).filter((item: any) => item.value > 0),
-																			highlightScope: { fade: 'global', highlight: 'item' } as const,
-																		}]}
-																		height={200}
-																		skipAnimation={true}
-																		slotProps={{
-																			noDataOverlay: { message: 'No data available' }
-																		}}
-																	/>
-																</div>
-															)}
-
-															{chartData.type === 'radial' && (
-																<div style={{ width: '100%', height: '200px', display: 'flex', justifyContent: 'center' }}>
-																	<PieChart
-																		series={[{
-																			data: chartData.labels.map((label: string, i: number) => {
-																				const value = Number(chartData.data[i]);
-																				return {
-																					id: i,
-																					value: isNaN(value) ? 0 : value,
-																					label: String(label || `Item ${i + 1}`)
-																				};
-																			}).filter((item: any) => item.value > 0),
-																			highlightScope: { fade: 'global', highlight: 'item' } as const,
-																			innerRadius: 40,
-																			outerRadius: 80,
-																		}]}
-																		height={200}
-																		skipAnimation={true}
-																		slotProps={{
-																			noDataOverlay: { message: 'No data available' }
-																		}}
-																	/>
-																</div>
-															)}
-															
-															{chartData.type === 'radar' && (
-																<div style={{ width: '100%', height: '200px' }}>
-																	<Charts.RadarChart
-																		data={chartData.labels.map((label: string, i: number) => {
-																			const value = Number(chartData.data[i]);
-																			return {
-																				category: String(label || `Category ${i + 1}`),
-																				value: isNaN(value) ? 0 : value
-																			};
-																		}).filter((item: any) => item.value > 0)}
-																		title={chartData.title}
-																		minimal={true}
-																	/>
-																</div>
-															)}
-															
-															{chartData.type === 'heatmap' && (
-																<div style={{ width: '100%', height: '200px' }}>
-																	<Charts.HeatmapChart
-																		data={chartData.labels.map((label: string, i: number) => {
-																			const value = Number(chartData.data[i]);
-																			return {
-																				name: String(label || `Item ${i + 1}`),
-																				value: isNaN(value) ? 0 : value
-																			};
-																		}).filter((item: any) => item.value > 0)}
-																		title={chartData.title}
-																		minimal={true}
-																	/>
-																</div>
-															)}
-															
-															{chartData.type === 'bar' && (
-																<div style={{ width: '100%', height: '200px' }}>
-																	<BarChart
-																		series={[{
-																			data: chartData.data.map((val: any) => {
-																				const num = Number(val);
-																				return isNaN(num) ? 0 : num;
-																			}),
-																			label: chartData.title || 'Performance',
-																			color: '#f44336'
-																		}]}
-																		xAxis={[{
-																			data: chartData.labels.map((label: any) => String(label || '')),
-																			scaleType: 'band'
-																		}]}
-																		height={200}
-																		margin={{ left: 50, right: 50, top: 20, bottom: 50 }}
-																		skipAnimation={true}
-																		slotProps={{
-																			noDataOverlay: { message: 'No data available' }
-																		}}
-																	/>
-																</div>
-															)}
-														</Box>
-
-														{/* Chart Insights */}
-														{chartData.insights && (
-															<Box sx={{ 
-																p: 2, 
-																mt: 2,
-																bgcolor: 'warning.50', 
-																borderRadius: 1,
-																border: '1px solid',
-																borderColor: 'warning.200'
-															}}>
-																<Typography variant="body2" color="warning.main" sx={{ fontStyle: 'italic', lineHeight: 1.5 }}>
-																	⚡ {chartData.insights}
-																</Typography>
-															</Box>
-														)}
-													</>
-												) : (
-													<Box sx={{ 
-														display: 'flex', 
-														alignItems: 'center', 
-														justifyContent: 'center',
-														height: 200,
-														bgcolor: 'grey.50',
-														borderRadius: 1,
-														border: '1px dashed',
-														borderColor: 'grey.300'
+											{clientData.length > 0 ? (
+												<div
+													style={{
+														width: "100%",
+														height: "100%",
+														minHeight: "280px",
+														display: "flex",
+														justifyContent: "center",
+														alignItems: "center",
 													}}>
+													<PieChart
+														series={[
+															{
+																data: (() => {
+																	// Try to get AI-generated pie chart data first
+																	const aiData =
+																		getAIChartData("distribution") ||
+																		getAIChartData("breakdown") ||
+																		getAIChartData("stock");
+																	if (
+																		aiData &&
+																		aiData.data &&
+																		Array.isArray(aiData.data)
+																	) {
+																		return aiData.data.map(
+																			(item: any, index: number) => ({
+																				id: index,
+																				value: item.value || item.desktop || 0,
+																				label:
+																					item.name ||
+																					item.browser ||
+																					`Item ${index + 1}`,
+																			})
+																		);
+																	}
+
+																	// Fallback: Create pie chart from categorical data
+																	const categoricalFields = dataColumns.filter(
+																		(col) => {
+																			const values = clientData.map(
+																				(record) => record[col]
+																			);
+																			const uniqueValues = [...new Set(values)];
+																			return (
+																				uniqueValues.length > 1 &&
+																				uniqueValues.length <= 10 &&
+																				typeof values[0] === "string"
+																			);
+																		}
+																	);
+
+																	if (categoricalFields.length > 0) {
+																		const field = categoricalFields[0]; // Use first categorical field
+																		const valueCounts = clientData.reduce(
+																			(acc, record) => {
+																				const key = record[field] || "Unknown";
+																				acc[key] = (acc[key] || 0) + 1;
+																				return acc;
+																			},
+																			{}
+																		);
+
+																		return Object.entries(valueCounts)
+																			.map(([key, count], index) => ({
+																				id: index,
+																				value: count as number,
+																				label: key,
+																			}))
+																			.slice(0, 6); // Limit to 6 slices
+																	}
+
+																	return [
+																		{ id: 0, value: 100, label: "No Data" },
+																	];
+																})(),
+																highlightScope: {
+																	fade: "global",
+																	highlight: "item",
+																},
+																faded: {
+																	innerRadius: 30,
+																	additionalRadius: -30,
+																	color: "gray",
+																},
+															},
+														]}
+														height={250}
+														skipAnimation={true}
+														slotProps={{
+															noDataOverlay: { message: "No data available" },
+														}}
+													/>
+												</div>
+											) : (
+												<Typography
+													color="text.secondary"
+													sx={{ alignSelf: "center" }}>
+													No data available
+												</Typography>
+											)}
+										</Box>
+									</CardContent>
+								</Card>
+							</Grid>
+						</Grid>
+
+						{/* Second Row - More Unique Charts */}
+						<Grid container spacing={2} sx={{ mb: 3 }}>
+							<Grid size={{ xs: 12, md: 6 }}>
+								<Card>
+									<CardHeader
+										title="Market Performance"
+										subheader="Quarterly analysis of market trends"
+									/>
+									<CardContent>
+										<Box sx={{ height: 300 }}>
+											{clientData.length > 0 ? (
+												<div style={{ width: "100%", height: "250px" }}>
+													<LineChart
+														xAxis={[
+															{
+																data: ["Q1", "Q2", "Q3", "Q4"],
+																scaleType: "point",
+															},
+														]}
+														series={[
+															{
+																data: (() => {
+																	// Try to get AI-generated quarterly data first
+																	const aiData =
+																		getAIChartData("quarterly") ||
+																		getAIChartData("performance") ||
+																		getAIChartData("market");
+																	if (
+																		aiData &&
+																		aiData.data &&
+																		Array.isArray(aiData.data)
+																	) {
+																		return aiData.data
+																			.slice(0, 4)
+																			.map(
+																				(item: any) =>
+																					item.value || item.desktop || 0
+																			);
+																	}
+
+																	// Fallback: Create quarterly analysis from numeric data
+																	const numericFields = dataColumns.filter(
+																		(col) => {
+																			const values = clientData
+																				.map((record) => record[col])
+																				.filter((v) => v != null);
+																			return (
+																				values.length > 0 &&
+																				!isNaN(parseFloat(values[0]))
+																			);
+																		}
+																	);
+
+																	if (numericFields.length > 0) {
+																		const field =
+																			numericFields[numericFields.length - 1]; // Use last numeric field
+																		const values = clientData
+																			.map(
+																				(record) =>
+																					parseFloat(record[field]) || 0
+																			)
+																			.filter((v) => v > 0);
+																		if (values.length >= 4) {
+																			const quarterSize = Math.floor(
+																				values.length / 4
+																			);
+																			const quarters = [];
+																			for (let i = 0; i < 4; i++) {
+																				const start = i * quarterSize;
+																				const end =
+																					i === 3
+																						? values.length
+																						: start + quarterSize;
+																				const quarterValues = values.slice(
+																					start,
+																					end
+																				);
+																				const avg =
+																					quarterValues.reduce(
+																						(sum, v) => sum + v,
+																						0
+																					) / quarterValues.length;
+																				quarters.push(Math.round(avg));
+																			}
+																			return quarters;
+																		}
+																	}
+
+																	return [0, 0, 0, 0];
+																})(),
+																label: `${
+																	dataColumns.find((col) => {
+																		const values = clientData.map(
+																			(record) => record[col]
+																		);
+																		return !isNaN(parseFloat(values[0]));
+																	}) || "Performance"
+																} Trends`,
+																color: "#2e7d32",
+																curve: "natural",
+															},
+														]}
+														width={400}
+														height={250}
+														skipAnimation={true}
+														slotProps={{
+															noDataOverlay: { message: "No data available" },
+														}}
+													/>
+												</div>
+											) : (
+												<Typography
+													color="text.secondary"
+													sx={{
+														display: "flex",
+														justifyContent: "center",
+														alignItems: "center",
+														height: "100%",
+													}}>
+													No data available
+												</Typography>
+											)}
+										</Box>
+									</CardContent>
+								</Card>
+							</Grid>
+							<Grid size={{ xs: 12, md: 6 }}>
+								<Card>
+									<CardHeader
+										title="Risk Assessment"
+										subheader="Multi-factor risk analysis"
+									/>
+									<CardContent>
+										<Box sx={{ height: 300 }}>
+											{clientData.length > 0 && dataColumns.length >= 3 ? (
+												<div style={{ height: "250px" }}>
+													{/* Radar Chart Component */}
+													<Box
+														sx={{
+															display: "flex",
+															alignItems: "center",
+															justifyContent: "center",
+															height: 250,
+															bgcolor: "grey.50",
+															borderRadius: 1,
+															border: "1px dashed",
+															borderColor: "grey.300",
+														}}>
 														<Typography variant="body1" color="text.secondary">
-															📊 Chart data is loading or unavailable
+															📊 Radar Chart Visualization
 														</Typography>
 													</Box>
-												)}
-											</Box>
-										</CardContent>
-									</Card>
-								</Grid>
-								);
-							})}
-						</Grid>
-					)}
-
-					{/* Performance Hub Tables */}
-					{(config as any)?.tables && (config as any).tables.length > 0 && (
-						<Grid container spacing={2}  sx={{ mb: 3 }}>
-							{(config as any).tables.map((table: any, index: number) => (
-								<Grid key={index} size={{ xs: 12 }}>
-									<Card>
-										<CardHeader
-											title={table.title || `Performance Analysis ${index + 1}`}
-											subheader="Performance metrics and operational insights"
-										/>
-										<CardContent>
-											{table.columns && table.data && (
-												<Box sx={{ overflow: 'auto' }}>
-													{/* Table Header */}
-													<Box sx={{ 
-														display: 'flex', 
-														bgcolor: 'secondary.100', 
-														p: 1, 
+												</div>
+											) : (
+												<Box
+													sx={{
+														display: "flex",
+														alignItems: "center",
+														justifyContent: "center",
+														height: 250,
+														bgcolor: "grey.100",
 														borderRadius: 1,
-														mb: 1
 													}}>
-														{table.columns.map((column: string, colIndex: number) => (
-															<Typography 
-																key={colIndex} 
-																variant="subtitle2" 
-																sx={{ 
-																	flex: 1, 
-																	fontWeight: 'bold',
-																	textAlign: colIndex === 0 ? 'left' : 'right'
-																}}
-															>
-																{column}
-															</Typography>
-														))}
-													</Box>
-													
-													{/* Table Data */}
-													{table.data.map((row: any, rowIndex: number) => (
-														<Box key={rowIndex} sx={{ 
-															display: 'flex', 
-															p: 1, 
-															borderBottom: '1px solid',
-															borderColor: 'grey.200',
-															'&:hover': { bgcolor: 'secondary.50' }
-														}}>
-															{Array.isArray(row) ? (
-																// Handle array format (row is an array)
-																row.map((cell: any, cellIndex: number) => (
-																<Typography 
-																	key={cellIndex} 
-																	variant="body2" 
-																	sx={{ 
-																		flex: 1,
-																		textAlign: cellIndex === 0 ? 'left' : 'right',
-																		fontWeight: cellIndex === 0 ? 500 : 400
-																	}}
-																>
-																	{cell}
-																</Typography>
-																))
-															) : (
-																// Handle object format (row is an object)
-																table.columns.map((column: string, cellIndex: number) => (
-																	<Typography 
-																		key={cellIndex} 
-																		variant="body2" 
-																		sx={{ 
-																			flex: 1,
-																			textAlign: cellIndex === 0 ? 'left' : 'right',
-																			fontWeight: cellIndex === 0 ? 500 : 400
-																		}}
-																	>
-																		{String(row[column] || "-")}
-																	</Typography>
-																))
-															)}
-														</Box>
-													))}
+													<Typography color="text.secondary">
+														📊 Not enough data for radar visualization
+													</Typography>
 												</Box>
 											)}
-										</CardContent>
-									</Card>
-								</Grid>
-							))}
+										</Box>
+									</CardContent>
+								</Card>
+							</Grid>
 						</Grid>
-					)}
-				</>
-			)}
-
-			{/* Default Charts for Main Template */}
-			{config.showCharts && config.templateType !== "business_intelligence" && config.templateType !== "performance_hub" && (
-				<>
-					{/* First Row - Trading Volume and Portfolio Charts */}
-					<Grid 
-						container 
-						spacing={{ xs: 2, sm: 3, md: 3 }} 
-						sx={{ 
-							mb: { xs: 2, md: 4 },
-							justifyContent: 'center',
-							alignItems: 'stretch'
-						}}
-					>
-						<Grid size={{ xs: 12, md: 6 }}>
-							<Card sx={{ 
-								height: '100%',
-								boxShadow: { xs: 2, md: 4 },
-								borderRadius: 2,
-								transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-								'&:hover': {
-									transform: 'translateY(-2px)',
-									boxShadow: 6
-								}
-							}}>
-								<CardHeader
-									title="Trading Volume Analysis"
-									subheader={`Stock trading patterns • ${clientData.length} transactions analyzed`}
-								/>
-								<CardContent sx={{ 
-									p: { xs: 2, sm: 3 },
-									height: 'calc(100% - 80px)',
-									display: 'flex',
-									flexDirection: 'column'
-								}}>
-									<Box sx={{ 
-										flex: 1, 
-										display: 'flex',
-										justifyContent: 'center',
-										alignItems: 'center',
-										minHeight: { xs: 280, sm: 320, md: 350 }
-									}}>
-										{clientData.length > 0 ? (
-																											<div style={{ width: '100%', height: '100%', minHeight: '280px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-												<LineChart
-													xAxis={[
-														{
-															data: (() => {
-																// Try to get AI-generated chart labels first
-																const aiData =
-																	getAIChartData("volume") ||
-																	getAIChartData("trend") ||
-																	getAIChartData("quarterly");
-																if (aiData && aiData.labels && Array.isArray(aiData.labels)) {
-																	return aiData.labels.slice(0, 10);
-																}
-
-																// Fallback: Create dynamic labels from data
-																const numericFields = dataColumns.filter((col) => {
-																	const values = clientData.map((record) => record[col]).filter((v) => v != null);
-																	return values.length > 0 && !isNaN(parseFloat(values[0]));
-																});
-
-																if (numericFields.length > 0) {
-																	const labelField = dataColumns.find((col) => typeof clientData[0][col] === "string") || dataColumns[0];
-																	const chartData = createDynamicChartData(clientData, labelField, numericFields[0], 10);
-																	return chartData.map((item, index) => item.name || `Item ${index + 1}`);
-																}
-
-																// Last resort: use period labels
-																return ["Period 1", "Period 2", "Period 3", "Period 4", "Period 5", "Period 6", "Period 7", "Period 8", "Period 9", "Period 10"];
-															})(),
-															scaleType: "point",
-														},
-													]}
-													series={[
-													{
-														data: (() => {
-															// Try to get AI-generated chart data first
-															const aiData =
-																getAIChartData("volume") ||
-																getAIChartData("trend") ||
-																getAIChartData("quarterly");
-															if (
-																aiData &&
-																aiData.data &&
-																Array.isArray(aiData.data)
-															) {
-																return aiData.data
-																	.slice(0, 10)
-																	.map(
-																		(item: any) =>
-																			item.value || item.desktop || 0
-																	);
-															}
-
-															// Fallback: Create dynamic chart from any numeric field
-															const numericFields = dataColumns.filter(
-																(col) => {
-																	const values = clientData
-																		.map((record) => record[col])
-																		.filter((v) => v != null);
-																	return (
-																		values.length > 0 &&
-																		!isNaN(parseFloat(values[0]))
-																	);
-																}
-															);
-
-															if (numericFields.length > 0) {
-																const field = numericFields[0]; // Use first numeric field
-																const chartData = createDynamicChartData(
-																	clientData,
-																	dataColumns.find(
-																		(col) =>
-																			typeof clientData[0][col] === "string"
-																	) || dataColumns[0],
-																	field,
-																	10
-																);
-																return chartData.map((item) => item.value);
-															}
-
-															return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-														})(),
-														label: `${dataColumns[0] || "Data"} Analysis`,
-														color: "#1976d2",
-													},
-													{
-														data: (() => {
-															// Try to get second AI chart or use second numeric field
-															const aiData =
-																getAIChartData("price") ||
-																getAIChartData("revenue") ||
-																getAIChartData("performance");
-															if (
-																aiData &&
-																aiData.data &&
-																Array.isArray(aiData.data)
-															) {
-																return aiData.data
-																	.slice(0, 10)
-																	.map(
-																		(item: any) =>
-																			item.value || item.mobile || 0
-																	);
-															}
-
-															// Fallback: Use second numeric field
-															const numericFields = dataColumns.filter(
-																(col) => {
-																	const values = clientData
-																		.map((record) => record[col])
-																		.filter((v) => v != null);
-																	return (
-																		values.length > 0 &&
-																		!isNaN(parseFloat(values[0]))
-																	);
-																}
-															);
-
-															if (numericFields.length > 1) {
-																const field = numericFields[1]; // Use second numeric field
-																const chartData = createDynamicChartData(
-																	clientData,
-																	dataColumns.find(
-																		(col) =>
-																			typeof clientData[0][col] === "string"
-																	) || dataColumns[0],
-																	field,
-																	10
-																);
-																return chartData.map((item) => item.value);
-															}
-
-															return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-														})(),
-														label: `${dataColumns[1] || "Secondary"} Metric`,
-														color: "#dc004e",
-													},
-												]}
-												
-												height={250}
-												skipAnimation={true}
-												slotProps={{
-													noDataOverlay: { message: 'No data available' }
-												}}
-											/>
-											</div>
-										) : (
-											<Typography
-												color="text.secondary"
-												sx={{
-													display: "flex",
-													justifyContent: "center",
-													alignItems: "center",
-													height: "100%",
-												}}>
-												No data available
-											</Typography>
-										)}
-									</Box>
-								</CardContent>
-							</Card>
-						</Grid>
-						<Grid size={{ xs: 12, md: 6 }}>
-							<Card sx={{ 
-								height: '100%',
-								boxShadow: { xs: 2, md: 4 },
-								borderRadius: 2,
-								transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-								'&:hover': {
-									transform: 'translateY(-2px)',
-									boxShadow: 6
-								}
-							}}>
-								<CardHeader
-									title="Portfolio Breakdown"
-									subheader="Investment distribution"
-								/>
-								<CardContent sx={{ 
-									p: { xs: 2, sm: 3 },
-									height: 'calc(100% - 80px)',
-									display: 'flex',
-									flexDirection: 'column'
-								}}>
-									<Box sx={{ 
-										flex: 1, 
-										display: 'flex',
-										justifyContent: 'center',
-										alignItems: 'center',
-										minHeight: { xs: 280, sm: 320, md: 350 }
-									}}>
-										{clientData.length > 0 ? (
-																											<div style={{ width: '100%', height: '100%', minHeight: '280px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-												<PieChart
-												series={[
-													{
-														data: (() => {
-															// Try to get AI-generated pie chart data first
-															const aiData =
-																getAIChartData("distribution") ||
-																getAIChartData("breakdown") ||
-																getAIChartData("stock");
-															if (
-																aiData &&
-																aiData.data &&
-																Array.isArray(aiData.data)
-															) {
-																return aiData.data.map(
-																	(item: any, index: number) => ({
-																		id: index,
-																		value: item.value || item.desktop || 0,
-																		label:
-																			item.name ||
-																			item.browser ||
-																			`Item ${index + 1}`,
-																	})
-																);
-															}
-
-															// Fallback: Create pie chart from categorical data
-															const categoricalFields = dataColumns.filter(
-																(col) => {
-																	const values = clientData.map(
-																		(record) => record[col]
-																	);
-																	const uniqueValues = [...new Set(values)];
-																	return (
-																		uniqueValues.length > 1 &&
-																		uniqueValues.length <= 10 &&
-																		typeof values[0] === "string"
-																	);
-																}
-															);
-
-															if (categoricalFields.length > 0) {
-																const field = categoricalFields[0]; // Use first categorical field
-																const valueCounts = clientData.reduce(
-																	(acc, record) => {
-																		const key = record[field] || "Unknown";
-																		acc[key] = (acc[key] || 0) + 1;
-																		return acc;
-																	},
-																	{}
-																);
-
-																return Object.entries(valueCounts)
-																	.map(([key, count], index) => ({
-																		id: index,
-																		value: count as number,
-																		label: key,
-																	}))
-																	.slice(0, 6); // Limit to 6 slices
-															}
-
-															return [{ id: 0, value: 100, label: "No Data" }];
-														})(),
-														highlightScope: {
-															fade: "global",
-															highlight: "item",
-														},
-														faded: {
-															innerRadius: 30,
-															additionalRadius: -30,
-															color: "gray",
-														},
-													},
-												]}
-												
-												height={250}
-												skipAnimation={true}
-												slotProps={{
-													noDataOverlay: { message: 'No data available' }
-												}}
-											/>
-											</div>
-										) : (
-											<Typography
-												color="text.secondary"
-												sx={{ alignSelf: "center" }}>
-												No data available
-											</Typography>
-										)}
-									</Box>
-								</CardContent>
-							</Card>
-						</Grid>
-					</Grid>
-
-					{/* Second Row - More Unique Charts */}
-					<Grid container spacing={2}  sx={{ mb: 3 }}>
-						<Grid size={{ xs: 12, md: 6 }}>
-							<Card>
-								<CardHeader
-									title="Market Performance"
-									subheader="Quarterly analysis of market trends"
-								/>
-								<CardContent>
-									<Box sx={{ height: 300 }}>
-										{clientData.length > 0 ? (
-											<div style={{ width: '100%', height: '250px' }}>
-												<LineChart
-												xAxis={[
-													{
-														data: ["Q1", "Q2", "Q3", "Q4"],
-														scaleType: "point",
-													},
-												]}
-												series={[
-													{
-														data: (() => {
-															// Try to get AI-generated quarterly data first
-															const aiData =
-																getAIChartData("quarterly") ||
-																getAIChartData("performance") ||
-																getAIChartData("market");
-															if (
-																aiData &&
-																aiData.data &&
-																Array.isArray(aiData.data)
-															) {
-																return aiData.data
-																	.slice(0, 4)
-																	.map(
-																		(item: any) =>
-																			item.value || item.desktop || 0
-																	);
-															}
-
-															// Fallback: Create quarterly analysis from numeric data
-															const numericFields = dataColumns.filter(
-																(col) => {
-																	const values = clientData
-																		.map((record) => record[col])
-																		.filter((v) => v != null);
-																	return (
-																		values.length > 0 &&
-																		!isNaN(parseFloat(values[0]))
-																	);
-																}
-															);
-
-															if (numericFields.length > 0) {
-																const field =
-																	numericFields[numericFields.length - 1]; // Use last numeric field
-																const values = clientData
-																	.map(
-																		(record) => parseFloat(record[field]) || 0
-																	)
-																	.filter((v) => v > 0);
-																if (values.length >= 4) {
-																	const quarterSize = Math.floor(
-																		values.length / 4
-																	);
-																	const quarters = [];
-																	for (let i = 0; i < 4; i++) {
-																		const start = i * quarterSize;
-																		const end =
-																			i === 3
-																				? values.length
-																				: start + quarterSize;
-																		const quarterValues = values.slice(
-																			start,
-																			end
-																		);
-																		const avg =
-																			quarterValues.reduce(
-																				(sum, v) => sum + v,
-																				0
-																			) / quarterValues.length;
-																		quarters.push(Math.round(avg));
-																	}
-																	return quarters;
-																}
-															}
-
-															return [0, 0, 0, 0];
-														})(),
-														label: `${
-															dataColumns.find((col) => {
-																const values = clientData.map(
-																	(record) => record[col]
-																);
-																return !isNaN(parseFloat(values[0]));
-															}) || "Performance"
-														} Trends`,
-														color: "#2e7d32",
-														curve: "natural",
-													},
-												]}
-												width={400}
-												height={250}
-												skipAnimation={true}
-												slotProps={{
-													noDataOverlay: { message: 'No data available' }
-												}}
-											/>
-											</div>
-										) : (
-											<Typography
-												color="text.secondary"
-												sx={{
-													display: "flex",
-													justifyContent: "center",
-													alignItems: "center",
-													height: "100%",
-												}}>
-												No data available
-											</Typography>
-										)}
-									</Box>
-								</CardContent>
-							</Card>
-						</Grid>
-						<Grid size={{ xs: 12, md: 6 }}>
-							<Card>
-								<CardHeader
-									title="Risk Assessment"
-									subheader="Multi-factor risk analysis"
-								/>
-								<CardContent>
-									<Box sx={{ height: 300 }}>
-										{clientData.length > 0 && dataColumns.length >= 3 ? (
-											<div style={{ height: "250px" }}>
-												{/* Radar Chart Component */}
-												<Box sx={{ 
-													display: 'flex', 
-													alignItems: 'center', 
-													justifyContent: 'center',
-													height: 250,
-													bgcolor: 'grey.50',
-													borderRadius: 1,
-													border: '1px dashed',
-													borderColor: 'grey.300'
-												}}>
-													<Typography variant="body1" color="text.secondary">
-														📊 Radar Chart Visualization
-													</Typography>
-												</Box>
-											</div>
-										) : (
-											<Box sx={{ 
-												display: 'flex', 
-												alignItems: 'center', 
-												justifyContent: 'center',
-												height: 250,
-												bgcolor: 'grey.100',
-												borderRadius: 1
-											}}>
-												<Typography color="text.secondary">
-													📊 Not enough data for radar visualization
-												</Typography>
-											</Box>
-										)}
-									</Box>
-								</CardContent>
-							</Card>
-						</Grid>
-					</Grid>
-				</>
-			)}
+					</>
+				)}
 
 			{/* Data Table Section - MOVED TO DATA TABLES PAGE */}
 			{/* {!config.showCharts && (

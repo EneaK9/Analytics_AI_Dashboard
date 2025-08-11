@@ -1113,9 +1113,13 @@ class DashboardOrchestrator:
                     for val in sample_values:
 
                         try:
-
-                            pd.to_datetime(val)
-
+                            # Handle timezone parsing more gracefully
+                            val_str = str(val).strip()
+                            # Remove problematic timezone abbreviations and let pandas handle UTC conversion
+                            if 'PST' in val_str or 'EST' in val_str or 'MST' in val_str or 'CST' in val_str:
+                                # Replace timezone abbreviations with UTC offset for better parsing
+                                val_str = val_str.replace(' PST', '-08:00').replace(' EST', '-05:00').replace(' MST', '-07:00').replace(' CST', '-06:00')
+                            pd.to_datetime(val_str)
                             date_patterns += 1
 
                         except:
@@ -8943,6 +8947,10 @@ Return ONLY the JSON response, no additional text or explanations.
             import os
 
             from openai import AsyncOpenAI
+            from dotenv import load_dotenv
+
+            # Force reload environment variables
+            load_dotenv(override=True)
 
 
 
@@ -8964,7 +8972,12 @@ Return ONLY the JSON response, no additional text or explanations.
 
                     raise Exception("OpenAI API key not configured - tried OPENAI_API_KEY, OPENAI_KEY, OPENAI_API_TOKEN")
 
+            # Validate API key format
+            if not api_key.startswith("sk-"):
+                logger.error(f"❌ Invalid API key format - doesn't start with 'sk-': {api_key[:20]}...")
+                raise Exception("Invalid OpenAI API key format")
 
+            logger.info(f"🔑 Using OpenAI API key: {api_key[:20]}... (length: {len(api_key)})")
 
             # Initialize OpenAI client
 
@@ -8975,6 +8988,12 @@ Return ONLY the JSON response, no additional text or explanations.
             logger.info(f"🤖 Sending prompt to LLM for analysis")
 
             logger.info(f"🤖 Using model: gpt-4o")
+            logger.info(f"📏 Prompt length: {len(prompt)} characters")
+
+            # Validate prompt size (OpenAI has token limits)
+            if len(prompt) > 50000:  # Rough character limit to avoid token issues
+                logger.warning(f"⚠️ Prompt is very large ({len(prompt)} chars), truncating...")
+                prompt = prompt[:45000] + "\n\n[Truncated due to size limits]"
 
 
 
@@ -9001,7 +9020,6 @@ Return ONLY the JSON response, no additional text or explanations.
                 temperature=0.2,  # Slightly higher for more creative analysis while staying accurate
 
                 max_tokens=6000,  # Increased for more detailed analysis
-
             )
 
 
@@ -9021,27 +9039,24 @@ Return ONLY the JSON response, no additional text or explanations.
         except openai.AuthenticationError as e:
 
             logger.error(f"❌ OpenAI authentication failed: {e}")
-
-            raise Exception(f"OpenAI authentication failed: {e}")
-
+            logger.error(f"❌ API key preview: {api_key[:20] if api_key else 'None'}...")
+            raise Exception(f"OpenAI authentication failed - check API key: {str(e)}")
         except openai.RateLimitError as e:
 
             logger.error(f"❌ OpenAI rate limit exceeded: {e}")
-
-            raise Exception(f"OpenAI rate limit exceeded: {e}")
-
+            raise Exception(f"OpenAI rate limit exceeded: {str(e)}")
         except openai.APIError as e:
 
             logger.error(f"❌ OpenAI API error: {e}")
-
-            raise Exception(f"OpenAI API error: {e}")
-
+            raise Exception(f"OpenAI API error: {str(e)}")
         except Exception as e:
 
             logger.error(f"❌ LLM analysis failed: {e}")
 
             logger.error(f"❌ Error type: {type(e).__name__}")
-
+            logger.error(f"❌ API key status: {'exists' if api_key else 'missing'}")
+            if api_key:
+                logger.error(f"❌ API key preview: {api_key[:20]}...")
             raise e
 
 
@@ -9549,15 +9564,13 @@ DATASET SUMMARY (computed over ALL records): """ + dataset_summary_json + """
 Total Records: """ + str(len(data_records)) + """
 Data Fields: """ + fields_json + """
 
-ANALYZE THE ACTUAL CLIENT DATA and generate REAL insights based on DATA PATTERNS you discover. 
-
-STEPS:
-1. EXAMINE the data fields and values to understand the business
-2. CALCULATE real metrics from the actual data 
-3. IDENTIFY genuine patterns and trends
-4. GENERATE meaningful KPIs based on what you find in the data
-5. CREATE charts that visualize actual data distributions and relationships
-6. BUILD tables from real data rows and columns
+🚀 SMART ANALYSIS STEPS:
+1. BUSINESS INTELLIGENCE: Examine data fields to determine business type and key value drivers
+2. CALCULATE MEANINGFUL METRICS: Generate KPIs that actually matter for this specific business
+3. IDENTIFY PATTERNS: Find trends, bottlenecks, and opportunities in the actual data
+4. VALUE-DRIVEN INSIGHTS: Focus on metrics that drive revenue, reduce costs, or improve efficiency
+5. ACTIONABLE RECOMMENDATIONS: Provide specific, data-backed suggestions for improvement
+6. RELEVANT VISUALIZATIONS: Create charts that show the most important business relationships
 
 🚨🚨🚨 CRITICAL REQUIREMENT - RESPONSE WILL BE REJECTED IF NOT MET 🚨🚨🚨
 YOU MUST GENERATE EXACTLY:
@@ -11279,7 +11292,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
     def _fix_malformed_json(self, json_string: str) -> str:
-        """Fix common JSON syntax errors from LLM responses"""
+        """Fix common JSON syntax errors from LLM responses including control characters"""
         try:
             import re
 
@@ -11310,13 +11323,18 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
             fixed_lines = []
 
             for line in lines:
-                if ':' in line and '"' in line:
-                    # Check if this looks like a key-value pair
-                    if line.strip().startswith('"') and '":' in line:
-                        # Split at the first ": 
-                        parts = line.split('": ', 1)
+                try:
+                    # Skip empty lines and comments
+                    if not line.strip() or line.strip().startswith('//'):
+                        fixed_lines.append(line)
+                        continue
+                    
+                    # If line looks like a key-value pair, clean the value
+                    if '"' in line and ":" in line:
+                        # Split on first colon only
+                        parts = line.split(":", 1)
                         if len(parts) == 2:
-                            key_part = parts[0] + '": '
+                            key_part = parts[0]
                             value_part = parts[1]
                             
                             # If value is a string (starts and ends with quotes)
@@ -11339,12 +11357,10 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
             # Remove duplicate commas
             fixed_json = re.sub(r',\s*,', ',', fixed_json)
             
-            # Fix missing commas between objects/arrays
-            fixed_json = re.sub(r'}\s*{', '}, {', fixed_json)
-            fixed_json = re.sub(r']\s*\[', '], [', fixed_json)
-            
-            # Fix trailing commas in objects/arrays
-            fixed_json = re.sub(r',(\s*[}\]])', r'\1', fixed_json)
+            # Step 5: Final cleanup
+            # Ensure proper JSON structure
+            fixed_json = re.sub(r',\s*}', '}', fixed_json)  # Remove trailing commas in objects
+            fixed_json = re.sub(r',\s*]', ']', fixed_json)  # Remove trailing commas in arrays
             
             # 5. Ensure JSON is properly closed
             fixed_json = fixed_json.strip()
@@ -11393,8 +11409,32 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
             return fixed_json
 
         except Exception as e:
-            logger.warning(f"⚠️ JSON fixing failed: {e}")
-            return json_string  # Return original if fixing fails
+            logger.error(f"❌ JSON fixing failed: {e}")
+            # If all else fails, try to extract just the structure without problematic content
+            try:
+                # Create a minimal valid JSON structure
+                minimal_json = '''
+                {
+                    "business_analysis": {
+                        "business_type": "other",
+                        "industry_sector": "other",
+                        "business_model": "other",
+                        "data_characteristics": ["unstructured"],
+                        "business_insights": ["Data contains complex formatting that requires further processing"]
+                    },
+                    "dashboard_data": {
+                        "kpis": [],
+                        "charts": [],
+                        "tables": [],
+                        "field_mappings": {},
+                        "metadata": {"total_records": 0}
+                    }
+                }
+                '''
+                logger.info("🔧 Using minimal fallback JSON structure")
+                return minimal_json.strip()
+            except:
+                return json_string  # Return original as last resort
 
 
 

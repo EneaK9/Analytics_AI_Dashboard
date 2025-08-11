@@ -496,7 +496,18 @@ async def create_client_superadmin(
     data_type: str = Form(...),
     input_method: str = Form(...),
     data_content: str = Form(default=""),
-    uploaded_file: UploadFile = File(default=None)
+    uploaded_file: UploadFile = File(default=None),
+    file_count: str = Form(default="0"),
+    uploaded_file_0: UploadFile = File(default=None),
+    uploaded_file_1: UploadFile = File(default=None),
+    uploaded_file_2: UploadFile = File(default=None),
+    uploaded_file_3: UploadFile = File(default=None),
+    uploaded_file_4: UploadFile = File(default=None),
+    uploaded_file_5: UploadFile = File(default=None),
+    uploaded_file_6: UploadFile = File(default=None),
+    uploaded_file_7: UploadFile = File(default=None),
+    uploaded_file_8: UploadFile = File(default=None),
+    uploaded_file_9: UploadFile = File(default=None)
 ):
     """Superadmin: Create a new client account with INSTANT dashboard - AI works in background"""
     try:
@@ -533,18 +544,42 @@ async def create_client_superadmin(
         # MOVE AI DASHBOARD GENERATION TO AFTER DATA STORAGE IS COMPLETE!
         
         # 🚀 DIRECT DATA STORAGE - NO AI BULLSHIT!
-        if (input_method == "paste" and data_content) or (input_method == "upload" and uploaded_file):
+        files_to_process = []
+        
+        # Collect all uploaded files
+        if input_method == "upload":
             try:
-                raw_data = ""
-                if input_method == "paste":
-                    raw_data = data_content
-                elif uploaded_file:
-                    file_content = await uploaded_file.read()
-                    raw_data = file_content.decode('utf-8')
+                num_files = int(file_count) if file_count.isdigit() else 0
+                logger.info(f"📁 Processing {num_files} uploaded files")
                 
-                # 🔥 UNIVERSAL DATA PARSING - ALL FORMATS → JSON with BATCH PROCESSING
-                if raw_data:
-                    # Simple schema entry
+                # Collect files from individual parameters
+                file_params = [
+                    uploaded_file_0, uploaded_file_1, uploaded_file_2, uploaded_file_3, uploaded_file_4,
+                    uploaded_file_5, uploaded_file_6, uploaded_file_7, uploaded_file_8, uploaded_file_9
+                ]
+                
+                for i, file_param in enumerate(file_params[:num_files]):
+                    if file_param and file_param.filename:
+                        files_to_process.append(file_param)
+                        logger.info(f"📄 File {i+1}: {file_param.filename}")
+                
+                # Also include the main uploaded_file for backward compatibility
+                if uploaded_file and uploaded_file.filename:
+                    if not any(f.filename == uploaded_file.filename for f in files_to_process):
+                        files_to_process.append(uploaded_file)
+                        
+            except Exception as e:
+                logger.error(f"❌ Error collecting uploaded files: {e}")
+        
+        if (input_method == "paste" and data_content) or (input_method == "upload" and files_to_process):
+            try:
+                all_parsed_records = []
+                
+                if input_method == "paste":
+                    # Process pasted data
+                    raw_data = data_content
+                    
+                    # Simple schema entry for pasted data
                     db_client.table("client_schemas").insert({
                         "client_id": client_id,
                         "table_name": f"client_{client_id.replace('-', '_')}_data",
@@ -552,14 +587,30 @@ async def create_client_superadmin(
                         "schema_definition": {"type": "raw_data", "format": data_type}
                     }).execute()
                     
-                    try:
-                        from universal_data_parser import universal_parser
-                        
-                        # Parse ANY format to standardized JSON records
-                        parsed_records = universal_parser.parse_to_json(raw_data, data_type)
-                        
-                        if parsed_records:
-                            logger.info(f"🔄 {data_type.upper()} parsed to {len(parsed_records)} JSON records")
+                    from universal_data_parser import universal_parser
+                    
+                    # Parse ANY format to standardized JSON records
+                    parsed_records = universal_parser.parse_to_json(raw_data, data_type)
+                    
+                    if parsed_records:
+                        logger.info(f"🔄 {data_type.upper()} parsed to {len(parsed_records)} JSON records")
+                        all_parsed_records.extend(parsed_records)
+                
+                elif input_method == "upload" and files_to_process:
+                    # Process multiple uploaded files
+                    from universal_data_parser import universal_parser
+                    
+                    # Simple schema entry for uploaded files
+                    db_client.table("client_schemas").insert({
+                        "client_id": client_id,
+                        "table_name": f"client_{client_id.replace('-', '_')}_data",
+                        "data_type": data_type,
+                        "schema_definition": {"type": "multi_file_upload", "format": data_type, "file_count": len(files_to_process)}
+                    }).execute()
+                    
+                    for file_idx, file in enumerate(files_to_process):
+                        try:
+                            logger.info(f"📄 Processing file {file_idx + 1}/{len(files_to_process)}: {file.filename}")
                             
                             # DEDUP + BATCH INSERT for ALL formats with retry logic
                             if parsed_records:
@@ -580,52 +631,265 @@ async def create_client_superadmin(
                                     f"🚀 TOTAL {data_type.upper()}: {total_inserted} new rows inserted after dedup!"
                                 )
                                 
-                                # 📊 PERFORMANCE MONITORING for large datasets
-                                if len(parsed_records) > 10000:  # Track performance for large uploads
-                                    success_rate = (total_inserted/len(parsed_records)*100)
-                                    logger.info(f"📊 LARGE DATASET PERFORMANCE REPORT:")
-                                    logger.info(f"   📋 Dataset: {len(parsed_records)} total records")
-                                    logger.info(f"   ✅ Inserted: {total_inserted} records")
-                                    logger.info(f"   📈 Success Rate: {success_rate:.1f}%")
-                                    logger.info(f"   ⏱️  Processing: Optimized chunking with retry logic")
-                                    logger.info(f"   🎯 Client: {email}")
-                                    
-                                    # Record performance metrics for monitoring
-                                    try:
-                                        db_client.table("performance_metrics").insert({
-                                            "client_id": client_id,
-                                            "operation_type": "large_csv_upload",
-                                            "total_records": len(parsed_records),
-                                            "records_inserted": total_inserted,
-                                            "success_rate": round(success_rate, 2),
-                                            "data_type": data_type,
-                                            "timestamp": datetime.utcnow().isoformat()
-                                        }).execute()
-                                        logger.info(f"📊 Performance metrics recorded for {email}")
-                                    except Exception as metrics_error:
-                                        logger.warning(f"⚠️ Could not record performance metrics: {metrics_error}")
+                            try:
+                                # NO LIMITS - READ THE ENTIRE FILE
+                                file_content = await file.read()
+                                logger.info(f"✅ Read entire file {file.filename}: {len(file_content)} bytes ({len(file_content) / 1024 / 1024:.2f} MB)")
                                 
-                        else:
-                            raise ValueError(f"{data_type.upper()} parsing returned no records")
+                                # Basic validation
+                                if not file_content:
+                                    logger.error(f"❌ File {file.filename} is empty or could not be read")
+                                    continue
+                                    
+                            except Exception as read_error:
+                                logger.error(f"❌ Failed to read file {file.filename}: {read_error}")
+                                logger.error(f"🔧 File read error type: {type(read_error).__name__}")
+                                
+                                # Try to create a placeholder record for failed file reads
+                                failed_read_record = {
+                                    'filename': file.filename,
+                                    'error': f'File read failed: {str(read_error)[:200]}',
+                                    'error_type': 'file_read_error',
+                                    'status': 'read_failed',
+                                    '_source_file': file.filename,
+                                    '_read_failed': True
+                                }
+                                all_parsed_records.append(failed_read_record)
+                                logger.info(f"⚠️ Added placeholder record for failed file read: {file.filename}")
+                                continue
                             
-                    except Exception as parse_error:
-                        logger.error(f"❌ {data_type.upper()} parsing failed: {parse_error}")
-                        # Fallback: store as raw text (old behavior)
-                        db_client.table("client_data").insert({
+                            # Determine file format based on extension or data_type
+                            file_extension = file.filename.split('.')[-1].lower()
+                            file_format = data_type
+                            
+                            # Auto-detect format from file extension if needed
+                            if file_extension in ['xlsx', 'xls']:
+                                file_format = 'excel'
+                            elif file_extension == 'bak':
+                                file_format = 'bak'
+                                # Special handling for database backup files
+                                if any(db_indicator in file.filename.lower() for db_indicator in ['db', 'database', 'sql', 'mysql', 'postgres', 'oracle', 'mssql']):
+                                    logger.info(f"🗃️ File {file.filename} appears to be a database backup")
+                            elif file_extension == 'csv':
+                                file_format = 'csv'
+                            elif file_extension == 'json':
+                                file_format = 'json'
+                            elif file_extension == 'xml':
+                                file_format = 'xml'
+                            
+                            # Handle Excel files differently (binary content)
+                            if file_format == 'excel':
+                                # For Excel files, we need to handle binary content
+                                try:
+                                    import pandas as pd
+                                    from io import BytesIO
+                                    from datetime import datetime
+                                    df = pd.read_excel(BytesIO(file_content), engine='openpyxl')
+                                    
+                                    # Convert to records with JSON serialization handling
+                                    parsed_records = []
+                                    for i, row in df.iterrows():
+                                        record = {}
+                                        for col, value in row.items():
+                                            clean_col = str(col).strip().replace(' ', '_').replace('-', '_')
+                                            clean_col = ''.join(c for c in clean_col if c.isalnum() or c == '_')
+                                            
+                                            if pd.isna(value):
+                                                record[clean_col] = None
+                                            else:
+                                                # Handle different data types for JSON serialization
+                                                if isinstance(value, pd.Timestamp):
+                                                    # Convert pandas Timestamp to ISO string
+                                                    record[clean_col] = value.isoformat()
+                                                elif hasattr(value, 'isoformat'):
+                                                    # Handle other datetime objects
+                                                    record[clean_col] = value.isoformat()
+                                                elif isinstance(value, (pd.Int64Dtype, pd.Float64Dtype)):
+                                                    # Handle pandas nullable integers/floats
+                                                    record[clean_col] = float(value) if pd.notna(value) else None
+                                                elif hasattr(value, 'item'):
+                                                    # Handle numpy scalars
+                                                    record[clean_col] = value.item()
+                                                else:
+                                                    # Convert to string for complex objects, keep primitives as-is
+                                                    if isinstance(value, (str, int, float, bool)):
+                                                        record[clean_col] = value
+                                                    else:
+                                                        record[clean_col] = str(value)
+                                        
+                                        record['_row_number'] = i + 1
+                                        record['_source_format'] = 'excel'
+                                        record['_source_file'] = file.filename
+                                        parsed_records.append(record)
+                                    
+                                    logger.info(f"✅ Excel file '{file.filename}' parsed: {len(parsed_records)} records")
+                                    all_parsed_records.extend(parsed_records)
+                                    
+                                except ImportError:
+                                    logger.error("❌ pandas/openpyxl not available for Excel parsing")
+                                    continue
+                                except Exception as e:
+                                    logger.error(f"❌ Excel parsing failed for {file.filename}: {e}")
+                                    continue
+                            else:
+                                # For text-based files and binary files that need special handling
+                                try:
+                                    # Try to decode as UTF-8 first
+                                    raw_data = file_content.decode('utf-8')
+                                    parsed_records = universal_parser.parse_to_json(raw_data, file_format)
+                                    
+                                    if parsed_records:
+                                        # Add file metadata
+                                        for record in parsed_records:
+                                            if isinstance(record, dict):
+                                                record['_source_file'] = file.filename
+                                        
+                                        logger.info(f"✅ File '{file.filename}' parsed: {len(parsed_records)} records")
+                                        all_parsed_records.extend(parsed_records)
+                                    else:
+                                        logger.warning(f"⚠️ No records parsed from file: {file.filename}")
+                                        
+                                except UnicodeDecodeError:
+                                    # Handle binary files or files with different encodings
+                                    logger.warning(f"⚠️ File {file.filename} is not UTF-8, trying alternative approaches...")
+                                    
+                                    # For .bak files, try different approaches
+                                    if file_format == 'bak':
+                                        try:
+                                            # Try different encodings for .bak files
+                                            for encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
+                                                try:
+                                                    raw_data = file_content.decode(encoding)
+                                                    logger.info(f"✅ Successfully decoded {file.filename} using {encoding} encoding")
+                                                    parsed_records = universal_parser.parse_to_json(raw_data, file_format)
+                                                    
+                                                    if parsed_records:
+                                                        # Add file metadata
+                                                        for record in parsed_records:
+                                                            if isinstance(record, dict):
+                                                                record['_source_file'] = file.filename
+                                                                record['_encoding_used'] = encoding
+                                                        
+                                                        logger.info(f"✅ File '{file.filename}' parsed with {encoding}: {len(parsed_records)} records")
+                                                        all_parsed_records.extend(parsed_records)
+                                                        break
+                                                except (UnicodeDecodeError, UnicodeError):
+                                                    continue
+                                            else:
+                                                # If all encodings fail, treat as binary and create a metadata record
+                                                logger.warning(f"⚠️ Could not decode {file.filename} with any encoding, storing as binary metadata")
+                                                binary_record = {
+                                                    'filename': file.filename,
+                                                    'file_size_bytes': len(file_content),
+                                                    'file_type': 'binary_backup',
+                                                    'content_preview': str(file_content[:100]) if len(file_content) > 0 else 'empty',
+                                                    '_source_file': file.filename,
+                                                    '_binary_file': True
+                                                }
+                                                all_parsed_records.append(binary_record)
+                                                logger.info(f"✅ Binary file '{file.filename}' stored as metadata record")
+                                                
+                                        except Exception as e:
+                                            logger.error(f"❌ Error processing .bak file {file.filename}: {e}")
+                                            continue
+                                    else:
+                                        # For other file types, log the error and skip
+                                        logger.error(f"❌ Cannot decode file {file.filename} as UTF-8 and no alternative handling available")
+                                        continue
+                                        
+                                except Exception as e:
+                                    logger.error(f"❌ Error parsing file {file.filename}: {e}")
+                                    continue
+                        
+                        except Exception as e:
+                            logger.error(f"❌ Error processing file {file.filename}: {e}")
+                            continue
+                
+                # Process all collected records
+                if all_parsed_records:
+                    logger.info(f"🔄 Processing {len(all_parsed_records)} total records from all sources")
+                    
+                    # BATCH INSERT - Same logic for ALL formats!
+                    batch_rows = []
+                    for record in all_parsed_records:
+                        # Remove metadata fields before storing
+                        clean_record = {k: v for k, v in record.items() if not k.startswith('_')}
+                        batch_rows.append({
                             "client_id": client_id,
                             "table_name": f"client_{client_id.replace('-', '_')}_data",
-                            "data": {"raw_content": raw_data, "type": data_type}
-                        }).execute()
-                        logger.info(f"⚠️  {data_type.upper()} stored as fallback raw text")
+                            "data": clean_record  # Store as JSON object
+                        })
                     
-                    logger.info(f"⚡ Data stored DIRECTLY for {email} - NOW TRIGGER AI!")
-                    
-                    # 🎯 NOW TRIGGER AI DASHBOARD GENERATION AFTER DATA IS SAFELY STORED
-                    try:
-                        logger.info(f"🚀 NOW triggering AI dashboard generation for {email} (data is ready!)")
+                    # OPTIMIZED BATCH INSERT for ALL formats with retry logic
+                    if batch_rows:
+                        total_inserted = await improved_batch_insert(db_client, batch_rows, data_type)
+                        logger.info(f"🚀 TOTAL RECORDS: {total_inserted} rows inserted successfully!")
                         
-                        # IMPROVED: Better error handling and more robust generation
-                        async def robust_dashboard_generation():
+                        # 📊 PERFORMANCE MONITORING for large datasets
+                        if len(all_parsed_records) > 10000:  # Track performance for large uploads
+                            success_rate = (total_inserted/len(all_parsed_records)*100)
+                            logger.info(f"📊 LARGE DATASET PERFORMANCE REPORT:")
+                            logger.info(f"   📋 Dataset: {len(all_parsed_records)} total records")
+                            logger.info(f"   ✅ Inserted: {total_inserted} records")
+                            logger.info(f"   📈 Success Rate: {success_rate:.1f}%")
+                            logger.info(f"   ⏱️  Processing: Multi-file upload with retry logic")
+                            logger.info(f"   🎯 Client: {email}")
+                            
+                            # Record performance metrics for monitoring
+                            try:
+                                db_client.table("performance_metrics").insert({
+                                    "client_id": client_id,
+                                    "operation_type": "multi_file_upload",
+                                    "total_records": len(all_parsed_records),
+                                    "records_inserted": total_inserted,
+                                    "success_rate": round(success_rate, 2),
+                                    "data_type": data_type,
+                                    "file_count": len(files_to_process) if input_method == "upload" else 1,
+                                    "timestamp": datetime.utcnow().isoformat()
+                                }).execute()
+                                logger.info(f"📊 Performance metrics recorded for {email}")
+                            except Exception as metrics_error:
+                                logger.warning(f"⚠️ Could not record performance metrics: {metrics_error}")
+                    else:
+                        raise ValueError("No records parsed from any source")
+                
+            except Exception as parse_error:
+                logger.error(f"❌ Data parsing failed: {parse_error}")
+                
+                # 🛡️ ENHANCED: Store fallback data for both paste AND file uploads
+                # This ensures dashboard generation can still proceed with error info
+                fallback_data = None
+                
+                if input_method == "paste" and data_content:
+                    fallback_data = {"raw_content": data_content, "type": data_type, "parse_error": str(parse_error)[:200]}
+                elif input_method == "upload" and files_to_process:
+                    # For file uploads, create a summary record with error info
+                    first_file = files_to_process[0]
+                    fallback_data = {
+                        "filename": first_file.filename if first_file.filename else 'unknown_file',
+                        "file_size": first_file.size if hasattr(first_file, 'size') else 0,
+                        "parse_error": str(parse_error)[:200],
+                        "type": data_type,
+                        "status": "parsing_failed",
+                        "error_type": "unicode_error" if "unicode" in str(parse_error).lower() else "parsing_error"
+                    }
+                
+                if fallback_data:
+                    db_client.table("client_data").insert({
+                        "client_id": client_id,
+                        "table_name": f"client_{client_id.replace('-', '_')}_data",
+                        "data": fallback_data
+                    }).execute()
+                    logger.info(f"⚠️ Fallback data stored for {input_method} method")
+            
+            logger.info(f"⚡ Data stored DIRECTLY for {email} - NOW TRIGGER AI!")
+            
+            # 🎯 NOW TRIGGER AI DASHBOARD GENERATION AFTER DATA IS SAFELY STORED
+            try:
+                logger.info(f"🚀 NOW triggering AI dashboard generation for {email} (data is ready!)")
+                
+                # IMPROVED: Better error handling and more robust generation
+                async def robust_dashboard_generation():
                             """Robust async dashboard generation with detailed error logging"""
                             try:
                                 # Wait a moment to ensure data is committed
@@ -645,7 +909,7 @@ async def create_client_superadmin(
                                 try:
                                     logger.info(f"🧠 Pre-caching LLM analysis for {email} to avoid future delays...")
                                     
-                                    # Get client data and run LLM analysis once
+                                    # Get client data - NO LIMIT for complete data processing and run LLM analysis once
                                     client_data = await dashboard_orchestrator.ai_analyzer.get_client_data_optimized(client_id)
                                     if client_data and client_data.get('data'):
                                         # This will cache the results automatically
@@ -680,22 +944,22 @@ async def create_client_superadmin(
                                 logger.error(f"❌ Outer AI dashboard generation error for {email}: {type(outer_error).__name__}: {str(outer_error)}")
                                 import traceback
                                 logger.error(f"Full outer traceback: {traceback.format_exc()}")
-                        
-                        # Create background task with improved error handling
-                        try:
-                            task = asyncio.create_task(robust_dashboard_generation())
-                            # Don't await the task - let it run in background
-                            logger.info(f"🎯 AI Dashboard generation task created successfully for {email}")
-                        except Exception as task_error:
-                            logger.error(f"❌ Failed to create background task for {email}: {task_error}")
-                        
-                    except Exception as ai_trigger_error:
-                        logger.error(f"⚠️  Failed to trigger AI generation for {email}: {type(ai_trigger_error).__name__}: {str(ai_trigger_error)}")
-                        # Log full traceback for better debugging
-                        import traceback
-                        logger.error(f"Full AI trigger traceback: {traceback.format_exc()}")
-                        # Don't let this break client creation
-                        logger.info(f"Client {email} created successfully even though AI generation failed")
+                
+                # Create background task with improved error handling
+                try:
+                    task = asyncio.create_task(robust_dashboard_generation())
+                    # Don't await the task - let it run in background
+                    logger.info(f"🎯 AI Dashboard generation task created successfully for {email}")
+                except Exception as task_error:
+                    logger.error(f"❌ Failed to create background task for {email}: {task_error}")
+                
+            except Exception as ai_trigger_error:
+                logger.error(f"⚠️  Failed to trigger AI generation for {email}: {type(ai_trigger_error).__name__}: {str(ai_trigger_error)}")
+                # Log full traceback for better debugging
+                import traceback
+                logger.error(f"Full AI trigger traceback: {traceback.format_exc()}")
+                # Don't let this break client creation
+                logger.info(f"Client {email} created successfully even though AI generation failed")
             except Exception as storage_error:
                 logger.warning(f"⚠️ Direct storage failed: {storage_error} - client created anyway")
         
@@ -1588,10 +1852,11 @@ async def get_client_data(client_id: str, limit: int = 100):
                     "message": "No data uploaded yet. Please upload CSV data first."
                 }
             
-            # Parse real data from database
+            # Parse real data from database including SFTP sources
             real_data = []
             table_name = None
             data_type = "general"
+            source_summary = {"csv_upload": 0, "sftp": 0, "other": 0}
             
             for record in response.data:
                 if record.get('data'):
@@ -1608,7 +1873,28 @@ async def get_client_data(client_id: str, limit: int = 100):
                             logger.warning(f"⚠️  Unknown data format for record: {type(record['data'])}")
                             continue
                         
-                        real_data.append(parsed_data)
+                        # Add source metadata to each record
+                        source_type = record.get('source_type', 'upload')
+                        source_file = record.get('source_file', 'manual_upload')
+                        
+                        # Include source information in the data
+                        enhanced_data = {
+                            **parsed_data,
+                            '_source_type': source_type,
+                            '_source_file': source_file,
+                            '_record_id': record.get('id', 'unknown')
+                        }
+                        
+                        real_data.append(enhanced_data)
+                        
+                        # Count sources for summary
+                        if source_type == 'sftp':
+                            source_summary["sftp"] += 1
+                        elif source_type in ['upload', 'csv']:
+                            source_summary["csv_upload"] += 1
+                        else:
+                            source_summary["other"] += 1
+                        
                         if not table_name:
                             table_name = record.get('table_name', f"client_{client_id.replace('-', '_')}_data")
                     except json.JSONDecodeError:
@@ -1626,7 +1912,7 @@ async def get_client_data(client_id: str, limit: int = 100):
                 data_type = schema_data.get('data_type', 'general')
                 table_name = schema_data.get('table_name', table_name)
             
-            logger.info(f"✅ Retrieved {len(real_data)} REAL records for client {client_id}")
+            logger.info(f"✅ Retrieved {len(real_data)} REAL records for client {client_id} (CSV: {source_summary['csv_upload']}, SFTP: {source_summary['sftp']}, Other: {source_summary['other']})")
             
             return {
                 "client_id": client_id,
@@ -1635,7 +1921,8 @@ async def get_client_data(client_id: str, limit: int = 100):
                 "data_type": data_type,
                 "data": real_data,
                 "row_count": len(real_data),
-                "message": f"Retrieved {len(real_data)} real records from database"
+                "source_summary": source_summary,
+                "message": f"Retrieved {len(real_data)} real records from database (CSV: {source_summary['csv_upload']}, SFTP: {source_summary['sftp']})"
             }
             
         except Exception as db_error:
@@ -1705,13 +1992,13 @@ async def generate_template_dashboard(
         
         logger.info(f"🎨 Getting data for {template_type} dashboard for client {client_id}")
         
-        # Get client data from database
+        # Get client data - NO LIMIT for complete data processing from database
         db_client = get_admin_client()
         if not db_client:
             raise HTTPException(status_code=503, detail="Database not configured")
         
-        # Get client data
-        data_response = db_client.table("client_data").select("data").eq("client_id", client_id).limit(100).execute()
+        # Get client data - NO LIMIT for complete data processing
+        data_response = db_client.table("client_data").select("data").eq("client_id", client_id).execute()
         
         client_data = []
         if data_response.data:
@@ -1757,13 +2044,13 @@ async def get_available_templates(token: str = Depends(security)):
         
         logger.info(f"📋 Getting available templates for client {client_id}")
         
-        # Get client data to determine best templates
+        # Get client data - NO LIMIT for complete data processing to determine best templates
         db_client = get_admin_client()
         if not db_client:
             raise HTTPException(status_code=503, detail="Database not configured")
         
-        # Get client data columns
-        data_response = db_client.table("client_data").select("data").eq("client_id", client_id).limit(1).execute()
+        # Get client data - NO LIMIT for complete data processing columns - get all data to analyze complete schema
+        data_response = db_client.table("client_data").select("data").eq("client_id", client_id).execute()
         
         data_columns = []
         if data_response.data:
@@ -1911,7 +2198,7 @@ async def get_dashboard_metrics(
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        # Get client data and extract LLM insights directly
+        # Get client data - NO LIMIT for complete data processing and extract LLM insights directly
         from ai_analyzer import ai_analyzer
         from dashboard_orchestrator import dashboard_orchestrator
         from llm_cache_manager import llm_cache_manager
@@ -2068,7 +2355,7 @@ async def get_business_insights_dashboard(
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        # Get client data
+        # Get client data - NO LIMIT for complete data processing
         from ai_analyzer import ai_analyzer
         from dashboard_orchestrator import dashboard_orchestrator
         from llm_cache_manager import llm_cache_manager
@@ -2154,7 +2441,7 @@ async def get_performance_dashboard(
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        # Get client data
+        # Get client data - NO LIMIT for complete data processing
         from ai_analyzer import ai_analyzer
         from dashboard_orchestrator import dashboard_orchestrator
         from llm_cache_manager import llm_cache_manager
@@ -3177,7 +3464,7 @@ async def get_supported_formats():
                 "format": "excel",
                 "description": "Microsoft Excel",
                 "extensions": [".xlsx", ".xls"],
-                "mime_types": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]
+                "mime_types": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel"]
             },
             {
                 "format": "xml",
@@ -3190,6 +3477,12 @@ async def get_supported_formats():
                 "description": "YAML Ain't Markup Language",
                 "extensions": [".yaml", ".yml"],
                 "mime_types": ["application/x-yaml"]
+            },
+            {
+                "format": "bak",
+                "description": "Backup Files (Auto-detected format)",
+                "extensions": [".bak"],
+                "mime_types": ["application/octet-stream", "text/plain"]
             },
             {
                 "format": "parquet",
@@ -3396,13 +3689,13 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
         logger.info(f"🚀 FAST dashboard generation for client {client_id}")
         start_time = datetime.utcnow()
         
-        # Get client data
+        # Get client data - NO LIMIT for complete data processing
         db_client = get_admin_client()
         if not db_client:
             raise HTTPException(status_code=503, detail="Database not configured")
         
-        # Get client data
-        data_response = db_client.table("client_data").select("data").eq("client_id", client_id).limit(100).execute()
+        # Get client data - NO LIMIT for complete data processing
+        data_response = db_client.table("client_data").select("data").eq("client_id", client_id).execute()
         
         if not data_response.data:
             raise HTTPException(status_code=404, detail="No data found for client")
@@ -3712,13 +4005,13 @@ async def fast_generate_dashboard_for_client(token: str = Depends(security)):
         logger.info(f"🚀 FAST dashboard generation for client {client_id}")
         start_time = datetime.utcnow()
         
-        # Get client data
+        # Get client data - NO LIMIT for complete data processing
         db_client = get_admin_client()
         if not db_client:
             raise HTTPException(status_code=503, detail="Database not configured")
         
-        # Get client data
-        data_response = db_client.table("client_data").select("data").eq("client_id", client_id).limit(100).execute()
+        # Get client data - NO LIMIT for complete data processing
+        data_response = db_client.table("client_data").select("data").eq("client_id", client_id).execute()
         
         if not data_response.data:
             raise HTTPException(status_code=404, detail="No data found for client")
@@ -3922,21 +4215,22 @@ async def debug_auth(token: str = Depends(security)):
 # Add improved batch processing function
 async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: str = "DATA") -> int:
     """
-    Improved batch insert with smaller chunks, retry logic, and exponential backoff
-    Specifically optimized for Supabase and large datasets
+    ULTRA-FAST batch insert optimized for massive datasets (1M+ records) with no timeouts
+    Uses aggressive optimization strategies for Supabase at scale
     """
     if not batch_rows:
         return 0
     
-    logger.info(f"🚀 OPTIMIZED BATCH inserting {len(batch_rows)} {data_type.upper()} rows")
+    logger.info(f"🚀 ULTRA-FAST BATCH inserting {len(batch_rows)} {data_type.upper()} rows")
     
-    # 🚀 MASSIVE THROUGHPUT SETTINGS for Supabase
-    chunk_size = 1000  # Increased for massive data uploads
-    max_retries = 3
-    base_delay = 0.1  # Reduced delay - Supabase can handle it
+    # 🚀 MAXIMUM SPEED SETTINGS - Optimized for 1M+ records
+    chunk_size = 1000  # Keep 1000 as requested - optimal balance
+    max_retries = 4    # More retries for reliability
     total_inserted = 0
     failed_chunks = []
+    start_time = time.time()
     
+    # 🚀 REMOVE ALL UNNECESSARY DELAYS - Process at maximum speed
     for i in range(0, len(batch_rows), chunk_size):
         chunk = batch_rows[i:i + chunk_size]
         chunk_num = i // chunk_size + 1
@@ -3945,15 +4239,18 @@ async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: st
         
         while retry_count <= max_retries and not chunk_inserted:
             try:
-                # Minimal delay - Supabase can handle rapid inserts
-                if i > 0 and i % 5000 == 0:  # Only delay every 5000 rows
-                    await asyncio.sleep(0.05)  # 50ms delay every 5K rows
-                
+                # 🚀 NO DELAYS - Let Supabase handle the throughput
                 response = db_client.table("client_data").insert(chunk).execute()
                 
                 if response.data:
                     total_inserted += len(response.data)
-                    logger.info(f"⚡ {data_type.upper()} CHUNK {chunk_num}: {len(response.data)} rows inserted!")
+                    
+                    # Log progress every 10 chunks instead of every chunk for speed
+                    if chunk_num % 10 == 0:
+                        elapsed = time.time() - start_time
+                        rate = total_inserted / elapsed if elapsed > 0 else 0
+                        logger.info(f"⚡ {data_type.upper()} CHUNK {chunk_num}: {total_inserted} total rows | {rate:.0f} rows/sec")
+                    
                     chunk_inserted = True
                 else:
                     raise Exception("No data returned from insert")
@@ -3962,49 +4259,70 @@ async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: st
                 retry_count += 1
                 error_msg = str(chunk_error)
                 
-                if "timed out" in error_msg.lower() or "timeout" in error_msg.lower():
-                    if retry_count <= max_retries:
-                        # Exponential backoff for timeouts
-                        delay = base_delay * (2 ** retry_count)
-                        logger.warning(f"⏱️ {data_type.upper()} chunk {chunk_num} timeout (attempt {retry_count}/{max_retries + 1}). Retrying in {delay}s...")
-                        await asyncio.sleep(delay)
-                    else:
-                        logger.error(f"❌ {data_type.upper()} chunk {chunk_num} failed after {max_retries + 1} attempts: {chunk_error}")
-                        failed_chunks.append(chunk)
-                        break
-                else:
-                    # Non-timeout error - don't retry
-                    logger.error(f"❌ {data_type.upper()} chunk {chunk_num} failed with non-timeout error: {chunk_error}")
+                # 🚀 SMART TIMEOUT DETECTION - Detect specific Supabase timeout patterns
+                is_timeout = any(keyword in error_msg.lower() for keyword in [
+                    "timeout", "timed out", "statement timeout", "canceling statement", "57014"
+                ])
+                
+                if is_timeout and retry_count <= max_retries:
+                    # 🚀 MINIMAL BACKOFF - Just enough to let Supabase recover
+                    delay = 0.2 * retry_count  # Linear backoff: 0.2s, 0.4s, 0.6s, 0.8s
+                    logger.warning(f"⏱️ {data_type.upper()} chunk {chunk_num} timeout (attempt {retry_count}/{max_retries + 1}). Retrying in {delay}s...")
+                    await asyncio.sleep(delay)
+                elif retry_count > max_retries:
+                    logger.error(f"❌ {data_type.upper()} chunk {chunk_num} failed after {max_retries + 1} attempts")
                     failed_chunks.append(chunk)
                     break
+                else:
+                    # Non-timeout error - immediate retry once, then fail
+                    if retry_count == 1:
+                        logger.warning(f"🔄 {data_type.upper()} chunk {chunk_num} error (retrying once): {error_msg[:100]}")
+                        continue
+                    else:
+                        logger.error(f"❌ {data_type.upper()} chunk {chunk_num} failed: {error_msg[:100]}")
+                        failed_chunks.append(chunk)
+                        break
     
-    # Handle failed chunks with smaller batch sizes
+    # 🚀 FAST RECOVERY - Handle failed chunks with optimized smaller batches
     if failed_chunks:
-        logger.info(f"🔄 Retrying {len(failed_chunks)} failed chunks with smaller batches...")
-        small_chunk_size = 20  # Even smaller for problem chunks
+        logger.info(f"🔄 FAST RECOVERY: Processing {len(failed_chunks)} failed chunks...")
+        recovery_chunk_size = 500  # Larger recovery chunks for speed
         
         for failed_chunk in failed_chunks:
-            for j in range(0, len(failed_chunk), small_chunk_size):
-                small_chunk = failed_chunk[j:j + small_chunk_size]
+            for j in range(0, len(failed_chunk), recovery_chunk_size):
+                recovery_chunk = failed_chunk[j:j + recovery_chunk_size]
                 try:
-                    await asyncio.sleep(0.5)  # Extra delay for problem data
-                    response = db_client.table("client_data").insert(small_chunk).execute()
+                    # 🚀 MINIMAL DELAY - Just enough for recovery
+                    await asyncio.sleep(0.1)
+                    response = db_client.table("client_data").insert(recovery_chunk).execute()
                     if response.data:
                         total_inserted += len(response.data)
-                        logger.info(f"🔧 Recovered {len(response.data)} rows with smaller batch")
-                except Exception as final_error:
-                    logger.error(f"💥 Final attempt failed for {len(small_chunk)} rows: {final_error}")
-                    # Last resort: individual inserts with delays
-                    for row in small_chunk:
+                        logger.info(f"🔧 RECOVERED {len(response.data)} rows")
+                except Exception as recovery_error:
+                    # Final attempt with smallest chunks
+                    logger.warning(f"🔧 Final recovery attempt for {len(recovery_chunk)} rows...")
+                    final_chunk_size = 100
+                    for k in range(0, len(recovery_chunk), final_chunk_size):
+                        final_chunk = recovery_chunk[k:k + final_chunk_size]
                         try:
-                            await asyncio.sleep(0.1)  # 100ms between individual inserts
-                            db_client.table("client_data").insert(row).execute()
-                            total_inserted += 1
+                            await asyncio.sleep(0.2)
+                            response = db_client.table("client_data").insert(final_chunk).execute()
+                            if response.data:
+                                total_inserted += len(response.data)
                         except:
-                            continue  # Skip problematic individual rows
+                            # Skip problematic data rather than individual inserts
+                            logger.warning(f"⚠️ Skipping {len(final_chunk)} problematic rows")
+                            continue
     
+    # 🚀 PERFORMANCE REPORT
+    total_time = time.time() - start_time
     success_rate = (total_inserted / len(batch_rows)) * 100
-    logger.info(f"🎯 BATCH COMPLETE: {total_inserted}/{len(batch_rows)} rows inserted ({success_rate:.1f}% success)")
+    avg_rate = total_inserted / total_time if total_time > 0 else 0
+    
+    logger.info(f"🎯 ULTRA-FAST BATCH COMPLETE:")
+    logger.info(f"   📊 Inserted: {total_inserted:,}/{len(batch_rows):,} rows ({success_rate:.1f}% success)")
+    logger.info(f"   ⚡ Speed: {avg_rate:.0f} rows/second")
+    logger.info(f"   ⏱️ Time: {total_time:.1f} seconds")
     
     return total_inserted
 
@@ -4012,7 +4330,7 @@ async def improved_batch_insert(db_client, batch_rows: List[Dict], data_type: st
 async def debug_data_type_detection(client_id: str):
     """Debug endpoint to test data type detection and business insights extraction"""
     try:
-        # Get client data
+        # Get client data - NO LIMIT for complete data processing
         client_data = await ai_analyzer.get_client_data_optimized(client_id)
         if not client_data:
             return {"error": "No data found for this client"}
@@ -4065,7 +4383,7 @@ async def debug_data_type_detection(client_id: str):
 async def test_llm_analysis(client_id: str):
     """Test endpoint to demonstrate LLM-powered dashboard analysis"""
     try:
-        # Get client data
+        # Get client data - NO LIMIT for complete data processing
         client_data = await ai_analyzer.get_client_data_optimized(client_id)
         if not client_data:
             return {"error": "No data found for this client"}
@@ -4089,7 +4407,7 @@ async def test_llm_analysis(client_id: str):
 async def debug_llm_analysis(client_id: str):
     """Debug endpoint to test LLM analysis step by step"""
     try:
-        # Get client data
+        # Get client data - NO LIMIT for complete data processing
         client_data = await ai_analyzer.get_client_data_optimized(client_id)
         if not client_data:
             return {"error": "No data found for this client"}

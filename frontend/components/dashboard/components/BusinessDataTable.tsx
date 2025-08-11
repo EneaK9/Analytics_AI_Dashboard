@@ -1,20 +1,20 @@
-import * as React from 'react';
-import { useState, useMemo } from 'react';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import CardHeader from '@mui/material/CardHeader';
-import Typography from '@mui/material/Typography';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import TablePagination from '@mui/material/TablePagination';
-import Chip from '@mui/material/Chip';
-import TextField from '@mui/material/TextField';
-import InputAdornment from '@mui/material/InputAdornment';
-import SearchIcon from '@mui/icons-material/Search';
+import * as React from "react";
+import { useState, useMemo } from "react";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CardHeader from "@mui/material/CardHeader";
+import Typography from "@mui/material/Typography";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import TablePagination from "@mui/material/TablePagination";
+import Chip from "@mui/material/Chip";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import SearchIcon from "@mui/icons-material/Search";
 
 interface BusinessDataTableProps {
 	clientData?: any[];
@@ -29,17 +29,18 @@ interface BusinessDataRow {
 	category: string;
 	value: number;
 	quantity: number;
-	status: 'Active' | 'Archived' | 'Unknown';
+	status: "Active" | "Archived" | "Unknown";
 	trend: number[];
 	growth: number;
 	revenue: number;
+	source?: string;
 }
 
 export default function BusinessDataTable({
 	clientData = [],
 	dataColumns = [],
 	title = "Business Data Overview",
-	subtitle = "Key business metrics and performance data"
+	subtitle = "Key business metrics and performance data",
 }: BusinessDataTableProps) {
 	const [page, setPage] = useState(0);
 	const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -58,15 +59,16 @@ export default function BusinessDataTable({
 		// Analyze what data is actually available
 		const sampleItem = clientData[0] || {};
 		const availableFields = Object.keys(sampleItem);
-		
+
 		// Map API fields to display columns
 		const fieldMapping = {
-			name: ['title', 'name', 'product', 'handle'],
-			category: ['product_type', 'category', 'type', 'vendor'],
-			price: ['price', 'amount', 'value', 'cost'],
-			quantity: ['inventory_quantity', 'quantity', 'stock', 'count'],
-			status: ['status', 'state', 'published'],
-			revenue: ['revenue', 'total_revenue', 'sales']
+			name: ["title", "name", "product", "handle"],
+			category: ["product_type", "category", "type", "vendor"],
+			price: ["price", "amount", "value", "cost"],
+			quantity: ["inventory_quantity", "quantity", "stock", "count"],
+			status: ["status", "state", "published"],
+			revenue: ["revenue", "total_revenue", "sales"],
+			source: ["_source_type", "_source_file"], // Source information
 		};
 
 		// Determine which columns to show based on available data
@@ -74,9 +76,10 @@ export default function BusinessDataTable({
 		const hasData: Record<string, boolean> = {};
 
 		Object.entries(fieldMapping).forEach(([column, possibleFields]) => {
-			const hasField = possibleFields.some(field => 
-				availableFields.includes(field) && 
-				clientData.some(item => item[field] != null && item[field] !== '')
+			const hasField = possibleFields.some(
+				(field) =>
+					availableFields.includes(field) &&
+					clientData.some((item) => item[field] != null && item[field] !== "")
 			);
 			if (hasField) {
 				availableColumns.push(column);
@@ -89,17 +92,27 @@ export default function BusinessDataTable({
 		// Process the data using only available fields
 		const processedItems = clientData.map((item, index) => {
 			const result: any = {
-				id: item.id || `item_${index}`
+				id: item.id || `item_${index}`,
 			};
 
 			// Extract name
 			if (hasData.name) {
-				result.name = item.title || item.name || item.product || item.handle || `Item ${index + 1}`;
+				result.name =
+					item.title ||
+					item.name ||
+					item.product ||
+					item.handle ||
+					`Item ${index + 1}`;
 			}
 
 			// Extract category
 			if (hasData.category) {
-				result.category = item.product_type || item.category || item.type || item.vendor || 'Uncategorized';
+				result.category =
+					item.product_type ||
+					item.category ||
+					item.type ||
+					item.vendor ||
+					"Uncategorized";
 			}
 
 			// Extract price (properly formatted)
@@ -110,38 +123,67 @@ export default function BusinessDataTable({
 
 			// Extract quantity
 			if (hasData.quantity) {
-				const qtyValue = item.inventory_quantity || item.quantity || item.stock || item.count;
+				const qtyValue =
+					item.inventory_quantity || item.quantity || item.stock || item.count;
 				result.quantity = qtyValue ? parseInt(qtyValue.toString()) : 0;
 			}
 
 			// Extract status (properly mapped)
 			if (hasData.status) {
 				const statusValue = item.status || item.state || item.published;
-				if (statusValue === 'active' || statusValue === 'published' || statusValue === true) {
-					result.status = 'Active';
-				} else if (statusValue === 'archived' || statusValue === 'draft' || statusValue === false) {
-					result.status = 'Archived';
+				if (
+					statusValue === "active" ||
+					statusValue === "published" ||
+					statusValue === true
+				) {
+					result.status = "Active";
+				} else if (
+					statusValue === "archived" ||
+					statusValue === "draft" ||
+					statusValue === false
+				) {
+					result.status = "Archived";
 				} else {
-					result.status = statusValue || 'Unknown';
+					result.status = statusValue || "Unknown";
 				}
 			}
 
 			// Calculate revenue only if both price and quantity are available
-			if (hasData.price && hasData.quantity && result.price && result.quantity) {
+			if (
+				hasData.price &&
+				hasData.quantity &&
+				result.price &&
+				result.quantity
+			) {
 				result.revenue = result.price * result.quantity;
 			} else if (hasData.revenue) {
 				result.revenue = item.revenue || item.total_revenue || item.sales || 0;
 			}
 
+			// Extract source information if available
+			if (hasData.source) {
+				const sourceType = item._source_type || "Unknown";
+				const sourceFile = item._source_file || "Unknown";
+
+				if (sourceType === "sftp") {
+					result.source = `SFTP: ${sourceFile}`;
+				} else if (sourceType === "upload" || sourceType === "csv") {
+					result.source = `Upload: ${sourceFile}`;
+				} else {
+					result.source = sourceType;
+				}
+			}
+
 			return result;
 		});
 
-		return { 
-			data: processedItems, 
-			availableColumns: availableColumns.filter(col => 
-				col === 'name' || // Always show name
-				hasData[col] // Show only columns with actual data
-			)
+		return {
+			data: processedItems,
+			availableColumns: availableColumns.filter(
+				(col) =>
+					col === "name" || // Always show name
+					hasData[col] // Show only columns with actual data
+			),
 		};
 	}, [clientData]);
 
@@ -152,11 +194,14 @@ export default function BusinessDataTable({
 	// Filter data based on search
 	const filteredData = useMemo(() => {
 		if (!searchTerm) return tableData;
-		
-		return tableData.filter(row =>
-			availableColumns.some(col => {
+
+		return tableData.filter((row) =>
+			availableColumns.some((col) => {
 				const value = row[col];
-				return value && value.toString().toLowerCase().includes(searchTerm.toLowerCase());
+				return (
+					value &&
+					value.toString().toLowerCase().includes(searchTerm.toLowerCase())
+				);
 			})
 		);
 	}, [tableData, searchTerm, availableColumns]);
@@ -171,31 +216,37 @@ export default function BusinessDataTable({
 		setPage(newPage);
 	};
 
-	const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+	const handleChangeRowsPerPage = (
+		event: React.ChangeEvent<HTMLInputElement>
+	) => {
 		setRowsPerPage(parseInt(event.target.value, 10));
 		setPage(0);
 	};
 
-	const getStatusColor = (status: BusinessDataRow['status']) => {
+	const getStatusColor = (status: BusinessDataRow["status"]) => {
 		switch (status) {
-			case 'Active': return 'success';
-			case 'Archived': return 'error';
-			case 'Unknown': return 'default';
-			default: return 'default';
+			case "Active":
+				return "success";
+			case "Archived":
+				return "error";
+			case "Unknown":
+				return "default";
+			default:
+				return "default";
 		}
 	};
 
 	const formatCurrency = (value: number) => {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: 'USD',
+		return new Intl.NumberFormat("en-US", {
+			style: "currency",
+			currency: "USD",
 			minimumFractionDigits: 0,
 			maximumFractionDigits: 0,
 		}).format(value);
 	};
 
 	return (
-		<Card variant="outlined" sx={{ width: '100%' }}>
+		<Card variant="outlined" sx={{ width: "100%" }}>
 			<CardHeader
 				title={title}
 				subheader={subtitle}
@@ -224,7 +275,9 @@ export default function BusinessDataTable({
 							<TableRow>
 								{availableColumns.map((col) => (
 									<TableCell key={col}>
-										<strong>{col.charAt(0).toUpperCase() + col.slice(1)}</strong>
+										<strong>
+											{col.charAt(0).toUpperCase() + col.slice(1)}
+										</strong>
 									</TableCell>
 								))}
 							</TableRow>
@@ -246,35 +299,46 @@ export default function BusinessDataTable({
 									<TableRow key={row.id} hover>
 										{availableColumns.map((col) => (
 											<TableCell key={col}>
-												{col === 'name' ? (
+												{col === "name" ? (
 													<Typography variant="body2" fontWeight="medium">
 														{row.name}
 													</Typography>
-												) : col === 'category' ? (
+												) : col === "category" ? (
 													<Typography variant="body2" color="text.secondary">
 														{row.category}
 													</Typography>
-												) : col === 'price' ? (
+												) : col === "price" ? (
 													<Typography variant="body2">
 														{formatCurrency(row.price)}
 													</Typography>
-												) : col === 'quantity' ? (
+												) : col === "quantity" ? (
 													<Typography variant="body2">
 														{row.quantity.toLocaleString()}
 													</Typography>
-												) : col === 'revenue' ? (
+												) : col === "revenue" ? (
 													<Typography variant="body2" fontWeight="medium">
 														{formatCurrency(row.revenue)}
 													</Typography>
-												) : col === 'status' ? (
+												) : col === "status" ? (
 													<Chip
 														label={row.status}
 														color={getStatusColor(row.status) as any}
 														size="small"
 													/>
+												) : col === "source" ? (
+													<Chip
+														label={row.source}
+														color={
+															row.source?.startsWith("SFTP")
+																? "secondary"
+																: "primary"
+														}
+														size="small"
+														variant="outlined"
+													/>
 												) : (
 													<Typography variant="body2" color="text.secondary">
-														{row[col] || 'N/A'}
+														{row[col] || "N/A"}
 													</Typography>
 												)}
 											</TableCell>
@@ -285,7 +349,7 @@ export default function BusinessDataTable({
 						</TableBody>
 					</Table>
 				</TableContainer>
-				
+
 				<TablePagination
 					component="div"
 					count={filteredData.length}
@@ -299,4 +363,4 @@ export default function BusinessDataTable({
 			</CardContent>
 		</Card>
 	);
-} 
+}
