@@ -1566,7 +1566,7 @@ class DashboardOrchestrator:
 
                     temperature=0.7,  # Higher temperature for more creative and varied chart selection
 
-                    max_tokens=8000,  # Maximum tokens for analyzing ALL records and generating complete tables with 20+ KPIs, 16+ charts, 10+ tables
+                    max_tokens=12000,  # Maximum tokens for analyzing ALL records and generating complete tables with 20+ KPIs, 16+ charts, 10+ tables
 
                     timeout=90,  # Extended timeout for analyzing ALL records and generating complete tables
 
@@ -2134,7 +2134,7 @@ class DashboardOrchestrator:
 
                     ],
 
-                    max_tokens=8000,  # Maximum tokens for analyzing ALL records and generating complete tables
+                    max_tokens=12000,  # Maximum tokens for analyzing ALL records and generating complete tables
 
                     temperature=0.3,
 
@@ -8808,7 +8808,7 @@ REVENUE TABLES (2 required):
 
 7. Make insights business-relevant and actionable
 
-CRITICAL SHOPIFY E-COMMERCE ANALYSIS REQUIREMENTS:
+CRITICAL E-COMMERCE ANALYSIS REQUIREMENTS:
 REVENUE METRICS: total_price trends, subtotal_price analysis, total_tax patterns, discount impact on revenue
 CUSTOMER INSIGHTS: customer_email domains, repeat customers, customer_id patterns, geographic distribution  
 OPERATIONAL EFFICIENCY: financial_status (paid/pending), fulfillment_status patterns, order processing times
@@ -9357,7 +9357,12 @@ Return ONLY the JSON response, no additional text or explanations.
         except json.JSONDecodeError as e:
             logger.warning(f"⚠️ LLM JSON parsing failed, trying to fix: {e}")
             logger.warning(f"⚠️ JSON error details: line {getattr(e, 'lineno', '?')}, col {getattr(e, 'colno', '?')}")
-            logger.warning(f"⚠️ Problematic JSON snippet: {cleaned_response[max(0, getattr(e, 'pos', 0) - 100):getattr(e, 'pos', 0) + 100]}")
+            error_pos = getattr(e, 'pos', 0)
+            snippet_start = max(0, error_pos - 100)
+            snippet_end = min(len(cleaned_response), error_pos + 100)
+            logger.warning(f"⚠️ Problematic JSON snippet: {cleaned_response[snippet_start:snippet_end]}")
+            logger.warning(f"⚠️ Character at error position: '{cleaned_response[error_pos] if error_pos < len(cleaned_response) else 'END_OF_STRING'}'")
+            logger.warning(f"⚠️ Total response length: {len(cleaned_response)} characters")
 
             # 🔧 TRY TO FIX MALFORMED JSON
             try:
@@ -9451,9 +9456,23 @@ Return ONLY the JSON response, no additional text or explanations.
                 logger.warning(f"⚠️ JSON fix also failed: {fix_error}")
                 # Fall through to trigger fallback analysis
                 
-            # If all fixes failed, trigger fallback analysis
-            logger.info("🔄 Triggering fallback analysis due to persistent JSON issues")
-            raise e
+            # If all fixes failed, return minimal valid response to prevent system failure
+            logger.warning("⚠️ All JSON parsing and fixing attempts failed. Returning minimal valid response.")
+            return {
+                "error": f"LLM JSON parsing failed: {str(e)}",
+                "business_analysis": {
+                    "business_type": "Unknown",
+                    "industry_sector": "Unknown", 
+                    "business_insights": ["LLM response could not be parsed"],
+                    "recommendations": ["Please try again - LLM generated invalid JSON"],
+                    "data_quality_score": "Unable to analyze due to JSON parsing error",
+                    "confidence_level": "Low"
+                },
+                "kpis": [],
+                "charts": [],
+                "tables": [],
+                "total_records": len(data_records)
+            }
 
 
 
@@ -9461,7 +9480,22 @@ Return ONLY the JSON response, no additional text or explanations.
 
             logger.error(f"❌ Failed to parse LLM insights: {e}")
 
-            raise e
+            # Return minimal valid response instead of crashing
+            return {
+                "error": f"LLM analysis failed: {str(e)}",
+                "business_analysis": {
+                    "business_type": "Unknown",
+                    "industry_sector": "Unknown", 
+                    "business_insights": ["LLM analysis failed due to unexpected error"],
+                    "recommendations": ["Please try again - system encountered an error"],
+                    "data_quality_score": "Unable to analyze due to system error",
+                    "confidence_level": "Low"
+                },
+                "kpis": [],
+                "charts": [],
+                "tables": [],
+                "total_records": len(data_records) if 'data_records' in locals() else 0
+            }
 
 
 
@@ -9530,7 +9564,7 @@ YOU MUST GENERATE EXACTLY:
 - MINIMUM 10 KPIs (CURRENT RESPONSE HAS ONLY 5 - INSUFFICIENT!)
 - MINIMUM 5 CHARTS (CURRENT RESPONSE HAS ONLY 3 - INSUFFICIENT!) 
 - MINIMUM 5 TABLES (CURRENT RESPONSE HAS ONLY 2 - INSUFFICIENT!)
-- ALL TABLES MUST SHOW ALL 140 RECORDS (NOT JUST 10!)
+- ALL TABLES MUST SHOW ALL  RECORDS (NOT JUST 10!)
 
 FAILURE TO MEET THESE REQUIREMENTS = AUTOMATIC REJECTION
 
@@ -9547,13 +9581,7 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
         "confidence_level": "[your confidence in the analysis]"
     },
     "kpis": [
-        // 🚨🚨🚨 MANDATORY: GENERATE EXACTLY 10-15 KPIs FROM DATA 🚨🚨🚨
-        // YOUR PREVIOUS RESPONSES ONLY HAD 5 KPIS - THIS IS INSUFFICIENT!
-        // YOU MUST GENERATE: Revenue KPIs, Customer KPIs, Operational KPIs,
-        // Platform KPIs, Geographic KPIs, Temporal KPIs, Quality KPIs
-        // EXAMPLE: total_revenue, avg_order_value, customer_count, fulfillment_rate,
-        // web_orders_pct, top_state_pct, processing_time, discount_usage, etc.
-        // GENERATE EXACTLY 10-15 KPIs OR RESPONSE WILL BE AUTOMATICALLY REJECTED
+        
         {
             "id": "[meaningful-id-based-on-data]",
             "display_name": "[KPI name relevant to this business]",
@@ -9564,13 +9592,7 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
         }
     ],
     "charts": [
-        // 🚨🚨🚨 MANDATORY: GENERATE EXACTLY 5-8 CHARTS WITH PROPER DATA FORMAT 🚨🚨🚨
-        // YOUR PREVIOUS RESPONSES HAD ARRAY STRINGS - THIS IS WRONG!
-        // WRONG FORMAT: {"state": "['CA', 'NY']", "orders": "[34, 18]"}
-        // CORRECT FORMAT: [{"state": "CA", "orders": 34}, {"state": "NY", "orders": 18}]
-        // REQUIRED: Revenue charts, Geographic charts, Status charts, Temporal charts, Platform charts
-        // EACH CHART MUST HAVE SEPARATE OBJECTS FOR EACH DATA POINT
-        // GENERATE EXACTLY 5-8 CHARTS WITH PROPER NAME-VALUE PAIRS OR AUTOMATIC REJECTION
+        
         {
             "id": "[chart-id-based-on-data]",
             "display_name": "[Chart name based on data analysis]",
@@ -9580,8 +9602,6 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
                 {"name": "StateA", "value": 34}, 
                 {"name": "StateB", "value": 18},
                 {"name": "StateC", "value": 14}
-                // CRITICAL: Use SEPARATE OBJECTS for each data point
-                // NOT array strings like "['CA', 'NY']"
             ],
             "config": {
                 "x_axis": {"field": "[actual field name]", "display_name": "[meaningful label]"},
@@ -9590,21 +9610,14 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
         }
     ],
     "tables": [
-        // 🚨🚨🚨 MANDATORY: GENERATE EXACTLY 5-8 TABLES WITH ALL DATA ROWS 🚨🚨🚨
-        // YOUR PREVIOUS RESPONSES ONLY SHOWED 1 ROW PER TABLE - THIS IS WRONG!
-        // CRITICAL: TABLE DATA ARRAY MUST CONTAIN ALL """ + str(len(data_records)) + """ RECORDS
-        // WRONG: "data": [{"order_id": 123, "total": 50}] ← ONLY 1 ROW
-        // CORRECT: "data": [{"order_id": 123, "total": 50}, {"order_id": 124, "total": 75}, ... ALL """ + str(len(data_records)) + """ ROWS]
-        // EACH TABLE MUST HAVE """ + str(len(data_records)) + """ OBJECTS IN THE DATA ARRAY
+       
         {
             "id": "[table-id-based-on-data]",
             "display_name": "[Table name based on data content]", 
             "technical_name": "[technical_name]",
             "data": [
                 {"column1": "value1", "column2": "value2"},
-                {"column1": "value3", "column2": "value4"},
-                // ... CONTINUE FOR ALL """ + str(len(data_records)) + """ RECORDS
-                // MUST HAVE """ + str(len(data_records)) + """ OBJECTS IN THIS ARRAY
+                {"column1": "value3", "column2": "value4"}
             ],
             "columns": ["column1", "column2", "etc"],
             "config": {"sortable": true, "filterable": true}
@@ -9612,6 +9625,13 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
     ],
     "total_records": """ + str(len(data_records)) + """
 }
+
+🚨🚨🚨 CRITICAL JSON FORMAT REQUIREMENT 🚨🚨🚨
+RESPOND WITH PURE JSON ONLY - NO COMMENTS ALLOWED!
+DO NOT include // comments or /* */ comments in your JSON response
+JSON does not support comments and they will cause parsing errors
+Example of FORBIDDEN: {"key": "value", // this comment breaks JSON}
+Example of CORRECT: {"key": "value"}
 
 🚨 CRITICAL REQUIREMENTS FOR MAXIMUM INSIGHT EXTRACTION:
 
@@ -9623,7 +9643,7 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
 SPECIFIC REQUIREMENTS - NON-NEGOTIABLE MINIMUMS:
 - Generate MINIMUM 10 KPIs (NO FEWER THAN 10) covering ALL business aspects
 - Generate MINIMUM 5 charts (NO FEWER THAN 5) with comprehensive business coverage  
-- Generate MINIMUM 5 tables (NO FEWER THAN 5) with deep business insights
+- Generate MINIMUM 5 tables (NO FEWER THAN 5) with deep business insights and all data rows
 - ALL TABLES MUST CONTAIN ALL """ + str(len(data_records)) + """ DATA ROWS (NOT JUST 1 ROW!)
 - TABLE DATA ARRAYS MUST HAVE """ + str(len(data_records)) + """ OBJECTS, NOT SAMPLES
 - FAILURE TO MEET MINIMUMS = INVALID RESPONSE
@@ -11234,10 +11254,22 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
         try:
             import re
             
-            # 1. Remove any trailing commas before closing brackets/braces
+            # 0. Remove control characters that cause "Expecting value" errors
+            json_string = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", json_string)
+            
+            # 1. Remove JSON comments (// and /* */) which are invalid in JSON
+            json_string = re.sub(r'//.*?$', '', json_string, flags=re.MULTILINE)  # Remove // comments
+            json_string = re.sub(r'/\*.*?\*/', '', json_string, flags=re.DOTALL)  # Remove /* */ comments
+            
+            # 2. Remove any trailing commas before closing brackets/braces
             json_string = re.sub(r",(\s*[}\]])", r"\1", json_string)
             
-            # 2. Fix unescaped control characters (like newlines, tabs)
+            # 3. Fix incomplete/broken arrays and objects
+            json_string = re.sub(r':\s*,', ': null,', json_string)  # Fix empty values
+            json_string = re.sub(r':\s*}', ': null}', json_string)  # Fix missing values before }
+            json_string = re.sub(r':\s*]', ': null]', json_string)  # Fix missing values before ]
+            
+            # 3. Fix unescaped control characters (like newlines, tabs)  
             json_string = json_string.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
             
             # 3. Fix unescaped quotes in string values
@@ -11280,7 +11312,30 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
             fixed_json = re.sub(r',\s*}', '}', fixed_json)  # Remove trailing commas in objects
             fixed_json = re.sub(r',\s*]', ']', fixed_json)  # Remove trailing commas in arrays
             
-            logger.info(f"🔧 JSON fix completed, new length: {len(fixed_json)}")
+            # 5. Ensure JSON is properly closed
+            fixed_json = fixed_json.strip()
+            
+            # Count opening and closing braces/brackets to ensure balance
+            open_braces = fixed_json.count('{')
+            close_braces = fixed_json.count('}')
+            open_brackets = fixed_json.count('[')
+            close_brackets = fixed_json.count(']')
+            
+            # Add missing closing braces/brackets
+            if open_braces > close_braces:
+                fixed_json += '}' * (open_braces - close_braces)
+            if open_brackets > close_brackets:
+                fixed_json += ']' * (open_brackets - close_brackets)
+            
+            # 6. Handle truncated JSON (ends abruptly)
+            if not fixed_json.endswith(('}', ']')):
+                if '"' in fixed_json and not fixed_json.endswith('"'):
+                    fixed_json += '"'  # Close unclosed string
+                if fixed_json.count('{') > fixed_json.count('}'):
+                    fixed_json += '}'  # Close unclosed object
+                if fixed_json.count('[') > fixed_json.count(']'):
+                    fixed_json += ']'  # Close unclosed array
+            
             return fixed_json
             
         except Exception as e:
