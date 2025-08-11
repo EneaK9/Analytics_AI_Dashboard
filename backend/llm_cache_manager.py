@@ -100,8 +100,16 @@ class LLMCacheManager:
                             logger.warning(f"⚠️ Unexpected cache format for client {client_id}: {type(cached_responses_json)}")
                             return None
                         
-                        # If the cached response is the direct LLM analysis (not wrapped)
+                        # Handle different cache formats for backward compatibility
                         if "llm_analysis" in cached_responses and dashboard_type == "metrics":
+                            # Legacy nested format - extract the inner llm_analysis
+                            inner_analysis = cached_responses.get("llm_analysis", {})
+                            if isinstance(inner_analysis, dict) and ("kpis" in inner_analysis or "charts" in inner_analysis):
+                                dashboard_response = inner_analysis
+                            else:
+                                dashboard_response = cached_responses
+                        elif "kpis" in cached_responses or "charts" in cached_responses:
+                            # New flat format - use directly
                             dashboard_response = cached_responses
                         else:
                             # Get the specific dashboard type response
@@ -256,14 +264,15 @@ class LLMCacheManager:
                 pass
 
             # Store as JSON string to avoid schema conflicts
+            # Store the LLM response directly without double-nesting
             llm_response_json = json.dumps({
                 "client_id": client_id,
                 "data_type": dashboard_type,
                 "schema_type": "dashboard_analysis",
                 "total_records": client_data.get("total_records", len(client_data.get("data", []))),
-                "llm_analysis": llm_response,
                 "cached": True,
                 "fast_mode": True,
+                **llm_response  # Spread the LLM response directly (kpis, charts, tables, etc.)
             })
 
             cache_record = {

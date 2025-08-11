@@ -847,16 +847,13 @@ function OriginalMainGrid({
 						alignItems: 'stretch'
 					}}
 				>
-					{llmAnalysis.charts.map((chart: any, index: number) => {
-						// Skip if no data or invalid chart type
-						if (
-							!chart.data ||
-							!Array.isArray(chart.data) ||
-							chart.data.length === 0
-						) {
-							return null;
-						}
-
+					{llmAnalysis.charts
+						.filter((chart: any) => 
+							chart.data && 
+							Array.isArray(chart.data) && 
+							chart.data.length > 0
+						)
+						.map((chart: any, index: number) => {
 						const chartId = `chart-${index}`;
 						const selectedValue = chartDropdownSelections[chartId] || "all";
 
@@ -876,9 +873,10 @@ function OriginalMainGrid({
 						}
 
 						// Adaptive chart sizing - No empty space!
-						const totalCharts = llmAnalysis.charts.filter((c: any) => 
+						const validCharts = llmAnalysis.charts.filter((c: any) => 
 							c.data && Array.isArray(c.data) && c.data.length > 0
-						).length;
+						);
+						const totalCharts = validCharts.length;
 						
                         const getChartSize = () => {
                             if (totalCharts === 1) return { xs: 12 };

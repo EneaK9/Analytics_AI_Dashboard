@@ -8570,7 +8570,7 @@ First, analyze the data to determine the business type, then generate comprehens
 
                 "technical_name": "chart_technical_name",
 
-                "chart_type": "bar|pie|line|radar|scatter|heatmap|radial",
+                "chart_type": "bar|pie|line|radar|scatter|heatmap|radial|donut",
 
                 "data": [
 
@@ -9057,6 +9057,12 @@ Return ONLY the JSON response, no additional text or explanations.
                 kpis = parsed_data.get("kpis", [])
 
                 charts = parsed_data.get("charts", [])
+                
+                # 🔧 Fix unsupported chart types  
+                for chart in charts:
+                    if chart.get("chart_type") == "histogram":
+                        chart["chart_type"] = "bar"
+                        logger.info(f"🔧 Converted histogram to bar chart: {chart.get('display_name')}")
 
                 tables = parsed_data.get("tables", [])
 
@@ -9146,6 +9152,13 @@ Return ONLY the JSON response, no additional text or explanations.
                 business_analysis = parsed_data.get("business_analysis", {})
                 kpis = parsed_data.get("kpis", [])
                 charts = parsed_data.get("charts", [])
+                
+                # 🔧 Fix unsupported chart types  
+                for chart in charts:
+                    if chart.get("chart_type") == "histogram":
+                        chart["chart_type"] = "bar"
+                        logger.info(f"🔧 Converted histogram to bar chart: {chart.get('display_name')}")
+                        
                 tables = parsed_data.get("tables", [])
 
                 return {
@@ -9311,6 +9324,10 @@ CRITICAL REQUIREMENTS:
             if client_id and "error" not in result:
 
                 from llm_cache_manager import llm_cache_manager
+
+                # 🗑️ TEMPORARY: Clear existing cache to fix double-nesting issue
+                await llm_cache_manager.invalidate_cache(str(client_id), "main")
+                await llm_cache_manager.invalidate_cache(str(client_id), "metrics")
 
                 await llm_cache_manager.store_cached_llm_response(
 
