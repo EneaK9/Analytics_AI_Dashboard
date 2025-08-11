@@ -1562,9 +1562,9 @@ class DashboardOrchestrator:
 
                     temperature=0.7,  # Higher temperature for more creative and varied chart selection
 
-                    max_tokens=2000,  # Much more tokens for comprehensive analysis
+                    max_tokens=8000,  # Maximum tokens for analyzing ALL records and generating complete tables with 20+ KPIs, 16+ charts, 10+ tables
 
-                    timeout=45,  # Longer timeout for thorough analysis
+                    timeout=90,  # Extended timeout for analyzing ALL records and generating complete tables
 
                 )
 
@@ -2130,7 +2130,7 @@ class DashboardOrchestrator:
 
                     ],
 
-                    max_tokens=2000,
+                    max_tokens=8000,  # Maximum tokens for analyzing ALL records and generating complete tables
 
                     temperature=0.3,
 
@@ -7980,9 +7980,9 @@ class DashboardOrchestrator:
 
 
 
-            # Use comprehensive data for LLM analysis (up to 50 records for maximum insights)
+            # Use ALL data for LLM analysis - no record limits for maximum insights
 
-            sample_data = flattened_data[:50] if len(flattened_data) > 50 else flattened_data
+            sample_data = flattened_data  # Analyze ALL records, no sampling
 
 
 
@@ -8684,26 +8684,45 @@ First, analyze the data to determine the business type, then generate comprehens
 
 
 
-COMPREHENSIVE ANALYSIS REQUIREMENTS:
+🚨 CRITICAL REQUIREMENTS FOR MAXIMUM INSIGHT EXTRACTION:
 
 1. Generate EXACTLY this structure - no extra fields, no missing fields
 
-2. Generate 10-15 meaningful KPIs covering multiple business aspects:
-FOR SHOPIFY ORDER DATA, CALCULATE THESE SPECIFIC KPIs:
-- Total Revenue (sum of total_price)
-- Average Order Value (mean total_price)  
-- Discount Penetration Rate (% orders with discount_codes)
-- Average Discount Amount (mean discount value)
-- Geographic Concentration (top states percentage)
+⚡ MANDATORY: Extract EVERY possible meaningful metric from the data provided
+⚡ REQUIRED: Generate the MAXIMUM number of KPIs, charts, and tables possible
+⚡ FORBIDDEN: Settling for basic analysis - use ALL data patterns available
+
+2. Generate 15-20 comprehensive KPIs covering ALL business aspects:
+FOR SHOPIFY ORDER DATA, YOU MUST CALCULATE ALL THESE SPECIFIC KPIs:
+REVENUE METRICS (5 required):
+- Total Revenue (sum of total_price) 
+- Average Order Value (mean total_price)
+- Median Order Value (median total_price)
+- Total Tax Revenue (sum of total_tax)
+- Zero-Value Orders Count (orders with total_price = 0)
+
+CUSTOMER METRICS (4 required):
+- Total Unique Customers (count distinct customer_id)
+- Repeat Customer Rate (customers with multiple orders %)
+- Customer Email Domain Analysis (gmail/business/other %)
+- International Customer Rate (non-US addresses %)
+
+OPERATIONAL METRICS (4 required):
 - Fulfillment Success Rate (% fulfilled orders)
-- Payment Success Rate (% paid orders)
-- Tax Collection Rate (total_tax/subtotal_price ratio)
-- Customer Email Domain Analysis (business vs personal emails)
-- Order Processing Time (updated_at - created_at)
-- Shipping vs Billing Mismatch Rate (different addresses)
-- Line Items per Order Average
-- Web vs Mobile Conversion (source_name analysis)
-- Military/Special Discount Usage
+- Payment Success Rate (% paid orders) 
+- Order Processing Time Average (updated_at - created_at)
+- Partial Fulfillment Rate (% partial orders)
+
+PLATFORM/SOURCE METRICS (3 required):
+- Web Order Percentage (web source %)
+- TikTok Order Percentage (tiktok source %)
+- Draft Order Percentage (draft source %)
+
+GEOGRAPHIC METRICS (4 required):
+- Top State Concentration (highest state %)
+- Shipping Address Match Rate (billing = shipping %)
+- Geographic Diversity Score (number of unique states)
+- Major Metro Area Concentration (top cities %)
 
    - Revenue metrics (total revenue, average order value, revenue per customer)
 
@@ -8715,20 +8734,33 @@ FOR SHOPIFY ORDER DATA, CALCULATE THESE SPECIFIC KPIs:
 
    - Inventory metrics (stock levels, turnover, availability)
 
-3. Generate 8-12 DIVERSE charts with strategic chart type selection:
-FOR SHOPIFY ORDER DATA, CREATE THESE SPECIFIC CHARTS:
-- Revenue Trends Over Time (line chart: created_at vs total_price)
-- Top States by Order Volume (bar chart: province counts)
-- Order Value Distribution (histogram/bar chart: total_price ranges)
-- Discount Code Usage (pie chart: with vs without discounts)
-- Fulfillment Status Distribution (donut chart: fulfillment_status)
-- Payment Status Breakdown (pie chart: financial_status)
-- Order Source Analysis (bar chart: source_name)
-- Geographic Revenue Heatmap (heatmap: state vs revenue)
-- Discount Amount vs Order Value (scatter plot)
-- Daily Order Patterns (line chart: orders by day)
-- Tax Collection by State (bar chart: total_tax by province)
-- Customer Email Domain Distribution (pie chart: domain types)
+3. Generate 12-18 DIVERSE charts with comprehensive business coverage:
+FOR SHOPIFY ORDER DATA, YOU MUST CREATE ALL THESE CHARTS:
+REVENUE ANALYSIS CHARTS (4 required):
+- Revenue by Day/Week (line chart: created_at vs total_price daily totals)
+- Order Value Distribution (bar chart: price ranges $0-25, $25-50, $50-100, $100+)
+- Cumulative Revenue Trend (line chart: running total over time)
+- Revenue by Customer Segment (pie chart: new vs returning)
+
+GEOGRAPHIC ANALYSIS CHARTS (3 required):
+- Top States by Order Count (bar chart: state names vs order counts)
+- Top Cities by Revenue (bar chart: city names vs revenue totals)
+- Geographic Order Distribution (pie chart: state distribution)
+
+OPERATIONAL CHARTS (3 required):
+- Fulfillment Status Breakdown (donut chart: fulfilled/partial/unfulfilled)
+- Order Processing Time Distribution (bar chart: processing time ranges)
+- Platform Source Analysis (pie chart: web/tiktok/draft percentages)
+
+CUSTOMER ANALYSIS CHARTS (3 required):
+- Customer Email Domain Types (pie chart: gmail/business/other)
+- Order Count per Customer (bar chart: 1 order, 2 orders, 3+ orders)
+- Customer Geographic Spread (bar chart: customers per state)
+
+TEMPORAL ANALYSIS CHARTS (3 required):
+- Orders by Day of Week (bar chart: Monday-Sunday patterns)
+- Order Creation vs Update Time (scatter plot: processing delays)
+- Hourly Order Patterns (line chart: orders by hour of day)
 
    - Distribution charts (pie, radial) for market share and proportions
 
@@ -8742,11 +8774,25 @@ FOR SHOPIFY ORDER DATA, CREATE THESE SPECIFIC CHARTS:
 
    - Quality/efficiency charts (radar, heatmap) for operational excellence
 
-4. Generate 5-10 comprehensive tables with actionable data:
+4. Generate 8-12 comprehensive tables with deep business insights:
+FOR SHOPIFY ORDER DATA, YOU MUST CREATE ALL THESE TABLES:
+CUSTOMER ANALYSIS TABLES (3 required):
+- Top Customers by Revenue (customer_id, email, total_spent, order_count, avg_order_value)
+- Customer Geographic Analysis (state, customer_count, total_revenue, avg_order_value)
+- Repeat Customer Analysis (customer_id, email, order_count, first_order_date, last_order_date, total_spent)
 
-   - Top performers (products, customers, regions)
+OPERATIONAL TABLES (3 required):
+- Order Processing Analysis (order_id, created_at, updated_at, processing_time_hours, fulfillment_status)
+- Platform Performance Breakdown (source_name, order_count, total_revenue, avg_order_value, fulfillment_rate)
+- Fulfillment Status Details (fulfillment_status, order_count, percentage, total_revenue)
 
-   - Detailed breakdowns with multiple columns
+GEOGRAPHIC TABLES (2 required):
+- State Performance Summary (state, order_count, total_revenue, avg_order_value, unique_customers)
+- City Revenue Breakdown (city, state, order_count, total_revenue, avg_order_value)
+
+REVENUE TABLES (2 required):
+- Daily Revenue Summary (date, order_count, total_revenue, avg_order_value, unique_customers)
+- Order Value Analysis (price_range, order_count, percentage, total_revenue)
 
    - Comparative analysis tables
 
@@ -9189,7 +9235,20 @@ Return ONLY the JSON response, no additional text or explanations.
 
                     logger.info(f"🔍 Sample chart data: {[(item.get('name'), item.get('value'), type(item.get('value'))) for item in sample_data if isinstance(item, dict)]}")
 
+                # 🚨 VALIDATE MINIMUM REQUIREMENTS FOR COMPREHENSIVE ANALYSIS
+                if len(kpis) < 10:
+                    logger.warning(f"⚠️ INSUFFICIENT KPIs: Got {len(kpis)}, need minimum 10. Response rejected.")
+                    return {"error": f"Insufficient KPIs: {len(kpis)}/10 minimum required"}
+                    
+                if len(charts) < 5:
+                    logger.warning(f"⚠️ INSUFFICIENT CHARTS: Got {len(charts)}, need minimum 5. Response rejected.")
+                    return {"error": f"Insufficient charts: {len(charts)}/5 minimum required"}
+                    
+                if len(tables) < 5:
+                    logger.warning(f"⚠️ INSUFFICIENT TABLES: Got {len(tables)}, need minimum 5. Response rejected.")
+                    return {"error": f"Insufficient tables: {len(tables)}/5 minimum required"}
 
+                logger.info(f"✅ COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
 
                 return {
 
@@ -9323,9 +9382,9 @@ Return ONLY the JSON response, no additional text or explanations.
             fields_json = json.dumps(list(dataset_summary.get('all_fields', [])))
             
             main_prompt = """
-You are a senior e-commerce business analyst specializing in Shopify order data analysis. Create a MAIN DASHBOARD with COMPREHENSIVE insights that extract maximum value from order records.
+You are a senior business analyst specializing in comprehensive data analysis. Create a MAIN DASHBOARD with COMPREHENSIVE insights that extract maximum value from ALL records in the complete dataset.
 
-Focus on SHOPIFY ORDER ANALYSIS for MAIN DASHBOARD:
+Focus on COMPREHENSIVE DATA ANALYSIS for MAIN DASHBOARD:
 - Key performance indicators (KPIs) that give overall health view
 - High-level trends and patterns
 - Overall business performance summary
@@ -9347,6 +9406,8 @@ STEPS:
 5. CREATE charts that visualize actual data distributions and relationships
 6. BUILD tables from real data rows and columns
 
+🚨 CRITICAL: YOU MUST GENERATE MINIMUM 10 KPIs, 5 CHARTS, 5 TABLES OR THE RESPONSE IS INVALID
+
 Return JSON with this structure, using ONLY insights derived from the actual data (use the numeric/categorical summaries to calculate metrics over ALL records):
 {
     "business_analysis": {
@@ -9360,6 +9421,11 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
         "confidence_level": "[your confidence in the analysis]"
     },
     "kpis": [
+        // 🚨 MANDATORY: GENERATE MINIMUM 10 KPIs FROM DATA
+        // REQUIRED: Revenue metrics, Customer metrics, Operational metrics,
+        // Platform/Source metrics, Geographic metrics, Temporal patterns,
+        // Processing efficiency, Data quality indicators
+        // GENERATE AT LEAST 10 KPIs OR RESPONSE IS INVALID
         {
             "id": "[meaningful-id-based-on-data]",
             "display_name": "[KPI name relevant to this business]",
@@ -9370,6 +9436,10 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
         }
     ],
     "charts": [
+        // 🚨 MANDATORY: GENERATE MINIMUM 5 CHARTS FROM DATA
+        // REQUIRED: Value/Revenue distribution, Status/Category breakdown, Geographic analysis,
+        // Temporal trends, Platform/Source performance
+        // GENERATE AT LEAST 5 CHARTS OR RESPONSE IS INVALID
         {
             "id": "[chart-id-based-on-data]",
             "display_name": "[Chart name based on data analysis]",
@@ -9383,11 +9453,16 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
         }
     ],
     "tables": [
+        // 🚨 MANDATORY: GENERATE MINIMUM 5 TABLES FROM DATA
+        // CRITICAL: INCLUDE ALL RECORDS IN TABLES (ALL 140 orders, not just 10)
+        // REQUIRED: Complete record breakdown, Geographic/Category analysis, Performance summary,
+        // Top performers, Temporal analysis with FULL dataset
+        // GENERATE AT LEAST 5 TABLES OR RESPONSE IS INVALID
         {
             "id": "[table-id-based-on-data]",
             "display_name": "[Table name based on data content]", 
             "technical_name": "[technical_name]",
-            "data": [{"USE": "ACTUAL ROWS from the dataset", "note": "up to 50 representative rows, 10 columns max"}],
+            "data": [{"USE": "ALL ROWS from the complete dataset", "note": "INCLUDE ALL records to show complete data, up to 10 most important columns"}],
             "columns": ["[actual column names from data]"],
             "config": {"sortable": true, "filterable": true}
         }
@@ -9395,15 +9470,32 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
     "total_records": """ + str(len(data_records)) + """
 }
 
-CRITICAL REQUIREMENTS:
+🚨 CRITICAL REQUIREMENTS FOR MAXIMUM INSIGHT EXTRACTION:
+
+⚡ MANDATORY: Extract EVERY possible meaningful metric from ALL records in the complete dataset
+⚡ REQUIRED: Generate the MAXIMUM number of KPIs, charts, and tables possible from the FULL dataset
+⚡ FORBIDDEN: Settling for basic analysis - use ALL data patterns from ALL records available
+⚡ CRITICAL: You have access to the COMPLETE dataset - analyze every single record for comprehensive insights
+
+SPECIFIC REQUIREMENTS - NON-NEGOTIABLE MINIMUMS:
+- Generate MINIMUM 10 KPIs (NO FEWER THAN 10) covering ALL business aspects
+- Generate MINIMUM 5 charts (NO FEWER THAN 5) with comprehensive business coverage  
+- Generate MINIMUM 5 tables (NO FEWER THAN 5) with deep business insights
+- FAILURE TO MEET MINIMUMS = INVALID RESPONSE
 - NO dummy data or static examples
 - CALCULATE all metrics from the actual dataset
 - USE real field names and values from the client data
 - ANALYZE patterns in the actual data to generate insights
 - DERIVE KPIs that make sense for this specific business based on available data
 - CREATE visualizations that show real data distributions
+- GENERATE tables that include ALL RECORDS from the dataset (not just samples), up to 10 most important columns for readability
 
-- GENERATE tables that reflect ALL records via aggregates and representative rows (not limited to just first rows). Cap ~50 rows, 10 columns for readability"""
+ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
+- FOR E-COMMERCE DATA: Revenue, customers, orders, fulfillment, geography, platforms
+- FOR SALES DATA: Revenue, leads, conversions, regions, products, performance
+- FOR FINANCIAL DATA: Transactions, accounts, balances, trends, risk, compliance
+- FOR OPERATIONAL DATA: Processes, efficiency, capacity, quality, performance
+- FOR ANY DATA TYPE: Extract meaningful patterns, trends, and actionable insights"""
 
 
             llm_response = await self._get_llm_analysis(main_prompt)
@@ -9418,12 +9510,24 @@ CRITICAL REQUIREMENTS:
 
                 from llm_cache_manager import llm_cache_manager
 
-                            # 🗑️ FORCE FRESH ANALYSIS: Clear all cache to apply enhanced prompts
+                            # 🗑️ FORCE MAXIMUM ANALYSIS: Clear ALL cache types for comprehensive regeneration
             await llm_cache_manager.invalidate_cache(str(client_id), "main")
-            await llm_cache_manager.invalidate_cache(str(client_id), "metrics")
+            await llm_cache_manager.invalidate_cache(str(client_id), "metrics") 
             await llm_cache_manager.invalidate_cache(str(client_id), "business")
             await llm_cache_manager.invalidate_cache(str(client_id), "performance")
-            logger.info(f"🔄 Forced cache invalidation for enhanced analysis - client {client_id}")
+            await llm_cache_manager.invalidate_cache(str(client_id), "dashboard")
+            await llm_cache_manager.invalidate_cache(str(client_id), "analytics")
+            # Clear any other possible cache entries
+            try:
+                from database import database_manager
+                await database_manager.execute_query(
+                    "DELETE FROM llm_response_cache WHERE client_id = %s",
+                    (str(client_id),)
+                )
+                logger.info(f"🔄 FORCED COMPLETE CACHE WIPE for maximum analysis - client {client_id}")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not clear all cache: {e}")
+                logger.info(f"🔄 Forced standard cache invalidation for enhanced analysis - client {client_id}")
 
                 await llm_cache_manager.store_cached_llm_response(
 
@@ -9536,9 +9640,9 @@ CRITICAL REQUIREMENTS:
 
             flattened_data = self._extract_business_entities_for_llm(data_records)
 
-            # Send comprehensive data to LLM for better business analysis (up to 50 records)
+            # Send ALL data to LLM for complete business analysis - no limits
 
-            sample_data = flattened_data[:50] if len(flattened_data) > 50 else flattened_data
+            sample_data = flattened_data  # Analyze ALL records for comprehensive insights
 
             logger.info(f"📊 Sending {len(sample_data)} sample records to LLM for BUSINESS dashboard analysis")
 
