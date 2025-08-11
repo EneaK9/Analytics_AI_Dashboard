@@ -594,7 +594,29 @@ async def create_client_superadmin(
                     
                     if parsed_records:
                         logger.info(f"🔄 {data_type.upper()} parsed to {len(parsed_records)} JSON records")
-                        all_parsed_records.extend(parsed_records)
+                        
+                        # EXTRACT BUSINESS ENTITIES for complex business data
+                        try:
+                            from dashboard_orchestrator import DashboardOrchestrator
+                            orchestrator = DashboardOrchestrator(None)
+                            
+                            # Check if this is complex business data
+                            enhanced_records = []
+                            for record in parsed_records:
+                                if orchestrator._is_business_data_structure(record):
+                                    logger.info(f"🏢 Detected complex business structure, extracting entities...")
+                                    entities = orchestrator._extract_entities_from_business_structure(record)
+                                    enhanced_records.extend(entities)
+                                    logger.info(f"✅ Extracted {len(entities)} business entities from complex data")
+                                else:
+                                    enhanced_records.append(record)
+                            
+                            all_parsed_records.extend(enhanced_records)
+                            logger.info(f"🎯 Total records after entity extraction: {len(enhanced_records)}")
+                            
+                        except Exception as extract_error:
+                            logger.warning(f"⚠️ Business entity extraction failed, using original records: {extract_error}")
+                            all_parsed_records.extend(parsed_records)
                 
                 elif input_method == "upload" and files_to_process:
                     # Process multiple uploaded files
@@ -727,7 +749,32 @@ async def create_client_superadmin(
                                                 record['_source_file'] = file.filename
                                         
                                         logger.info(f"✅ File '{file.filename}' parsed: {len(parsed_records)} records")
-                                        all_parsed_records.extend(parsed_records)
+                                        
+                                        # EXTRACT BUSINESS ENTITIES for complex business data
+                                        try:
+                                            from dashboard_orchestrator import DashboardOrchestrator
+                                            orchestrator = DashboardOrchestrator(None)
+                                            
+                                            # Check if this is complex business data
+                                            enhanced_records = []
+                                            for record in parsed_records:
+                                                if orchestrator._is_business_data_structure(record):
+                                                    logger.info(f"🏢 File {file.filename}: Detected complex business structure, extracting entities...")
+                                                    entities = orchestrator._extract_entities_from_business_structure(record)
+                                                    # Add file metadata to entities
+                                                    for entity in entities:
+                                                        entity['_source_file'] = file.filename
+                                                    enhanced_records.extend(entities)
+                                                    logger.info(f"✅ File {file.filename}: Extracted {len(entities)} business entities")
+                                                else:
+                                                    enhanced_records.append(record)
+                                            
+                                            all_parsed_records.extend(enhanced_records)
+                                            logger.info(f"🎯 File {file.filename}: Total records after entity extraction: {len(enhanced_records)}")
+                                            
+                                        except Exception as extract_error:
+                                            logger.warning(f"⚠️ File {file.filename}: Business entity extraction failed, using original records: {extract_error}")
+                                            all_parsed_records.extend(parsed_records)
                                     else:
                                         logger.warning(f"⚠️ No records parsed from file: {file.filename}")
                                         
