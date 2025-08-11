@@ -8829,13 +8829,14 @@ GEOGRAPHIC DEEP ANALYSIS:
 9. Chart data should be aggregated/summarized appropriately
 
 10. CRITICAL CHART DATA FORMAT REQUIREMENTS:
-- ALL chart data objects must have simple string/number values, NEVER nested objects
-- Use vendor names as strings (e.g., "Makihon", "Amazon", "Shopify") NOT objects
-- Example CORRECT format: {"name": "Makihon", "value": 70, "percentage": "70%"}
-- Example WRONG format: {"name": {"vendor": "Makihon"}, "value": 70}
-- For vendor analysis: extract vendor names as simple strings from order data
-- For geographic data: use state names like "California", "Texas" as strings
-- For product data: use product titles/names as strings, not product objects
+- ALL chart data must be proper NAME-VALUE PAIRS, NOT ARRAY STRINGS
+- WRONG: {"state": "['CA', 'NY', 'TX']", "orders": "[34, 18, 14]"}
+- CORRECT: [{"state": "CA", "orders": 34}, {"state": "NY", "orders": 18}, {"state": "TX", "orders": 14}]
+- WRONG: {"platform": "['web', 'tiktok']", "count": "[95, 8]"}
+- CORRECT: [{"platform": "web", "count": 95}, {"platform": "tiktok", "count": 8}]
+- Each data array must contain SEPARATE OBJECTS for each data point
+- Use simple string/number values, NEVER nested objects or array strings
+- For geographic data: {"state": "California", "orders": 34} NOT {"state": "['CA']", "orders": "[34]"}
 
 10. Tables should use list format for data and string format for columns
 
@@ -9117,6 +9118,21 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
+                # 🔧 Fix unsupported chart types and clean data format
+                for chart in charts:
+                    if chart.get("chart_type") == "histogram":
+                        chart["chart_type"] = "bar"
+                        logger.info(f"🔧 Converted histogram to bar chart: {chart.get('display_name')}")
+                    
+                    # 🔧 Detect array string format in chart data (validation will reject these)
+                    if chart.get("data") and isinstance(chart["data"], list):
+                        for item in chart["data"]:
+                            if isinstance(item, dict):
+                                for key, value in item.items():
+                                    # Check if value is an array string like "['CA', 'NY', 'TX']"
+                                    if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
+                                        logger.warning(f"⚠️ Invalid chart data format detected: {key}: {value} - should be separate objects!")
+
                 logger.info(
 
                     f"📊 Parsed standardized LLM insights: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables"
@@ -9130,6 +9146,41 @@ Return ONLY the JSON response, no additional text or explanations.
                 )
 
 
+
+                # 🚨 VALIDATE MINIMUM REQUIREMENTS FOR COMPREHENSIVE ANALYSIS
+                if len(kpis) < 10:
+                    logger.warning(f"⚠️ INSUFFICIENT KPIs: Got {len(kpis)}, need minimum 10. Response rejected.")
+                    return {"error": f"Insufficient KPIs: {len(kpis)}/10 minimum required"}
+                    
+                if len(charts) < 5:
+                    logger.warning(f"⚠️ INSUFFICIENT CHARTS: Got {len(charts)}, need minimum 5. Response rejected.")
+                    return {"error": f"Insufficient charts: {len(charts)}/5 minimum required"}
+                    
+                if len(tables) < 5:
+                    logger.warning(f"⚠️ INSUFFICIENT TABLES: Got {len(tables)}, need minimum 5. Response rejected.")
+                    return {"error": f"Insufficient tables: {len(tables)}/5 minimum required"}
+
+                # 🚨 VALIDATE CHART DATA FORMAT - reject array strings
+                for chart in charts:
+                    if chart.get("data") and isinstance(chart["data"], list):
+                        for item in chart["data"]:
+                            if isinstance(item, dict):
+                                for key, value in item.items():
+                                    if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
+                                        logger.warning(f"⚠️ INVALID CHART DATA FORMAT: Array strings detected in {chart.get('display_name')}")
+                                        return {"error": f"Invalid chart data format: {key}: {value} - use separate objects, not array strings"}
+
+                # 🚨 VALIDATE TABLE DATA - reject tables with insufficient rows
+                total_data_records = len(flattened_data)
+                min_required_rows = min(total_data_records, 50)  # Require at least 50 rows or all available data
+                for table in tables:
+                    if table.get("data") and isinstance(table["data"], list):
+                        table_row_count = len(table["data"])
+                        if table_row_count < min_required_rows:
+                            logger.warning(f"⚠️ INSUFFICIENT TABLE ROWS: {table.get('display_name')} has {table_row_count} rows, need minimum {min_required_rows}")
+                            return {"error": f"Insufficient table rows: {table.get('display_name')} has {table_row_count}/{min_required_rows} minimum required rows"}
+
+                logger.info(f"✅ COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
 
                 # 🔧 CRITICAL FIX: Return flattened structure for dashboard/metrics compatibility
 
@@ -9248,6 +9299,26 @@ Return ONLY the JSON response, no additional text or explanations.
                     logger.warning(f"⚠️ INSUFFICIENT TABLES: Got {len(tables)}, need minimum 5. Response rejected.")
                     return {"error": f"Insufficient tables: {len(tables)}/5 minimum required"}
 
+                # 🚨 VALIDATE CHART DATA FORMAT - reject array strings
+                for chart in charts:
+                    if chart.get("data") and isinstance(chart["data"], list):
+                        for item in chart["data"]:
+                            if isinstance(item, dict):
+                                for key, value in item.items():
+                                    if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
+                                        logger.warning(f"⚠️ INVALID CHART DATA FORMAT: Array strings detected in {chart.get('display_name')}")
+                                        return {"error": f"Invalid chart data format: {key}: {value} - use separate objects, not array strings"}
+
+                # 🚨 VALIDATE TABLE DATA - reject tables with insufficient rows
+                total_data_records = len(data_records)
+                min_required_rows = min(total_data_records, 50)  # Require at least 50 rows or all available data
+                for table in tables:
+                    if table.get("data") and isinstance(table["data"], list):
+                        table_row_count = len(table["data"])
+                        if table_row_count < min_required_rows:
+                            logger.warning(f"⚠️ INSUFFICIENT TABLE ROWS: {table.get('display_name')} has {table_row_count} rows, need minimum {min_required_rows}")
+                            return {"error": f"Insufficient table rows: {table.get('display_name')} has {table_row_count}/{min_required_rows} minimum required rows"}
+
                 logger.info(f"✅ COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
 
                 return {
@@ -9312,6 +9383,41 @@ Return ONLY the JSON response, no additional text or explanations.
                         logger.info(f"🔧 Cleaned chart data format: {chart.get('display_name')}")
                         
                 tables = parsed_data.get("tables", [])
+
+                # 🚨 VALIDATE MINIMUM REQUIREMENTS FOR COMPREHENSIVE ANALYSIS
+                if len(kpis) < 10:
+                    logger.warning(f"⚠️ INSUFFICIENT KPIs: Got {len(kpis)}, need minimum 10. Response rejected.")
+                    return {"error": f"Insufficient KPIs: {len(kpis)}/10 minimum required"}
+                    
+                if len(charts) < 5:
+                    logger.warning(f"⚠️ INSUFFICIENT CHARTS: Got {len(charts)}, need minimum 5. Response rejected.")
+                    return {"error": f"Insufficient charts: {len(charts)}/5 minimum required"}
+                    
+                if len(tables) < 5:
+                    logger.warning(f"⚠️ INSUFFICIENT TABLES: Got {len(tables)}, need minimum 5. Response rejected.")
+                    return {"error": f"Insufficient tables: {len(tables)}/5 minimum required"}
+
+                # 🚨 VALIDATE CHART DATA FORMAT - reject array strings
+                for chart in charts:
+                    if chart.get("data") and isinstance(chart["data"], list):
+                        for item in chart["data"]:
+                            if isinstance(item, dict):
+                                for key, value in item.items():
+                                    if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
+                                        logger.warning(f"⚠️ INVALID CHART DATA FORMAT: Array strings detected in {chart.get('display_name')}")
+                                        return {"error": f"Invalid chart data format: {key}: {value} - use separate objects, not array strings"}
+
+                # 🚨 VALIDATE TABLE DATA - reject tables with insufficient rows
+                total_data_records = len(data_records)
+                min_required_rows = min(total_data_records, 50)  # Require at least 50 rows or all available data
+                for table in tables:
+                    if table.get("data") and isinstance(table["data"], list):
+                        table_row_count = len(table["data"])
+                        if table_row_count < min_required_rows:
+                            logger.warning(f"⚠️ INSUFFICIENT TABLE ROWS: {table.get('display_name')} has {table_row_count} rows, need minimum {min_required_rows}")
+                            return {"error": f"Insufficient table rows: {table.get('display_name')} has {table_row_count}/{min_required_rows} minimum required rows"}
+
+                logger.info(f"✅ COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
 
                 return {
                     "business_analysis": business_analysis,
@@ -9406,7 +9512,14 @@ STEPS:
 5. CREATE charts that visualize actual data distributions and relationships
 6. BUILD tables from real data rows and columns
 
-🚨 CRITICAL: YOU MUST GENERATE MINIMUM 10 KPIs, 5 CHARTS, 5 TABLES OR THE RESPONSE IS INVALID
+🚨🚨🚨 CRITICAL REQUIREMENT - RESPONSE WILL BE REJECTED IF NOT MET 🚨🚨🚨
+YOU MUST GENERATE EXACTLY:
+- MINIMUM 10 KPIs (CURRENT RESPONSE HAS ONLY 5 - INSUFFICIENT!)
+- MINIMUM 5 CHARTS (CURRENT RESPONSE HAS ONLY 3 - INSUFFICIENT!) 
+- MINIMUM 5 TABLES (CURRENT RESPONSE HAS ONLY 2 - INSUFFICIENT!)
+- ALL TABLES MUST SHOW ALL 140 RECORDS (NOT JUST 10!)
+
+FAILURE TO MEET THESE REQUIREMENTS = AUTOMATIC REJECTION
 
 Return JSON with this structure, using ONLY insights derived from the actual data (use the numeric/categorical summaries to calculate metrics over ALL records):
 {
@@ -9421,11 +9534,13 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
         "confidence_level": "[your confidence in the analysis]"
     },
     "kpis": [
-        // 🚨 MANDATORY: GENERATE MINIMUM 10 KPIs FROM DATA
-        // REQUIRED: Revenue metrics, Customer metrics, Operational metrics,
-        // Platform/Source metrics, Geographic metrics, Temporal patterns,
-        // Processing efficiency, Data quality indicators
-        // GENERATE AT LEAST 10 KPIs OR RESPONSE IS INVALID
+        // 🚨🚨🚨 MANDATORY: GENERATE EXACTLY 10-15 KPIs FROM DATA 🚨🚨🚨
+        // YOUR PREVIOUS RESPONSES ONLY HAD 5 KPIS - THIS IS INSUFFICIENT!
+        // YOU MUST GENERATE: Revenue KPIs, Customer KPIs, Operational KPIs,
+        // Platform KPIs, Geographic KPIs, Temporal KPIs, Quality KPIs
+        // EXAMPLE: total_revenue, avg_order_value, customer_count, fulfillment_rate,
+        // web_orders_pct, top_state_pct, processing_time, discount_usage, etc.
+        // GENERATE EXACTLY 10-15 KPIs OR RESPONSE WILL BE AUTOMATICALLY REJECTED
         {
             "id": "[meaningful-id-based-on-data]",
             "display_name": "[KPI name relevant to this business]",
@@ -9436,16 +9551,25 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
         }
     ],
     "charts": [
-        // 🚨 MANDATORY: GENERATE MINIMUM 5 CHARTS FROM DATA
-        // REQUIRED: Value/Revenue distribution, Status/Category breakdown, Geographic analysis,
-        // Temporal trends, Platform/Source performance
-        // GENERATE AT LEAST 5 CHARTS OR RESPONSE IS INVALID
+        // 🚨🚨🚨 MANDATORY: GENERATE EXACTLY 5-8 CHARTS WITH PROPER DATA FORMAT 🚨🚨🚨
+        // YOUR PREVIOUS RESPONSES HAD ARRAY STRINGS - THIS IS WRONG!
+        // WRONG FORMAT: {"state": "['CA', 'NY']", "orders": "[34, 18]"}
+        // CORRECT FORMAT: [{"state": "CA", "orders": 34}, {"state": "NY", "orders": 18}]
+        // REQUIRED: Revenue charts, Geographic charts, Status charts, Temporal charts, Platform charts
+        // EACH CHART MUST HAVE SEPARATE OBJECTS FOR EACH DATA POINT
+        // GENERATE EXACTLY 5-8 CHARTS WITH PROPER NAME-VALUE PAIRS OR AUTOMATIC REJECTION
         {
             "id": "[chart-id-based-on-data]",
             "display_name": "[Chart name based on data analysis]",
             "technical_name": "[technical_name]",
             "chart_type": "[appropriate chart type for this data]",
-            "data": [{"USE": "ACTUAL DATA VALUES from the dataset"}],
+            "data": [
+                {"name": "StateA", "value": 34}, 
+                {"name": "StateB", "value": 18},
+                {"name": "StateC", "value": 14}
+                // CRITICAL: Use SEPARATE OBJECTS for each data point
+                // NOT array strings like "['CA', 'NY']"
+            ],
             "config": {
                 "x_axis": {"field": "[actual field name]", "display_name": "[meaningful label]"},
                 "y_axis": {"field": "[actual field name]", "display_name": "[meaningful label]"}
@@ -9453,17 +9577,23 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
         }
     ],
     "tables": [
-        // 🚨 MANDATORY: GENERATE MINIMUM 5 TABLES FROM DATA
-        // CRITICAL: INCLUDE ALL RECORDS IN TABLES (ALL 140 orders, not just 10)
-        // REQUIRED: Complete record breakdown, Geographic/Category analysis, Performance summary,
-        // Top performers, Temporal analysis with FULL dataset
-        // GENERATE AT LEAST 5 TABLES OR RESPONSE IS INVALID
+        // 🚨🚨🚨 MANDATORY: GENERATE EXACTLY 5-8 TABLES WITH ALL DATA ROWS 🚨🚨🚨
+        // YOUR PREVIOUS RESPONSES ONLY SHOWED 1 ROW PER TABLE - THIS IS WRONG!
+        // CRITICAL: TABLE DATA ARRAY MUST CONTAIN ALL """ + str(len(data_records)) + """ RECORDS
+        // WRONG: "data": [{"order_id": 123, "total": 50}] ← ONLY 1 ROW
+        // CORRECT: "data": [{"order_id": 123, "total": 50}, {"order_id": 124, "total": 75}, ... ALL """ + str(len(data_records)) + """ ROWS]
+        // EACH TABLE MUST HAVE """ + str(len(data_records)) + """ OBJECTS IN THE DATA ARRAY
         {
             "id": "[table-id-based-on-data]",
             "display_name": "[Table name based on data content]", 
             "technical_name": "[technical_name]",
-            "data": [{"USE": "ALL ROWS from the complete dataset", "note": "INCLUDE ALL records to show complete data, up to 10 most important columns"}],
-            "columns": ["[actual column names from data]"],
+            "data": [
+                {"column1": "value1", "column2": "value2"},
+                {"column1": "value3", "column2": "value4"},
+                // ... CONTINUE FOR ALL """ + str(len(data_records)) + """ RECORDS
+                // MUST HAVE """ + str(len(data_records)) + """ OBJECTS IN THIS ARRAY
+            ],
+            "columns": ["column1", "column2", "etc"],
             "config": {"sortable": true, "filterable": true}
         }
     ],
@@ -9481,6 +9611,8 @@ SPECIFIC REQUIREMENTS - NON-NEGOTIABLE MINIMUMS:
 - Generate MINIMUM 10 KPIs (NO FEWER THAN 10) covering ALL business aspects
 - Generate MINIMUM 5 charts (NO FEWER THAN 5) with comprehensive business coverage  
 - Generate MINIMUM 5 tables (NO FEWER THAN 5) with deep business insights
+- ALL TABLES MUST CONTAIN ALL """ + str(len(data_records)) + """ DATA ROWS (NOT JUST 1 ROW!)
+- TABLE DATA ARRAYS MUST HAVE """ + str(len(data_records)) + """ OBJECTS, NOT SAMPLES
 - FAILURE TO MEET MINIMUMS = INVALID RESPONSE
 - NO dummy data or static examples
 - CALCULATE all metrics from the actual dataset
@@ -9489,6 +9621,18 @@ SPECIFIC REQUIREMENTS - NON-NEGOTIABLE MINIMUMS:
 - DERIVE KPIs that make sense for this specific business based on available data
 - CREATE visualizations that show real data distributions
 - GENERATE tables that include ALL RECORDS from the dataset (not just samples), up to 10 most important columns for readability
+
+🚨🚨🚨 TABLE CRITICAL WARNING - YOUR PREVIOUS RESPONSES FAILED THIS 🚨🚨🚨
+YOUR LAST RESPONSE HAD TABLES WITH ONLY 1 ROW EACH - THIS IS UNACCEPTABLE!
+EACH TABLE MUST HAVE THE COMPLETE LIST OF ALL """ + str(len(data_records)) + """ RECORDS IN THE DATA ARRAY
+EXAMPLE CORRECT TABLE FORMAT:
+"data": [
+  {"order_id": 6338179268843, "total_price": 73.14, "customer_email": "example1@example.com"},
+  {"order_id": 6338179268844, "total_price": 84.22, "customer_email": "example2@example.com"},
+  {"order_id": 6338179268845, "total_price": 95.33, "customer_email": "example3@example.com"},
+  ... ALL """ + str(len(data_records)) + """ ROWS HERE ...
+]
+SHOWING ONLY 1 ROW = AUTOMATIC REJECTION
 
 ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 - FOR E-COMMERCE DATA: Revenue, customers, orders, fulfillment, geography, platforms
