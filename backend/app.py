@@ -2419,8 +2419,8 @@ async def get_dashboard_metrics(
                 end_date = last_month_end.isoformat()
 
         # Get client data with optional date range for full, correct analysis
-        # CRITICAL: Use no limit to ensure we get ALL business entities extracted during upload
-        client_data = await ai_analyzer.get_client_data_optimized(client_id, start_date=start_date, end_date=end_date, limit=None)
+        # CRITICAL: No limit applied - get ALL business entities extracted during upload
+        client_data = await ai_analyzer.get_client_data_optimized(client_id, start_date=start_date, end_date=end_date)
         if not client_data:
             raise HTTPException(status_code=404, detail="No data found for this client")
         
