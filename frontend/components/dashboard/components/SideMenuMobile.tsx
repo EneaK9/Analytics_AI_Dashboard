@@ -55,9 +55,9 @@ export default function SideMenuMobile({
 						<Avatar
 							sizes="small"
 							alt={user?.company_name || "User"}
-							sx={{ width: 24, height: 24 }}>
-							{user?.company_name?.charAt(0).toUpperCase() || "U"}
-						</Avatar>
+							src="/favicon.svg"
+							sx={{ width: 24, height: 24, bgcolor: "transparent" }}
+						/>
 						<Typography component="p" variant="h6">
 							{user?.company_name || "User"}
 						</Typography>

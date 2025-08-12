@@ -16,7 +16,7 @@ export default function Copyright(props: any) {
 			]}>
 			{"Copyright © "}
 			<Link color="inherit" href="#">
-				Analytics AI Dashboard
+				Shfa AI LLC
 			</Link>{" "}
 			{new Date().getFullYear()}
 			{"."}

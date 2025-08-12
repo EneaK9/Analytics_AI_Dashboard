@@ -478,6 +478,8 @@ const AIDashboardPage: React.FC = () => {
 		<>
 			<Head>
 				<title>AI Analytics Dashboard</title>
+				<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
 				<meta
 					name="description"
 					content="AI-powered analytics dashboard with automatic insights generation"
@@ -487,10 +489,13 @@ const AIDashboardPage: React.FC = () => {
 			<div className="min-h-screen bg-gray-50 dark:bg-gray-900">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 					{/* Header */}
-					<div className="mb-8">
-						<h1 className="text-3xl font-bold text-gray-800 dark:text-white/90">
-							AI Analytics Dashboard
-						</h1>
+                    <div className="mb-8">
+                        <div className="flex items-center gap-3">
+                            <img src="/favicon.svg" alt="App icon" className="w-8 h-8 rounded-full" />
+                            <h1 className="text-3xl font-bold text-gray-800 dark:text-white/90">
+                                AI Analytics Dashboard
+                            </h1>
+                        </div>
 						<p className="text-gray-600 dark:text-gray-400 mt-2">
 							Powered by artificial intelligence • Automated insights •
 							Beautiful visualizations

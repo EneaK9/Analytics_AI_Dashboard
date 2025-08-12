@@ -60,7 +60,7 @@ const Login: React.FC = () => {
 							<Building className="w-8 h-8 text-primary" />
 						</div>
 					</div>
-					<h2 className="text-3xl font-bold text-black">Analytics Dashboard</h2>
+					<h2 className="text-3xl font-bold text-black">AI Analytics Dashboard</h2>
 					<p className="mt-2 text-sm text-body">
 						Sign in to your analytics dashboard
 					</p>
@@ -159,7 +159,7 @@ const Login: React.FC = () => {
 				{/* Footer */}
 				<div className="text-center">
 					<p className="text-xs text-body">
-						© 2024 Analytics AI Dashboard. All rights reserved.
+						© 2025 Shfa AI LLC. All rights reserved.
 					</p>
 				</div>
 			</div>

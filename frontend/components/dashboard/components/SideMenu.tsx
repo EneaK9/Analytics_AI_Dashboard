@@ -81,20 +81,17 @@ export default function SideMenu({
 				<Avatar
 					sizes="small"
 					alt={user?.company_name || "User"}
-					sx={{ width: 36, height: 36 }}>
-					{user?.company_name?.charAt(0).toUpperCase() || "U"}
-				</Avatar>
+					src="/favicon.svg"
+					sx={{ width: 36, height: 36, bgcolor: "transparent" }}
+				/>
 				<Box sx={{ mr: "auto" }}>
 					<Typography
 						variant="body2"
 						sx={{ fontWeight: 500, lineHeight: "16px" }}>
 						{user?.company_name || "User"}
 					</Typography>
-					<Typography variant="caption" sx={{ color: "text.secondary" }}>
-						{user?.email || "user@dashboard.com"}
-					</Typography>
 				</Box>
-				<OptionsMenu />
+				{/* Options menu removed; logout is now available from header user menu */}
 			</Stack>
 		</Drawer>
 	);

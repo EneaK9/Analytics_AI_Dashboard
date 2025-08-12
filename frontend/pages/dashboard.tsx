@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import Head from "next/head";
 import { LogOut } from "lucide-react";
 import api from "../lib/axios";
 import { useAuth } from "../lib/useAuth";
@@ -317,11 +318,18 @@ const DashboardPage: React.FC = () => {
 	}
 
 	return (
-		<div className="min-h-screen">
-			{/* Material UI Dashboard */}
-			<Dashboard
-				dashboardData={dashboardData}
-				user={user}
+		<>
+			<Head>
+				<title>AI Analytics Dashboard</title>
+				<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+				<meta name="description" content="Your personalized analytics dashboard" />
+			</Head>
+			<div className="min-h-screen">
+				{/* Material UI Dashboard */}
+				<Dashboard
+					dashboardData={dashboardData}
+					user={user}
 				onRefreshAIData={undefined} // MainGrid handles data loading with cache
 				onLogout={handleLogout}
 				dateRange={dateRange}
@@ -354,6 +362,7 @@ const DashboardPage: React.FC = () => {
 				</div>
 			)}
 		</div>
+		</>
 	);
 };
 

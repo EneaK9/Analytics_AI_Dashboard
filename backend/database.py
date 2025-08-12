@@ -242,8 +242,13 @@ class PerformanceOptimizedDatabaseManager:
             query = query.order("created_at", desc=True)
 
             # Apply limit only if explicitly requested and no date range
-            if limit and not (start_date or end_date):
+            # For dashboard generation, we need ALL records to get full business data
+            if limit and not (start_date or end_date) and limit < 1000:
+                logger.info(f"⚠️ Applying limit {limit} to data retrieval - this may truncate business entities")
                 query = query.limit(limit)
+            elif limit and limit >= 1000:
+                # Don't apply large limits - get all data for comprehensive analysis
+                logger.info(f"🔍 Skipping large limit {limit} to ensure complete data retrieval")
 
             response = query.execute()
 

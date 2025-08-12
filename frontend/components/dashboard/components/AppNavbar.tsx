@@ -41,9 +41,13 @@ interface AppNavbarProps {
 	user?: {
 		company_name: string;
 		email: string;
+		client_id: string;
 	};
 	onRefreshAIData?: () => void;
 	onLogout?: () => void;
+	selectedSection?: string;
+	onSectionChange?: (section: string) => void;
+	onDashboardChange?: (dashboardType: string) => void;
 }
 
 export default function AppNavbar({
@@ -51,6 +55,9 @@ export default function AppNavbar({
 	user,
 	onRefreshAIData,
 	onLogout,
+	selectedSection,
+	onSectionChange,
+	onDashboardChange,
 }: AppNavbarProps) {
 	const [open, setOpen] = React.useState(false);
 
@@ -84,8 +91,15 @@ export default function AppNavbar({
 							open={open}
 							toggleDrawer={toggleDrawer}
 							user={user}
+							selectedSection={selectedSection}
+							onSectionChange={onSectionChange}
+							onDashboardChange={onDashboardChange}
 						/>
-						<MenuButton showBadge aria-label="Open menu">
+						<MenuButton 
+							showBadge 
+							aria-label="Open menu"
+							onClick={toggleDrawer(true)}
+						>
 							<MenuRoundedIcon />
 						</MenuButton>
 						<Box sx={{ display: { xs: "none", md: "block" } }}>
