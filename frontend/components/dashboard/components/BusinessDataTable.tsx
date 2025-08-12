@@ -296,7 +296,7 @@ export default function BusinessDataTable({
 								</TableRow>
 							) : (
 								paginatedData.map((row) => (
-									<TableRow key={row.id} hover>
+									<TableRow key={row.id}>
 										{availableColumns.map((col) => (
 											<TableCell key={col}>
 												{col === "name" ? (

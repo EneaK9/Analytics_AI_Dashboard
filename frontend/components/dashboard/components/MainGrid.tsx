@@ -1,3 +1,4 @@
+
 import * as React from "react";
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
@@ -983,16 +984,25 @@ export function OriginalMainGrid({
 
 							// Filter data based on dropdown selection if filters exist
 							let filteredData = chart.data;
-							if (chart.config?.filters && selectedValue !== "all") {
+							let availableCategories: string[] = [];
+							
+							// Extract unique categories from chart data for dropdown options
+							if (chart.data && Array.isArray(chart.data)) {
+								const uniqueCategories = new Set<string>();
+								chart.data.forEach((item: any) => {
+									const category = item.name || item.category || item.label || item.id || "";
+									if (category && category.toString().trim() !== "") {
+										uniqueCategories.add(category.toString());
+									}
+								});
+								availableCategories = Array.from(uniqueCategories).sort();
+							}
+							
+							// Apply filtering based on selected category
+							if (selectedValue !== "all" && chart.data && Array.isArray(chart.data)) {
 								filteredData = chart.data.filter((item: any) => {
-									const itemName = item.name || item.id || "";
-									return (
-										itemName
-											.toLowerCase()
-											.includes(selectedValue.toLowerCase()) ||
-										itemName === selectedValue ||
-										item.id === selectedValue
-									);
+									const itemCategory = item.name || item.category || item.label || item.id || "";
+									return itemCategory.toString() === selectedValue;
 								});
 							}
 
@@ -1065,15 +1075,21 @@ export function OriginalMainGrid({
 															: "Data visualization"
 													}
 													action={
-														chart.config?.filters && (
+														availableCategories.length > 1 && (
 															<FormControl size="small" sx={{ minWidth: 120 }}>
-																<InputLabel id={`chart-dropdown-${chartId}`}>
-																	Filter
-																</InputLabel>
 																<Select
-																	labelId={`chart-dropdown-${chartId}`}
 																	value={selectedValue}
-																	label="Filter"
+																	sx={{
+																		'& .MuiOutlinedInput-notchedOutline': {
+																			border: 'none'
+																		},
+																		'&:hover .MuiOutlinedInput-notchedOutline': {
+																			border: 'none'
+																		},
+																		'&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+																			border: 'none'
+																		}
+																	}}
 																	onChange={(e) =>
 																		handleDropdownChange(
 																			chartId,
@@ -1081,15 +1097,13 @@ export function OriginalMainGrid({
 																		)
 																	}>
 																	<MenuItem value="all">All</MenuItem>
-																	{Object.values(chart.config.filters)
-																		.flat()
-																		.map((option: any) => (
-																			<MenuItem
-																				key={option.value}
-																				value={option.value}>
-																				{option.label}
-																			</MenuItem>
-																		))}
+																	{availableCategories.map((category: string) => (
+																		<MenuItem
+																			key={category}
+																			value={category}>
+																			{category}
+																		</MenuItem>
+																	))}
 																</Select>
 															</FormControl>
 														)
@@ -1205,16 +1219,21 @@ export function OriginalMainGrid({
 															: "Data visualization"
 													}
 													action={
-														chart.config?.filters && (
+														availableCategories.length > 1 && (
 															<FormControl size="small" sx={{ minWidth: 120 }}>
-																<InputLabel
-																	id={`bar-chart-dropdown-${chartId}`}>
-																	Filter
-																</InputLabel>
 																<Select
-																	labelId={`bar-chart-dropdown-${chartId}`}
 																	value={selectedValue}
-																	label="Filter"
+																	sx={{
+																		'& .MuiOutlinedInput-notchedOutline': {
+																			border: 'none'
+																		},
+																		'&:hover .MuiOutlinedInput-notchedOutline': {
+																			border: 'none'
+																		},
+																		'&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+																			border: 'none'
+																		}
+																	}}
 																	onChange={(e) =>
 																		handleDropdownChange(
 																			chartId,
@@ -1222,15 +1241,13 @@ export function OriginalMainGrid({
 																		)
 																	}>
 																	<MenuItem value="all">All</MenuItem>
-																	{Object.values(chart.config.filters)
-																		.flat()
-																		.map((option: any) => (
-																			<MenuItem
-																				key={option.value}
-																				value={option.value}>
-																				{option.label}
-																			</MenuItem>
-																		))}
+																	{availableCategories.map((category: string) => (
+																		<MenuItem
+																			key={category}
+																			value={category}>
+																			{category}
+																		</MenuItem>
+																	))}
 																</Select>
 															</FormControl>
 														)
@@ -1298,7 +1315,7 @@ export function OriginalMainGrid({
 																	},
 																},
 															]}
-															height={300}
+															height={280}
 															sx={{ width: "100%" }}
 															margin={{
 																top: 20,
@@ -1326,16 +1343,21 @@ export function OriginalMainGrid({
 															: "Data visualization"
 													}
 													action={
-														chart.config?.filters && (
+														availableCategories.length > 1 && (
 															<FormControl size="small" sx={{ minWidth: 120 }}>
-																<InputLabel
-																	id={`line-chart-dropdown-${chartId}`}>
-																	Filter
-																</InputLabel>
 																<Select
-																	labelId={`line-chart-dropdown-${chartId}`}
 																	value={selectedValue}
-																	label="Filter"
+																	sx={{
+																		'& .MuiOutlinedInput-notchedOutline': {
+																			border: 'none'
+																		},
+																		'&:hover .MuiOutlinedInput-notchedOutline': {
+																			border: 'none'
+																		},
+																		'&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+																			border: 'none'
+																		}
+																	}}
 																	onChange={(e) =>
 																		handleDropdownChange(
 																			chartId,
@@ -1343,15 +1365,13 @@ export function OriginalMainGrid({
 																		)
 																	}>
 																	<MenuItem value="all">All</MenuItem>
-																	{Object.values(chart.config.filters)
-																		.flat()
-																		.map((option: any) => (
-																			<MenuItem
-																				key={option.value}
-																				value={option.value}>
-																				{option.label}
-																			</MenuItem>
-																		))}
+																	{availableCategories.map((category: string) => (
+																		<MenuItem
+																			key={category}
+																			value={category}>
+																			{category}
+																		</MenuItem>
+																	))}
 																</Select>
 															</FormControl>
 														)
@@ -1418,7 +1438,7 @@ export function OriginalMainGrid({
 																	},
 																},
 															]}
-															height={300}
+															height={280}
 															sx={{ width: "100%" }}
 															margin={{
 																top: 20,
@@ -3041,13 +3061,8 @@ function TemplateDashboard({
 												<Grid key={chartKey} size={getChartSize()}>
 													<Card
 														sx={{
-															height: {
-																xs: "auto",
-																sm: "400px",
-																md: "450px",
-																lg: "480px",
-															},
-															minHeight: { xs: "350px", sm: "380px" },
+															height: "500px",
+															minHeight: "500px",
 															display: "flex",
 															flexDirection: "column",
 														}}>
@@ -3090,11 +3105,7 @@ function TemplateDashboard({
 																	flexDirection: "column",
 																	justifyContent: "center",
 																	alignItems: "center",
-																	minHeight: {
-																		xs: "280px",
-																		sm: "320px",
-																		md: "360px",
-																	},
+																	minHeight: "380px",
 																}}>
 																{isValidChartData(chartData) ? (
 																	<>
@@ -3102,11 +3113,7 @@ function TemplateDashboard({
 																		<Box
 																			sx={{
 																				flex: 1,
-																				minHeight: {
-																					xs: 180,
-																					sm: 220,
-																					md: 260,
-																				},
+																																				minHeight: 300,
 																				width: "100%",
 																				position: "relative",
 																			}}>
@@ -3115,11 +3122,7 @@ function TemplateDashboard({
 																					sx={{
 																						width: "100%",
 																						height: "100%",
-																						minHeight: {
-																							xs: "180px",
-																							sm: "220px",
-																							md: "260px",
-																						},
+																						minHeight: "300px",
 																					}}>
 																					<LineChart
 																						series={[
@@ -3144,7 +3147,7 @@ function TemplateDashboard({
 																								scaleType: "point",
 																							},
 																						]}
-																						height={260}
+																						height={280}
 																						margin={{
 																							left: 40,
 																							right: 20,
@@ -3166,11 +3169,7 @@ function TemplateDashboard({
 																					sx={{
 																						width: "100%",
 																						height: "100%",
-																						minHeight: {
-																							xs: "180px",
-																							sm: "220px",
-																							md: "260px",
-																						},
+																						minHeight: "300px",
 																						display: "flex",
 																						justifyContent: "center",
 																						alignItems: "center",
@@ -3209,7 +3208,7 @@ function TemplateDashboard({
 																								} as const,
 																							},
 																						]}
-																						height={240}
+																						height={280}
 																						skipAnimation={true}
 																						slotProps={{
 																							noDataOverlay: {
@@ -3264,7 +3263,7 @@ function TemplateDashboard({
 																								outerRadius: 90,
 																							},
 																						]}
-																						height={200}
+																						height={280}
 																						skipAnimation={true}
 																						slotProps={{
 																							noDataOverlay: {
@@ -3345,7 +3344,7 @@ function TemplateDashboard({
 																								scaleType: "band",
 																							},
 																						]}
-																						height={200}
+																						height={280}
 																						margin={{
 																							left: 50,
 																							right: 50,
@@ -3490,7 +3489,7 @@ function TemplateDashboard({
 																	p: 1,
 																	borderBottom: "1px solid",
 																	borderColor: "grey.200",
-																	"&:hover": { bgcolor: "grey.50" },
+
 																}}>
 																{Array.isArray(row)
 																	? // Handle array format (row is an array)
@@ -3925,13 +3924,8 @@ function TemplateDashboard({
 												<Grid key={chartKey} size={getChartSize()}>
 													<Card
 														sx={{
-															height: {
-																xs: "auto",
-																sm: "400px",
-																md: "450px",
-																lg: "480px",
-															},
-															minHeight: { xs: "350px", sm: "380px" },
+															height: "500px",
+															minHeight: "500px",
 															display: "flex",
 															flexDirection: "column",
 														}}>
@@ -3953,7 +3947,7 @@ function TemplateDashboard({
 																	flex: 1,
 																	display: "flex",
 																	flexDirection: "column",
-																	minHeight: { xs: "250px", sm: "300px" },
+																	minHeight: "380px",
 																}}>
 																{isValidChartData(chartData) ? (
 																	<>
@@ -3989,7 +3983,7 @@ function TemplateDashboard({
 																								scaleType: "point",
 																							},
 																						]}
-																						height={200}
+																						height={280}
 																						margin={{
 																							left: 50,
 																							right: 50,
@@ -4077,7 +4071,7 @@ function TemplateDashboard({
 																								scaleType: "band",
 																							},
 																						]}
-																						height={200}
+																						height={280}
 																						margin={{
 																							left: 50,
 																							right: 50,
@@ -4136,7 +4130,7 @@ function TemplateDashboard({
 																								} as const,
 																							},
 																						]}
-																						height={200}
+																						height={280}
 																						skipAnimation={true}
 																						slotProps={{
 																							noDataOverlay: {
@@ -4191,7 +4185,7 @@ function TemplateDashboard({
 																								outerRadius: 80,
 																							},
 																						]}
-																						height={200}
+																						height={280}
 																						skipAnimation={true}
 																						slotProps={{
 																							noDataOverlay: {
@@ -4399,7 +4393,7 @@ function TemplateDashboard({
 																								scaleType: "point",
 																							},
 																						]}
-																						height={200}
+																						height={280}
 																						margin={{
 																							left: 50,
 																							right: 50,
@@ -4458,7 +4452,7 @@ function TemplateDashboard({
 																								} as const,
 																							},
 																						]}
-																						height={200}
+																						height={280}
 																						skipAnimation={true}
 																						slotProps={{
 																							noDataOverlay: {
@@ -4513,7 +4507,7 @@ function TemplateDashboard({
 																								outerRadius: 80,
 																							},
 																						]}
-																						height={200}
+																						height={280}
 																						skipAnimation={true}
 																						slotProps={{
 																							noDataOverlay: {
@@ -4619,7 +4613,7 @@ function TemplateDashboard({
 																								scaleType: "band",
 																							},
 																						]}
-																						height={200}
+																						height={280}
 																						margin={{
 																							left: 50,
 																							right: 50,
@@ -4739,7 +4733,7 @@ function TemplateDashboard({
 																	p: 1,
 																	borderBottom: "1px solid",
 																	borderColor: "grey.200",
-																	"&:hover": { bgcolor: "secondary.50" },
+
 																}}>
 																{Array.isArray(row)
 																	? // Handle array format (row is an array)
@@ -4833,7 +4827,7 @@ function TemplateDashboard({
 												display: "flex",
 												justifyContent: "center",
 												alignItems: "center",
-												minHeight: { xs: 280, sm: 320, md: 350 },
+												minHeight: "380px",
 											}}>
 											{clientData.length > 0 ? (
 												<div
@@ -5018,7 +5012,7 @@ function TemplateDashboard({
 																color: "#dc004e",
 															},
 														]}
-														height={250}
+																													height={280}
 														skipAnimation={true}
 														slotProps={{
 															noDataOverlay: { message: "No data available" },
@@ -5071,7 +5065,7 @@ function TemplateDashboard({
 												display: "flex",
 												justifyContent: "center",
 												alignItems: "center",
-												minHeight: { xs: 280, sm: 320, md: 350 },
+												minHeight: "380px",
 											}}>
 											{clientData.length > 0 ? (
 												<div
@@ -5159,7 +5153,7 @@ function TemplateDashboard({
 																},
 															},
 														]}
-														height={250}
+																													height={280}
 														skipAnimation={true}
 														slotProps={{
 															noDataOverlay: { message: "No data available" },
@@ -5282,7 +5276,7 @@ function TemplateDashboard({
 															},
 														]}
 														width={400}
-														height={250}
+																													height={280}
 														skipAnimation={true}
 														slotProps={{
 															noDataOverlay: { message: "No data available" },
@@ -5360,8 +5354,8 @@ function TemplateDashboard({
 				<Grid container spacing={{ xs: 1, sm: 2, md: 3 }}  sx={{ mb: { xs: 2, md: 4 } }}>
 					<Grid size={{ xs: 12 }}>
 						<Card sx={{ 
-							height: 'auto',
-							minHeight: { xs: '300px', sm: '400px' }
+							height: "500px",
+							minHeight: "500px"
 						}}>
 							<CardHeader
 								title="Business Data Analysis"

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useRouter } from "next/router";
+import Head from "next/head";
 import { Eye, EyeOff, Lock, Mail, Building, Shield } from "lucide-react";
 import api from "../lib/axios";
 
@@ -58,7 +59,14 @@ export default function Home() {
 	};
 
 	return (
-		<div className="min-h-screen bg-gray-2 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+		<>
+			<Head>
+				<title>Login - Analytics AI Dashboard</title>
+				<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+				<meta name="description" content="Sign in to your  AI  analytics dashboard" />
+			</Head>
+			<div className="min-h-screen bg-gray-2 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
 			<div className="max-w-md w-full space-y-8">
 				{/* Header */}
 				<div className="text-center">
@@ -166,10 +174,11 @@ export default function Home() {
 				{/* Footer */}
 				<div className="text-center">
 					<p className="text-xs text-body">
-						© 2024 Analytics AI Dashboard. All rights reserved.
+						© 2025 Shfa AI LLC. All rights reserved.
 					</p>
 				</div>
 			</div>
 		</div>
+		</>
 	);
 }

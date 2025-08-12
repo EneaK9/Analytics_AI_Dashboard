@@ -10,7 +10,6 @@ import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import MenuButton from "./MenuButton";
 import MenuContent from "./MenuContent";
 import CardAlert from "./CardAlert";
-import SelectContent from "./SelectContent";
 import { logout } from "../../../lib/auth";
 
 interface SideMenuMobileProps {
@@ -21,18 +20,12 @@ interface SideMenuMobileProps {
 		email: string;
 		client_id: string;
 	};
-	selectedSection?: string;
-	onSectionChange?: (section: string) => void;
-	onDashboardChange?: (dashboardType: string) => void;
 }
 
 export default function SideMenuMobile({
 	open,
 	toggleDrawer,
 	user,
-	selectedSection,
-	onSectionChange,
-	onDashboardChange,
 }: SideMenuMobileProps) {
 	const handleLogout = () => {
 		logout();
@@ -62,9 +55,9 @@ export default function SideMenuMobile({
 						<Avatar
 							sizes="small"
 							alt={user?.company_name || "User"}
-							sx={{ width: 24, height: 24 }}>
-							{user?.company_name?.charAt(0).toUpperCase() || "U"}
-						</Avatar>
+							src="/favicon.svg"
+							sx={{ width: 24, height: 24, bgcolor: "transparent" }}
+						/>
 						<Typography component="p" variant="h6">
 							{user?.company_name || "User"}
 						</Typography>
@@ -74,21 +67,8 @@ export default function SideMenuMobile({
 					</MenuButton>
 				</Stack>
 				<Divider />
-				
-				{/* Dashboard Selection */}
-				<Stack sx={{ p: 1.5, pb: 0 }}>
-					<SelectContent user={user} onDashboardChange={onDashboardChange} />
-				</Stack>
-				<Divider />
-				
 				<Stack sx={{ flexGrow: 1 }}>
-					<MenuContent 
-						selectedSection={selectedSection}
-						onSectionChange={(section) => {
-							onSectionChange?.(section);
-							toggleDrawer(false)(); // Close menu after selection
-						}}
-					/>
+					<MenuContent />
 					<Divider />
 				</Stack>
 				<CardAlert />

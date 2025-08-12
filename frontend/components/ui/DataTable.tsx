@@ -236,7 +236,7 @@ export default function DataTable({
 						{showExport && processedData.length > 0 && (
 							<button
 								onClick={handleExport}
-								className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+								className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 rounded-lg">
 								<Download className="w-4 h-4" />
 								Export
 							</button>
@@ -271,7 +271,7 @@ export default function DataTable({
 									<th
 										key={column.key}
 										className={`text-left py-3 px-4 font-semibold text-gray-900 ${
-											column.sortable ? "cursor-pointer hover:bg-gray-50" : ""
+											column.sortable ? "cursor-pointer" : ""
 										} ${compact ? "py-2 text-sm" : ""}`}
 										style={{ width: column.width }}
 										onClick={() => handleSort(column.key)}>
@@ -296,7 +296,7 @@ export default function DataTable({
 								paginatedData.map((row, index) => (
 									<tr
 										key={index}
-										className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+										className="border-b border-gray-100">
 										{columns.map((column) => (
 											<td
 												key={column.key}
@@ -327,7 +327,7 @@ export default function DataTable({
 							<button
 								onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
 								disabled={currentPage === 1}
-								className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+								className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed">
 								Previous
 							</button>
 
@@ -346,7 +346,7 @@ export default function DataTable({
 											className={`px-3 py-1 border rounded ${
 												currentPage === page
 													? "bg-blue-500 text-white border-blue-500"
-													: "border-gray-300 hover:bg-gray-50"
+													: "border-gray-300"
 											}`}>
 											{page}
 										</button>
@@ -369,7 +369,7 @@ export default function DataTable({
 									setCurrentPage((p) => Math.min(totalPages, p + 1))
 								}
 								disabled={currentPage === totalPages}
-								className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+								className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed">
 								Next
 							</button>
 						</div>

@@ -169,7 +169,7 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
       <Box sx={{ p: 3 }}>
         <Card sx={{ bgcolor: "grey.50", border: "2px dashed #ccc", textAlign: "center", p: 4 }}>
           <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
-            📊 No Data Tables Available
+            No Data Tables Available
           </Typography>
           <Typography color="text.secondary">
             Upload some data to see analysis tables and insights here.
@@ -212,10 +212,10 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
   return (
 		<Box sx={{ p: 3 }}>
 			<Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
-				📊 Data Tables
+				Data Tables
 			</Typography>
 			<Typography variant="subtitle1" color="text.secondary" sx={{ mb: 4 }}>
-				{(dateRange && !isDateRangeToday(dateRange)) ? `AI-generated analysis tables for ${dateRange.label || 'selected date range'}` : 'AI-generated analysis tables from your dashboard metrics'}
+				All your data is gathered here in tabular format
 			</Typography>
 
 			{/* Date Filter Indicator - Only show for non-today dates */}
@@ -232,7 +232,15 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
           onChange={(_, v) => setActiveTab(v)}
           variant="scrollable"
           scrollButtons="auto"
-          sx={{ mb: 2 }}
+          sx={{ 
+            mb: 2,
+            '& .MuiTab-root': {
+              border: 'none',
+              '&:hover': {
+                backgroundColor: 'transparent',
+              }
+            }
+          }}
         >
           {validTables.map((table: any, index: number) => {
             const name = table.display_name || `Table ${index + 1}`;

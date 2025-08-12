@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import Head from "next/head";
 import { ArrowLeft, Settings, RefreshCw } from "lucide-react";
 import DashboardTemplateSelector, {
 	DashboardTemplateType,
@@ -20,7 +21,6 @@ interface TemplatePageState {
 export default function TemplateDashboardPage() {
 	const router = useRouter();
 	const { user } = useAuth();
-	const [isClient, setIsClient] = useState(false);
 	const [state, setState] = useState<TemplatePageState>({
 		step: "select",
 		selectedTemplate: null,
@@ -29,11 +29,6 @@ export default function TemplateDashboardPage() {
 		loading: true,
 		error: null,
 	});
-
-	// Ensure this only runs on client-side
-	useEffect(() => {
-		setIsClient(true);
-	}, []);
 
 	// Load client data on mount
 	useEffect(() => {
@@ -96,25 +91,10 @@ export default function TemplateDashboardPage() {
 		}));
 	};
 
-	// Redirect to login if not authenticated (client-side only)
-	useEffect(() => {
-		if (isClient && !user) {
-			router.push("/login");
-		}
-	}, [isClient, user, router]);
-
-	// Don't render anything during SSR or if not authenticated
-	if (!isClient || !user) {
-		return (
-			<div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex items-center justify-center">
-				<div className="text-center">
-					<div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-6"></div>
-					<p className="text-xl font-semibold text-gray-900">
-						Loading...
-					</p>
-				</div>
-			</div>
-		);
+	// Redirect to login if not authenticated
+	if (!user) {
+		router.push("/login");
+		return null;
 	}
 
 	if (state.loading) {
@@ -148,7 +128,7 @@ export default function TemplateDashboardPage() {
 							Try Again
 						</button>
 						<button
-							onClick={() => isClient && router.push("/dashboard")}
+							onClick={() => router.push("/dashboard")}
 							className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
 							Back to Dashboard
 						</button>
@@ -159,7 +139,14 @@ export default function TemplateDashboardPage() {
 	}
 
 	return (
-		<div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
+		<>
+			<Head>
+				<title>Template Dashboard </title>
+				<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+				<meta name="description" content="Choose from pre-built dashboard templates" />
+			</Head>
+			<div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
 			{/* Navigation Header */}
 			<header className="bg-white/95 backdrop-blur-sm border-b border-slate-200 px-6 py-4 sticky top-0 z-50 shadow-sm">
 				<div className="mx-auto max-w-7xl flex items-center justify-between">
@@ -236,19 +223,19 @@ export default function TemplateDashboardPage() {
 			<footer className="bg-white border-t border-gray-200 px-6 py-4 mt-12">
 				<div className="mx-auto max-w-7xl flex items-center justify-between text-sm text-gray-600">
 					<div className="flex items-center gap-4">
-						<span>© 2024 Analytics AI Dashboard</span>
+						<span>© 2025 Shfa AI LLC</span>
 						<span>•</span>
 						<span>Template-Based Analytics System</span>
 					</div>
 					<div className="flex items-center gap-4">
 						<button
-							onClick={() => isClient && router.push("/dashboard")}
+							onClick={() => router.push("/dashboard")}
 							className="text-blue-600 hover:text-blue-700 transition-colors">
 							Back to Main Dashboard
 						</button>
 						<span>•</span>
 						<button
-							onClick={() => isClient && router.push("/charts-showcase")}
+							onClick={() => router.push("/charts-showcase")}
 							className="text-blue-600 hover:text-blue-700 transition-colors">
 							View All Charts
 						</button>
@@ -256,5 +243,6 @@ export default function TemplateDashboardPage() {
 				</div>
 			</footer>
 		</div>
+		</>
 	);
 }

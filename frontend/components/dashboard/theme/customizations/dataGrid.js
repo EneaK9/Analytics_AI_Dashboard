@@ -66,14 +66,10 @@ export const dataGridCustomizations = {
         '&:last-of-type': {
           borderBottom: `1px solid ${(theme.vars || theme).palette.divider}`,
         },
-        '&:hover': {
-          backgroundColor: (theme.vars || theme).palette.action.hover,
-        },
+
         '&.Mui-selected': {
           background: (theme.vars || theme).palette.action.selected,
-          '&:hover': {
-            backgroundColor: (theme.vars || theme).palette.action.hover,
-          },
+
         },
       }),
       iconButtonContainer: ({ theme }) => ({
