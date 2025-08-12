@@ -611,9 +611,9 @@ class UniversalDataParser:
             return self._parse_csv(content)
     
     def _parse_bak(self, content: str) -> List[Dict[str, Any]]:
-        """Parse .bak files (SQL Server backup files) with proper database structure extraction"""
+        """Parse .bak files with intelligent business data extraction"""
         try:
-            print("🔍 Parsing SQL Server .bak file with database structure extraction...")
+            print("🔍 Parsing .bak file with intelligent business data extraction...")
             print(f"📏 Original content length: {len(content)} characters")
             
             # Check if content is empty
@@ -621,38 +621,50 @@ class UniversalDataParser:
                 print("❌ .bak file content is empty or too small to parse")
                 return self._create_bak_error_record(content, Exception("BAK file content is empty or too small"))
             
-            # STEP 1: Try to extract SQL data structures from the backup
+            # STEP 1: Try to extract actual business data patterns
             try:
-                print("🔍 Step 1: Attempting SQL structure extraction...")
-                sql_records = self._extract_sql_from_bak(content)
-                if sql_records:
-                    print(f"✅ SQL extraction successful: {len(sql_records)} records")
-                    return sql_records
-                print("⚠️ No SQL structures found")
+                print("🔍 Step 1: Searching for real business data patterns...")
+                business_records = self._extract_business_data_from_bak(content)
+                if business_records and len(business_records) > 0:
+                    total_lines = len(business_records)
+                    sample_size = int(total_lines * 0.06)  # 6% sampling
+                    print(f"⚡ SAMPLING: Taking 6% sample = {sample_size}/{total_lines} lines")
+                    sampled_records = business_records[:sample_size] if sample_size > 0 else business_records[:1]
+                    print(f"✅ Business data extraction successful: {len(sampled_records)} records")
+                    return sampled_records
+                print("⚠️ No business data patterns found")
             except Exception as e:
-                print(f"⚠️ SQL extraction failed: {e}")
+                print(f"⚠️ Business data extraction failed: {e}")
             
-            # STEP 2: If SQL extraction fails, try to find database schema information
+            # STEP 2: Try to extract readable text data with intelligent filtering
             try:
-                print("🔍 Step 2: Attempting database schema extraction...")
-                schema_records = self._extract_database_schema(content)
-                if schema_records:
-                    print(f"✅ Schema extraction successful: {len(schema_records)} records")
-                    return schema_records
-                print("⚠️ No database schema found")
+                print("🔍 Step 2: Attempting intelligent text extraction...")
+                text_records = self._extract_intelligent_text_from_bak(content)
+                if text_records and len(text_records) > 0:
+                    total_lines = len(text_records)
+                    sample_size = int(total_lines * 0.06)  # 6% sampling
+                    print(f"⚡ SAMPLING: Taking 6% sample = {sample_size}/{total_lines} lines")
+                    sampled_records = text_records[:sample_size] if sample_size > 0 else text_records[:1]
+                    print(f"✅ Intelligent text extraction successful: {len(sampled_records)} records")
+                    return sampled_records
+                print("⚠️ No meaningful text data found")
             except Exception as e:
-                print(f"⚠️ Schema extraction failed: {e}")
+                print(f"⚠️ Intelligent text extraction failed: {e}")
             
-            # STEP 3: Last resort - extract meaningful text patterns but parse them better
+            # STEP 3: Last resort - try to find ANY meaningful patterns
             try:
-                print("🔍 Step 3: Attempting structured data extraction...")
-                structured_records = self._extract_structured_data_from_bak(content)
-                if structured_records:
-                    print(f"✅ Structured data extraction successful: {len(structured_records)} records")
-                    return structured_records
-                print("⚠️ No structured data found")
+                print("🔍 Step 3: Final attempt - extracting any meaningful patterns...")
+                fallback_records = self._extract_fallback_patterns_from_bak(content)
+                if fallback_records and len(fallback_records) > 0:
+                    total_lines = len(fallback_records)
+                    sample_size = int(total_lines * 0.06)  # 6% sampling
+                    print(f"⚡ SAMPLING: Taking 6% sample = {sample_size}/{total_lines} lines")
+                    sampled_records = fallback_records[:sample_size] if sample_size > 0 else fallback_records[:1]
+                    print(f"✅ Fallback pattern extraction successful: {len(sampled_records)} records")
+                    return sampled_records
+                print("⚠️ No meaningful patterns found")
             except Exception as e:
-                print(f"⚠️ Structured data extraction failed: {e}")
+                print(f"⚠️ Fallback pattern extraction failed: {e}")
             
             # If all methods fail, return a helpful error record
             print("❌ All BAK parsing methods failed, returning error record")
@@ -663,6 +675,248 @@ class UniversalDataParser:
             import traceback
             print(f"Full traceback: {traceback.format_exc()}")
             return self._create_bak_error_record(content, e)
+    
+    def _extract_business_data_from_bak(self, content: str) -> List[Dict[str, Any]]:
+        """Extract actual business data patterns from BAK file content"""
+        try:
+            import re
+            
+            print(f"🔍 Analyzing content for business data patterns...")
+            records = []
+            
+            # Look for common business data patterns
+            patterns = {
+                'email': r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+                'phone': r'\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b',
+                'date': r'\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b|\b\d{1,2}[-/]\d{1,2}[-/]\d{4}\b',
+                'price': r'\$\d+(?:\.\d{2})?|\b\d+\.\d{2}\b',
+                'id_number': r'\b[A-Z]{2,}\d{3,}\b|\b\d{6,}\b',
+                'name': r'\b[A-Z][a-z]+ [A-Z][a-z]+\b',
+                'address': r'\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd)\b',
+                'zipcode': r'\b\d{5}(?:-\d{4})?\b',
+                'state': r'\b(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)\b',
+                'product_code': r'\b[A-Z]{2,4}-?\d{3,6}\b',
+                'text_data': r'\b[A-Za-z]{3,}(?:\s+[A-Za-z]{3,})*\b'
+            }
+            
+            business_data = {}
+            for pattern_name, pattern in patterns.items():
+                matches = re.findall(pattern, content, re.IGNORECASE)
+                if matches:
+                    # Filter out obvious binary garbage
+                    clean_matches = []
+                    for match in matches:
+                        if self._is_meaningful_text(match):
+                            clean_matches.append(match)
+                    
+                    if clean_matches:
+                        business_data[pattern_name] = list(set(clean_matches))  # Remove duplicates
+                        print(f"📊 Found {len(clean_matches)} {pattern_name} patterns")
+            
+            # Create structured records from business data
+            record_id = 1
+            for data_type, values in business_data.items():
+                for value in values:  # NO LIMITS - Process all values
+                    record = {
+                        'id': record_id,
+                        'data_type': data_type,
+                        'value': str(value),
+                        'category': 'business_data',
+                        '_source_format': 'bak_business_extraction'
+                    }
+                    records.append(record)
+                    record_id += 1
+            
+            if records:
+                print(f"✅ Extracted {len(records)} business data records")
+                return records
+            
+                return []
+            
+        except Exception as e:
+            print(f"❌ Business data extraction failed: {e}")
+            return []
+    
+    def _extract_intelligent_text_from_bak(self, content: str) -> List[Dict[str, Any]]:
+        """Extract meaningful text data with intelligent filtering"""
+        try:
+            print(f"🔍 Processing content for meaningful text patterns...")
+            
+            lines = content.split('\n')
+            records = []
+            processed_lines = 0
+            
+            for line_num, line in enumerate(lines):
+                # NO LIMITS - Process all lines
+                
+                # Extract only meaningful text
+                clean_text = self._extract_meaningful_text(line)
+                
+                if clean_text and len(clean_text) > 3:  # Must have meaningful content
+                    # Check if line contains useful data patterns
+                    if self._contains_useful_data(clean_text):
+                        record = {
+                            'id': line_num + 1,
+                            'line_number': line_num + 1,
+                            'content': clean_text,
+                            'category': 'meaningful_text',
+                            '_source_format': 'bak_intelligent_text'
+                        }
+                        records.append(record)
+                        processed_lines += 1
+            
+            if records:
+                print(f"✅ Extracted {len(records)} meaningful text records")
+                return records
+            
+            return []
+            
+        except Exception as e:
+            print(f"❌ Intelligent text extraction failed: {e}")
+            return []
+    
+    def _extract_fallback_patterns_from_bak(self, content: str) -> List[Dict[str, Any]]:
+        """Last resort: extract any recognizable patterns"""
+        try:
+            import re
+            
+            print(f"🔍 Final attempt: searching for any recognizable patterns...")
+            
+            # Look for simple patterns that might indicate structured data
+            patterns = [
+                (r'(\w+):\s*([^\n\r]+)', 'key_value'),
+                (r'(\w+)\s*=\s*([^\n\r]+)', 'assignment'),
+                (r'(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})', 'date_pattern'),
+                (r'(\d+\.\d+)', 'decimal_number'),
+                (r'([A-Za-z]{5,})', 'long_word')
+            ]
+            
+            records = []
+            record_id = 1
+            
+            for pattern, pattern_type in patterns:
+                matches = re.findall(pattern, content, re.MULTILINE)
+                useful_matches = 0
+                
+                for match in matches:
+                    # NO LIMITS - Process all matches
+                    
+                    if isinstance(match, tuple):
+                        if len(match) >= 2 and self._is_meaningful_text(match[0]) and self._is_meaningful_text(match[1]):
+                            record = {
+                                'id': record_id,
+                                'pattern_type': pattern_type,
+                                'key': str(match[0]).strip(),
+                                'value': str(match[1]).strip(),
+                                'category': 'fallback_pattern',
+                                '_source_format': 'bak_fallback_extraction'
+                            }
+                            records.append(record)
+                            record_id += 1
+                            useful_matches += 1
+            else:
+                        if self._is_meaningful_text(match):
+                            record = {
+                                'id': record_id,
+                                'pattern_type': pattern_type,
+                                'value': str(match).strip(),
+                                'category': 'fallback_pattern',
+                                '_source_format': 'bak_fallback_extraction'
+                            }
+                            records.append(record)
+                            record_id += 1
+                            useful_matches += 1
+                
+            if useful_matches > 0:
+                    print(f"📊 Found {useful_matches} useful {pattern_type} patterns")
+            
+            if records:
+                print(f"✅ Extracted {len(records)} fallback pattern records")
+                return records
+            
+            return []
+            
+        except Exception as e:
+            print(f"❌ Fallback pattern extraction failed: {e}")
+            return []
+    
+    def _is_meaningful_text(self, text: str) -> bool:
+        """Check if text contains meaningful content (not binary garbage)"""
+        if not text or len(text) < 2:
+            return False
+        
+        # Convert to string if not already
+        text = str(text).strip()
+        
+        # Must have some alphabetic characters
+        alpha_count = sum(1 for c in text if c.isalpha())
+        if alpha_count < 2:
+            return False
+        
+        # Check ratio of printable to total characters
+        printable_count = sum(1 for c in text if 32 <= ord(c) <= 126)
+        if len(text) > 0 and (printable_count / len(text)) < 0.8:
+            return False
+        
+        # Filter out strings that are mostly symbols or numbers with weird patterns
+        weird_char_count = sum(1 for c in text if c in '¢©®±²³¹µ¶·¸¼½¾ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÑÒÓÔÕÖØÙÚÛÜÝàáâãäåæçèéêëìíîïñòóôõöøùúûüýÿ')
+        if weird_char_count > len(text) * 0.3:
+            return False
+        
+        # Filter out strings with too many consecutive non-alphabetic characters
+        import re
+        if re.search(r'[^\w\s]{5,}', text):
+            return False
+        
+        return True
+    
+    def _extract_meaningful_text(self, line: str) -> str:
+        """Extract only meaningful text from a line, filtering out binary garbage"""
+        if not line:
+            return ""
+        
+        # Extract only ASCII printable characters
+        clean_chars = []
+        for char in line:
+            if 32 <= ord(char) <= 126 or char in [' ', '\t']:
+                clean_chars.append(char)
+        
+        text = ''.join(clean_chars).strip()
+        
+        # Must pass meaningfulness test
+        if self._is_meaningful_text(text):
+            return text
+        
+        return ""
+    
+    def _contains_useful_data(self, text: str) -> bool:
+        """Check if text line contains useful business-like data"""
+        if not text or len(text) < 5:
+            return False
+        
+        # Look for indicators of useful data
+        useful_indicators = [
+            r'\b\d{3,}\b',  # Numbers with 3+ digits
+            r'\b[A-Z][a-z]+\b',  # Proper nouns
+            r'[a-zA-Z]+@[a-zA-Z]+',  # Email-like patterns
+            r'\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b',  # Date patterns
+            r'\$\d+',  # Money
+            r'\b[A-Z]{2,}\d+\b'  # Codes like ABC123
+        ]
+        
+        import re
+        for pattern in useful_indicators:
+            if re.search(pattern, text):
+                return True
+        
+        # Also check for reasonable word patterns
+        words = text.split()
+        if len(words) >= 2 and len(words) <= 20:  # Reasonable number of words
+            alpha_words = [w for w in words if any(c.isalpha() for c in w)]
+            if len(alpha_words) >= 1:
+                return True
+        
+        return False
     
     def _extract_sql_from_bak(self, content: str) -> List[Dict[str, Any]]:
         """Extract SQL data from BAK file content"""
@@ -881,7 +1135,7 @@ class UniversalDataParser:
         
         # Try to extract at least some basic info even on failure
         basic_stats = {
-            'content_length': len(content) if content else 0,
+                            'content_length': len(content) if content else 0,
             'line_count': len(content.split('\n')) if content else 0,
             'has_sql_keywords': any(keyword in content.upper() for keyword in ['CREATE', 'INSERT', 'SELECT', 'TABLE']) if content else False,
             'has_database_patterns': any(pattern in content.upper() for pattern in ['DATABASE', 'SCHEMA', 'INDEX']) if content else False
@@ -891,28 +1145,41 @@ class UniversalDataParser:
             'id': 1,
             'filename': 'backup_file.bak',
             'error': str(error)[:200],
-            'error_type': error_type,
-            'content_preview': content[:100] if content else 'empty',
+                'error_type': error_type,
+                'content_preview': content[:100] if content else 'empty',
             'record_type': 'bak_file_info',
             'data_type': 'bak',
             'source': 'database',
-            '_backup_file': True,
-            '_original_format': 'bak',
-            '_parse_failed': True,
+                '_backup_file': True,
+                '_original_format': 'bak',
+                '_parse_failed': True,
             'recovery_message': 'BAK file detected but content extraction failed. This is a database backup file.',
             **basic_stats
         }]
     
     def _sanitize_text(self, text: str) -> str:
-        """Sanitize text content for safe processing"""
+        """Sanitize text content for safe processing - enhanced version"""
         if not isinstance(text, str):
             text = str(text)
         
-        # Remove non-printable characters
-        sanitized = ''.join(char for char in text if ord(char) >= 32 or char in ['\n', '\t'])
+        # Remove null bytes and other problematic characters
+        text = text.replace('\x00', '')
         
-        # No length limit - return full content
-        return sanitized.strip()
+        # Remove other problematic control characters but keep common ones
+        import re
+        text = re.sub(r'[\x01-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
+        
+        # Ensure text is valid UTF-8
+        try:
+            text = text.encode('utf-8', errors='ignore').decode('utf-8')
+        except:
+            text = str(text)
+        
+        # Only return if it's meaningful text
+        if self._is_meaningful_text(text):
+            return text.strip()
+        
+        return ""
     
     def _convert_value_by_type(self, value: str, data_type: str) -> Any:
         """Convert string value to appropriate type based on SQL data type"""
@@ -1294,30 +1561,7 @@ class UniversalDataParser:
         # At least 50% of values should look meaningful
         return meaningful_count >= len(values) * 0.5
     
-    def _sanitize_text(self, text: str) -> str:
-        """Remove null bytes and other problematic characters that cause database issues"""
-        if not isinstance(text, str):
-            return str(text)
-        
-        # Remove null bytes (the main culprit)
-        text = text.replace('\x00', '')
-        
-        # Remove other problematic control characters but keep common ones
-        import re
-        # Keep \t (tab), \n (newline), \r (carriage return) but remove others
-        text = re.sub(r'[\x01-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
-        
-        # Ensure text is valid UTF-8
-        try:
-            text = text.encode('utf-8', errors='ignore').decode('utf-8')
-        except:
-            text = str(text)
-        
-        # Limit length to prevent huge strings
-        if len(text) > 1000:
-            text = text[:997] + '...'
-        
-        return text
+
     
     def _extract_sql_server_headers(self, content: str) -> List[str]:
         """Extract column headers from SQL Server backup files"""

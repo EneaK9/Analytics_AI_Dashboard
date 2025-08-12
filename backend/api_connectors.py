@@ -229,21 +229,58 @@ class AmazonConnector:
                 'Content-Type': 'application/json'
             }
             
+            # Log detailed connection attempt
+            logger.info(f"🔍 Testing SP-API connection to {self.base_url}")
+            logger.info(f"🔍 Using seller_id: {self.credentials.seller_id}")
+            logger.info(f"🔍 Marketplace IDs: {self.credentials.marketplace_ids}")
+            
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{self.base_url}/sellers/v1/marketplaceParticipations",
                     headers=headers
                 ) as response:
+                    
+                    # Log response details for debugging
+                    response_text = await response.text()
+                    logger.info(f"🔍 SP-API Response Status: {response.status}")
+                    logger.info(f"🔍 SP-API Response Headers: {dict(response.headers)}")
+                    
                     if response.status == 200:
                         data = await response.json()
                         marketplaces = data.get('payload', [])
                         marketplace_names = [mp.get('marketplace', {}).get('name', 'Unknown') for mp in marketplaces]
                         logger.info(f"✅ Amazon SP-API connection successful: {', '.join(marketplace_names)}")
                         return True, f"Connected to marketplaces: {', '.join(marketplace_names[:3])}"
+                    
                     elif response.status == 401:
+                        logger.error(f"❌ SP-API 401 Unauthorized: {response_text}")
                         return False, "Invalid credentials or expired token"
+                    
+                    elif response.status == 403:
+                        logger.error(f"❌ SP-API 403 Forbidden: {response_text}")
+                        
+                        # Parse error response for more details
+                        try:
+                            error_data = await response.json()
+                            error_details = error_data.get('errors', [])
+                            if error_details:
+                                error_code = error_details[0].get('code', 'Unknown')
+                                error_message = error_details[0].get('message', 'Unknown error')
+                                logger.error(f"❌ SP-API Error Details - Code: {error_code}, Message: {error_message}")
+                                
+                                # Provide specific guidance based on error
+                                if 'unauthorized' in error_message.lower() or 'forbidden' in error_message.lower():
+                                    return False, f"Access Forbidden: {error_message}. Check if your SP-API app is Published (not Draft) and has proper IAM permissions."
+                                else:
+                                    return False, f"SP-API Error [{error_code}]: {error_message}"
+                            else:
+                                return False, f"Access Forbidden (403). Possible causes: 1) SP-API app not Published, 2) Missing IAM permissions, 3) Invalid marketplace IDs, 4) Seller account suspended"
+                        except:
+                            return False, f"Access Forbidden (403). Raw response: {response_text[:200]}..."
+                    
                     else:
-                        return False, f"Connection failed: HTTP {response.status}"
+                        logger.error(f"❌ SP-API Unexpected Status {response.status}: {response_text}")
+                        return False, f"Connection failed: HTTP {response.status} - {response_text[:100]}..."
                         
         except Exception as e:
             logger.error(f"❌ Amazon connection test failed: {e}")
