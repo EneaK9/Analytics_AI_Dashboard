@@ -594,29 +594,7 @@ async def create_client_superadmin(
                     
                     if parsed_records:
                         logger.info(f"🔄 {data_type.upper()} parsed to {len(parsed_records)} JSON records")
-                        
-                        # EXTRACT BUSINESS ENTITIES for complex business data
-                        try:
-                            from dashboard_orchestrator import DashboardOrchestrator
-                            orchestrator = DashboardOrchestrator(None)
-                            
-                            # Check if this is complex business data
-                            enhanced_records = []
-                            for record in parsed_records:
-                                if orchestrator._is_business_data_structure(record):
-                                    logger.info(f"🏢 Detected complex business structure, extracting entities...")
-                                    entities = orchestrator._extract_entities_from_business_structure(record)
-                                    enhanced_records.extend(entities)
-                                    logger.info(f"✅ Extracted {len(entities)} business entities from complex data")
-                                else:
-                                    enhanced_records.append(record)
-                            
-                            all_parsed_records.extend(enhanced_records)
-                            logger.info(f"🎯 Total records after entity extraction: {len(enhanced_records)}")
-                            
-                        except Exception as extract_error:
-                            logger.warning(f"⚠️ Business entity extraction failed, using original records: {extract_error}")
-                            all_parsed_records.extend(parsed_records)
+                        all_parsed_records.extend(parsed_records)
                 
                 elif input_method == "upload" and files_to_process:
                     # Process multiple uploaded files
@@ -749,32 +727,7 @@ async def create_client_superadmin(
                                                 record['_source_file'] = file.filename
                                         
                                         logger.info(f"✅ File '{file.filename}' parsed: {len(parsed_records)} records")
-                                        
-                                        # EXTRACT BUSINESS ENTITIES for complex business data
-                                        try:
-                                            from dashboard_orchestrator import DashboardOrchestrator
-                                            orchestrator = DashboardOrchestrator(None)
-                                            
-                                            # Check if this is complex business data
-                                            enhanced_records = []
-                                            for record in parsed_records:
-                                                if orchestrator._is_business_data_structure(record):
-                                                    logger.info(f"🏢 File {file.filename}: Detected complex business structure, extracting entities...")
-                                                    entities = orchestrator._extract_entities_from_business_structure(record)
-                                                    # Add file metadata to entities
-                                                    for entity in entities:
-                                                        entity['_source_file'] = file.filename
-                                                    enhanced_records.extend(entities)
-                                                    logger.info(f"✅ File {file.filename}: Extracted {len(entities)} business entities")
-                                                else:
-                                                    enhanced_records.append(record)
-                                            
-                                            all_parsed_records.extend(enhanced_records)
-                                            logger.info(f"🎯 File {file.filename}: Total records after entity extraction: {len(enhanced_records)}")
-                                            
-                                        except Exception as extract_error:
-                                            logger.warning(f"⚠️ File {file.filename}: Business entity extraction failed, using original records: {extract_error}")
-                                            all_parsed_records.extend(parsed_records)
+                                        all_parsed_records.extend(parsed_records)
                                     else:
                                         logger.warning(f"⚠️ No records parsed from file: {file.filename}")
                                         
@@ -1986,7 +1939,7 @@ async def upload_client_data(upload_data: CreateSchemaRequest):
         raise HTTPException(status_code=500, detail=f"Data upload failed: {str(e)}")
 
 @app.get("/api/data/{client_id}")
-async def get_client_data(client_id: str, limit: int = 100):
+async def get_client_data(client_id: str, limit: int = None):
     """Get client-specific data - REAL DATA FROM DATABASE"""
     try:
         logger.info(f"📊 Instant data request for client {client_id}")
@@ -1998,8 +1951,11 @@ async def get_client_data(client_id: str, limit: int = 100):
             raise HTTPException(status_code=503, detail="Database not configured")
         
         try:
-            # Get client's data from client_data table
-            response = db_client.table("client_data").select("*").eq("client_id", client_id).order("created_at", desc=True).limit(limit).execute()
+            # Get client's data from client_data table - use ALL records unless limit specified
+            query = db_client.table("client_data").select("*").eq("client_id", client_id).order("created_at", desc=True)
+            if limit:
+                query = query.limit(limit)
+            response = query.execute()
             
             if not response.data:
                 logger.warning(f"⚠️  No real data found for client {client_id}")
@@ -2164,42 +2120,15 @@ async def generate_template_dashboard(
         
         client_data = []
         if data_response.data:
-            # EXTRACT BUSINESS ENTITIES for template generation too
-            try:
-                from dashboard_orchestrator import DashboardOrchestrator
-                orchestrator = DashboardOrchestrator(None)
-                
-                for record in data_response.data:
-                    try:
-                        parsed_record = record['data']
-                        if isinstance(parsed_record, str):
-                            import json
-                            parsed_record = json.loads(parsed_record)
-                        
-                        # Check if this is a business structure that needs entity extraction
-                        if orchestrator._is_business_data_structure(parsed_record):
-                            logger.info(f"🏢 Template: Extracting entities from business structure...")
-                            entities = orchestrator._extract_entities_from_business_structure(parsed_record)
-                            client_data.extend(entities)
-                            logger.info(f"✅ Template: Extracted {len(entities)} business entities")
-                        else:
-                            client_data.append(parsed_record)
-                    except Exception as parse_error:
-                        logger.warning(f"⚠️ Template: Failed to parse record: {parse_error}")
-                        continue
-                        
-            except Exception as extract_error:
-                logger.warning(f"⚠️ Template: Business entity extraction failed, using original records: {extract_error}")
-                # Fallback to original approach
-                for record in data_response.data:
-                    try:
-                        if isinstance(record['data'], dict):
-                            client_data.append(record['data'])
-                        elif isinstance(record['data'], str):
-                            import json
-                            client_data.append(json.loads(record['data']))
-                    except:
-                        continue
+            for record in data_response.data:
+                try:
+                    if isinstance(record['data'], dict):
+                        client_data.append(record['data'])
+                    elif isinstance(record['data'], str):
+                        import json
+                        client_data.append(json.loads(record['data']))
+                except:
+                    continue
         
         # Get data columns for analysis
         data_columns = []
@@ -2375,13 +2304,13 @@ def get_client_data_update_date(client_data: Dict[str, Any]) -> str:
 @app.get("/api/dashboard/metrics")
 async def get_dashboard_metrics(
     token: str = Depends(security),
-    fast_mode: bool = True,  # DEFAULT TO FAST MODE TO PREVENT TIMEOUTS
-    force_llm: bool = False,  # Only use LLM if explicitly requested
+    fast_mode: bool = False,  # DEFAULT TO COMPREHENSIVE MODE FOR RICH ANALYSIS
+    force_llm: bool = True,  # DEFAULT TO FRESH LLM ANALYSIS FOR MAXIMUM INSIGHTS
     start_date: Optional[str] = None,  # Date filtering support
     end_date: Optional[str] = None,     # Date filtering support
     preset: Optional[str] = None       # Presets: today, yesterday, last_7_days, last_30_days, this_month, last_month
 ):
-    """Get dashboard metrics - OPTIMIZED for speed, uses cache by default"""
+    """Get dashboard metrics - OPTIMIZED for comprehensive analysis, generates fresh insights by default"""
     try:
         # Verify client token
         token_data = verify_token(token.credentials)
@@ -2419,7 +2348,6 @@ async def get_dashboard_metrics(
                 end_date = last_month_end.isoformat()
 
         # Get client data with optional date range for full, correct analysis
-        # CRITICAL: No limit applied - get ALL business entities extracted during upload
         client_data = await ai_analyzer.get_client_data_optimized(client_id, start_date=start_date, end_date=end_date)
         if not client_data:
             raise HTTPException(status_code=404, detail="No data found for this client")
@@ -2536,8 +2464,8 @@ async def get_dashboard_metrics(
 @app.get("/api/dashboard/business-insights")
 async def get_business_insights_dashboard(
     token: str = Depends(security),
-    fast_mode: bool = True,
-    force_llm: bool = False
+    fast_mode: bool = False,  # DEFAULT TO COMPREHENSIVE MODE FOR RICH ANALYSIS
+    force_llm: bool = True   # DEFAULT TO FRESH LLM ANALYSIS FOR MAXIMUM INSIGHTS
 ):
     """Get business insights dashboard metrics with specialized LLM analysis"""
     try:
@@ -2622,8 +2550,8 @@ async def get_business_insights_dashboard(
 @app.get("/api/dashboard/performance")
 async def get_performance_dashboard(
     token: str = Depends(security),
-    fast_mode: bool = True,
-    force_llm: bool = False
+    fast_mode: bool = False,  # DEFAULT TO COMPREHENSIVE MODE FOR RICH ANALYSIS
+    force_llm: bool = True   # DEFAULT TO FRESH LLM ANALYSIS FOR MAXIMUM INSIGHTS
 ):
     """Get performance dashboard metrics with specialized LLM analysis"""
     try:
@@ -3892,9 +3820,9 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
         
         logger.info(f"📊 Processing {len(data_response.data)} records for fast generation")
         
-        # Quick data analysis
+        # Complete data analysis - use ALL records for comprehensive insights
         sample_data = []
-        for record in data_response.data[:10]:  # Use only first 10 records for speed
+        for record in data_response.data:  # Use ALL records for maximum accuracy
             try:
                 if isinstance(record['data'], dict):
                     sample_data.append(record['data'])
@@ -3911,7 +3839,7 @@ async def fast_generate_dashboard(client_id: str, token: str = Depends(security)
         for row in sample_data:
             all_columns.update(row.keys())
         
-        columns = list(all_columns)[:10]  # Limit to 10 columns for speed
+        columns = list(all_columns)  # Use ALL columns for comprehensive analysis
         
         # Generate COMPREHENSIVE dashboard config with ALL chart types and REAL data
         dashboard_config = {
@@ -4208,9 +4136,9 @@ async def fast_generate_dashboard_for_client(token: str = Depends(security)):
         
         logger.info(f"📊 Processing {len(data_response.data)} records for fast generation")
         
-        # Quick data analysis
+        # Complete data analysis - use ALL records for comprehensive insights
         sample_data = []
-        for record in data_response.data[:10]:  # Use only first 10 records for speed
+        for record in data_response.data:  # Use ALL records for maximum accuracy
             try:
                 if isinstance(record['data'], dict):
                     sample_data.append(record['data'])
@@ -4227,7 +4155,7 @@ async def fast_generate_dashboard_for_client(token: str = Depends(security)):
         for row in sample_data:
             all_columns.update(row.keys())
         
-        columns = list(all_columns)[:10]  # Limit to 10 columns for speed
+        columns = list(all_columns)  # Use ALL columns for comprehensive analysis
         
         # Generate fast dashboard config
         dashboard_config = {

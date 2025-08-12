@@ -157,13 +157,13 @@ class MUIDashboardService {
 			);
 			console.log("🌐 API call to:", "/dashboard/metrics");
 
-			// Use a simple timeout promise - OPTIMIZED for fast cached responses
+			// Use a simple timeout promise - OPTIMIZED for comprehensive analysis
 			const timeoutPromise = new Promise((_, reject) => {
-				setTimeout(() => reject(new Error("Request timeout")), 10000); // 10 seconds (fast cache should respond instantly)
+				setTimeout(() => reject(new Error("Request timeout")), 60000); // 60 seconds for comprehensive analysis
 			});
 
-			const fetchPromise = api.get("/dashboard/metrics?fast_mode=true", {
-				timeout: 15000, // 15 seconds - much faster now with cache
+			const fetchPromise = api.get("/dashboard/metrics?force_llm=true&fast_mode=false", {
+				timeout: 60000, // 60 seconds - comprehensive analysis takes longer but provides much richer results
 			});
 
 			const response = (await Promise.race([

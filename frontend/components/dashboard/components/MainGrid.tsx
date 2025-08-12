@@ -590,8 +590,8 @@ export function OriginalMainGrid({
 						"🔗 Loading main dashboard with rich LLM analysis via API"
 					);
 
-					// Load rich LLM analysis for main dashboard (cached when possible)
-					const endpoint = "/dashboard/metrics?fast_mode=true";
+					// Load rich LLM analysis for main dashboard (force fresh comprehensive analysis)
+					const endpoint = "/dashboard/metrics?force_llm=true&fast_mode=false";
 					console.log(`🔗 Calling LLM endpoint: ${endpoint}`);
 					const response = await api.get(endpoint);
 
@@ -1926,11 +1926,11 @@ function TemplateDashboard({
 				// Fetch AI-generated metrics and charts (NEW STANDARDIZED FORMAT)
 				try {
 					// Call appropriate endpoint based on dashboard type
-					let endpoint = "/dashboard/metrics"; // default
+					let endpoint = "/dashboard/metrics?force_llm=true&fast_mode=false"; // default with comprehensive analysis
 					if (dashboardType === "business") {
-						endpoint = "/dashboard/business-insights?fast_mode=true";
+						endpoint = "/dashboard/business-insights?force_llm=true&fast_mode=false";
 					} else if (dashboardType === "performance") {
-						endpoint = "/dashboard/performance?fast_mode=true";
+						endpoint = "/dashboard/performance?force_llm=true&fast_mode=false";
 					}
 
 					console.log(

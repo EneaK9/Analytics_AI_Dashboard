@@ -629,35 +629,53 @@ class AIDataAnalyzer:
                     "sample_data": df.head(3).to_dict('records') if not df.empty else []
                 }
                 
+                # Enhance prompt for JSON data with more specific context
+                data_format_context = ""
+                if data_format == DataFormat.JSON:
+                    data_format_context = f"""
+                    
+                    📊 **JSON DATA ANALYSIS FOCUS**:
+                    This is JSON data with {len(df)} records and {len(df.columns)} fields.
+                    Field types detected: {', '.join([f"{col.name}({col.data_type})" for col in schema.columns[:5]])}
+                    
+                    Please provide detailed insights specifically for this JSON dataset structure:
+                    - Analyze the relationships between fields
+                    - Identify key patterns in the data values
+                    - Suggest appropriate visualizations for the data structure
+                    - Recommend practical business use cases for this specific data
+                    """
+                
                 prompt = f"""
-                Analyze this enhanced dataset and provide comprehensive business insights:
+                Analyze this enhanced dataset and provide comprehensive insights:
                 
                 Dataset Summary:
                 {json.dumps(enhanced_summary, indent=2, default=str)}
+                {data_format_context}
                 
-                Based on this enhanced analysis, please provide:
+                Based on this enhanced analysis, please provide SPECIFIC and DETAILED insights:
                 
-                1. **data_type**: What type of business data is this? 
+                1. **data_type**: What type of data is this? 
                    Options: "ecommerce", "crm", "financial", "hr", "marketing", "analytics", 
                    "iot", "inventory", "healthcare", "education", "logistics", "manufacturing", "other"
                 
                 2. **confidence**: Confidence in classification (0.0 to 1.0)
                 
-                3. **insights**: List of 5-7 key business insights about this data, including:
-                   - Data quality observations
-                   - Business value potential
-                   - Patterns or trends visible
-                   - Recommended use cases
+                3. **insights**: List of 5-7 SPECIFIC insights about this data (avoid generic statements):
+                   - Concrete data quality observations with numbers
+                   - Specific business value potential with examples
+                   - Actual patterns or trends visible in the data
+                   - Practical recommended use cases for this exact dataset
+                   - Key correlations or relationships between fields
                 
-                4. **visualizations**: List of 5-7 recommended chart types optimized for this data:
+                4. **visualizations**: List of 8-12 recommended chart types optimized for this specific data:
                    Options: "line_chart", "bar_chart", "pie_chart", "scatter_plot", "heatmap", 
                    "area_chart", "histogram", "box_plot", "treemap", "gauge", "funnel", "waterfall"
                 
-                5. **queries**: List of 5-7 useful SQL queries for business analysis
+                5. **queries**: List of 5-7 useful SQL queries for analyzing this specific dataset
                 
-                6. **recommendations**: List of 3-5 strategic recommendations for this dataset
+                6. **recommendations**: List of 3-5 actionable recommendations for this specific dataset
                 
-                7. **kpi_suggestions**: List of 4-6 key performance indicators that could be derived
+                7. **kpi_suggestions**: List of 8-12 key performance indicators that could be calculated from this data
                 
                 Respond in valid JSON format:
                 {{
