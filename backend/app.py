@@ -2164,15 +2164,42 @@ async def generate_template_dashboard(
         
         client_data = []
         if data_response.data:
-            for record in data_response.data:
-                try:
-                    if isinstance(record['data'], dict):
-                        client_data.append(record['data'])
-                    elif isinstance(record['data'], str):
-                        import json
-                        client_data.append(json.loads(record['data']))
-                except:
-                    continue
+            # EXTRACT BUSINESS ENTITIES for template generation too
+            try:
+                from dashboard_orchestrator import DashboardOrchestrator
+                orchestrator = DashboardOrchestrator(None)
+                
+                for record in data_response.data:
+                    try:
+                        parsed_record = record['data']
+                        if isinstance(parsed_record, str):
+                            import json
+                            parsed_record = json.loads(parsed_record)
+                        
+                        # Check if this is a business structure that needs entity extraction
+                        if orchestrator._is_business_data_structure(parsed_record):
+                            logger.info(f"🏢 Template: Extracting entities from business structure...")
+                            entities = orchestrator._extract_entities_from_business_structure(parsed_record)
+                            client_data.extend(entities)
+                            logger.info(f"✅ Template: Extracted {len(entities)} business entities")
+                        else:
+                            client_data.append(parsed_record)
+                    except Exception as parse_error:
+                        logger.warning(f"⚠️ Template: Failed to parse record: {parse_error}")
+                        continue
+                        
+            except Exception as extract_error:
+                logger.warning(f"⚠️ Template: Business entity extraction failed, using original records: {extract_error}")
+                # Fallback to original approach
+                for record in data_response.data:
+                    try:
+                        if isinstance(record['data'], dict):
+                            client_data.append(record['data'])
+                        elif isinstance(record['data'], str):
+                            import json
+                            client_data.append(json.loads(record['data']))
+                    except:
+                        continue
         
         # Get data columns for analysis
         data_columns = []
@@ -2392,7 +2419,8 @@ async def get_dashboard_metrics(
                 end_date = last_month_end.isoformat()
 
         # Get client data with optional date range for full, correct analysis
-        client_data = await ai_analyzer.get_client_data_optimized(client_id, start_date=start_date, end_date=end_date)
+        # CRITICAL: Use no limit to ensure we get ALL business entities extracted during upload
+        client_data = await ai_analyzer.get_client_data_optimized(client_id, start_date=start_date, end_date=end_date, limit=None)
         if not client_data:
             raise HTTPException(status_code=404, detail="No data found for this client")
         

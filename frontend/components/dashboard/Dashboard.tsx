@@ -111,6 +111,9 @@ export default function Dashboard({
 					user={user}
 					onRefreshAIData={onRefreshAIData}
 					onLogout={onLogout}
+					selectedSection={selectedSection}
+					onSectionChange={setSelectedSection}
+					onDashboardChange={handleDashboardChange}
 				/>
 				{/* Main content */}
 				<Box
