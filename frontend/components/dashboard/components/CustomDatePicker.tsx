@@ -32,18 +32,31 @@ export default function CustomDatePicker({
     onPresetChange,
 	initialValue,
 }: CustomDatePickerProps) {
-    // Range state + presets
+    const [isClient, setIsClient] = React.useState(false);
+    
+    // Range state + presets - moved before useEffect
     const initialIsSelection = (initialValue as DateSelection | undefined) && typeof (initialValue as any).date !== 'undefined';
     const initialSingle = initialIsSelection ? (initialValue as DateSelection).date : null;
     const initialStart = !initialIsSelection && (initialValue as DateRange | undefined) && (initialValue as DateRange).start ? (initialValue as DateRange).start : null;
     const initialEnd = !initialIsSelection && (initialValue as DateRange | undefined) && (initialValue as DateRange).end ? (initialValue as DateRange).end : null;
 
+    // Ensure we're on the client side before using dayjs
+    React.useEffect(() => {
+        setIsClient(true);
+        // Initialize dates on client side only
+        if (!initialSingle && !initialStart && !initialEnd) {
+            const today = dayjs();
+            setSelectedDate(today);
+            setRange([today, today]);
+        }
+    }, [initialSingle, initialStart, initialEnd]);
+
     const [selectedDate, setSelectedDate] = React.useState<Dayjs | null>(
-        initialSingle || dayjs()
+        initialSingle || (isClient ? dayjs() : null)
     );
     const [range, setRange] = React.useState<[Dayjs | null, Dayjs | null]>([
-        initialStart || dayjs(),
-        initialEnd || dayjs(),
+        initialStart || (isClient ? dayjs() : null),
+        initialEnd || (isClient ? dayjs() : null),
     ]);
     const [preset, setPreset] = React.useState<string>("today");
 
@@ -92,6 +105,10 @@ export default function CustomDatePicker({
     const handlePresetChange = (value: string) => {
         setPreset(value);
         if (onPresetChange) onPresetChange(value);
+        
+        // Only update dates on client side
+        if (!isClient) return;
+        
         // Update local range for UX feedback
         const today = dayjs();
         let start = today;
@@ -119,6 +136,15 @@ export default function CustomDatePicker({
             onDateRangeChange({ start, end, label: value });
         }
     };
+
+    // Show loading state during SSR to prevent hydration issues
+    if (!isClient) {
+        return (
+            <Box display="flex" gap={1.5} alignItems="center" sx={{ minWidth: 200, height: 40 }}>
+                <Box sx={{ width: '100%', height: 32, bgcolor: 'grey.100', borderRadius: 1, animation: 'pulse 1s infinite' }} />
+            </Box>
+        );
+    }
 
     return (
         <LocalizationProvider dateAdapter={AdapterDayjs}>
