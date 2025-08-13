@@ -29,6 +29,7 @@ interface DashboardData {
 const DashboardPage: React.FC = () => {
 	const [user, setUser] = useState<User | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [isClient, setIsClient] = useState(false);
 	const [dashboardData, setDashboardData] = useState<DashboardData>({
 		users: 14000,
 		conversions: 325,
@@ -41,6 +42,11 @@ const DashboardPage: React.FC = () => {
 	});
 	const router = useRouter();
 	const { logout } = useAuth();
+
+	// Ensure we're on the client side before generating random values
+	useEffect(() => {
+		setIsClient(true);
+	}, []);
 
 	// Date range state for filtering
 	const [dateRange, setDateRange] = useState<DateRange | null>(null);
@@ -138,7 +144,7 @@ const DashboardPage: React.FC = () => {
 						...prev,
 						...extractedData,
 						isAnalyzing: false,
-						lastAnalysis: new Date(),
+						lastAnalysis: isClient ? new Date() : null,
 						error: null,
 					}));
 
@@ -181,7 +187,7 @@ const DashboardPage: React.FC = () => {
 							...prev,
 							...calculatedData,
 							isAnalyzing: false,
-							lastAnalysis: new Date(),
+							lastAnalysis: isClient ? new Date() : null,
 							error: null,
 						}));
 
@@ -201,21 +207,27 @@ const DashboardPage: React.FC = () => {
 				}
 			}
 
-			// Final fallback: Use dynamic defaults based on user
+			// Final fallback: Use dynamic defaults based on user (client-side only)
 			console.log("⚠️ Using intelligent defaults...");
-			const smartDefaults = {
+			const smartDefaults = isClient ? {
 				users: Math.floor(Math.random() * 2000) + 13000,
 				conversions: Math.floor(Math.random() * 50) + 300,
 				eventCount: Math.floor(Math.random() * 20000) + 190000,
 				sessions: Math.floor(Math.random() * 1000) + 12500,
 				pageViews: Math.floor(Math.random() * 100000) + 1250000,
+			} : {
+				users: 14000,
+				conversions: 325,
+				eventCount: 200000,
+				sessions: 13277,
+				pageViews: 1300000,
 			};
 
 			setDashboardData((prev) => ({
 				...prev,
 				...smartDefaults,
 				isAnalyzing: false,
-				lastAnalysis: new Date(),
+				lastAnalysis: isClient ? new Date() : null,
 				error: null,
 			}));
 
@@ -242,6 +254,8 @@ const DashboardPage: React.FC = () => {
 	};
 
 	useEffect(() => {
+		if (!isClient) return;
+
 		const checkAuth = async () => {
 			const token = localStorage.getItem("access_token");
 			if (!token) {
@@ -277,7 +291,7 @@ const DashboardPage: React.FC = () => {
 						email: "user@dashboard.com",
 						company_name: "Loading...",
 						subscription_tier: "basic",
-						created_at: new Date().toISOString(),
+						created_at: isClient ? new Date().toISOString() : "",
 					});
 					setLoading(false);
 				}
@@ -285,7 +299,7 @@ const DashboardPage: React.FC = () => {
 		};
 
 		checkAuth();
-	}, [router]);
+	}, [router, isClient]);
 
 	// MainGrid.tsx now handles all data loading with intelligent caching
 	useEffect(() => {
@@ -297,13 +311,14 @@ const DashboardPage: React.FC = () => {
 		logout();
 	};
 
-	if (loading) {
+	// Show loading state during SSR to prevent hydration issues
+	if (!isClient || loading) {
 		return (
 			<div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
 				<div className="text-center">
 					<div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-6"></div>
 					<p className="text-xl font-semibold text-gray-900">
-						Loading Material UI Dashboard...
+						Loading Dashboard...
 					</p>
 					<p className="text-gray-600 mt-2">
 						Preparing your analytics experience

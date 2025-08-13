@@ -75,7 +75,7 @@ export default function SideMenu({
 				sx={{
 					p: 2,
 					gap: 1,
-					alignItems: "end",
+					alignItems: "center",
 					minHeight: 80,
 				}}>
 				<Avatar
@@ -84,7 +84,7 @@ export default function SideMenu({
 					src="/favicon.svg"
 					sx={{ width: 36, height: 36, bgcolor: "transparent" }}
 				/>
-				<Box sx={{ mr: "auto" }}>
+				<Box sx={{ mr: "auto", display: "flex", alignItems: "center" }}>
 					<Typography
 						variant="body2"
 						sx={{ fontWeight: 500, lineHeight: "16px" }}>

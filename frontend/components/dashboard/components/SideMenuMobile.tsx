@@ -48,7 +48,7 @@ export default function SideMenuMobile({
 					maxWidth: "70dvw",
 					height: "100%",
 				}}>
-				<Stack direction="row" sx={{ p: 2, pb: 0, gap: 1 }}>
+				<Stack direction="row" sx={{ p: 2, pb: 0, gap: 1, alignItems: "center" }}>
 					<Stack
 						direction="row"
 						sx={{ gap: 1, alignItems: "center", flexGrow: 1, p: 1 }}>
@@ -58,7 +58,10 @@ export default function SideMenuMobile({
 							src="/favicon.svg"
 							sx={{ width: 24, height: 24, bgcolor: "transparent" }}
 						/>
-						<Typography component="p" variant="h6">
+						<Typography 
+							component="p" 
+							variant="h6"
+							sx={{ display: "flex", alignItems: "center" }}>
 							{user?.company_name || "User"}
 						</Typography>
 					</Stack>
