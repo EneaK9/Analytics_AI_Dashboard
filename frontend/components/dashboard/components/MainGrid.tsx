@@ -448,36 +448,74 @@ export function OriginalMainGrid({
 
 	// Trigger date filtering when dateRange changes
 	React.useEffect(() => {
-		if (
-			dateRange &&
-			(dateRange.start || dateRange.end) &&
-			!isDateRangeToday(dateRange)
-		) {
-			console.log(
-				"🗓️ Main dashboard: Date range changed, loading filtered data"
-			);
-			loadDateFilteredData();
-		} else {
-			// Reset to shared data when no date filter is applied or when today is selected
-			const isToday = isDateRangeToday(dateRange);
-			console.log(
-				isToday
-					? "📅 Today selected - resetting to shared data"
-					: "🏠 Main dashboard: No date filter, resetting to shared data"
-			);
+		const handleDateRangeChange = async () => {
+			if (
+				dateRange &&
+				(dateRange.start || dateRange.end) &&
+				!isDateRangeToday(dateRange)
+			) {
+				console.log(
+					"🗓️ Main dashboard: Date range changed, loading filtered data"
+				);
+				
+				// Inline date filtering logic to avoid dependency loop
+				if (!user?.client_id || !dateRange) {
+					return;
+				}
 
-			if (sharedDashboardMetrics?.data && !sharedDashboardMetrics.loading) {
-				console.log("✅ Resetting to shared dashboard metrics data");
-				setLlmAnalysis(sharedDashboardMetrics.data);
-				setError(null);
+				try {
+					setIsLoadingDateFilter(true);
+					setError(null);
+
+					const startDate = dateRange.start?.format
+						? dateRange.start.format("YYYY-MM-DD")
+						: dateRange.start?.toISOString?.()?.split("T")[0];
+					const endDate = dateRange.end?.format
+						? dateRange.end.format("YYYY-MM-DD")
+						: dateRange.end?.toISOString?.()?.split("T")[0];
+
+					console.log("📅 Loading date-filtered data:", { startDate, endDate });
+
+					const response = await api.get(
+						`/dashboard/metrics?start_date=${startDate}&end_date=${endDate}&fast_mode=true`
+					);
+
+					if (response.data?.llm_analysis) {
+						console.log("✅ Date-filtered data loaded successfully");
+						setLlmAnalysis(response.data.llm_analysis);
+						setError(null);
+					}
+				} catch (error) {
+					console.error("❌ Error loading date-filtered data:", error);
+					setError("Failed to load date-filtered data");
+				} finally {
+					setIsLoadingDateFilter(false);
+				}
+			} else {
+				// Reset to shared data when no date filter is applied or when today is selected
+				const isToday = isDateRangeToday(dateRange);
+				console.log(
+					isToday
+						? "📅 Today selected - resetting to shared data"
+						: "🏠 Main dashboard: No date filter, resetting to shared data"
+				);
+
+				if (sharedDashboardMetrics?.data && !sharedDashboardMetrics.loading) {
+					console.log("✅ Resetting to shared dashboard metrics data");
+					setLlmAnalysis(sharedDashboardMetrics.data);
+					setError(null);
+				}
 			}
-		}
+		};
+
+		handleDateRangeChange();
 	}, [
 		dateRange,
-		loadDateFilteredData,
-		sharedDashboardMetrics,
+		user?.client_id,
+		sharedDashboardMetrics?.data,
+		sharedDashboardMetrics?.loading,
 		isDateRangeToday,
-	]);
+	]); // Removed loadDateFilteredData to prevent infinite loop
 
 	// Helper function to get trend direction icon and color
 	const getTrendDisplay = (trend: any) => {
@@ -2021,7 +2059,7 @@ function TemplateDashboard({
 	// Load data on mount and when dependencies change
 	React.useEffect(() => {
 		loadClientData();
-	}, [loadClientData]);
+	}, [user?.client_id, dashboardType]); // Use direct dependencies instead of loadClientData to avoid infinite loop
 
 	// Effect to trigger date-filtered analysis when date range changes
 	React.useEffect(() => {

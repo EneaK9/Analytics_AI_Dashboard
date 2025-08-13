@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Form, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security import HTTPBearer
 import os
 from typing import Optional, List, Dict, Any
@@ -92,6 +93,9 @@ app = FastAPI(
     version="2.0.0",
     description="AI-powered dynamic analytics platform for custom data structures"
 )
+
+# Add GZip middleware for response compression to reduce payload size and improve speed
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Add CORS middleware
 # Get allowed origins from environment
@@ -594,29 +598,7 @@ async def create_client_superadmin(
                     
                     if parsed_records:
                         logger.info(f"🔄 {data_type.upper()} parsed to {len(parsed_records)} JSON records")
-                        
-                        # EXTRACT BUSINESS ENTITIES for complex business data
-                        try:
-                            from dashboard_orchestrator import DashboardOrchestrator
-                            orchestrator = DashboardOrchestrator(None)
-                            
-                            # Check if this is complex business data
-                            enhanced_records = []
-                            for record in parsed_records:
-                                if orchestrator._is_business_data_structure(record):
-                                    logger.info(f"🏢 Detected complex business structure, extracting entities...")
-                                    entities = orchestrator._extract_entities_from_business_structure(record)
-                                    enhanced_records.extend(entities)
-                                    logger.info(f"✅ Extracted {len(entities)} business entities from complex data")
-                                else:
-                                    enhanced_records.append(record)
-                            
-                            all_parsed_records.extend(enhanced_records)
-                            logger.info(f"🎯 Total records after entity extraction: {len(enhanced_records)}")
-                            
-                        except Exception as extract_error:
-                            logger.warning(f"⚠️ Business entity extraction failed, using original records: {extract_error}")
-                            all_parsed_records.extend(parsed_records)
+                        all_parsed_records.extend(parsed_records)
                 
                 elif input_method == "upload" and files_to_process:
                     # Process multiple uploaded files
@@ -749,32 +731,7 @@ async def create_client_superadmin(
                                                 record['_source_file'] = file.filename
                                         
                                         logger.info(f"✅ File '{file.filename}' parsed: {len(parsed_records)} records")
-                                        
-                                        # EXTRACT BUSINESS ENTITIES for complex business data
-                                        try:
-                                            from dashboard_orchestrator import DashboardOrchestrator
-                                            orchestrator = DashboardOrchestrator(None)
-                                            
-                                            # Check if this is complex business data
-                                            enhanced_records = []
-                                            for record in parsed_records:
-                                                if orchestrator._is_business_data_structure(record):
-                                                    logger.info(f"🏢 File {file.filename}: Detected complex business structure, extracting entities...")
-                                                    entities = orchestrator._extract_entities_from_business_structure(record)
-                                                    # Add file metadata to entities
-                                                    for entity in entities:
-                                                        entity['_source_file'] = file.filename
-                                                    enhanced_records.extend(entities)
-                                                    logger.info(f"✅ File {file.filename}: Extracted {len(entities)} business entities")
-                                                else:
-                                                    enhanced_records.append(record)
-                                            
-                                            all_parsed_records.extend(enhanced_records)
-                                            logger.info(f"🎯 File {file.filename}: Total records after entity extraction: {len(enhanced_records)}")
-                                            
-                                        except Exception as extract_error:
-                                            logger.warning(f"⚠️ File {file.filename}: Business entity extraction failed, using original records: {extract_error}")
-                                            all_parsed_records.extend(parsed_records)
+                                        all_parsed_records.extend(parsed_records)
                                     else:
                                         logger.warning(f"⚠️ No records parsed from file: {file.filename}")
                                         
@@ -2164,42 +2121,15 @@ async def generate_template_dashboard(
         
         client_data = []
         if data_response.data:
-            # EXTRACT BUSINESS ENTITIES for template generation too
-            try:
-                from dashboard_orchestrator import DashboardOrchestrator
-                orchestrator = DashboardOrchestrator(None)
-                
-                for record in data_response.data:
-                    try:
-                        parsed_record = record['data']
-                        if isinstance(parsed_record, str):
-                            import json
-                            parsed_record = json.loads(parsed_record)
-                        
-                        # Check if this is a business structure that needs entity extraction
-                        if orchestrator._is_business_data_structure(parsed_record):
-                            logger.info(f"🏢 Template: Extracting entities from business structure...")
-                            entities = orchestrator._extract_entities_from_business_structure(parsed_record)
-                            client_data.extend(entities)
-                            logger.info(f"✅ Template: Extracted {len(entities)} business entities")
-                        else:
-                            client_data.append(parsed_record)
-                    except Exception as parse_error:
-                        logger.warning(f"⚠️ Template: Failed to parse record: {parse_error}")
-                        continue
-                        
-            except Exception as extract_error:
-                logger.warning(f"⚠️ Template: Business entity extraction failed, using original records: {extract_error}")
-                # Fallback to original approach
-                for record in data_response.data:
-                    try:
-                        if isinstance(record['data'], dict):
-                            client_data.append(record['data'])
-                        elif isinstance(record['data'], str):
-                            import json
-                            client_data.append(json.loads(record['data']))
-                    except:
-                        continue
+            for record in data_response.data:
+                try:
+                    if isinstance(record['data'], dict):
+                        client_data.append(record['data'])
+                    elif isinstance(record['data'], str):
+                        import json
+                        client_data.append(json.loads(record['data']))
+                except:
+                    continue
         
         # Get data columns for analysis
         data_columns = []
@@ -2419,7 +2349,6 @@ async def get_dashboard_metrics(
                 end_date = last_month_end.isoformat()
 
         # Get client data with optional date range for full, correct analysis
-        # CRITICAL: No limit applied - get ALL business entities extracted during upload
         client_data = await ai_analyzer.get_client_data_optimized(client_id, start_date=start_date, end_date=end_date)
         if not client_data:
             raise HTTPException(status_code=404, detail="No data found for this client")
@@ -2453,7 +2382,7 @@ async def get_dashboard_metrics(
                         llm_resp = d.get("llm_response", {})
                         analysis = llm_resp.get("llm_analysis") if isinstance(llm_resp, dict) else None
                         timeline.append({
-                            "date": d.get("analysis_date") or (d.get("created_at", "")[:10]),
+                            "date": d.get("created_at", "")[:10],  # Use created_at instead of analysis_date
                             "llm_analysis": analysis or llm_resp,
                             "total_records": d.get("total_records"),
                         })
@@ -2469,47 +2398,59 @@ async def get_dashboard_metrics(
             except Exception as e:
                 logger.info(f"ℹ️ Range cache not available; will compute fresh: {e}")
         
-        # Clear cache if forced fresh analysis is requested
-        if force_llm:
-            await llm_cache_manager.invalidate_cache(client_id, "metrics")
-            logger.info(f"🗑️ Cleared MAIN dashboard cache for fresh analysis - client {client_id}")
-        
-        # 🚀 PRIORITY 1: Check cache first (instant response) - but skip if force_llm
-        cached_insights = None
+        # 🚀 PRIORITY 1: Check cache first for maximum speed (instant response)
         if not force_llm:
             cached_insights = await llm_cache_manager.get_cached_llm_response(
                 client_id, client_data, "metrics"
             )
-        
-        if cached_insights and not force_llm:
-            logger.info(f"⚡ Using cached LLM insights for client {client_id} - instant response!")
-            return {
-                "client_id": client_id,
-                "data_type": client_data.get('data_type', 'unknown'),
-                "schema_type": client_data.get('schema', {}).get('type', 'unknown'),
-                "total_records": len(client_data.get('data', [])),
-                "llm_analysis": cached_insights,
-                "cached": True,
-                "response_time": "instant"
-            }
+            
+            if cached_insights:
+                logger.info(f"⚡ CACHE HIT: Instant response for client {client_id}")
+                return {
+                    "client_id": client_id,
+                    "data_type": client_data.get('data_type', 'unknown'),
+                    "schema_type": client_data.get('schema', {}).get('type', 'unknown'),
+                    "total_records": len(client_data.get('data', [])),
+                    "llm_analysis": cached_insights,
+                    "cached": True,
+                    "response_time": "instant",
+                    "fast_mode": fast_mode
+                }
+
+        # Only clear cache if explicitly requested to regenerate
+        if force_llm:
+            await llm_cache_manager.invalidate_cache(client_id, "metrics")
+            logger.info(f"🗑️ Cleared cache for fresh analysis - client {client_id}")
         
         # ALWAYS use LLM analysis for main dashboard - no fallbacks
         logger.info(f"🏠 Generating MAIN dashboard with LLM analysis for client {client_id}")
         
         try:
-            insights = await dashboard_orchestrator._extract_main_dashboard_insights(client_data)
+            # Add timeout to prevent hanging for more than 55 seconds
+            import asyncio
+            insights = await asyncio.wait_for(
+                dashboard_orchestrator._extract_main_dashboard_insights(client_data),
+                timeout=355.0  # 55 second timeout to stay under 60s frontend timeout
+            )
             logger.info(f"✅ Main dashboard LLM analysis successful for client {client_id}")
             
             # 💾 CRITICAL: Store in cache for future requests with data snapshot date
             data_snapshot_date = get_client_data_update_date(client_data)
-            cache_success = await llm_cache_manager.store_cached_llm_response(
-                client_id, client_data, insights, "metrics", data_snapshot_date
-            )
-            if cache_success:
-                logger.info(f"💾 Cached MAIN dashboard response for client {client_id}")
-            else:
-                logger.warning(f"⚠️ Failed to cache MAIN dashboard response for client {client_id}")
+            try:
+                cache_success = await llm_cache_manager.store_cached_llm_response(
+                    client_id, client_data, insights, "metrics", data_snapshot_date
+                )
+                if cache_success:
+                    logger.info(f"💾 Cached MAIN dashboard response for client {client_id}")
+                else:
+                    logger.warning(f"⚠️ Failed to cache MAIN dashboard response for client {client_id}")
+            except Exception as cache_error:
+                logger.error(f"❌ Cache storage error (non-blocking): {cache_error}")
+                # Continue with response even if cache fails
                 
+        except asyncio.TimeoutError:
+            logger.error(f"⏰ Main dashboard LLM analysis timed out for client {client_id}")
+            raise HTTPException(status_code=408, detail="Dashboard analysis timed out. Please try again or enable fast_mode.")
         except Exception as llm_error:
             logger.error(f"❌ Main dashboard LLM analysis failed for client {client_id}: {llm_error}")
             raise HTTPException(status_code=500, detail=f"Main dashboard analysis failed: {str(llm_error)}")
@@ -2583,19 +2524,31 @@ async def get_business_insights_dashboard(
         logger.info(f"🤖 Generating BUSINESS insights with specialized LLM analysis for client {client_id}")
         
         try:
-            insights = await dashboard_orchestrator._extract_business_insights_specialized(client_data)
+            # Add timeout to prevent hanging for more than 55 seconds
+            import asyncio
+            insights = await asyncio.wait_for(
+                dashboard_orchestrator._extract_business_insights_specialized(client_data),
+                timeout=55.0  # 55 second timeout to stay under 60s frontend timeout
+            )
             logger.info(f"✅ Business insights LLM analysis successful for client {client_id}")
             
             # 💾 CRITICAL: Store in cache for future requests with data snapshot date
             data_snapshot_date = get_client_data_update_date(client_data)
-            cache_success = await llm_cache_manager.store_cached_llm_response(
-                client_id, client_data, insights, "business", data_snapshot_date
-            )
-            if cache_success:
-                logger.info(f"💾 Cached BUSINESS insights response for client {client_id}")
-            else:
-                logger.warning(f"⚠️ Failed to cache BUSINESS insights response for client {client_id}")
+            try:
+                cache_success = await llm_cache_manager.store_cached_llm_response(
+                    client_id, client_data, insights, "business", data_snapshot_date
+                )
+                if cache_success:
+                    logger.info(f"💾 Cached BUSINESS insights response for client {client_id}")
+                else:
+                    logger.warning(f"⚠️ Failed to cache BUSINESS insights response for client {client_id}")
+            except Exception as cache_error:
+                logger.error(f"❌ Cache storage error (non-blocking): {cache_error}")
+                # Continue with response even if cache fails
                 
+        except asyncio.TimeoutError:
+            logger.error(f"⏰ Business insights LLM analysis timed out for client {client_id}")
+            raise HTTPException(status_code=408, detail="Business insights analysis timed out. Please try again or enable fast_mode.")
         except Exception as llm_error:
             logger.error(f"❌ Business insights LLM analysis failed for client {client_id}: {llm_error}")
             raise HTTPException(status_code=500, detail=f"Business insights analysis failed: {str(llm_error)}")
@@ -2666,19 +2619,31 @@ async def get_performance_dashboard(
         logger.info(f"⚡ Generating PERFORMANCE insights with specialized LLM analysis for client {client_id}")
         
         try:
-            insights = await dashboard_orchestrator._extract_performance_insights_specialized(client_data)
+            # Add timeout to prevent hanging for more than 55 seconds
+            import asyncio
+            insights = await asyncio.wait_for(
+                dashboard_orchestrator._extract_performance_insights_specialized(client_data),
+                timeout=55.0  # 55 second timeout to stay under 60s frontend timeout
+            )
             logger.info(f"✅ Performance insights LLM analysis successful for client {client_id}")
             
             # 💾 CRITICAL: Store in cache for future requests with data snapshot date
             data_snapshot_date = get_client_data_update_date(client_data)
-            cache_success = await llm_cache_manager.store_cached_llm_response(
-                client_id, client_data, insights, "performance", data_snapshot_date
-            )
-            if cache_success:
-                logger.info(f"💾 Cached PERFORMANCE insights response for client {client_id}")
-            else:
-                logger.warning(f"⚠️ Failed to cache PERFORMANCE insights response for client {client_id}")
+            try:
+                cache_success = await llm_cache_manager.store_cached_llm_response(
+                    client_id, client_data, insights, "performance", data_snapshot_date
+                )
+                if cache_success:
+                    logger.info(f"💾 Cached PERFORMANCE insights response for client {client_id}")
+                else:
+                    logger.warning(f"⚠️ Failed to cache PERFORMANCE insights response for client {client_id}")
+            except Exception as cache_error:
+                logger.error(f"❌ Cache storage error (non-blocking): {cache_error}")
+                # Continue with response even if cache fails
                 
+        except asyncio.TimeoutError:
+            logger.error(f"⏰ Performance insights LLM analysis timed out for client {client_id}")
+            raise HTTPException(status_code=408, detail="Performance analysis timed out. Please try again or enable fast_mode.")
         except Exception as llm_error:
             logger.error(f"❌ Performance insights LLM analysis failed for client {client_id}: {llm_error}")
             raise HTTPException(status_code=500, detail=f"Performance insights analysis failed: {str(llm_error)}")

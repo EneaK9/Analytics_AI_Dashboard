@@ -20,7 +20,7 @@ export const testTimeoutConfig = async () => {
 	console.log("🔧 Default timeout:", defaultConfig.timeout);
 	
 	// Test 2: Check request interceptor (simplified)
-	const testConfig = { url: '/dashboard/metrics', timeout: 15000 };
+	const testConfig = { url: '/dashboard/metrics', timeout: 1500000 };
 	console.log("🔧 Test config timeout:", testConfig.timeout);
 	
 	return testConfig;

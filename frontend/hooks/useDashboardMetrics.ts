@@ -97,7 +97,7 @@ export function useDashboardMetrics(userId?: string): UseDashboardMetricsReturn 
 	// Initial load
 	useEffect(() => {
 		fetchData();
-	}, [fetchData]);
+	}, [userId]); // Use userId directly instead of fetchData to avoid infinite loop
 
 	// Return the hook interface
 	return {

@@ -114,7 +114,7 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
 	// Trigger date filtering when dateRange changes
 	React.useEffect(() => {
 		loadDateFilteredData();
-	}, [loadDateFilteredData]);
+	}, [user?.client_id, dateRange, isDateRangeToday]); // Use direct dependencies instead of loadDateFilteredData to avoid infinite loop
 
     // Determine which data to use: date-filtered or shared
     const activeData = dateFilteredData || metricsData;

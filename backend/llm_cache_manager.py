@@ -91,29 +91,11 @@ class LLMCacheManager:
                 if cached_responses_json:
                     logger.info(f"🚀 TEMP: Using cache regardless of hash for debugging purposes")
                     try:
-                        # Handle both string and dict formats for backward compatibility
-                        if isinstance(cached_responses_json, str):
-                            cached_responses = json.loads(cached_responses_json)
-                        elif isinstance(cached_responses_json, dict):
-                            cached_responses = cached_responses_json
-                        else:
-                            logger.warning(f"⚠️ Unexpected cache format for client {client_id}: {type(cached_responses_json)}")
-                            return None
+                        # Parse the cached responses (all dashboard types in one JSON)
+                        cached_responses = json.loads(cached_responses_json)
                         
-                        # Handle different cache formats for backward compatibility
-                        if "llm_analysis" in cached_responses and dashboard_type == "metrics":
-                            # Legacy nested format - extract the inner llm_analysis
-                            inner_analysis = cached_responses.get("llm_analysis", {})
-                            if isinstance(inner_analysis, dict) and ("kpis" in inner_analysis or "charts" in inner_analysis):
-                                dashboard_response = inner_analysis
-                            else:
-                                dashboard_response = cached_responses
-                        elif "kpis" in cached_responses or "charts" in cached_responses:
-                            # New flat format - use directly
-                            dashboard_response = cached_responses
-                        else:
-                            # Get the specific dashboard type response
-                            dashboard_response = cached_responses.get(dashboard_type)
+                        # Get the specific dashboard type response
+                        dashboard_response = cached_responses.get(dashboard_type)
                         
                         if dashboard_response:
                             logger.info(f"✅ Cache HIT for client {client_id} ({dashboard_type}) - data unchanged")
@@ -243,17 +225,12 @@ class LLMCacheManager:
         try:
             data_hash = self._calculate_data_hash(client_data)
 
-            # Compute UTC analysis date for daily roll-up
+            # Remove existing entries for today for this client/type (using created_at instead of analysis_date)
             try:
                 from datetime import timezone
-                analysis_date = datetime.now(timezone.utc).date().isoformat()
-            except Exception:
-                analysis_date = datetime.utcnow().date().isoformat()
-
-            # Remove existing entries for today for this client/type
-            try:
-                day_start = f"{analysis_date}T00:00:00+00:00"
-                day_end = f"{analysis_date}T23:59:59+00:00"
+                current_date = datetime.now(timezone.utc).date().isoformat()
+                day_start = f"{current_date}T00:00:00+00:00"
+                day_end = f"{current_date}T23:59:59+00:00"
                 self.db_client.table("llm_response_cache").delete() \
                     .eq("client_id", client_id) \
                     .eq("data_type", dashboard_type) \
@@ -263,38 +240,55 @@ class LLMCacheManager:
             except Exception:
                 pass
 
-            # Store as JSON string to avoid schema conflicts
-            # Store the LLM response directly without double-nesting
-            llm_response_json = json.dumps({
-                "client_id": client_id,
-                "data_type": dashboard_type,
-                "schema_type": "dashboard_analysis",
-                "total_records": client_data.get("total_records", len(client_data.get("data", []))),
-                "cached": True,
-                "fast_mode": True,
-                **llm_response  # Spread the LLM response directly (kpis, charts, tables, etc.)
-            })
-
             cache_record = {
                 "client_id": client_id,
                 "data_hash": data_hash,
-                "llm_response": llm_response_json,
+                "llm_response": {
+                    "client_id": client_id,
+                    "data_type": dashboard_type,
+                    "schema_type": "dashboard_analysis",
+                    "total_records": client_data.get("total_records", len(client_data.get("data", []))),
+                    "llm_analysis": llm_response,
+                    "cached": True,
+                    "fast_mode": True,
+                },
                 "data_type": dashboard_type,
                 "total_records": client_data.get("total_records", len(client_data.get("data", []))),
                 "created_at": datetime.now().isoformat(),
                 "updated_at": datetime.now().isoformat(),
             }
+            
+            # Note: Removed analysis_date as it doesn't exist in database schema
 
-            response = self.db_client.table("llm_response_cache").insert(cache_record).execute()
-            if response.data:
-                logger.info(
-                    f"✅ Cached daily LLM response for client {client_id} ({dashboard_type}) (hash: {data_hash[:8]}...)"
+            try:
+                response = self.db_client.table("llm_response_cache").insert(cache_record).execute()
+                if response.data:
+                    logger.info(
+                        f"✅ Cached daily LLM response for client {client_id} ({dashboard_type}) (hash: {data_hash[:8]}...)"
+                    )
+                    return True
+                logger.error(
+                    f"❌ Failed to cache LLM response for client {client_id} ({dashboard_type})"
                 )
-                return True
-            logger.error(
-                f"❌ Failed to cache LLM response for client {client_id} ({dashboard_type})"
-            )
-            return False
+                return False
+            except Exception as insert_error:
+                # If insert fails due to schema issues, try with minimal record
+                logger.warning(f"⚠️ Cache insert failed, trying minimal record: {insert_error}")
+                try:
+                    minimal_record = {
+                        "client_id": client_id,
+                        "data_hash": data_hash,
+                        "llm_response": llm_response,  # Store response directly
+                        "data_type": dashboard_type,
+                        "created_at": datetime.now().isoformat(),
+                    }
+                    response = self.db_client.table("llm_response_cache").insert(minimal_record).execute()
+                    if response.data:
+                        logger.info(f"✅ Cached minimal LLM response for client {client_id} ({dashboard_type})")
+                        return True
+                except Exception as minimal_error:
+                    logger.error(f"❌ Even minimal cache failed: {minimal_error}")
+                return False
         except Exception as e:
             logger.error(
                 f"❌ Error storing daily cache for client {client_id} ({dashboard_type}): {e}"
@@ -314,7 +308,7 @@ class LLMCacheManager:
 
             latest_by_day = {}
             for entry in response.data or []:
-                day_key = entry.get("analysis_date") or (entry.get("created_at", "")[:10])
+                day_key = entry.get("created_at", "")[:10]  # Use created_at date instead of analysis_date
                 if not day_key or day_key in latest_by_day:
                     continue
                 llm_resp = entry.get("llm_response")
