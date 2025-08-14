@@ -480,11 +480,24 @@ export function OriginalMainGrid({
 						`/dashboard/metrics?start_date=${startDate}&end_date=${endDate}&fast_mode=true`
 					);
 
-					if (response.data?.llm_analysis) {
-						console.log("✅ Date-filtered data loaded successfully");
-						setLlmAnalysis(response.data.llm_analysis);
-						setError(null);
-					}
+                    if (response.data?.llm_analysis) {
+                        console.log("✅ Date-filtered data loaded successfully");
+                        const analysis = response.data.llm_analysis;
+
+                        // Ensure timeline for multi-day ranges
+                        const startStr = startDate;
+                        const endStr = endDate;
+                        const isMultiDay = Boolean(startStr && endStr && startStr !== endStr);
+
+                        if (isMultiDay && !Array.isArray((analysis as any).timeline)) {
+                            // Wrap into minimal timeline so TimelineTrendsCard renders
+                            setLlmAnalysis({ timeline: [{ date: endStr as string, llm_analysis: analysis }] });
+                        } else {
+                            setLlmAnalysis(analysis);
+                        }
+
+                        setError(null);
+                    }
 				} catch (error) {
 					console.error("❌ Error loading date-filtered data:", error);
 					setError("Failed to load date-filtered data");
