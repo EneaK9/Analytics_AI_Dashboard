@@ -75,8 +75,17 @@ class LLMCacheManager:
             # Calculate current data hash
             current_hash = self._calculate_data_hash(client_data)
             
-            # Get existing cache record for this client (all dashboard types in one record)
-            response = self.db_client.table("llm_response_cache").select("*").eq("client_id", client_id).limit(1).execute()
+            # Get latest cache record for this client + dashboard_type
+            response = (
+                self.db_client
+                .table("llm_response_cache")
+                .select("*")
+                .eq("client_id", client_id)
+                .eq("data_type", dashboard_type)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
             
             if response.data:
                 cached_record = response.data[0]
@@ -91,11 +100,31 @@ class LLMCacheManager:
                 if cached_responses_json:
                     logger.info(f"🚀 TEMP: Using cache regardless of hash for debugging purposes")
                     try:
-                        # Parse the cached responses (all dashboard types in one JSON)
-                        cached_responses = json.loads(cached_responses_json)
-                        
-                        # Get the specific dashboard type response
-                        dashboard_response = cached_responses.get(dashboard_type)
+                        # Parse cached payload (string or dict) and normalize shapes
+                        if isinstance(cached_responses_json, str):
+                            try:
+                                cached_payload = json.loads(cached_responses_json)
+                            except Exception:
+                                # If it's already a JSON-like string of the final object
+                                logger.warning("⚠️ Failed to json.loads llm_response string; treating as raw text")
+                                cached_payload = cached_responses_json
+                        else:
+                            cached_payload = cached_responses_json
+
+                        dashboard_response = None
+                        if isinstance(cached_payload, dict):
+                            # Case A: {"metrics": {...}, "main": {...}}
+                            if dashboard_type in cached_payload:
+                                dashboard_response = cached_payload.get(dashboard_type)
+                            # Case B: {"llm_analysis": {...}, ...}
+                            elif "llm_analysis" in cached_payload:
+                                dashboard_response = cached_payload.get("llm_analysis")
+                            else:
+                                # Already the payload we want
+                                dashboard_response = cached_payload
+                        else:
+                            # Unexpected type; return None
+                            dashboard_response = None
                         
                         if dashboard_response:
                             logger.info(f"✅ Cache HIT for client {client_id} ({dashboard_type}) - data unchanged")
@@ -155,14 +184,31 @@ class LLMCacheManager:
             LIMIT 1
             """
             
-            result = self.db_client.table('llm_response_cache').select('cached_response').eq('client_id', client_id).order('created_at', desc=True).limit(1).execute()
+            result = (
+                self.db_client
+                .table('llm_response_cache')
+                .select('llm_response')
+                .eq('client_id', client_id)
+                .eq('data_type', dashboard_type)
+                .order('created_at', desc=True)
+                .limit(1)
+                .execute()
+            )
             
             if result.data and len(result.data) > 0:
-                cached_data = result.data[0]['cached_response']
-                # Look for the specific dashboard type
-                if dashboard_type in cached_data:
-                    logger.info(f"📦 Retrieved most recent analysis for {dashboard_type}")
-                    return cached_data[dashboard_type]
+                cached_data = result.data[0].get('llm_response')
+                if isinstance(cached_data, str):
+                    try:
+                        cached_data = json.loads(cached_data)
+                    except Exception:
+                        cached_data = None
+                if isinstance(cached_data, dict):
+                    if dashboard_type in cached_data:
+                        logger.info(f"📦 Retrieved most recent analysis for {dashboard_type}")
+                        return cached_data[dashboard_type]
+                    if 'llm_analysis' in cached_data:
+                        logger.info(f"📦 Retrieved most recent llm_analysis for {dashboard_type}")
+                        return cached_data['llm_analysis']
                     
             return None
             
@@ -197,19 +243,36 @@ class LLMCacheManager:
         """Get cached analysis for a specific data snapshot date"""
         try:
             # Find cache entry closest to snapshot date
-            result = self.db_client.table('llm_response_cache').select('cached_response').eq('client_id', client_id).order('created_at', desc=True).execute()
+            result = (
+                self.db_client
+                .table('llm_response_cache')
+                .select('llm_response, created_at')
+                .eq('client_id', client_id)
+                .order('created_at', desc=True)
+                .execute()
+            )
             
             if result.data:
                 target_dt = datetime.fromisoformat(snapshot_date.replace('Z', '+00:00'))
                 
                 # Find the entry that was current at the snapshot date
                 for entry in result.data:
-                    entry_date = datetime.fromisoformat(entry['cached_response'].get('created_at', entry.get('created_at', '')).replace('Z', '+00:00'))
+                    created_at_str = entry.get('created_at', '')
+                    entry_date = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
                     if entry_date <= target_dt:
-                        cached_data = entry['cached_response']
-                        if dashboard_type in cached_data:
-                            logger.info(f"📦 Retrieved cached analysis for snapshot {snapshot_date}")
-                            return cached_data[dashboard_type]
+                        cached_data = entry.get('llm_response')
+                        if isinstance(cached_data, str):
+                            try:
+                                cached_data = json.loads(cached_data)
+                            except Exception:
+                                cached_data = None
+                        if isinstance(cached_data, dict):
+                            if dashboard_type in cached_data:
+                                logger.info(f"📦 Retrieved cached analysis for snapshot {snapshot_date}")
+                                return cached_data[dashboard_type]
+                            if 'llm_analysis' in cached_data:
+                                logger.info(f"📦 Retrieved cached llm_analysis for snapshot {snapshot_date}")
+                                return cached_data['llm_analysis']
                         break
                     
             return None
