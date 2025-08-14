@@ -179,7 +179,20 @@ export default function RadarChart({
 	return (
         <div className="w-full">
 			{!minimal && description && (
-				<p className="text-sm text-gray-600 mb-4">{description}</p>
+				<div className="mb-4 h-14 flex flex-col justify-start">
+					<p 
+						className="text-sm text-gray-600 overflow-hidden whitespace-nowrap text-ellipsis max-w-full" 
+						title={description}
+						style={{ 
+							display: '-webkit-box',
+							WebkitLineClamp: 1,
+							WebkitBoxOrient: 'vertical',
+							overflow: 'hidden'
+						}}
+					>
+						{description}
+					</p>
+				</div>
 			)}
 			<Chart
 				options={options}

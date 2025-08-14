@@ -5,7 +5,7 @@ const api = axios.create({
 	baseURL: process.env.NEXT_PUBLIC_API_URL
 		? `${process.env.NEXT_PUBLIC_API_URL}/api`
 		: "http://localhost:8000/api",
-	timeout: 30000, // 30 seconds - increased for metrics processing
+	timeout: 180000, // 3 minutes - increased for LLM processing
 	headers: {
 		"Content-Type": "application/json",
 	},
@@ -38,15 +38,17 @@ api.interceptors.request.use(
 		// Set longer timeout for LLM-powered endpoints
 		if (config.url?.includes('/dashboard/metrics') || 
 		    config.url?.includes('/dashboard/business-insights') || 
-		    config.url?.includes('/dashboard/performance')) {
+		    config.url?.includes('/dashboard/performance') ||
+		    config.url?.includes('/dashboard/generate-template') ||
+		    config.url?.includes('/dashboard/generate')) {
 			
 			// Check if force_llm=true for even longer timeout
 			if (config.url?.includes('force_llm=true')) {
-				config.timeout = 1200000; // 120 seconds for LLM analysis
-				console.log("🔧 Setting 120s timeout for LLM endpoint:", config.url);
+				config.timeout = 600000; // 10 minutes for forced LLM analysis
+				console.log("🔧 Setting 10min timeout for forced LLM endpoint:", config.url);
 			} else {
-				config.timeout = 6000000; // 60 seconds for regular metrics
-				console.log("🔧 Setting 60s timeout for metrics endpoint:", config.url);
+				config.timeout = 300000; // 5 minutes for regular LLM endpoints
+				console.log("🔧 Setting 5min timeout for LLM endpoint:", config.url);
 			}
 		}
 		

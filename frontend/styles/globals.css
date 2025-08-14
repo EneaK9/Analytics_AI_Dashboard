@@ -70,6 +70,29 @@
     box-shadow: 0px 8px 13px -3px rgba(0, 0, 0, 0.07);
   }
 
+  /* Ensure all dashboard card headers use single-line titles/subtitles */
+  .mui-card-header-single-line .MuiCardHeader-content .MuiCardHeader-title,
+  .mui-card-header-single-line .MuiCardHeader-content .MuiCardHeader-subheader {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Prevent title area from pushing the dropdown off-screen */
+  .mui-card-header-single-line .MuiCardHeader-content {
+    overflow: hidden;
+    min-width: 0; /* allow flex child to shrink */
+  }
+
+  .mui-card-header-single-line .MuiCardHeader-action {
+    flex-shrink: 0;
+    margin-left: 8px;
+    align-self: center; /* keep dropdown vertically centered */
+  }
+
   .shadow-card {
     box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.12);
   }

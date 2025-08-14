@@ -221,16 +221,27 @@ export default function PieChart({
 	return (
         <div className="w-full">
 			{!minimal && description && (
-				<div className="w-full">
-					<p className="text-sm text-gray-600 mb-4">{description}</p>
+				<div className="w-full mb-4 h-14 flex flex-col justify-start">
+					<p 
+						className="text-sm text-gray-600 overflow-hidden whitespace-nowrap text-ellipsis max-w-full" 
+						title={description}
+						style={{ 
+							display: '-webkit-box',
+							WebkitLineClamp: 1,
+							WebkitBoxOrient: 'vertical',
+							overflow: 'hidden'
+						}}
+					>
+						{description}
+					</p>
 				</div>
 			)}
-            <Chart
+            			<Chart
 				options={options}
 				series={series}
 				type={chartType}
                 width="100%"
-                height={300}
+                height={350}
 			/>
 		</div>
 	);

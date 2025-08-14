@@ -2103,40 +2103,35 @@ async def generate_template_dashboard(
     force_regenerate: bool = False,
     token: str = Depends(security)
 ):
-    """Generate a simple template-based dashboard - just return client data"""
+    """Generate a simple template-based dashboard - optimized for speed"""
     try:
         # Verify client token
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        logger.info(f"🎨 Getting data for {template_type} dashboard for client {client_id}")
+        logger.info(f"🎨 ⚡ FAST template data for {template_type} dashboard for client {client_id}")
         
-        # Get client data - NO LIMIT for complete data processing from database
-        db_client = get_admin_client()
-        if not db_client:
-            raise HTTPException(status_code=503, detail="Database not configured")
+        # Use performance-optimized database manager
+        from database import PerformanceOptimizedDatabaseManager
+        db_manager = PerformanceOptimizedDatabaseManager()
         
-        # Get client data - NO LIMIT for complete data processing
-        data_response = db_client.table("client_data").select("data").eq("client_id", client_id).execute()
+        # Get cached client data with limit for faster response
+        client_data_result = await db_manager.fast_client_data_lookup(
+            client_id, 
+            use_cache=True, 
+            limit=100  # Limit to first 100 records for speed
+        )
         
-        client_data = []
-        if data_response.data:
-            for record in data_response.data:
-                try:
-                    if isinstance(record['data'], dict):
-                        client_data.append(record['data'])
-                    elif isinstance(record['data'], str):
-                        import json
-                        client_data.append(json.loads(record['data']))
-                except:
-                    continue
+        client_data = client_data_result.get('data', [])
         
         # Get data columns for analysis
         data_columns = []
         if client_data:
-            data_columns = list(client_data[0].keys())
+            # Use first record to determine columns
+            first_record = client_data[0] if isinstance(client_data[0], dict) else {}
+            data_columns = list(first_record.keys())
         
-        logger.info(f"✅ Found {len(client_data)} records with {len(data_columns)} columns for {template_type}")
+        logger.info(f"⚡ FAST response: {len(client_data)} records with {len(data_columns)} columns for {template_type} (query: {client_data_result.get('query_time', 0):.3f}s)")
         
         return {
             "success": True,
@@ -2144,7 +2139,9 @@ async def generate_template_dashboard(
             "client_data": client_data,
             "data_columns": data_columns,
             "total_records": len(client_data),
-            "message": f"Data retrieved for {template_type} template"
+            "cached": client_data_result.get('cached', False),
+            "query_time": client_data_result.get('query_time', 0),
+            "message": f"⚡ Fast data retrieved for {template_type} template"
         }
         
     except HTTPException:
@@ -2430,7 +2427,7 @@ async def get_dashboard_metrics(
             import asyncio
             insights = await asyncio.wait_for(
                 dashboard_orchestrator._extract_main_dashboard_insights(client_data),
-                timeout=355.0  # 55 second timeout to stay under 60s frontend timeout
+                timeout=300.0  # 5 minute timeout to accommodate larger token responses
             )
             logger.info(f"✅ Main dashboard LLM analysis successful for client {client_id}")
             
@@ -2528,7 +2525,7 @@ async def get_business_insights_dashboard(
             import asyncio
             insights = await asyncio.wait_for(
                 dashboard_orchestrator._extract_business_insights_specialized(client_data),
-                timeout=55.0  # 55 second timeout to stay under 60s frontend timeout
+                timeout=300.0  # 5 minute timeout to accommodate larger token responses
             )
             logger.info(f"✅ Business insights LLM analysis successful for client {client_id}")
             
@@ -2623,7 +2620,7 @@ async def get_performance_dashboard(
             import asyncio
             insights = await asyncio.wait_for(
                 dashboard_orchestrator._extract_performance_insights_specialized(client_data),
-                timeout=55.0  # 55 second timeout to stay under 60s frontend timeout
+                timeout=300.0  # 5 minute timeout to accommodate larger token responses
             )
             logger.info(f"✅ Performance insights LLM analysis successful for client {client_id}")
             
@@ -4747,7 +4744,7 @@ async def test_openai_api_key():
         try:
             # Make a simple test call
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 messages=[
                     {"role": "user", "content": "Say 'Hello, API key is working!'"}
                 ],
@@ -4880,7 +4877,7 @@ async def force_reload_environment():
         
         try:
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 messages=[
                     {"role": "user", "content": "Test"}
                 ],

@@ -95,7 +95,7 @@ export default function LineChartOne({
 		colors: ["#465FFF", "#9CB9FF"], // Define line colors
 		chart: {
 			fontFamily: "Inter, sans-serif",
-			height: 310,
+			height: 350,
 			type: "line", // Set the chart type to 'line'
 			toolbar: {
 				show: false, // Hide chart toolbar
@@ -173,9 +173,31 @@ export default function LineChartOne({
 	return (
 		<div className="w-full h-full">
 			{!minimal && (
-				<div className="mb-4">
-					<h3 className="text-lg font-semibold">{title}</h3>
-					<p className="text-sm text-muted-foreground">{description}</p>
+				<div className="mb-4 h-14 flex flex-col justify-start">
+					<h3 
+						className="text-lg font-semibold overflow-hidden whitespace-nowrap text-ellipsis max-w-full mb-1" 
+						title={title}
+						style={{ 
+							display: '-webkit-box',
+							WebkitLineClamp: 1,
+							WebkitBoxOrient: 'vertical',
+							overflow: 'hidden'
+						}}
+					>
+						{title}
+					</h3>
+					<p 
+						className="text-sm text-muted-foreground overflow-hidden whitespace-nowrap text-ellipsis max-w-full" 
+						title={description}
+						style={{ 
+							display: '-webkit-box',
+							WebkitLineClamp: 1,
+							WebkitBoxOrient: 'vertical',
+							overflow: 'hidden'
+						}}
+					>
+						{description}
+					</p>
 				</div>
 			)}
 			<div className="max-w-full overflow-x-auto">
@@ -184,7 +206,7 @@ export default function LineChartOne({
 						options={options}
 						series={seriesData}
 						type="area"
-						height={310}
+						height={350}
 					/>
 				</div>
 			</div>

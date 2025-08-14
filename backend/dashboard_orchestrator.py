@@ -172,6 +172,23 @@ from ai_analyzer import AIDataAnalyzer
 
 import numpy as np
 
+def convert_numpy_types(obj):
+    """Convert numpy types to native Python types for JSON serialization"""
+    if isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif pd.isna(obj):
+        return None
+    else:
+        return obj
+
 
 
 from collections import Counter
@@ -2434,7 +2451,7 @@ class DashboardOrchestrator:
 
 
 
-            "column_types": df.dtypes.to_dict(),
+            "column_types": convert_numpy_types(df.dtypes.to_dict()),
 
 
 
@@ -2450,15 +2467,15 @@ class DashboardOrchestrator:
 
 
 
-            "missing_values": df.isnull().sum().to_dict(),
+            "missing_values": convert_numpy_types(df.isnull().sum().to_dict()),
 
 
 
-            "unique_values": {col: df[col].nunique() for col in df.columns},
+            "unique_values": convert_numpy_types({col: df[col].nunique() for col in df.columns}),
 
 
 
-            "sample_data": df.head(10).to_dict(
+            "sample_data": convert_numpy_types(df.head(10).to_dict(
 
 
 
@@ -2466,7 +2483,7 @@ class DashboardOrchestrator:
 
 
 
-            ),  # Increased sample data for better charts
+            )),  # Increased sample data for better charts
 
 
 
@@ -2478,19 +2495,19 @@ class DashboardOrchestrator:
 
 
 
-                "min_values": df.select_dtypes(include=[np.number]).min().to_dict(),
+                "min_values": convert_numpy_types(df.select_dtypes(include=[np.number]).min().to_dict()),
 
 
 
-                "max_values": df.select_dtypes(include=[np.number]).max().to_dict(),
+                "max_values": convert_numpy_types(df.select_dtypes(include=[np.number]).max().to_dict()),
 
 
 
-                "mean_values": df.select_dtypes(include=[np.number]).mean().to_dict(),
+                "mean_values": convert_numpy_types(df.select_dtypes(include=[np.number]).mean().to_dict()),
 
 
 
-                "latest_data": df.tail(1).to_dict("records")[0] if len(df) > 0 else {},
+                "latest_data": convert_numpy_types(df.tail(1).to_dict("records")[0]) if len(df) > 0 else {},
 
 
 
@@ -3134,7 +3151,7 @@ class DashboardOrchestrator:
 
 
 
-                    max_tokens=20000,  # Maximum tokens for analyzing ALL records and generating complete tables with 20+ KPIs, 16+ charts, 10+ tables
+                    max_tokens=8192,  # Optimized for faster response while maintaining quality
 
 
 
@@ -4270,7 +4287,7 @@ class DashboardOrchestrator:
 
 
 
-                    max_tokens=20000,  # Maximum tokens for analyzing ALL records and generating complete tables
+                    max_tokens=8192,  # Optimized for faster response while maintaining quality
 
 
 
@@ -10426,7 +10443,7 @@ class DashboardOrchestrator:
 
 
 
-                max_tokens=1000,
+                max_tokens=8192,  # Optimized for faster response while maintaining quality
 
 
 
@@ -18040,7 +18057,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                max_tokens=6000,  # Increased for more detailed analysis
+                max_tokens=8192,  # Optimized for faster response while maintaining quality
 
             )
 
@@ -24756,11 +24773,11 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
                     kpis.extend([
 
-                        {"name": f"{col} Total", "value": round(df[col].sum(), 2), "description": f"Total {col}"},
+                        {"name": f"{col} Total", "value": float(round(df[col].sum(), 2)), "description": f"Total {col}"},
 
-                        {"name": f"{col} Average", "value": round(df[col].mean(), 2), "description": f"Average {col}"},
+                        {"name": f"{col} Average", "value": float(round(df[col].mean(), 2)), "description": f"Average {col}"},
 
-                        {"name": f"{col} Max", "value": round(df[col].max(), 2), "description": f"Maximum {col}"},
+                        {"name": f"{col} Max", "value": float(round(df[col].max(), 2)), "description": f"Maximum {col}"},
 
                     ])
 
@@ -24814,11 +24831,11 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
                     q1, q2, q3 = non_null_values.quantile([0.25, 0.5, 0.75])
 
-                    low_count = (non_null_values <= q1).sum()
+                    low_count = int((non_null_values <= q1).sum())
 
-                    med_count = ((non_null_values > q1) & (non_null_values <= q3)).sum()
+                    med_count = int(((non_null_values > q1) & (non_null_values <= q3)).sum())
 
-                    high_count = (non_null_values > q3).sum()
+                    high_count = int((non_null_values > q3).sum())
 
                     
 
@@ -24866,7 +24883,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
             # Table 1: Sample data (first 10 rows)
 
-            sample_data = df.head(10).to_dict('records')
+            sample_data = convert_numpy_types(df.head(10).to_dict('records'))
 
             tables.append({
 
@@ -24898,7 +24915,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
                 if df[col].dtype in ['int64', 'float64']:
 
-                    col_info["mean"] = round(df[col].mean(), 2) if df[col].notna().sum() > 0 else 0
+                    col_info["mean"] = float(round(df[col].mean(), 2)) if df[col].notna().sum() > 0 else 0
 
                 col_summary.append(col_info)
 

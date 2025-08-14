@@ -823,7 +823,8 @@ export function OriginalMainGrid({
 								color: "white",
 								boxShadow: "0 4px 20px rgba(25, 118, 210, 0.3)",
 							}}>
-							<CardHeader
+                                                <CardHeader
+                                                    className="mui-card-header-single-line"
 								title={
 									<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
 										<Typography variant="h5" sx={{ fontWeight: 600 }}>
@@ -843,7 +844,8 @@ export function OriginalMainGrid({
 													backdropFilter: "blur(10px)",
 													border: "1px solid rgba(255, 255, 255, 0.2)",
 												}}>
-												<CardHeader
+                                                <CardHeader
+                                                    className="mui-card-header-single-line"
 													title={
 														<Typography
 															variant="h6"
@@ -897,7 +899,8 @@ export function OriginalMainGrid({
 													backdropFilter: "blur(10px)",
 													border: "1px solid rgba(255, 255, 255, 0.2)",
 												}}>
-												<CardHeader
+                                                <CardHeader
+                                                    className="mui-card-header-single-line"
 													title={
 														<Typography
 															variant="h6"
@@ -1074,8 +1077,11 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-												<CardHeader
-													title={(() => {
+                                                <CardHeader
+                                                    className="mui-card-header-single-line"
+                                                    titleTypographyProps={{ title: chart.display_name || undefined }}
+                                                    subheaderTypographyProps={{ title: (chart.config?.x_axis?.display_name && chart.config?.y_axis?.display_name) ? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}` : "Data visualization" }}
+                                                    title={(() => {
 														const name = chart.display_name || "";
 														const q = highlightQuery;
 														if (q && name.toLowerCase().includes(q)) {
@@ -1148,14 +1154,14 @@ export function OriginalMainGrid({
 													}
 												/>
 												<CardContent>
-													<Box
-														sx={{
-															height: 300,
-															width: "100%",
-															display: "flex",
-															justifyContent: "center",
-															alignItems: "center",
-														}}>
+                                                    <Box
+                                                        sx={{
+                                                            height: 350,
+                                                            width: "100%",
+                                                            display: "flex",
+                                                            justifyContent: "center",
+                                                            alignItems: "center",
+                                                        }}>
 														<PieChart
 															series={[
 																{
@@ -1218,8 +1224,11 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-												<CardHeader
-													title={(() => {
+                                                <CardHeader
+                                                    className="mui-card-header-single-line"
+                                                    titleTypographyProps={{ title: chart.display_name || undefined }}
+                                                    subheaderTypographyProps={{ title: (chart.config?.x_axis?.display_name && chart.config?.y_axis?.display_name) ? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}` : "Data visualization" }}
+                                                    title={(() => {
 														const name = chart.display_name || "";
 														const q = highlightQuery;
 														if (q && name.toLowerCase().includes(q)) {
@@ -1292,7 +1301,7 @@ export function OriginalMainGrid({
 													}
 												/>
 												<CardContent>
-													<Box sx={{ height: 300, width: "100%" }}>
+                                                <Box sx={{ height: 350, width: "100%" }}>
 														<BarChart
 															dataset={filteredData.map((item: any) => {
 																// Get the actual field names from chart config
@@ -1372,7 +1381,8 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-												<CardHeader
+                                                <CardHeader
+                                                    className="mui-card-header-single-line"
 													title={chart.display_name}
 													subtitle={
 														chart.config?.x_axis?.display_name &&
@@ -1416,7 +1426,7 @@ export function OriginalMainGrid({
 													}
 												/>
 												<CardContent>
-													<Box sx={{ height: 300, width: "100%" }}>
+                                                <Box sx={{ height: 350, width: "100%" }}>
 														<LineChart
 															dataset={filteredData.map((item: any) => {
 																// Get the actual field names from chart config
@@ -1495,12 +1505,13 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-												<CardHeader
+                                                        <CardHeader
+                                                            className="mui-card-header-single-line"
 													title={chart.display_name}
 													subtitle="Multi-dimensional performance analysis"
 												/>
 												<CardContent>
-													<Box sx={{ height: 300, width: "100%" }}>
+                                                <Box sx={{ height: 350, width: "100%" }}>
 														<Charts.RadarChart
 															data={filteredData}
 															title={chart.display_name}
@@ -1515,12 +1526,13 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-												<CardHeader
+                                            <CardHeader
+                                                className="mui-card-header-single-line"
 													title={chart.display_name}
 													subtitle="Correlation and relationship analysis"
 												/>
 												<CardContent>
-													<Box sx={{ height: 300, width: "100%" }}>
+                                                <Box sx={{ height: 350, width: "100%" }}>
 														<Charts.ScatterChart
 															data={filteredData}
 															title={chart.display_name}
@@ -1541,12 +1553,15 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-												<CardHeader
-													title={chart.display_name}
-													subtitle="Pattern and intensity visualization"
-												/>
+                                                <CardHeader
+                                                    className="mui-card-header-single-line"
+                                                    titleTypographyProps={{ title: chart.display_name || undefined }}
+                                                    subheaderTypographyProps={{ title: "Pattern and intensity visualization" }}
+                                                    title={chart.display_name}
+                                                    subtitle="Pattern and intensity visualization"
+                                                />
 												<CardContent>
-													<Box sx={{ height: 300, width: "100%" }}>
+                                                <Box sx={{ height: 350, width: "100%" }}>
 														<Charts.HeatmapChart
 															data={filteredData}
 															title={chart.display_name}
@@ -1568,19 +1583,20 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-												<CardHeader
+                                                        <CardHeader
+                                                            className="mui-card-header-single-line"
 													title={chart.display_name}
 													subtitle="Progress and completion tracking"
 												/>
 												<CardContent>
-													<Box
-														sx={{
-															height: 300,
-															width: "100%",
-															display: "flex",
-															justifyContent: "center",
-															alignItems: "center",
-														}}>
+                                                    <Box
+                                                        sx={{
+                                                            height: 350,
+                                                            width: "100%",
+                                                            display: "flex",
+                                                            justifyContent: "center",
+                                                            alignItems: "center",
+                                                        }}>
 														<PieChart
 															series={[
 																{
@@ -1630,7 +1646,8 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-												<CardHeader
+                                            <CardHeader
+                                                className="mui-card-header-single-line"
 													title={(() => {
 														const name = chart.display_name || "";
 														const q = highlightQuery;
@@ -1668,7 +1685,7 @@ export function OriginalMainGrid({
 													}
 												/>
 												<CardContent>
-													<Box sx={{ height: 300, width: "100%" }}>
+                                                <Box sx={{ height: 350, width: "100%" }}>
 														<Charts.PieChart
 															data={filteredData}
 															title={chart.display_name}
@@ -1709,7 +1726,8 @@ export function OriginalMainGrid({
 						return (
 							<Grid key={index} size={{ xs: 12 }}>
 								<Card>
-									<CardHeader
+                                    <CardHeader
+                                        className="mui-card-header-single-line"
 										title={table.display_name}
 										subheader={`${table.data.length} rows of data`}
 									/>
@@ -2948,7 +2966,8 @@ function TemplateDashboard({
 										border: "1px solid #e3f2fd",
 										boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
 									}}>
-									<CardHeader
+                                    <CardHeader
+                                        className="mui-card-header-single-line"
 										title={
 											<Box
 												sx={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -3104,11 +3123,12 @@ function TemplateDashboard({
 															display: "flex",
 															flexDirection: "column",
 														}}>
-														<CardHeader
-															title={chartData.title || chartKey}
-															subheader={`${
-																chartData.type?.toUpperCase() || "CHART"
-															} • AI Analysis`}
+                                    <CardHeader
+                                        className="mui-card-header-single-line"
+                                        titleTypographyProps={{ title: (chartData.title || chartKey) as string }}
+                                        subheaderTypographyProps={{ title: `${chartData.type?.toUpperCase() || "CHART"} • AI Analysis` }}
+                                        title={chartData.title || chartKey}
+                                        subheader={`${chartData.type?.toUpperCase() || "CHART"} • AI Analysis`}
 															sx={{
 																pb: 1,
 																"& .MuiCardHeader-title": {
@@ -3481,7 +3501,8 @@ function TemplateDashboard({
 								{(config as any).tables.map((table: any, index: number) => (
 									<Grid key={index} size={{ xs: 12 }}>
 										<Card>
-											<CardHeader
+                            <CardHeader
+                                className="mui-card-header-single-line"
 												title={
 													table.display_name ||
 													table.title ||
@@ -4392,11 +4413,11 @@ function TemplateDashboard({
 														/>
 														<CardContent>
 															<Box
-																sx={{
-																	height: 300,
-																	display: "flex",
-																	flexDirection: "column",
-																}}>
+                                                            sx={{
+                                                                height: 350,
+                                                                display: "flex",
+                                                                flexDirection: "column",
+                                                            }}>
 																{isValidChartData(chartData) ? (
 																	<>
 																		{/* Render Actual Chart Components */}
@@ -5220,7 +5241,7 @@ function TemplateDashboard({
 										subheader="Quarterly analysis of market trends"
 									/>
 									<CardContent>
-										<Box sx={{ height: 300 }}>
+                                        <Box sx={{ height: 350 }}>
 											{clientData.length > 0 ? (
 												<div style={{ width: "100%", height: "250px" }}>
 													<LineChart
@@ -5344,7 +5365,7 @@ function TemplateDashboard({
 										subheader="Multi-factor risk analysis"
 									/>
 									<CardContent>
-										<Box sx={{ height: 300 }}>
+                                        <Box sx={{ height: 350 }}>
 											{clientData.length > 0 && dataColumns.length >= 3 ? (
 												<div style={{ height: "250px" }}>
 													{/* Radar Chart Component */}

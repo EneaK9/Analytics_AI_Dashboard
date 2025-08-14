@@ -673,13 +673,13 @@ class AIDataAnalyzer:
                 
                 # Enhanced OpenAI call with better model
                 response = self.openai_client.chat.completions.create(
-                    model="gpt-4o-mini",  # Use GPT-4o-mini for cost-effective analysis
+                    model="gpt-4o",  # Use GPT-4o for maximum token capacity and advanced analysis
                     messages=[
                         {"role": "system", "content": "You are an expert data analyst and business intelligence consultant."},
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.3,
-                    max_tokens=3000  # Increased for comprehensive response
+                    max_tokens=8192  # Optimized for faster response while maintaining quality
                 )
                 
                 ai_response = json.loads(response.choices[0].message.content)
