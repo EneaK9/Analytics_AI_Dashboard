@@ -23,6 +23,7 @@ import * as Charts from "../../charts";
 import InventorySKUList from "../../analytics/InventorySKUList";
 import InventoryTrendCharts from "../../analytics/InventoryTrendCharts";
 import AlertsSummary from "../../analytics/AlertsSummary";
+import SmartEcommerceMetrics from "../../analytics/SmartEcommerceMetrics";
 
 // Import MUI X Charts
 import { LineChart } from "@mui/x-charts/LineChart";
@@ -1026,6 +1027,21 @@ export function OriginalMainGrid({
 			{/* Inventory Management Section - Real-time inventory and sales analytics */}
 			{clientData && clientData.length > 0 && (
 				<>
+					{/* KPI Charts - Key Performance Indicators */}
+					<Grid container spacing={2} sx={{ mb: 3 }}>
+						<Grid size={{ xs: 12 }}>
+							<Card>
+								<CardHeader
+									title="Key Performance Indicators"
+									subheader="Real-time sales metrics and inventory analytics"
+								/>
+								<CardContent>
+									<SmartEcommerceMetrics clientData={clientData} />
+								</CardContent>
+							</Card>
+						</Grid>
+					</Grid>
+
 					{/* Alerts Summary */}
 					<Grid container spacing={2} sx={{ mb: 3 }}>
 						<Grid size={{ xs: 12 }}>

@@ -224,8 +224,8 @@ export default function InventoryTrendCharts({
 			{/* Header with date range selector */}
 			<div className="flex items-center justify-between">
 				<div>
-					<h2 className="text-2xl font-semibold text-gray-900">Inventory & Sales Trends</h2>
-					<p className="text-gray-600">Real-time trend analysis with customizable date ranges</p>
+					{/* <h2 className="text-2xl font-semibold text-gray-900">Inventory & Sales Trends</h2>
+					<p className="text-gray-600">Real-time trend analysis with customizable date ranges</p> */}
 				</div>
 				<DateRangeSelector />
 			</div>
