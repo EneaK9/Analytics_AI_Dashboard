@@ -19,6 +19,12 @@ import api from "../../../lib/axios";
 // Import various chart components
 import * as Charts from "../../charts";
 
+// Import inventory components
+import InventorySKUList from "../../analytics/InventorySKUList";
+import InventoryTrendCharts from "../../analytics/InventoryTrendCharts";
+import AlertsSummary from "../../analytics/AlertsSummary";
+import SmartEcommerceMetrics from "../../analytics/SmartEcommerceMetrics";
+
 // Import MUI X Charts
 import { LineChart } from "@mui/x-charts/LineChart";
 import TimelineTrendsCard from "./TimelineTrendsCard";
@@ -480,11 +486,24 @@ export function OriginalMainGrid({
 						`/dashboard/metrics?start_date=${startDate}&end_date=${endDate}&fast_mode=true`
 					);
 
-					if (response.data?.llm_analysis) {
-						console.log("✅ Date-filtered data loaded successfully");
-						setLlmAnalysis(response.data.llm_analysis);
-						setError(null);
-					}
+                    if (response.data?.llm_analysis) {
+                        console.log("✅ Date-filtered data loaded successfully");
+                        const analysis = response.data.llm_analysis;
+
+                        // Ensure timeline for multi-day ranges
+                        const startStr = startDate;
+                        const endStr = endDate;
+                        const isMultiDay = Boolean(startStr && endStr && startStr !== endStr);
+
+                        if (isMultiDay && !Array.isArray((analysis as any).timeline)) {
+                            // Wrap into minimal timeline so TimelineTrendsCard renders
+                            setLlmAnalysis({ timeline: [{ date: endStr as string, llm_analysis: analysis }] });
+                        } else {
+                            setLlmAnalysis(analysis);
+                        }
+
+                        setError(null);
+                    }
 				} catch (error) {
 					console.error("❌ Error loading date-filtered data:", error);
 					setError("Failed to load date-filtered data");
@@ -1003,6 +1022,67 @@ export function OriginalMainGrid({
 						);
 					})}
 				</Grid>
+			)}
+
+			{/* Inventory Management Section - Real-time inventory and sales analytics */}
+			{clientData && clientData.length > 0 && (
+				<>
+					{/* KPI Charts - Key Performance Indicators */}
+					<Grid container spacing={2} sx={{ mb: 3 }}>
+						<Grid size={{ xs: 12 }}>
+							<Card>
+								<CardHeader
+									title="Key Performance Indicators"
+									subheader="Real-time sales metrics and inventory analytics"
+								/>
+								<CardContent>
+									<SmartEcommerceMetrics clientData={clientData} />
+								</CardContent>
+							</Card>
+						</Grid>
+					</Grid>
+
+					{/* Alerts Summary */}
+					<Grid container spacing={2} sx={{ mb: 3 }}>
+						<Grid size={{ xs: 12 }}>
+							<Card>
+								<CardContent sx={{ p: 0 }}>
+									<AlertsSummary clientData={clientData} />
+								</CardContent>
+							</Card>
+						</Grid>
+					</Grid>
+
+					{/* Inventory Trends Charts */}
+					<Grid container spacing={2} sx={{ mb: 3 }}>
+						<Grid size={{ xs: 12 }}>
+							<Card>
+								<CardHeader
+									title="Inventory & Sales Trends"
+									subheader="Time-series analysis with customizable date ranges"
+								/>
+								<CardContent>
+									<InventoryTrendCharts clientData={clientData} />
+								</CardContent>
+							</Card>
+						</Grid>
+					</Grid>
+
+					{/* SKU Inventory List */}
+					<Grid container spacing={2} sx={{ mb: 3 }}>
+						<Grid size={{ xs: 12 }}>
+							<Card>
+								<CardHeader
+									title="SKU Inventory Management"
+									subheader={`Comprehensive inventory tracking • ${clientData.length} records analyzed`}
+								/>
+								<CardContent sx={{ p: 0 }}>
+									<InventorySKUList clientData={clientData} />
+								</CardContent>
+							</Card>
+						</Grid>
+					</Grid>
+				</>
 			)}
 
 			{/* Charts - Only render if charts array exists and has items */}

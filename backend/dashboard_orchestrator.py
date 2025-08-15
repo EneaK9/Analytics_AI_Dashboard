@@ -3151,7 +3151,7 @@ class DashboardOrchestrator:
 
 
 
-                    max_tokens=8192,  # Optimized for faster response while maintaining quality
+                    max_tokens=20000,  # Maximum tokens for analyzing ALL records and generating complete tables with 20+ KPIs, 16+ charts, 10+ tables
 
 
 
@@ -4287,7 +4287,7 @@ class DashboardOrchestrator:
 
 
 
-                    max_tokens=8192,  # Optimized for faster response while maintaining quality
+                    max_tokens=20000,  # Maximum tokens for analyzing ALL records and generating complete tables
 
 
 
@@ -17427,6 +17427,20 @@ REVENUE METRICS (5 required):
 
 - Zero-Value Orders Count (orders with total_price = 0)
 
+INVENTORY & SALES PERFORMANCE METRICS (6 required when inventory data available):
+
+- Total Sales Last 7 Days (sum of total_price for orders in last 7 days)
+
+- Total Sales Last 30 Days (sum of total_price for orders in last 30 days)
+
+- Total Sales Last 90 Days (sum of total_price for orders in last 90 days)
+
+- Inventory Turnover Rate (units sold / average inventory quantity)
+
+- Days of Stock Remaining (current inventory / average daily sales)
+
+- Current Stock Availability (on_hand + incoming - outgoing inventory)
+
 
 
 CUSTOMER METRICS (4 required):
@@ -17491,7 +17505,9 @@ GEOGRAPHIC METRICS (4 required):
 
 
 
-   - Inventory metrics (stock levels, turnover, availability)
+   - Inventory metrics (stock levels, turnover, availability, SKU performance, stock alerts)
+   - Sales performance metrics (7-day sales, 30-day sales, 90-day sales, inventory turnover rate)
+   - Supply chain metrics (days of stock remaining, incoming inventory, outgoing inventory, current availability)
 
 
 
@@ -17536,6 +17552,16 @@ CUSTOMER ANALYSIS CHARTS (3 required):
 - Customer Email Domain Types (pie chart: gmail/business/other)
 
 - Order Count per Customer (bar chart: 1 order, 2 orders, 3+ orders)
+
+INVENTORY MANAGEMENT CHARTS (4 required when inventory data available):
+
+- Inventory Levels Over Time (line chart: inventory_quantity vs created_at/updated_at daily trends)
+
+- SKU Performance Analysis (bar chart: sku/product_id vs units_sold or quantity)
+
+- Stock Status Distribution (pie chart: in_stock/low_stock/out_of_stock percentages)
+
+- Inventory Turnover by Product (bar chart: product_title vs turnover_rate calculated from sales vs inventory)
 
 - Customer Geographic Spread (bar chart: customers per state)
 
@@ -17612,6 +17638,14 @@ REVENUE TABLES (2 required):
 - Daily Revenue Summary (date, order_count, total_revenue, avg_order_value, unique_customers)
 
 - Order Value Analysis (price_range, order_count, percentage, total_revenue)
+
+INVENTORY MANAGEMENT TABLES (3 required when inventory data available):
+
+- SKU Inventory Summary (sku_code, item_name, on_hand_inventory, incoming_inventory, outgoing_inventory, current_availability, unit_price, total_value)
+
+- Stock Alert Analysis (sku_code, item_name, current_stock, stock_status, days_remaining, alert_type, action_needed)
+
+- Inventory Performance Analysis (sku_code, item_name, units_sold, inventory_turnover, stock_velocity, reorder_recommendation)
 
 
 
@@ -18057,7 +18091,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                max_tokens=8192,  # Optimized for faster response while maintaining quality
+                max_tokens=6000,  # Increased for more detailed analysis
 
             )
 
