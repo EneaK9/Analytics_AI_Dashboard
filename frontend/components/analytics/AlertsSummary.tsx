@@ -84,8 +84,8 @@ export default function AlertsSummary({
 	};
 
 	// Calculate total alerts from summary
-	const totalAlerts = alertsSummary?.summary.total_alerts || 0;
-	const criticalAlerts = alertsSummary?.summary.critical_alerts || 0;
+	const totalAlerts = alertsSummary?.summary_counts?.total_alerts || 0;
+	const criticalAlerts = alertsSummary?.detailed_alerts?.low_stock_alerts?.filter(alert => alert.severity === 'critical').length || 0;
 
 	if (loading) {
 		return (
@@ -137,7 +137,7 @@ export default function AlertsSummary({
 				) : (
 					<div className="space-y-4">
 						{/* Low Stock Alerts */}
-						{alertsSummary?.low_stock_alerts && alertsSummary.low_stock_alerts.length > 0 && (
+						{alertsSummary?.detailed_alerts?.low_stock_alerts && alertsSummary.detailed_alerts.low_stock_alerts.length > 0 && (
 							<div className="p-4 rounded-lg border border-yellow-200 bg-yellow-50">
 								<div className="flex items-start justify-between">
 									<div className="flex items-start gap-3">
@@ -152,14 +152,14 @@ export default function AlertsSummary({
 												{getSeverityBadge("high")}
 											</div>
 											<p className="text-sm text-gray-600 mb-2">
-												{alertsSummary.low_stock_alerts.length} SKUs need immediate attention
+												{alertsSummary.detailed_alerts.low_stock_alerts.length} SKUs need immediate attention
 											</p>
 											<div className="text-xs text-gray-500">
 												<span className="font-medium">Affected SKUs: </span>
-												{alertsSummary.low_stock_alerts.slice(0, 3).map(alert => alert.sku_code).join(', ')}
-												{alertsSummary.low_stock_alerts.length > 3 && (
+												{alertsSummary.detailed_alerts.low_stock_alerts.slice(0, 3).map(alert => alert.sku).join(', ')}
+												{alertsSummary.detailed_alerts.low_stock_alerts.length > 3 && (
 													<span className="ml-1">
-														and {alertsSummary.low_stock_alerts.length - 3} more...
+														and {alertsSummary.detailed_alerts.low_stock_alerts.length - 3} more...
 													</span>
 												)}
 											</div>
@@ -167,7 +167,7 @@ export default function AlertsSummary({
 									</div>
 									<div className="flex items-center gap-2">
 										<span className="text-2xl font-bold text-yellow-700">
-											{alertsSummary.low_stock_alerts.length}
+											{alertsSummary.detailed_alerts.low_stock_alerts.length}
 										</span>
 										<button 
 											className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -181,7 +181,7 @@ export default function AlertsSummary({
 						)}
 
 						{/* Overstock Alerts */}
-						{alertsSummary?.overstock_alerts && alertsSummary.overstock_alerts.length > 0 && (
+						{alertsSummary?.detailed_alerts?.overstock_alerts && alertsSummary.detailed_alerts.overstock_alerts.length > 0 && (
 							<div className="p-4 rounded-lg border border-blue-200 bg-blue-50">
 								<div className="flex items-start justify-between">
 									<div className="flex items-start gap-3">
@@ -196,14 +196,14 @@ export default function AlertsSummary({
 												{getSeverityBadge("medium")}
 											</div>
 											<p className="text-sm text-gray-600 mb-2">
-												{alertsSummary.overstock_alerts.length} SKUs have excess inventory
+												{alertsSummary.detailed_alerts.overstock_alerts.length} SKUs have excess inventory
 											</p>
 											<div className="text-xs text-gray-500">
 												<span className="font-medium">Affected SKUs: </span>
-												{alertsSummary.overstock_alerts.slice(0, 3).map(alert => alert.sku_code).join(', ')}
-												{alertsSummary.overstock_alerts.length > 3 && (
+												{alertsSummary.detailed_alerts.overstock_alerts.slice(0, 3).map(alert => alert.sku).join(', ')}
+												{alertsSummary.detailed_alerts.overstock_alerts.length > 3 && (
 													<span className="ml-1">
-														and {alertsSummary.overstock_alerts.length - 3} more...
+														and {alertsSummary.detailed_alerts.overstock_alerts.length - 3} more...
 													</span>
 												)}
 											</div>
@@ -211,7 +211,7 @@ export default function AlertsSummary({
 									</div>
 									<div className="flex items-center gap-2">
 										<span className="text-2xl font-bold text-blue-700">
-											{alertsSummary.overstock_alerts.length}
+											{alertsSummary.detailed_alerts.overstock_alerts.length}
 										</span>
 										<button 
 											className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -225,7 +225,7 @@ export default function AlertsSummary({
 						)}
 
 						{/* Sales Spike Alerts */}
-						{alertsSummary?.sales_spike_alerts && alertsSummary.sales_spike_alerts.length > 0 && (
+						{alertsSummary?.detailed_alerts?.sales_spike_alerts && alertsSummary.detailed_alerts.sales_spike_alerts.length > 0 && (
 							<div className="p-4 rounded-lg border border-green-200 bg-green-50">
 								<div className="flex items-start justify-between">
 									<div className="flex items-start gap-3">
@@ -240,13 +240,13 @@ export default function AlertsSummary({
 												{getSeverityBadge("medium")}
 											</div>
 											<p className="text-sm text-gray-600 mb-2">
-												{alertsSummary.sales_spike_alerts[0]?.message || "Unusual sales increases detected"}
+												{alertsSummary.detailed_alerts.sales_spike_alerts[0]?.message || "Unusual sales increases detected"}
 											</p>
 										</div>
 									</div>
 									<div className="flex items-center gap-2">
 										<span className="text-2xl font-bold text-green-700">
-											{alertsSummary.sales_spike_alerts.length}
+											{alertsSummary.detailed_alerts.sales_spike_alerts.length}
 										</span>
 										<button 
 											className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -260,7 +260,7 @@ export default function AlertsSummary({
 						)}
 
 						{/* Sales Slowdown Alerts */}
-						{alertsSummary?.sales_slowdown_alerts && alertsSummary.sales_slowdown_alerts.length > 0 && (
+						{alertsSummary?.detailed_alerts?.sales_slowdown_alerts && alertsSummary.detailed_alerts.sales_slowdown_alerts.length > 0 && (
 							<div className="p-4 rounded-lg border border-orange-200 bg-orange-50">
 								<div className="flex items-start justify-between">
 									<div className="flex items-start gap-3">
@@ -275,13 +275,13 @@ export default function AlertsSummary({
 												{getSeverityBadge("medium")}
 											</div>
 											<p className="text-sm text-gray-600 mb-2">
-												{alertsSummary.sales_slowdown_alerts[0]?.message || "Sales declines detected"}
+												{alertsSummary.detailed_alerts.sales_slowdown_alerts[0]?.message || "Sales declines detected"}
 											</p>
 										</div>
 									</div>
 									<div className="flex items-center gap-2">
 										<span className="text-2xl font-bold text-orange-700">
-											{alertsSummary.sales_slowdown_alerts.length}
+											{alertsSummary.detailed_alerts.sales_slowdown_alerts.length}
 										</span>
 										<button 
 											className="text-gray-400 hover:text-gray-600 transition-colors"

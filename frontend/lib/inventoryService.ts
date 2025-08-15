@@ -187,12 +187,62 @@ class InventoryService {
   }
 
   /**
-   * Get only SKU inventory data
+   * Get paginated SKU inventory data from dedicated endpoint
+   */
+  async getPaginatedSKUInventory(
+    page: number = 1, 
+    pageSize: number = 50, 
+    useCache: boolean = true, 
+    forceRefresh: boolean = false
+  ): Promise<{
+    skus: SKUData[];
+    pagination: {
+      current_page: number;
+      page_size: number;
+      total_count: number;
+      total_pages: number;
+      has_next: boolean;
+      has_previous: boolean;
+    };
+    summary_stats?: SKUSummaryStats;
+    cached: boolean;
+  }> {
+    try {
+      console.log(`🔍 Fetching paginated SKU inventory (page ${page}, size ${pageSize})...`);
+      
+      const response = await api.get('/api/dashboard/sku-inventory', {
+        params: {
+          page,
+          page_size: pageSize,
+          use_cache: useCache,
+          force_refresh: forceRefresh,
+        },
+      });
+
+      if (response.data && response.data.success) {
+        return {
+          skus: response.data.sku_inventory.skus || [],
+          pagination: response.data.pagination,
+          summary_stats: response.data.sku_inventory.summary_stats,
+          cached: response.data.cached || false,
+        };
+      } else {
+        throw new Error(response.data?.error || 'Failed to fetch paginated SKU data');
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to fetch paginated SKU inventory:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get only SKU inventory data (now properly uses pagination)
    */
   async getSKUInventory(): Promise<SKUData[]> {
     try {
-      const response = await this.getInventoryAnalytics();
-      return response.inventory_analytics.sku_inventory.skus;
+      // Get first page of SKUs from the dedicated endpoint
+      const response = await this.getPaginatedSKUInventory(1, 100, true, false);
+      return response.skus;
     } catch (error) {
       console.error('❌ Failed to fetch SKU inventory:', error);
       return [];

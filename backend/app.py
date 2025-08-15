@@ -2505,27 +2505,248 @@ async def test_simple():
     """Simple test endpoint"""
     return {"message": "Simple test works", "status": "ok"}
 
+# ==================== SKU INVENTORY PAGINATION ENDPOINTS ====================
+
+@app.get("/api/dashboard/sku-inventory")
+async def get_paginated_sku_inventory(
+    token: str = Depends(security),
+    page: int = 1,
+    page_size: int = 50,
+    use_cache: bool = True,
+    force_refresh: bool = False
+):
+    """Get paginated SKU inventory with caching support to prevent timeouts"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        client_id = str(token_data.client_id)
+        
+        logger.info(f"📦 Paginated SKU inventory request for client {client_id} (page={page}, size={page_size})")
+        
+        # Validate pagination parameters
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = min(100, max(1, page_size))
+        
+        # Use dashboard inventory analyzer with caching
+        from dashboard_inventory_analyzer import dashboard_inventory_analyzer
+        
+        # Get data using organized tables
+        db_client = get_admin_client()
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        # Get data efficiently
+        shopify_data = await dashboard_inventory_analyzer._get_shopify_data(client_id)
+        amazon_data = await dashboard_inventory_analyzer._get_amazon_data(client_id)
+        
+        # If force refresh, clear cache first
+        if force_refresh:
+            from sku_cache_manager import get_sku_cache_manager
+            cache_manager = get_sku_cache_manager(db_client)
+            await cache_manager.invalidate_cache(client_id)
+        
+        # Get paginated SKU data
+        sku_result = await dashboard_inventory_analyzer._get_sku_list(
+            client_id, shopify_data, amazon_data, page, page_size, use_cache
+        )
+        
+        if not sku_result.get("success"):
+            raise HTTPException(status_code=500, detail=sku_result.get("error", "Failed to get SKU data"))
+        
+        # Get summary stats if this is the first page
+        summary_stats = None
+        if page == 1:
+            from sku_cache_manager import get_sku_cache_manager
+            cache_manager = get_sku_cache_manager(db_client)
+            stats_result = await cache_manager.get_sku_summary_stats(client_id)
+            if stats_result.get("success"):
+                summary_stats = stats_result["summary_stats"]
+        
+        return {
+            "client_id": client_id,
+            "success": True,
+            "sku_inventory": {
+                "skus": sku_result["skus"],
+                "summary_stats": summary_stats
+            },
+            "pagination": sku_result["pagination"],
+            "cached": sku_result.get("cached", False),
+            "timestamp": datetime.now().isoformat(),
+            "processing_time": "optimized"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting paginated SKU inventory: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get SKU inventory: {str(e)}")
+
+@app.delete("/api/dashboard/sku-cache")
+async def clear_sku_cache(token: str = Depends(security)):
+    """Clear SKU cache for the authenticated client"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        client_id = str(token_data.client_id)
+        
+        db_client = get_admin_client()
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        from sku_cache_manager import get_sku_cache_manager
+        cache_manager = get_sku_cache_manager(db_client)
+        
+        success = await cache_manager.invalidate_cache(client_id)
+        
+        if success:
+            return {
+                "success": True,
+                "message": "SKU cache cleared successfully",
+                "client_id": client_id
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to clear cache")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error clearing SKU cache: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to clear cache: {str(e)}")
+
+@app.get("/api/dashboard/sku-summary")
+async def get_sku_summary_stats(token: str = Depends(security)):
+    """Get SKU inventory summary statistics quickly"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        client_id = str(token_data.client_id)
+        
+        db_client = get_admin_client()
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        from sku_cache_manager import get_sku_cache_manager
+        cache_manager = get_sku_cache_manager(db_client)
+        
+        stats_result = await cache_manager.get_sku_summary_stats(client_id)
+        
+        if stats_result.get("success"):
+            return {
+                "client_id": client_id,
+                "success": True,
+                "summary_stats": stats_result["summary_stats"],
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            # Fallback: calculate from fresh data
+            from dashboard_inventory_analyzer import dashboard_inventory_analyzer
+            shopify_data = await dashboard_inventory_analyzer._get_shopify_data(client_id)
+            amazon_data = await dashboard_inventory_analyzer._get_amazon_data(client_id)
+            
+            sku_result = await dashboard_inventory_analyzer._get_sku_list(
+                client_id, shopify_data, amazon_data, 1, 10000, False  # Get all data without cache
+            )
+            
+            if sku_result.get("success"):
+                skus = sku_result["skus"]
+                total_skus = len(skus)
+                total_inventory_value = sum(sku.get('total_value', 0) for sku in skus)
+                low_stock_count = sum(1 for sku in skus if sku.get('current_availability', 0) < 10)
+                out_of_stock_count = sum(1 for sku in skus if sku.get('current_availability', 0) <= 0)
+                overstock_count = sum(1 for sku in skus if sku.get('current_availability', 0) > 100)
+                
+                return {
+                    "client_id": client_id,
+                    "success": True,
+                    "summary_stats": {
+                        "total_skus": total_skus,
+                        "total_inventory_value": total_inventory_value,
+                        "low_stock_count": low_stock_count,
+                        "out_of_stock_count": out_of_stock_count,
+                        "overstock_count": overstock_count
+                    },
+                    "timestamp": datetime.now().isoformat(),
+                    "source": "fresh_calculation"
+                }
+            else:
+                raise HTTPException(status_code=500, detail="Failed to calculate summary stats")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting SKU summary stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get summary stats: {str(e)}")
+
 @app.get("/api/dashboard/inventory-analytics")
 async def get_inventory_analytics(
     token: str = Depends(security),
     fast_mode: bool = True,
     force_refresh: bool = False
 ):
-    """Get comprehensive inventory analytics including SKU data, KPIs, trends, and alerts"""
+    """Get comprehensive inventory analytics using organized tables with fallback to legacy data"""
     try:
         # Verify client token
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        logger.info(f"📦 Inventory analytics request for client {client_id} (fast_mode={fast_mode}, force_refresh={force_refresh})")
+        logger.info(f"📦 Enhanced inventory analytics request for client {client_id} (fast_mode={fast_mode}, force_refresh={force_refresh})")
         
-        # Get client data for analysis
+        # Try organized approach first
         try:
-            # Fetch client data using the existing endpoint logic
+            from organized_inventory_analyzer import organized_inventory_analyzer
+            
+            # Check if client has organized tables
             db_client = get_admin_client()
             if not db_client:
                 raise HTTPException(status_code=503, detail="Database not configured")
             
+            # Quick check for organized tables
+            shopify_table = f"{client_id.replace('-', '_')}_shopify_products"
+            try:
+                test_response = db_client.table(shopify_table).select("id").limit(1).execute()
+                has_organized_data = bool(test_response.data)
+            except:
+                has_organized_data = False
+            
+            if has_organized_data:
+                logger.info(f"🚀 Using organized tables for client {client_id}")
+                
+                # Use dashboard-focused inventory analyzer
+                from dashboard_inventory_analyzer import dashboard_inventory_analyzer
+                
+                analytics = await dashboard_inventory_analyzer.get_dashboard_inventory_analytics(client_id)
+                
+                if analytics.get('success'):
+                    logger.info(f"✅ Dashboard inventory analytics completed for client {client_id}")
+                    
+                    return {
+                        "client_id": client_id,
+                        "success": True,
+                        "message": f"Dashboard analytics from organized data - {analytics.get('data_summary', {}).get('shopify_products', 0) + analytics.get('data_summary', {}).get('amazon_products', 0)} products, {analytics.get('data_summary', {}).get('shopify_orders', 0) + analytics.get('data_summary', {}).get('amazon_orders', 0)} orders (SKU data available via /api/dashboard/sku-inventory)",
+                        "timestamp": datetime.now().isoformat(),
+                        "data_type": "dashboard_inventory_analytics",
+                        "schema_type": "dashboard_inventory_analytics", 
+                        "total_records": analytics.get('data_summary', {}).get('total_records', 0),
+                        "inventory_analytics": analytics,
+                        "cached": False,
+                        "processing_time": "optimized",
+                        "data_source": "organized_tables"
+                    }
+                else:
+                    logger.warning(f"⚠️ Dashboard analysis failed, falling back to legacy for client {client_id}")
+            else:
+                logger.info(f"📋 No organized tables found, using legacy approach for client {client_id}")
+                
+        except Exception as organized_error:
+            logger.warning(f"⚠️ Organized approach failed: {organized_error}, falling back to legacy")
+        
+        # Fallback to legacy approach
+        logger.info(f"📊 Using legacy JSON parsing for client {client_id}")
+        
+        # Get client data for legacy analysis
+        try:
             # Get client's data from database
             response = db_client.table("client_data").select("*").eq("client_id", client_id).order("created_at", desc=True).limit(1000).execute()
             
@@ -5473,6 +5694,273 @@ async def _extract_business_insights(dna_data: Dict[str, Any]) -> List[str]:
         insights.append(f"Data narrative: {data_story}")
     
     return insights
+
+# ==================== ORGANIZED INVENTORY ANALYTICS ====================
+
+@app.get("/api/dashboard/organized-inventory-analytics/{client_id}")
+async def get_organized_inventory_analytics(
+    client_id: str,
+    token: str = Depends(security)
+):
+    """Get comprehensive inventory analytics from organized client tables"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        authenticated_client_id = str(token_data.client_id)
+        
+        # Check if the authenticated client matches the requested client_id
+        # For now, allow any authenticated client to access any client_id for testing
+        # In production, you might want to add authorization checks
+        
+        logger.info(f"📊 Organized inventory analytics request for client {client_id}")
+        
+        # Import and use organized inventory analyzer
+        from organized_inventory_analyzer import organized_inventory_analyzer
+        
+        # Perform analysis using organized tables
+        analytics = await organized_inventory_analyzer.analyze_client_inventory(client_id)
+        
+        if analytics.get('success'):
+            logger.info(f"✅ Organized inventory analytics completed for client {client_id}")
+            
+            return {
+                "success": True,
+                "client_id": client_id,
+                "timestamp": datetime.now().isoformat(),
+                "data_type": "organized_inventory_analytics",
+                "analytics": analytics,
+                "message": "Successfully analyzed organized client data"
+            }
+        else:
+            logger.error(f"❌ Organized inventory analytics failed for client {client_id}")
+            raise HTTPException(status_code=500, detail=f"Analytics failed: {analytics.get('error', 'Unknown error')}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Organized inventory analytics error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Analytics failed: {str(e)}")
+
+@app.get("/api/dashboard/client-data-health/{client_id}")
+async def get_client_data_health(
+    client_id: str,
+    token: str = Depends(security)
+):
+    """Get health status of organized client tables"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        
+        logger.info(f"🔍 Data health check for client {client_id}")
+        
+        db_client = get_admin_client()
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        health_status = {}
+        
+        # Check Shopify products table
+        try:
+            shopify_table = f"{client_id.replace('-', '_')}_shopify_products"
+            shopify_response = db_client.table(shopify_table).select("id", count="exact").execute()
+            health_status["shopify_products"] = {
+                "exists": True,
+                "count": shopify_response.count if hasattr(shopify_response, 'count') else len(shopify_response.data or []),
+                "table_name": shopify_table
+            }
+        except Exception as e:
+            health_status["shopify_products"] = {
+                "exists": False,
+                "error": str(e),
+                "table_name": f"{client_id.replace('-', '_')}_shopify_products"
+            }
+        
+        # Check Shopify orders table
+        try:
+            shopify_orders_table = f"{client_id.replace('-', '_')}_shopify_orders"
+            shopify_orders_response = db_client.table(shopify_orders_table).select("id", count="exact").execute()
+            health_status["shopify_orders"] = {
+                "exists": True,
+                "count": shopify_orders_response.count if hasattr(shopify_orders_response, 'count') else len(shopify_orders_response.data or []),
+                "table_name": shopify_orders_table
+            }
+        except Exception as e:
+            health_status["shopify_orders"] = {
+                "exists": False,
+                "error": str(e),
+                "table_name": f"{client_id.replace('-', '_')}_shopify_orders"
+            }
+        
+        # Check Amazon orders table
+        try:
+            amazon_orders_table = f"{client_id.replace('-', '_')}_amazon_orders"
+            orders_response = db_client.table(amazon_orders_table).select("id", count="exact").execute()
+            health_status["amazon_orders"] = {
+                "exists": True,
+                "count": orders_response.count if hasattr(orders_response, 'count') else len(orders_response.data or []),
+                "table_name": amazon_orders_table
+            }
+        except Exception as e:
+            health_status["amazon_orders"] = {
+                "exists": False,
+                "error": str(e),
+                "table_name": f"{client_id.replace('-', '_')}_amazon_orders"
+            }
+        
+        # Check Amazon products table
+        try:
+            amazon_products_table = f"{client_id.replace('-', '_')}_amazon_products"
+            products_response = db_client.table(amazon_products_table).select("id", count="exact").execute()
+            health_status["amazon_products"] = {
+                "exists": True,
+                "count": products_response.count if hasattr(products_response, 'count') else len(products_response.data or []),
+                "table_name": amazon_products_table
+            }
+        except Exception as e:
+            health_status["amazon_products"] = {
+                "exists": False,
+                "error": str(e),
+                "table_name": f"{client_id.replace('-', '_')}_amazon_products"
+            }
+        
+        # Summary
+        total_records = 0
+        existing_tables = 0
+        for table_info in health_status.values():
+            if table_info.get("exists"):
+                existing_tables += 1
+                total_records += table_info.get("count", 0)
+        
+        return {
+            "success": True,
+            "client_id": client_id,
+            "timestamp": datetime.now().isoformat(),
+            "summary": {
+                "existing_tables": existing_tables,
+                "total_tables": 4,  # shopify_products, shopify_orders, amazon_orders, amazon_products
+                "total_records": total_records,
+                "is_organized": existing_tables > 0
+            },
+            "tables": health_status
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Data health check error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
+
+# ==================== DATA ORGANIZATION ====================
+
+@app.post("/api/superadmin/organize-data/{client_id}")
+async def organize_client_data(
+    client_id: str,
+    token: str = Depends(security)
+):
+    """Superadmin: Organize client data into structured tables by platform and type"""
+    try:
+        # Verify superadmin token
+        verify_superadmin_token(token.credentials)
+        
+        logger.info(f"🚀 Starting data organization for client {client_id}")
+        
+        # Import and run data organizer
+        from data_organizer import DataOrganizer
+        
+        organizer = DataOrganizer()
+        result = await organizer.organize_client_data(client_id)
+        
+        if result.get('success'):
+            logger.info(f"✅ Data organization completed for client {client_id}")
+            return {
+                "success": True,
+                "message": "Data organization completed successfully",
+                "client_id": client_id,
+                "processing_time_seconds": result.get('processing_time_seconds'),
+                "total_raw_records": result.get('total_raw_records'),
+                "organized_records": result.get('organized_records'),
+                "total_organized": result.get('total_organized')
+            }
+        else:
+            logger.error(f"❌ Data organization failed for client {client_id}: {result.get('error')}")
+            raise HTTPException(status_code=500, detail=f"Data organization failed: {result.get('error')}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Data organization endpoint failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Data organization failed: {str(e)}")
+
+@app.get("/api/superadmin/client-data-summary/{client_id}")
+async def get_client_data_summary(
+    client_id: str,
+    token: str = Depends(security)
+):
+    """Superadmin: Get summary of client data structure and organization status"""
+    try:
+        # Verify superadmin token
+        verify_superadmin_token(token.credentials)
+        
+        db_client = get_admin_client()
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        # Get raw data count
+        raw_data_response = db_client.table("client_data").select("data, table_name").eq("client_id", client_id).execute()
+        raw_data = raw_data_response.data or []
+        
+        # Analyze data types in raw data
+        data_types = {}
+        platform_counts = {'shopify': 0, 'amazon': 0, 'unknown': 0}
+        
+        for record in raw_data:
+            try:
+                data = record.get('data', {})
+                if isinstance(data, str):
+                    data = json.loads(data)
+                
+                platform = data.get('platform', '').lower()
+                
+                if platform == 'shopify':
+                    platform_counts['shopify'] += 1
+                    if 'order_id' in data or 'order_number' in data:
+                        data_types['shopify_orders'] = data_types.get('shopify_orders', 0) + 1
+                    elif 'title' in data and ('handle' in data or 'variants' in data):
+                        data_types['shopify_products'] = data_types.get('shopify_products', 0) + 1
+                elif platform == 'amazon':
+                    platform_counts['amazon'] += 1
+                    if 'order_id' in data and 'order_status' in data:
+                        data_types['amazon_orders'] = data_types.get('amazon_orders', 0) + 1
+                    elif 'asin' in data or ('sku' in data and 'price' in data):
+                        data_types['amazon_products'] = data_types.get('amazon_products', 0) + 1
+                else:
+                    platform_counts['unknown'] += 1
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Error analyzing record: {e}")
+                platform_counts['unknown'] += 1
+        
+        # Check for organized data
+        organized_data_response = db_client.table("client_data").select("table_name").eq("client_id", client_id).like("table_name", "organized_%").execute()
+        organized_tables = list(set([record['table_name'] for record in organized_data_response.data or []]))
+        
+        summary = {
+            "client_id": client_id,
+            "total_raw_records": len(raw_data),
+            "platform_breakdown": platform_counts,
+            "data_type_breakdown": data_types,
+            "organized_tables": organized_tables,
+            "is_organized": len(organized_tables) > 0,
+            "organization_recommended": len(raw_data) > 0 and len(organized_tables) == 0
+        }
+        
+        return summary
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Client data summary failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get data summary: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, Users, DollarSign, Package } from "lucide-react";
+import { TrendingUp, TrendingDown, Users, DollarSign, Package, BarChart3, Clock } from "lucide-react";
 import { inventoryService, type SalesKPIs } from "../../lib/inventoryService";
 
 interface SmartEcommerceMetricsProps {
@@ -60,54 +60,65 @@ export default function SmartEcommerceMetrics({
 		const metrics: MetricData[] = [];
 
 		// Total Sales (7 Days)
-		if (kpis.total_sales_7_days) {
-			metrics.push({
-				title: "Total Sales (7 Days)",
-				value: kpis.total_sales_7_days.display_value,
-				change: kpis.total_sales_7_days.change_percentage || "N/A",
-				changeType: kpis.total_sales_7_days.trend === "up" ? "increase" : "decrease",
-				icon: DollarSign,
-				color: "text-green-600",
-			});
-		}
+		metrics.push({
+			title: "Total Sales (7 Days)",
+			value: `$${kpis.total_sales_7_days.revenue.toLocaleString()}`,
+			change: `${kpis.total_sales_7_days.units} units • ${kpis.total_sales_7_days.orders} orders`,
+			changeType: kpis.total_sales_7_days.revenue > 0 ? "increase" : "neutral",
+			icon: DollarSign,
+			color: "text-green-600",
+		});
 
 		// Total Sales (30 Days)
-		if (kpis.total_sales_30_days) {
-			metrics.push({
-				title: "Total Sales (30 Days)",
-				value: kpis.total_sales_30_days.display_value,
-				change: kpis.total_sales_30_days.change_percentage || "N/A",
-				changeType: kpis.total_sales_30_days.trend === "up" ? "increase" : "decrease",
-				icon: TrendingUp,
-				color: "text-blue-600",
-			});
-		}
+		metrics.push({
+			title: "Total Sales (30 Days)",
+			value: `$${kpis.total_sales_30_days.revenue.toLocaleString()}`,
+			change: `${kpis.total_sales_30_days.units} units • ${kpis.total_sales_30_days.orders} orders`,
+			changeType: kpis.total_sales_30_days.revenue > 0 ? "increase" : "neutral",
+			icon: TrendingUp,
+			color: "text-blue-600",
+		});
+
+		// Total Sales (90 Days)
+		metrics.push({
+			title: "Total Sales (90 Days)",
+			value: `$${kpis.total_sales_90_days.revenue.toLocaleString()}`,
+			change: `${kpis.total_sales_90_days.units} units • ${kpis.total_sales_90_days.orders} orders`,
+			changeType: kpis.total_sales_90_days.revenue > 0 ? "increase" : "neutral",
+			icon: BarChart3,
+			color: "text-purple-600",
+		});
 
 		// Inventory Turnover Rate
-		if (kpis.inventory_turnover_rate) {
-			metrics.push({
-				title: "Inventory Turnover Rate",
-				value: kpis.inventory_turnover_rate.display_value,
-				change: kpis.inventory_turnover_rate.change_percentage || "N/A",
-				changeType: kpis.inventory_turnover_rate.trend === "up" ? "increase" : "decrease",
-				icon: Package,
-				color: "text-purple-600",
-			});
-		}
+		metrics.push({
+			title: "Inventory Turnover Rate",
+			value: kpis.inventory_turnover_rate.toFixed(2),
+			change: kpis.inventory_turnover_rate > 0 ? "Active" : "No turnover",
+			changeType: kpis.inventory_turnover_rate > 1 ? "increase" : "decrease",
+			icon: Package,
+			color: kpis.inventory_turnover_rate > 1 ? "text-green-600" : "text-orange-600",
+		});
 
 		// Days of Stock Remaining
-		if (kpis.days_of_stock_remaining) {
-			const isLowStock = kpis.days_of_stock_remaining.status === "critical" || kpis.days_of_stock_remaining.status === "warning";
-			metrics.push({
-				title: "Days of Stock Remaining",
-				value: kpis.days_of_stock_remaining.display_value,
-				change: kpis.days_of_stock_remaining.status === "critical" ? "Critical" : 
-				        kpis.days_of_stock_remaining.status === "warning" ? "Low Stock" : "Healthy",
-				changeType: isLowStock ? "decrease" : "increase",
-				icon: Users,
-				color: isLowStock ? "text-red-600" : "text-green-600",
-			});
-		}
+		const isLowStock = kpis.days_stock_remaining < 30;
+		metrics.push({
+			title: "Days of Stock Remaining",
+			value: kpis.days_stock_remaining.toString(),
+			change: isLowStock ? "Low Stock" : "Healthy",
+			changeType: isLowStock ? "decrease" : "increase",
+			icon: Clock,
+			color: isLowStock ? "text-red-600" : "text-green-600",
+		});
+
+		// Total Inventory Units
+		metrics.push({
+			title: "Total Inventory Units",
+			value: kpis.total_inventory_units.toLocaleString(),
+			change: `${kpis.avg_daily_sales.toFixed(1)} avg daily sales`,
+			changeType: "neutral",
+			icon: Package,
+			color: "text-gray-600",
+		});
 
 		return metrics;
 	};
