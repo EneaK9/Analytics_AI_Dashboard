@@ -1345,15 +1345,39 @@ async def create_client_with_api_integration(
             total_records = 0
             for data_type, records in all_data.items():
                 if records:
-                    # Create schema entry
-                    db_client.table("client_schemas").insert({
+                    # Create or update schema entry (handle duplicates gracefully)
+                    table_name = f"client_{client_id.replace('-', '_')}_data"
+                    schema_data = {
                         "client_id": client_id,
-                        "table_name": f"client_{client_id.replace('-', '_')}_data",
+                        "table_name": table_name,
                         "data_type": f"{platform_type}_{data_type}",
                         "schema_definition": {"type": "api_data", "platform": platform_type, "data_type": data_type},
                         "api_source": True,
                         "platform_type": platform_type
-                    }).execute()
+                    }
+                    
+                    try:
+                        # Try insert first
+                        db_client.table("client_schemas").insert(schema_data).execute()
+                        logger.info(f"✅ Created new schema entry for {platform_type}_{data_type}")
+                    except Exception as schema_error:
+                        # If insert fails due to duplicate, try updating existing record
+                        if "duplicate key" in str(schema_error).lower() or "23505" in str(schema_error):
+                            logger.info(f"🔄 Schema entry exists, updating for {platform_type}_{data_type}")
+                            try:
+                                db_client.table("client_schemas").update({
+                                    "data_type": f"{platform_type}_{data_type}",
+                                    "schema_definition": {"type": "api_data", "platform": platform_type, "data_type": data_type},
+                                    "api_source": True,
+                                    "platform_type": platform_type
+                                }).eq("client_id", client_id).eq("table_name", table_name).execute()
+                                logger.info(f"✅ Updated existing schema entry for {platform_type}_{data_type}")
+                            except Exception as update_error:
+                                logger.error(f"❌ Schema update failed: {update_error}")
+                                # Continue anyway - schema is not critical for data storage
+                        else:
+                            logger.error(f"❌ Unexpected schema error: {schema_error}")
+                            # Continue anyway
                     
                     # Dedup and store data records for the day
                     if records:

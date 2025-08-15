@@ -3,9 +3,10 @@ import aiohttp
 import json
 import logging
 import time
+import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
-from urllib.parse import urljoin
+from urllib.parse import urljoin, unquote
 import hashlib
 import hmac
 import base64
@@ -55,124 +56,200 @@ class ShopifyConnector:
             logger.error(f"❌ Shopify connection test failed: {e}")
             return False, f"Connection error: {str(e)}"
     
-    async def fetch_orders(self, limit: int = 250, days_back: int = 30) -> List[Dict]:
-        """Fetch recent orders from Shopify"""
+    async def fetch_orders(self, days_back: int = None) -> List[Dict]:
+        """Fetch ALL orders from Shopify with pagination"""
         try:
-            since_date = (datetime.now() - timedelta(days=days_back)).isoformat()
+            all_orders = []
+            page_info = None
+            
+            # If days_back is None, fetch all orders ever created
+            since_date = None
+            if days_back is not None:
+                since_date = (datetime.now() - timedelta(days=days_back)).isoformat()
             
             async with aiohttp.ClientSession() as session:
-                params = {
-                    "limit": min(limit, 250),  # Shopify max is 250
-                    "status": "any",
-                    "created_at_min": since_date,
-                    "financial_status": "any"
-                }
-                
-                async with session.get(
-                    f"{self.base_url}/orders.json",
-                    headers=self.headers,
-                    params=params
-                ) as response:
-                    
-                    if response.status == 200:
-                        data = await response.json()
-                        orders = data.get('orders', [])
-                        
-                        # Transform to standard format
-                        standardized_orders = []
-                        for order in orders:
-                            standardized_orders.append({
-                                'order_id': order.get('id'),
-                                'order_number': order.get('order_number'),
-                                'created_at': order.get('created_at'),
-                                'updated_at': order.get('updated_at'),
-                                'total_price': float(order.get('total_price', 0)),
-                                'subtotal_price': float(order.get('subtotal_price', 0)),
-                                'total_tax': float(order.get('total_tax', 0)),
-                                'currency': order.get('currency'),
-                                'financial_status': order.get('financial_status'),
-                                'fulfillment_status': order.get('fulfillment_status'),
-                                'customer_email': order.get('email'),
-                                'customer_id': order.get('customer', {}).get('id'),
-                                'line_items_count': len(order.get('line_items', [])),
-                                'shipping_address': order.get('shipping_address'),
-                                'billing_address': order.get('billing_address'),
-                                'gateway': order.get('gateway'),
-                                'source_name': order.get('source_name'),
-                                'tags': order.get('tags'),
-                                'discount_codes': order.get('discount_codes', []),
-                                'platform': 'shopify'
-                            })
-                        
-                        logger.info(f"✅ Fetched {len(standardized_orders)} Shopify orders")
-                        return standardized_orders
-                    
-                    elif response.status == 429:
-                        # Rate limited
-                        raise APIConnectorError("Rate limited by Shopify. Please try again later.")
+                while True:
+                    if page_info:
+                        # When using page_info, only include limit and page_info
+                        params = {
+                            "limit": 250,
+                            "page_info": page_info
+                        }
                     else:
-                        raise APIConnectorError(f"Failed to fetch orders: HTTP {response.status}")
+                        # First request - include all filters
+                        params = {
+                            "limit": 250,  # Use max limit per request for efficiency
+                            "status": "any",
+                            "financial_status": "any"
+                        }
+                        
+                        if since_date:
+                            params["created_at_min"] = since_date
+                
+                    async with session.get(
+                        f"{self.base_url}/orders.json",
+                        headers=self.headers,
+                        params=params
+                    ) as response:
+                        
+                        if response.status == 200:
+                            data = await response.json()
+                            orders = data.get('orders', [])
+                            
+                            # Transform to standard format
+                            page_orders = []
+                            for order in orders:
+                                page_orders.append({
+                                    'order_id': order.get('id'),
+                                    'order_number': order.get('order_number'),
+                                    'created_at': order.get('created_at'),
+                                    'updated_at': order.get('updated_at'),
+                                    'total_price': float(order.get('total_price', 0)),
+                                    'subtotal_price': float(order.get('subtotal_price', 0)),
+                                    'total_tax': float(order.get('total_tax', 0)),
+                                    'currency': order.get('currency'),
+                                    'financial_status': order.get('financial_status'),
+                                    'fulfillment_status': order.get('fulfillment_status'),
+                                    'customer_email': order.get('email'),
+                                    'customer_id': order.get('customer', {}).get('id'),
+                                    'line_items_count': len(order.get('line_items', [])),
+                                    'shipping_address': order.get('shipping_address'),
+                                    'billing_address': order.get('billing_address'),
+                                    'gateway': order.get('gateway'),
+                                    'source_name': order.get('source_name'),
+                                    'tags': order.get('tags'),
+                                    'discount_codes': order.get('discount_codes', []),
+                                    'platform': 'shopify'
+                                })
+                            
+                            all_orders.extend(page_orders)
+                            logger.info(f"📦 Fetched page with {len(page_orders)} orders (Total: {len(all_orders)})")
+                            
+                            # Check if there are more pages
+                            link_header = response.headers.get('Link', '')
+                            if 'rel="next"' in link_header:
+                                # Extract page_info from Link header
+
+                                next_match = re.search(r'<[^>]*[?&]page_info=([^&>]+)[^>]*>;\s*rel="next"', link_header)
+                                if next_match:
+                                    # URL decode the page_info parameter
+                                    page_info = unquote(next_match.group(1))
+                                    logger.info(f"🔄 Next page_info: {page_info[:50]}...")
+                                else:
+                                    break
+                            else:
+                                break
+                        
+                        elif response.status == 429:
+                            # Rate limited - wait and retry
+                            logger.warning("⏳ Rate limited by Shopify, waiting 1 second...")
+                            await asyncio.sleep(1)
+                            continue
+                        else:
+                            # Get detailed error response
+                            error_text = await response.text()
+                            logger.error(f"❌ Shopify orders API error {response.status}: {error_text[:200]}")
+                            raise APIConnectorError(f"Failed to fetch orders: HTTP {response.status} - {error_text[:100]}")
+                
+                logger.info(f"✅ Fetched ALL {len(all_orders)} Shopify orders")
+                return all_orders
                         
         except Exception as e:
             logger.error(f"❌ Failed to fetch Shopify orders: {e}")
             raise APIConnectorError(f"Shopify orders fetch failed: {str(e)}")
     
-    async def fetch_products(self, limit: int = 250) -> List[Dict]:
-        """Fetch products from Shopify"""
+    async def fetch_products(self) -> List[Dict]:
+        """Fetch ALL products from Shopify with pagination"""
         try:
+            all_products = []
+            page_info = None
+            
             async with aiohttp.ClientSession() as session:
-                params = {
-                    "limit": min(limit, 250),
-                    "published_status": "any"
-                }
+                while True:
+                    if page_info:
+                        # When using page_info, only include limit and page_info
+                        params = {
+                            "limit": 250,
+                            "page_info": page_info
+                        }
+                    else:
+                        # First request - include all filters
+                        params = {
+                            "limit": 250,  # Use max limit per request for efficiency
+                            "published_status": "any"
+                        }
                 
-                async with session.get(
-                    f"{self.base_url}/products.json",
-                    headers=self.headers,
-                    params=params
-                ) as response:
-                    
-                    if response.status == 200:
-                        data = await response.json()
-                        products = data.get('products', [])
+                    async with session.get(
+                        f"{self.base_url}/products.json",
+                        headers=self.headers,
+                        params=params
+                    ) as response:
                         
-                        # Transform to standard format
-                        standardized_products = []
-                        for product in products:
-                            # Process variants
-                            variants = []
-                            for variant in product.get('variants', []):
-                                variants.append({
-                                    'variant_id': variant.get('id'),
-                                    'title': variant.get('title'),
-                                    'price': float(variant.get('price', 0)),
-                                    'sku': variant.get('sku'),
-                                    'inventory_quantity': variant.get('inventory_quantity', 0),
-                                    'weight': variant.get('weight'),
-                                    'requires_shipping': variant.get('requires_shipping')
+                        if response.status == 200:
+                            data = await response.json()
+                            products = data.get('products', [])
+                            
+                            # Transform to standard format
+                            page_products = []
+                            for product in products:
+                                # Process variants
+                                variants = []
+                                for variant in product.get('variants', []):
+                                    variants.append({
+                                        'variant_id': variant.get('id'),
+                                        'title': variant.get('title'),
+                                        'price': float(variant.get('price', 0)),
+                                        'sku': variant.get('sku'),
+                                        'inventory_quantity': variant.get('inventory_quantity', 0),
+                                        'weight': variant.get('weight'),
+                                        'requires_shipping': variant.get('requires_shipping')
+                                    })
+                                
+                                page_products.append({
+                                    'product_id': product.get('id'),
+                                    'title': product.get('title'),
+                                    'handle': product.get('handle'),
+                                    'product_type': product.get('product_type'),
+                                    'vendor': product.get('vendor'),
+                                    'created_at': product.get('created_at'),
+                                    'updated_at': product.get('updated_at'),
+                                    'published_at': product.get('published_at'),
+                                    'status': product.get('status'),
+                                    'tags': product.get('tags'),
+                                    'variants': variants,
+                                    'variants_count': len(variants),
+                                    'images_count': len(product.get('images', [])),
+                                    'platform': 'shopify'
                                 })
                             
-                            standardized_products.append({
-                                'product_id': product.get('id'),
-                                'title': product.get('title'),
-                                'handle': product.get('handle'),
-                                'product_type': product.get('product_type'),
-                                'vendor': product.get('vendor'),
-                                'created_at': product.get('created_at'),
-                                'updated_at': product.get('updated_at'),
-                                'published_at': product.get('published_at'),
-                                'status': product.get('status'),
-                                'tags': product.get('tags'),
-                                'variants': variants,
-                                'variants_count': len(variants),
-                                'images_count': len(product.get('images', [])),
-                                'platform': 'shopify'
-                            })
+                            all_products.extend(page_products)
+                            logger.info(f"🛍️ Fetched page with {len(page_products)} products (Total: {len(all_products)})")
+                            
+                            # Check if there are more pages
+                            link_header = response.headers.get('Link', '')
+                            if 'rel="next"' in link_header:
+                                # Extract page_info from Link header
+
+                                next_match = re.search(r'<[^>]*[?&]page_info=([^&>]+)[^>]*>;\s*rel="next"', link_header)
+                                if next_match:
+                                    # URL decode the page_info parameter
+                                    page_info = unquote(next_match.group(1))
+                                    logger.info(f"🔄 Next page_info: {page_info[:50]}...")
+                                else:
+                                    break
+                            else:
+                                break
                         
-                        logger.info(f"✅ Fetched {len(standardized_products)} Shopify products")
-                        return standardized_products
-                    else:
-                        raise APIConnectorError(f"Failed to fetch products: HTTP {response.status}")
+                        elif response.status == 429:
+                            # Rate limited - wait and retry
+                            logger.warning("⏳ Rate limited by Shopify, waiting 1 second...")
+                            await asyncio.sleep(1)
+                            continue
+                        else:
+                            raise APIConnectorError(f"Failed to fetch products: HTTP {response.status}")
+                
+                logger.info(f"✅ Fetched ALL {len(all_products)} Shopify products")
+                return all_products
                         
         except Exception as e:
             logger.error(f"❌ Failed to fetch Shopify products: {e}")
@@ -286,9 +363,12 @@ class AmazonConnector:
             logger.error(f"❌ Amazon connection test failed: {e}")
             return False, f"Connection error: {str(e)}"
     
-    async def fetch_orders(self, limit: int = 100, days_back: int = 30) -> List[Dict]:
-        """Fetch recent orders from Amazon SP-API"""
+    async def fetch_orders(self, days_back: int = None) -> List[Dict]:
+        """Fetch ALL orders from Amazon SP-API with pagination"""
         try:
+            all_orders = []
+            next_token = None
+            
             access_token = await self._get_access_token()
             
             headers = {
@@ -297,58 +377,82 @@ class AmazonConnector:
                 'Content-Type': 'application/json'
             }
             
-            # Amazon date format
-            created_after = (datetime.now() - timedelta(days=days_back)).isoformat()
-            
-            params = {
-                'CreatedAfter': created_after,
-                'MarketplaceIds': ','.join(self.credentials.marketplace_ids),
-                'MaxResultsPerPage': min(limit, 100)  # Amazon max is 100
-            }
+            # If days_back is None, fetch all orders ever created
+            created_after = None
+            if days_back is not None:
+                created_after = (datetime.now() - timedelta(days=days_back)).isoformat()
+            else:
+                # Default to last 2 years if no limit specified to avoid extremely large datasets
+                created_after = (datetime.now() - timedelta(days=730)).isoformat()
             
             async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.base_url}/orders/v0/orders",
-                    headers=headers,
-                    params=params
-                ) as response:
+                while True:
+                    params = {
+                        'CreatedAfter': created_after,
+                        'MarketplaceIds': ','.join(self.credentials.marketplace_ids),
+                        'MaxResultsPerPage': 100  # Amazon max is 100
+                    }
                     
-                    if response.status == 200:
-                        data = await response.json()
-                        orders = data.get('payload', {}).get('Orders', [])
+                    if next_token:
+                        params['NextToken'] = next_token
+                    
+                    async with session.get(
+                        f"{self.base_url}/orders/v0/orders",
+                        headers=headers,
+                        params=params
+                    ) as response:
                         
-                        # Transform to standard format
-                        standardized_orders = []
-                        for order in orders:
-                            # Amazon order structure
-                            order_total = order.get('OrderTotal', {})
+                        if response.status == 200:
+                            data = await response.json()
+                            payload = data.get('payload', {})
+                            orders = payload.get('Orders', [])
                             
-                            standardized_orders.append({
-                                'order_id': order.get('AmazonOrderId'),
-                                'order_number': order.get('AmazonOrderId'),
-                                'created_at': order.get('PurchaseDate'),
-                                'updated_at': order.get('LastUpdateDate'),
-                                'total_price': float(order_total.get('Amount', 0)),
-                                'currency': order_total.get('CurrencyCode', 'USD'),
-                                'order_status': order.get('OrderStatus'),
-                                'fulfillment_channel': order.get('FulfillmentChannel'),
-                                'sales_channel': order.get('SalesChannel'),
-                                'marketplace_id': order.get('MarketplaceId'),
-                                'number_of_items_shipped': order.get('NumberOfItemsShipped', 0),
-                                'number_of_items_unshipped': order.get('NumberOfItemsUnshipped', 0),
-                                'payment_method': order.get('PaymentMethod'),
-                                'is_business_order': order.get('IsBusinessOrder', False),
-                                'is_premium_order': order.get('IsPremiumOrder', False),
-                                'platform': 'amazon'
-                            })
+                            # Transform to standard format
+                            page_orders = []
+                            for order in orders:
+                                # Amazon order structure
+                                order_total = order.get('OrderTotal', {})
+                                
+                                page_orders.append({
+                                    'order_id': order.get('AmazonOrderId'),
+                                    'order_number': order.get('AmazonOrderId'),
+                                    'created_at': order.get('PurchaseDate'),
+                                    'updated_at': order.get('LastUpdateDate'),
+                                    'total_price': float(order_total.get('Amount', 0)),
+                                    'currency': order_total.get('CurrencyCode', 'USD'),
+                                    'order_status': order.get('OrderStatus'),
+                                    'fulfillment_channel': order.get('FulfillmentChannel'),
+                                    'sales_channel': order.get('SalesChannel'),
+                                    'marketplace_id': order.get('MarketplaceId'),
+                                    'number_of_items_shipped': order.get('NumberOfItemsShipped', 0),
+                                    'number_of_items_unshipped': order.get('NumberOfItemsUnshipped', 0),
+                                    'payment_method': order.get('PaymentMethod'),
+                                    'is_business_order': order.get('IsBusinessOrder', False),
+                                    'is_premium_order': order.get('IsPremiumOrder', False),
+                                    'platform': 'amazon'
+                                })
+                            
+                            all_orders.extend(page_orders)
+                            logger.info(f"📦 Fetched page with {len(page_orders)} Amazon orders (Total: {len(all_orders)})")
+                            
+                            # Check for next page
+                            next_token = payload.get('NextToken')
+                            if not next_token:
+                                break
+                                
+                            # Add delay to respect rate limits
+                            await asyncio.sleep(0.2)  # 5 requests per second max
                         
-                        logger.info(f"✅ Fetched {len(standardized_orders)} Amazon orders")
-                        return standardized_orders
-                    
-                    elif response.status == 429:
-                        raise APIConnectorError("Rate limited by Amazon. Please try again later.")
-                    else:
-                        raise APIConnectorError(f"Failed to fetch orders: HTTP {response.status}")
+                        elif response.status == 429:
+                            # Rate limited - wait and retry
+                            logger.warning("⏳ Rate limited by Amazon SP-API, waiting 10 seconds...")
+                            await asyncio.sleep(10)
+                            continue
+                        else:
+                            raise APIConnectorError(f"Failed to fetch orders: HTTP {response.status}")
+                
+                logger.info(f"✅ Fetched ALL {len(all_orders)} Amazon orders")
+                return all_orders
                         
         except Exception as e:
             logger.error(f"❌ Failed to fetch Amazon orders: {e}")
@@ -428,7 +532,7 @@ class APIDataFetcher:
             # Fetch different data types based on platform capabilities
             if hasattr(connector, 'fetch_orders'):
                 try:
-                    orders = await connector.fetch_orders()
+                    orders = await connector.fetch_orders()  # No limit parameters - fetch ALL
                     all_data['orders'] = orders
                     logger.info(f"📦 Fetched {len(orders)} orders from {platform_type}")
                 except Exception as e:
@@ -437,7 +541,7 @@ class APIDataFetcher:
             
             if hasattr(connector, 'fetch_products'):
                 try:
-                    products = await connector.fetch_products()
+                    products = await connector.fetch_products()  # No limit parameters - fetch ALL
                     all_data['products'] = products
                     logger.info(f"🛍️ Fetched {len(products)} products from {platform_type}")
                 except Exception as e:
