@@ -19,6 +19,11 @@ import api from "../../../lib/axios";
 // Import various chart components
 import * as Charts from "../../charts";
 
+// Import inventory components
+import InventorySKUList from "../../analytics/InventorySKUList";
+import InventoryTrendCharts from "../../analytics/InventoryTrendCharts";
+import AlertsSummary from "../../analytics/AlertsSummary";
+
 // Import MUI X Charts
 import { LineChart } from "@mui/x-charts/LineChart";
 import TimelineTrendsCard from "./TimelineTrendsCard";
@@ -1016,6 +1021,52 @@ export function OriginalMainGrid({
 						);
 					})}
 				</Grid>
+			)}
+
+			{/* Inventory Management Section - Real-time inventory and sales analytics */}
+			{clientData && clientData.length > 0 && (
+				<>
+					{/* Alerts Summary */}
+					<Grid container spacing={2} sx={{ mb: 3 }}>
+						<Grid size={{ xs: 12 }}>
+							<Card>
+								<CardContent sx={{ p: 0 }}>
+									<AlertsSummary clientData={clientData} />
+								</CardContent>
+							</Card>
+						</Grid>
+					</Grid>
+
+					{/* Inventory Trends Charts */}
+					<Grid container spacing={2} sx={{ mb: 3 }}>
+						<Grid size={{ xs: 12 }}>
+							<Card>
+								<CardHeader
+									title="Inventory & Sales Trends"
+									subheader="Time-series analysis with customizable date ranges"
+								/>
+								<CardContent>
+									<InventoryTrendCharts clientData={clientData} />
+								</CardContent>
+							</Card>
+						</Grid>
+					</Grid>
+
+					{/* SKU Inventory List */}
+					<Grid container spacing={2} sx={{ mb: 3 }}>
+						<Grid size={{ xs: 12 }}>
+							<Card>
+								<CardHeader
+									title="SKU Inventory Management"
+									subheader={`Comprehensive inventory tracking • ${clientData.length} records analyzed`}
+								/>
+								<CardContent sx={{ p: 0 }}>
+									<InventorySKUList clientData={clientData} />
+								</CardContent>
+							</Card>
+						</Grid>
+					</Grid>
+				</>
 			)}
 
 			{/* Charts - Only render if charts array exists and has items */}

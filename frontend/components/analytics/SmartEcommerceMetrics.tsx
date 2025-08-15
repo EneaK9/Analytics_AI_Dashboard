@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, Users, DollarSign } from "lucide-react";
-import { dashboardService } from "../../lib/dashboardService";
+import { TrendingUp, TrendingDown, Users, DollarSign, Package } from "lucide-react";
+import { inventoryService, type SalesKPIs } from "../../lib/inventoryService";
 
 interface SmartEcommerceMetricsProps {
 	clientData?: any[];
@@ -27,126 +27,97 @@ export default function SmartEcommerceMetrics({
 	const [error, setError] = useState<string | null>(null);
 	const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-	// Fetch ONLY real orchestrated metrics - NO FALLBACKS!
+	// Fetch comprehensive inventory and sales metrics from dedicated endpoint
 	const fetchMetrics = async () => {
 		try {
 			setLoading(true);
 			setError(null);
 
-			// Get ONLY pre-calculated metrics from database
-			const orchestratedMetrics = await dashboardService.getDashboardMetrics();
-
-			if (!orchestratedMetrics || orchestratedMetrics.length === 0) {
-				// NO DATA = NO METRICS
-				setMetrics([]);
-				setError("No metrics data available");
-				setLoading(false);
-				return;
-			}
-
-			// Process ONLY real orchestrated metrics
-			const realMetrics = processRealMetricsOnly(orchestratedMetrics);
-
-			if (realMetrics.length === 0) {
-				setMetrics([]);
-				setError("No KPI metrics found in database");
-			} else {
-				setMetrics(realMetrics);
+			// Get analytics from dedicated inventory endpoint
+			const response = await inventoryService.getInventoryAnalytics();
+			
+			if (response.success && response.inventory_analytics.sales_kpis) {
+				const inventoryMetrics = convertKPIsToMetrics(response.inventory_analytics.sales_kpis);
+				setMetrics(inventoryMetrics);
 				setError(null);
+			} else {
+				setMetrics([]);
+				setError(response.error || "No inventory analytics available");
 			}
 
 			setLastUpdated(new Date());
 			setLoading(false);
 		} catch (err: any) {
-			console.error("Error fetching metrics:", err);
-
-			// NO FALLBACKS - just show error
+			console.error("Error fetching inventory metrics:", err);
 			setMetrics([]);
-			setError(`Failed to load metrics: ${err.message}`);
+			setError(`Failed to load inventory metrics: ${err.message}`);
 			setLoading(false);
 		}
 	};
 
-	// Process ONLY real orchestrated metrics from database
-	const processRealMetricsOnly = (orchestratedMetrics: any[]): MetricData[] => {
-		// Find ONLY KPI metrics from orchestrated data
-		const kpiMetrics = orchestratedMetrics.filter(
-			(m) =>
-				m.metric_type === "kpi" &&
-				m.metric_value !== null &&
-				m.metric_value !== undefined
-		);
+	// Convert backend KPIs to frontend MetricData format
+	const convertKPIsToMetrics = (kpis: SalesKPIs): MetricData[] => {
+		const metrics: MetricData[] = [];
 
-		if (kpiMetrics.length === 0) {
-			return [];
+		// Total Sales (7 Days)
+		if (kpis.total_sales_7_days) {
+			metrics.push({
+				title: "Total Sales (7 Days)",
+				value: kpis.total_sales_7_days.display_value,
+				change: kpis.total_sales_7_days.change_percentage || "N/A",
+				changeType: kpis.total_sales_7_days.trend === "up" ? "increase" : "decrease",
+				icon: DollarSign,
+				color: "text-green-600",
+			});
 		}
 
-		// Convert real database metrics to display format
-		return kpiMetrics.slice(0, 4).map((metric, index) => {
-			const icons = [DollarSign, Users, TrendingUp, TrendingDown];
-			const colors = [
-				"text-primary",
-				"text-secondary",
-				"text-meta-3",
-				"text-meta-1",
-			];
+		// Total Sales (30 Days)
+		if (kpis.total_sales_30_days) {
+			metrics.push({
+				title: "Total Sales (30 Days)",
+				value: kpis.total_sales_30_days.display_value,
+				change: kpis.total_sales_30_days.change_percentage || "N/A",
+				changeType: kpis.total_sales_30_days.trend === "up" ? "increase" : "decrease",
+				icon: TrendingUp,
+				color: "text-blue-600",
+			});
+		}
 
-			return {
-				title: metric.metric_name || "Unknown Metric",
-				value: formatRealMetricValue(metric.metric_value),
-				change: extractRealChange(metric.metric_value),
-				changeType: determineChangeType(metric.metric_value),
-				icon: icons[index] || DollarSign,
-				color: colors[index] || "text-primary",
-			};
-		});
+		// Inventory Turnover Rate
+		if (kpis.inventory_turnover_rate) {
+			metrics.push({
+				title: "Inventory Turnover Rate",
+				value: kpis.inventory_turnover_rate.display_value,
+				change: kpis.inventory_turnover_rate.change_percentage || "N/A",
+				changeType: kpis.inventory_turnover_rate.trend === "up" ? "increase" : "decrease",
+				icon: Package,
+				color: "text-purple-600",
+			});
+		}
+
+		// Days of Stock Remaining
+		if (kpis.days_of_stock_remaining) {
+			const isLowStock = kpis.days_of_stock_remaining.status === "critical" || kpis.days_of_stock_remaining.status === "warning";
+			metrics.push({
+				title: "Days of Stock Remaining",
+				value: kpis.days_of_stock_remaining.display_value,
+				change: kpis.days_of_stock_remaining.status === "critical" ? "Critical" : 
+				        kpis.days_of_stock_remaining.status === "warning" ? "Low Stock" : "Healthy",
+				changeType: isLowStock ? "decrease" : "increase",
+				icon: Users,
+				color: isLowStock ? "text-red-600" : "text-green-600",
+			});
+		}
+
+		return metrics;
 	};
 
-	// Format ONLY real metric values - no fake data
-	const formatRealMetricValue = (value: any): string => {
-		if (value === null || value === undefined) {
-			return "No Data";
-		}
 
-		if (typeof value === "object" && value.value !== undefined) {
-			return formatRealMetricValue(value.value);
-		}
-
-		if (typeof value === "number") {
-			return value > 1000
-				? `$${(value / 1000).toFixed(1)}k`
-				: `$${value.toFixed(0)}`;
-		}
-
-		if (typeof value === "string") {
-			return value;
-		}
-
-		return "Invalid Data";
-	};
-
-	// Extract real change percentage from metric value
-	const extractRealChange = (value: any): string => {
-		if (value && typeof value === "object") {
-			if (value.change) return value.change;
-			if (value.trend && value.trend.change) return value.trend.change;
-		}
-		return "N/A";
-	};
-
-	// Determine change type from real data
-	const determineChangeType = (value: any): "increase" | "decrease" => {
-		if (value && typeof value === "object") {
-			if (value.trend && value.trend.direction === "down") return "decrease";
-			if (value.change && value.change.startsWith("-")) return "decrease";
-		}
-		return "increase";
-	};
 
 	// Load metrics on component mount
 	useEffect(() => {
 		fetchMetrics();
-	}, [clientData]);
+	}, []);
 
 	// Auto-refresh metrics
 	useEffect(() => {

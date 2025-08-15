@@ -21,6 +21,8 @@ import traceback
 from models import *
 from database import get_db_client, get_admin_client
 from ai_analyzer import ai_analyzer
+from inventory_analyzer import inventory_analyzer
+
 from dashboard_orchestrator import dashboard_orchestrator
 
 # Import enhanced components
@@ -2103,35 +2105,40 @@ async def generate_template_dashboard(
     force_regenerate: bool = False,
     token: str = Depends(security)
 ):
-    """Generate a simple template-based dashboard - optimized for speed"""
+    """Generate a simple template-based dashboard - just return client data"""
     try:
         # Verify client token
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        logger.info(f"🎨 ⚡ FAST template data for {template_type} dashboard for client {client_id}")
+        logger.info(f"🎨 Getting data for {template_type} dashboard for client {client_id}")
         
-        # Use performance-optimized database manager
-        from database import PerformanceOptimizedDatabaseManager
-        db_manager = PerformanceOptimizedDatabaseManager()
+        # Get client data - NO LIMIT for complete data processing from database
+        db_client = get_admin_client()
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not configured")
         
-        # Get cached client data with limit for faster response
-        client_data_result = await db_manager.fast_client_data_lookup(
-            client_id, 
-            use_cache=True, 
-            limit=100  # Limit to first 100 records for speed
-        )
+        # Get client data - NO LIMIT for complete data processing
+        data_response = db_client.table("client_data").select("data").eq("client_id", client_id).execute()
         
-        client_data = client_data_result.get('data', [])
+        client_data = []
+        if data_response.data:
+            for record in data_response.data:
+                try:
+                    if isinstance(record['data'], dict):
+                        client_data.append(record['data'])
+                    elif isinstance(record['data'], str):
+                        import json
+                        client_data.append(json.loads(record['data']))
+                except:
+                    continue
         
         # Get data columns for analysis
         data_columns = []
         if client_data:
-            # Use first record to determine columns
-            first_record = client_data[0] if isinstance(client_data[0], dict) else {}
-            data_columns = list(first_record.keys())
+            data_columns = list(client_data[0].keys())
         
-        logger.info(f"⚡ FAST response: {len(client_data)} records with {len(data_columns)} columns for {template_type} (query: {client_data_result.get('query_time', 0):.3f}s)")
+        logger.info(f"✅ Found {len(client_data)} records with {len(data_columns)} columns for {template_type}")
         
         return {
             "success": True,
@@ -2139,9 +2146,7 @@ async def generate_template_dashboard(
             "client_data": client_data,
             "data_columns": data_columns,
             "total_records": len(client_data),
-            "cached": client_data_result.get('cached', False),
-            "query_time": client_data_result.get('query_time', 0),
-            "message": f"⚡ Fast data retrieved for {template_type} template"
+            "message": f"Data retrieved for {template_type} template"
         }
         
     except HTTPException:
@@ -2427,7 +2432,7 @@ async def get_dashboard_metrics(
             import asyncio
             insights = await asyncio.wait_for(
                 dashboard_orchestrator._extract_main_dashboard_insights(client_data),
-                timeout=300.0  # 5 minute timeout to accommodate larger token responses
+                timeout=355.0  # 55 second timeout to stay under 60s frontend timeout
             )
             logger.info(f"✅ Main dashboard LLM analysis successful for client {client_id}")
             
@@ -2470,6 +2475,118 @@ async def get_dashboard_metrics(
         return {
             "error": f"Failed to get dashboard metrics: {str(e)}"
         }
+
+@app.get("/api/test-simple")
+async def test_simple():
+    """Simple test endpoint"""
+    return {"message": "Simple test works", "status": "ok"}
+
+@app.get("/api/dashboard/inventory-analytics")
+async def get_inventory_analytics(
+    token: str = Depends(security),
+    fast_mode: bool = True,
+    force_refresh: bool = False
+):
+    """Get comprehensive inventory analytics including SKU data, KPIs, trends, and alerts"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        client_id = str(token_data.client_id)
+        
+        logger.info(f"📦 Inventory analytics request for client {client_id} (fast_mode={fast_mode}, force_refresh={force_refresh})")
+        
+        # Get client data for analysis
+        try:
+            # Fetch client data using the existing endpoint logic
+            db_client = get_admin_client()
+            if not db_client:
+                raise HTTPException(status_code=503, detail="Database not configured")
+            
+            # Get client's data from database
+            response = db_client.table("client_data").select("*").eq("client_id", client_id).order("created_at", desc=True).limit(1000).execute()
+            
+            # Prepare client data structure for analysis
+            client_data = {
+                "client_id": client_id,
+                "data": []
+            }
+            
+            if response.data:
+                for record in response.data:
+                    if record.get('data'):
+                        try:
+                            # Handle both string and dict data from database
+                            if isinstance(record['data'], dict):
+                                parsed_data = record['data']
+                            elif isinstance(record['data'], str):
+                                parsed_data = json.loads(record['data'])
+                            else:
+                                continue
+                            
+                            # Add source metadata to each record
+                            enhanced_data = {
+                                **parsed_data,
+                                '_source_type': record.get('source_type', 'upload'),
+                                '_source_file': record.get('source_file', 'manual_upload'),
+                                '_record_id': record.get('id', 'unknown')
+                            }
+                            
+                            client_data["data"].append(enhanced_data)
+                            
+                        except json.JSONDecodeError:
+                            logger.warning(f"⚠️  Failed to parse data for record {record.get('id', 'unknown')}")
+                            continue
+            
+            logger.info(f"📊 Loaded {len(client_data['data'])} data records for inventory analysis")
+            
+            # Debug: Show sample of raw data structure
+            if client_data['data']:
+                sample_record = client_data['data'][0]
+                logger.info(f"🔍 Sample raw record keys: {list(sample_record.keys())}")
+                
+                # Show sample values to understand the data structure
+                for key, value in list(sample_record.items())[:10]:
+                    logger.info(f"  {key}: {type(value).__name__} = {str(value)[:100]}")
+            
+            # Perform comprehensive inventory analysis
+            inventory_analytics = inventory_analyzer.analyze_inventory_data(client_data)
+            
+            return {
+                "client_id": client_id,
+                "success": True,
+                "message": f"Analyzed {len(client_data['data'])} records",
+                "timestamp": datetime.now().isoformat(),
+                "data_type": "inventory_analytics",
+                "schema_type": "inventory_analytics",
+                "total_records": len(client_data['data']),
+                "inventory_analytics": inventory_analytics,
+                "cached": False,
+                "processing_time": "real-time"
+            }
+            
+        except Exception as data_error:
+            logger.error(f"❌ Error fetching client data: {str(data_error)}")
+            # Return empty analytics if data fetch fails
+            inventory_analytics = inventory_analyzer.analyze_inventory_data({"client_id": client_id, "data": []})
+            
+            return {
+                "client_id": client_id,
+                "success": True,
+                "message": f"No data available for analysis: {str(data_error)}",
+                "timestamp": datetime.now().isoformat(),
+                "data_type": "inventory_analytics",
+                "schema_type": "inventory_analytics", 
+                "total_records": 0,
+                "inventory_analytics": inventory_analytics,
+                "cached": False,
+                "processing_time": "instant"
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Inventory analytics error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Inventory analytics failed: {str(e)}")
 
 @app.get("/api/dashboard/business-insights")
 async def get_business_insights_dashboard(
@@ -2525,7 +2642,7 @@ async def get_business_insights_dashboard(
             import asyncio
             insights = await asyncio.wait_for(
                 dashboard_orchestrator._extract_business_insights_specialized(client_data),
-                timeout=300.0  # 5 minute timeout to accommodate larger token responses
+                timeout=55.0  # 55 second timeout to stay under 60s frontend timeout
             )
             logger.info(f"✅ Business insights LLM analysis successful for client {client_id}")
             
@@ -2620,7 +2737,7 @@ async def get_performance_dashboard(
             import asyncio
             insights = await asyncio.wait_for(
                 dashboard_orchestrator._extract_performance_insights_specialized(client_data),
-                timeout=300.0  # 5 minute timeout to accommodate larger token responses
+                timeout=55.0  # 55 second timeout to stay under 60s frontend timeout
             )
             logger.info(f"✅ Performance insights LLM analysis successful for client {client_id}")
             
@@ -4744,7 +4861,7 @@ async def test_openai_api_key():
         try:
             # Make a simple test call
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "user", "content": "Say 'Hello, API key is working!'"}
                 ],
@@ -4877,7 +4994,7 @@ async def force_reload_environment():
         
         try:
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "user", "content": "Test"}
                 ],
