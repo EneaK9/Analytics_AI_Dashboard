@@ -4,6 +4,7 @@
  */
 
 import api from './axios';
+import requestManager from './requestManager';
 
 export interface InventoryAnalyticsResponse {
   client_id: string;
@@ -109,30 +110,42 @@ export interface ComparisonData {
 }
 
 export interface AlertsSummary {
-  low_stock_alerts: Alert[];
-  overstock_alerts: Alert[];
-  sales_spike_alerts: Alert[];
-  sales_slowdown_alerts: Alert[];
-  summary: {
+  summary_counts: {
+    low_stock_alerts: number;
+    overstock_alerts: number;
+    sales_spike_alerts: number;
+    sales_slowdown_alerts: number;
     total_alerts: number;
-    critical_alerts: number;
-    high_priority_alerts: number;
-    affected_skus: string[];
-    total_affected_skus: number;
+    critical_alerts?: number;
+    high_priority_alerts?: number;
+  };
+  detailed_alerts: {
+    low_stock_alerts: Alert[];
+    overstock_alerts: Alert[];
+    sales_spike_alerts: Alert[];
+    sales_slowdown_alerts: Alert[];
+  };
+  quick_links?: {
+    view_low_stock: string;
+    view_overstock: string;
+    view_sales_alerts: string;
   };
 }
 
 export interface Alert {
-  type: 'low_stock' | 'out_of_stock' | 'overstock' | 'sales_spike' | 'sales_slowdown';
+  platform: string;
+  sku?: string;
   sku_code?: string;
-  item_name?: string;
-  current_availability?: number;
+  item_name: string;
+  current_stock: number;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  message: string;
-  recommendation: string;
-  affected_skus: string[];
+  type?: 'low_stock' | 'out_of_stock' | 'overstock' | 'sales_spike' | 'sales_slowdown';
+  message?: string;
+  recommendation?: string;
+  affected_skus?: string[];
   current_sales?: number;
   previous_sales?: number;
+  current_availability?: number;
 }
 
 class InventoryService {
@@ -145,21 +158,35 @@ class InventoryService {
     fastMode: boolean = true,
     forceRefresh: boolean = false
   ): Promise<InventoryAnalyticsResponse> {
+    const requestKey = `inventory-analytics-${fastMode}`;
+    
     try {
-      console.log('🔍 Fetching inventory analytics...');
-      
-      const response = await api.get<InventoryAnalyticsResponse>(
-        `${this.baseURL}/inventory-analytics`,
+      const response = await requestManager.executeRequest(
+        requestKey,
+        async (signal: AbortSignal) => {
+          console.log('🔍 Fetching inventory analytics...');
+          
+          const apiResponse = await api.get<InventoryAnalyticsResponse>(
+            `${this.baseURL}/inventory-analytics`,
+            {
+              params: {
+                fast_mode: fastMode,
+                force_refresh: forceRefresh,
+              },
+              signal,
+            }
+          );
+
+          console.log('✅ Inventory analytics fetched successfully');
+          return apiResponse.data;
+        },
         {
-          params: {
-            fast_mode: fastMode,
-            force_refresh: forceRefresh,
-          },
+          cacheTTL: 60000, // 1 minute cache
+          forceRefresh,
         }
       );
 
-      console.log('✅ Inventory analytics fetched successfully:', response.data);
-      return response.data;
+      return response;
     } catch (error: any) {
       console.error('❌ Failed to fetch inventory analytics:', error);
       
@@ -177,11 +204,21 @@ class InventoryService {
           sales_kpis: {} as SalesKPIs,
           trend_analysis: {} as TrendAnalysis,
           alerts_summary: { 
-            low_stock_alerts: [], 
-            overstock_alerts: [], 
-            sales_spike_alerts: [], 
-            sales_slowdown_alerts: [], 
-            summary: { total_alerts: 0, critical_alerts: 0, high_priority_alerts: 0, affected_skus: [], total_affected_skus: 0 } 
+            summary_counts: { 
+              low_stock_alerts: 0, 
+              overstock_alerts: 0, 
+              sales_spike_alerts: 0, 
+              sales_slowdown_alerts: 0, 
+              total_alerts: 0,
+              critical_alerts: 0,
+              high_priority_alerts: 0
+            },
+            detailed_alerts: {
+              low_stock_alerts: [], 
+              overstock_alerts: [], 
+              sales_spike_alerts: [], 
+              sales_slowdown_alerts: []
+            }
           } as AlertsSummary,
           recommendations: []
         },
@@ -213,28 +250,42 @@ class InventoryService {
     summary_stats?: SKUSummaryStats;
     cached: boolean;
   }> {
+    const requestKey = `sku-inventory-${page}-${pageSize}`;
+    
     try {
-      console.log(`🔍 Fetching paginated SKU inventory (page ${page}, size ${pageSize})...`);
-      
-      const response = await api.get('/dashboard/sku-inventory', {
-        params: {
-          page,
-          page_size: pageSize,
-          use_cache: useCache,
-          force_refresh: forceRefresh,
-        },
-      });
+      const response = await requestManager.executeRequest(
+        requestKey,
+        async (signal: AbortSignal) => {
+          console.log(`🔍 Fetching paginated SKU inventory (page ${page}, size ${pageSize})...`);
+          
+          const apiResponse = await api.get('/dashboard/sku-inventory', {
+            params: {
+              page,
+              page_size: pageSize,
+              use_cache: useCache,
+              force_refresh: forceRefresh,
+            },
+            signal,
+          });
 
-      if (response.data && response.data.success) {
-        return {
-          skus: response.data.sku_inventory.skus || [],
-          pagination: response.data.pagination,
-          summary_stats: response.data.sku_inventory.summary_stats,
-          cached: response.data.cached || false,
-        };
-      } else {
-        throw new Error(response.data?.error || 'Failed to fetch paginated SKU data');
-      }
+          if (apiResponse.data && apiResponse.data.success) {
+            return {
+              skus: apiResponse.data.sku_inventory.skus || [],
+              pagination: apiResponse.data.pagination,
+              summary_stats: apiResponse.data.sku_inventory.summary_stats,
+              cached: apiResponse.data.cached || false,
+            };
+          } else {
+            throw new Error(apiResponse.data?.error || 'Failed to fetch paginated SKU data');
+          }
+        },
+        {
+          cacheTTL: 30000, // 30 seconds cache
+          forceRefresh: !useCache || forceRefresh,
+        }
+      );
+
+      return response;
     } catch (error: any) {
       console.error('❌ Failed to fetch paginated SKU inventory:', error);
       throw error;
@@ -321,7 +372,7 @@ class InventoryService {
       
       const totalSKUs = analytics.sku_inventory.summary_stats.total_skus;
       const totalValue = analytics.sku_inventory.summary_stats.total_inventory_value;
-      const alertsCount = analytics.alerts_summary.summary.total_alerts;
+      const alertsCount = analytics.alerts_summary.summary_counts.total_alerts;
       
       // Calculate stock health score (0-100)
       const lowStockCount = analytics.sku_inventory.summary_stats.low_stock_count;

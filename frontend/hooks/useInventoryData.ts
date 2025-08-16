@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../lib/axios';
+import requestManager from '../lib/requestManager';
 import { 
   InventoryAnalyticsResponse, 
   SKUData, 
@@ -76,7 +77,6 @@ export const useInventoryData = (options: UseInventoryDataOptions = {}): Invento
 
   // Refs for cleanup and request management
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
   const isRequestInProgressRef = useRef<boolean>(false);
 
   /**
@@ -97,32 +97,46 @@ export const useInventoryData = (options: UseInventoryDataOptions = {}): Invento
       setLoading(true);
       setError(null);
 
-      // Only abort if there's a genuine conflict (forced refresh)
-      if (forceRefresh && abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      abortControllerRef.current = new AbortController();
+      // Request manager handles deduplication and cancellation
 
       console.log('🔍 Fetching comprehensive inventory data...');
 
-      // Always use paginated SKU endpoint + analytics endpoint
+      // Use request manager for deduplication and caching
       const [skuResponse, analyticsResponse] = await Promise.all([
-        api.get('/dashboard/sku-inventory', {
-          params: {
-            page,
-            page_size: pageSize,
-            use_cache: !forceRefresh,
-            force_refresh: forceRefresh,
+        requestManager.executeRequest(
+          `sku-inventory-${page}-${pageSize}`,
+          async (signal: AbortSignal) => {
+            return await api.get('/dashboard/sku-inventory', {
+              params: {
+                page,
+                page_size: pageSize,
+                use_cache: !forceRefresh,
+                force_refresh: forceRefresh,
+              },
+              signal,
+            });
           },
-          signal: abortControllerRef.current.signal,
-        }),
-        api.get('/dashboard/inventory-analytics', {
-          params: {
-            fast_mode: fastMode,
-            force_refresh: forceRefresh,
+          {
+            cacheTTL: 30000, // 30 seconds
+            forceRefresh,
+          }
+        ),
+        requestManager.executeRequest(
+          `inventory-analytics-${fastMode}`,
+          async (signal: AbortSignal) => {
+            return await api.get('/dashboard/inventory-analytics', {
+              params: {
+                fast_mode: fastMode,
+                force_refresh: forceRefresh,
+              },
+              signal,
+            });
           },
-          signal: abortControllerRef.current.signal,
-        })
+          {
+            cacheTTL: 60000, // 1 minute
+            forceRefresh,
+          }
+        )
       ]);
 
       // Process SKU data
@@ -192,7 +206,9 @@ export const useInventoryData = (options: UseInventoryDataOptions = {}): Invento
    */
   const clearCache = useCallback(async (): Promise<void> => {
     try {
+      // Clear both API cache and request manager cache
       await api.delete('/dashboard/sku-cache');
+      requestManager.clearCache();
       await refresh(true);
     } catch (err: any) {
       // Handle request cancellation silently
@@ -202,15 +218,16 @@ export const useInventoryData = (options: UseInventoryDataOptions = {}): Invento
       }
       
       console.error('❌ Failed to clear cache:', err);
-      // Still refresh even if cache clear fails
+      // Still refresh even if cache clear fails - clear local cache at least
+      requestManager.clearCache();
       await refresh(true);
     }
   }, [refresh]);
 
-  // Initial data load - only run once on mount
+  // Initial data load - run when fetchInventoryData changes
   useEffect(() => {
     fetchInventoryData(1, false);
-  }, []); // Empty dependency array to run only once
+  }, [fetchInventoryData]);
 
   // Auto-refresh setup
   useEffect(() => {
@@ -238,15 +255,8 @@ export const useInventoryData = (options: UseInventoryDataOptions = {}): Invento
       // Reset request progress flag
       isRequestInProgressRef.current = false;
       
-      // Abort any ongoing requests
-      if (abortControllerRef.current) {
-        try {
-          abortControllerRef.current.abort();
-        } catch (error) {
-          // Ignore cleanup errors
-          console.log('Cleanup: Request already aborted or completed');
-        }
-      }
+      // Cancel all requests handled by request manager
+      requestManager.cancelAllRequests();
     };
   }, []);
 

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Calendar, TrendingUp, BarChart3, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import * as Charts from "../charts";
-import { inventoryService, type TrendAnalysis } from "../../lib/inventoryService";
+
 
 interface InventoryTrendChartsProps {
 	clientData?: any[];
@@ -21,94 +21,6 @@ export default function InventoryTrendCharts({
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-	const [trendData, setTrendData] = useState<TrendAnalysis | null>(null);
-
-	// Fetch trend data from inventory analytics API
-	const fetchTrendData = async () => {
-		try {
-			setLoading(true);
-			setError(null);
-
-			const response = await inventoryService.getInventoryAnalytics();
-			
-			if (response.success && response.inventory_analytics.trend_analysis) {
-				setTrendData(response.inventory_analytics.trend_analysis);
-				setError(null);
-			} else {
-				setTrendData(null);
-				setError(response.error || "No trend data available");
-			}
-
-			setLastUpdated(new Date());
-			setLoading(false);
-		} catch (err: any) {
-			console.error("Error fetching trend data:", err);
-			setTrendData(null);
-			setError(`Failed to fetch trend data: ${err.message}`);
-			setLoading(false);
-		}
-	};
-
-	// Load trend data on component mount
-	useEffect(() => {
-		fetchTrendData();
-	}, []);
-
-	// Auto-refresh trend data
-	useEffect(() => {
-		if (refreshInterval > 0) {
-			const interval = setInterval(fetchTrendData, refreshInterval);
-			return () => clearInterval(interval);
-		}
-	}, [refreshInterval]);
-
-	// Process inventory trends from API data
-	const processInventoryTrendsFromAPI = (days: number) => {
-		if (!trendData?.inventory_levels_chart) return [];
-		
-		const now = new Date();
-		const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-		
-		return trendData.inventory_levels_chart
-			.map(item => ({
-				date: item.date,
-				inventory: item.inventory_level,
-				formattedDate: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-			}))
-			.filter(item => new Date(item.date) >= startDate)
-			.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-	};
-
-	// Process sales trends from API data  
-	const processSalesTrendsFromAPI = (days: number) => {
-		if (!trendData?.units_sold_chart) return [];
-		
-		const now = new Date();
-		const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-		
-		return trendData.units_sold_chart
-			.map(item => ({
-				date: item.date,
-				sales: item.units_sold,
-				formattedDate: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-			}))
-			.filter(item => new Date(item.date) >= startDate)
-			.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-	};
-
-	// Process weekly sales data from API
-	const processWeeklySalesFromAPI = () => {
-		if (!trendData?.weekly_data_12_weeks) return [];
-		
-		return trendData.weekly_data_12_weeks.map(week => ({
-			week: week.week,
-			date: week.date,
-			revenue: week.revenue,
-			units: week.units_sold,
-			orders: week.orders,
-			formattedDate: new Date(week.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-		}));
-	};
 
 	// Process data for inventory level trends
 	const processInventoryTrends = (data: any[], days: number) => {
@@ -216,72 +128,43 @@ export default function InventoryTrendCharts({
 
 	// Memoized chart data
 	const chartData = useMemo(() => {
-		const days = parseInt(selectedRange);
-		
-		// Use API data if available, fallback to clientData processing
-		if (trendData) {
-			// Convert API sales comparison object to chart format
-			const salesComparisonChart = trendData.sales_comparison ? [
-				{
-					period: 'Current Period',
-					revenue: trendData.sales_comparison.current_period_avg_revenue,
-					units: trendData.sales_comparison.current_period_avg_units
-				},
-				{
-					period: 'Historical Average',
-					revenue: trendData.sales_comparison.historical_avg_revenue,
-					units: trendData.sales_comparison.historical_avg_units
-				}
-			] : [];
-			
-			return {
-				inventoryTrends: processInventoryTrendsFromAPI(days),
-				salesTrends: processSalesTrendsFromAPI(days),
-				weeklyTrends: processWeeklySalesFromAPI(),
-				salesComparison: salesComparisonChart
-			};
-		}
-		
-		// Fallback to clientData processing
 		if (!clientData || clientData.length === 0) {
 			return {
 				inventoryTrends: [],
 				salesTrends: [],
-				weeklyTrends: [],
 				salesComparison: []
 			};
 		}
+
+		const days = parseInt(selectedRange);
 		
 		return {
 			inventoryTrends: processInventoryTrends(clientData, days),
 			salesTrends: processSalesTrends(clientData, days),
-			weeklyTrends: [],
 			salesComparison: processSalesComparison(clientData)
 		};
-	}, [clientData, selectedRange, trendData]);
+	}, [clientData, selectedRange]);
 
-	// Update data when clientData changes (fallback only)
+	// Update data when clientData changes
 	useEffect(() => {
-		if (!trendData) {
-			setLoading(true);
-			setError(null);
+		setLoading(true);
+		setError(null);
 
-			try {
-				if (clientData && clientData.length > 0) {
-					// Data processing is handled by useMemo
-					setError(null);
-				} else {
-					setError("No data available for trend analysis");
-				}
-				setLastUpdated(new Date());
-			} catch (err: any) {
-				console.error("Error processing trend data:", err);
-				setError(`Failed to process trend data: ${err.message}`);
-			} finally {
-				setLoading(false);
+		try {
+			if (clientData && clientData.length > 0) {
+				// Data processing is handled by useMemo
+				setError(null);
+			} else {
+				setError("No data available for trend analysis");
 			}
+			setLastUpdated(new Date());
+		} catch (err: any) {
+			console.error("Error processing trend data:", err);
+			setError(`Failed to process trend data: ${err.message}`);
+		} finally {
+			setLoading(false);
 		}
-	}, [clientData, trendData]);
+	}, [clientData]);
 
 	// Date range selector
 	const DateRangeSelector = () => (
@@ -405,7 +288,7 @@ export default function InventoryTrendCharts({
 					</CardTitle>
 				</CardHeader>
 				<CardContent>
-					{chartData.salesComparison && chartData.salesComparison.length > 0 ? (
+					{chartData.salesComparison.length > 0 ? (
 						<Charts.BarChartOne
 							data={chartData.salesComparison}
 							title="Sales Comparison"

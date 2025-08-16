@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import { 
 	AlertCircle, 
 	AlertTriangle, 
@@ -12,7 +12,8 @@ import {
 	Bell
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { inventoryService, type AlertsSummary as AlertsSummaryData, type Alert } from "../../lib/inventoryService";
+import { type AlertsSummary as AlertsSummaryData, type Alert } from "../../lib/inventoryService";
+import useInventoryData from "../../hooks/useInventoryData";
 
 interface AlertsSummaryProps {
 	clientData?: any[];
@@ -23,49 +24,17 @@ export default function AlertsSummary({
 	clientData,
 	refreshInterval = 300000,
 }: AlertsSummaryProps) {
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-	const [alertsSummary, setAlertsSummary] = useState<AlertsSummaryData | null>(null);
-	const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
-	// Fetch alerts data from dedicated service
-	const fetchAlertsData = async () => {
-		try {
-			setLoading(true);
-			setError(null);
-
-			const response = await inventoryService.getInventoryAnalytics();
-			
-			if (response.success) {
-				setAlertsSummary(response.inventory_analytics.alerts_summary);
-				setError(null);
-			} else {
-				setAlertsSummary(null);
-				setError(response.error || "No alerts data available");
-			}
-
-			setLastUpdated(new Date());
-			setLoading(false);
-		} catch (err: any) {
-			console.error("Error fetching alerts:", err);
-			setAlertsSummary(null);
-			setError(`Failed to fetch alerts: ${err.message}`);
-			setLoading(false);
-		}
-	};
-
-	// Load alerts data on component mount
-	useEffect(() => {
-		fetchAlertsData();
-	}, []);
-
-	// Auto-refresh alerts data
-	useEffect(() => {
-		if (refreshInterval > 0) {
-			const interval = setInterval(fetchAlertsData, refreshInterval);
-			return () => clearInterval(interval);
-		}
-	}, [refreshInterval]);
+	// Use shared inventory data hook - no more duplicate API calls!
+	const {
+		loading,
+		error,
+		alertsSummary,
+		lastUpdated,
+		refresh
+	} = useInventoryData({
+		refreshInterval,
+		fastMode: true
+	});
 
 	// Get severity badge styling
 	const getSeverityBadge = (severity: string) => {
@@ -83,9 +52,9 @@ export default function AlertsSummary({
 		);
 	};
 
-	// Calculate total alerts from summary
+	// Calculate total alerts from summary_counts (actual API structure)
 	const totalAlerts = alertsSummary?.summary_counts?.total_alerts || 0;
-	const criticalAlerts = alertsSummary?.detailed_alerts?.low_stock_alerts?.filter(alert => alert.severity === 'critical').length || 0;
+	const criticalAlerts = alertsSummary?.summary_counts?.critical_alerts || 0;
 
 	if (loading) {
 		return (
@@ -156,7 +125,7 @@ export default function AlertsSummary({
 											</p>
 											<div className="text-xs text-gray-500">
 												<span className="font-medium">Affected SKUs: </span>
-												{alertsSummary.detailed_alerts.low_stock_alerts.slice(0, 3).map(alert => alert.sku).join(', ')}
+												{alertsSummary.detailed_alerts.low_stock_alerts.slice(0, 3).map(alert => alert.sku || alert.sku_code).join(', ')}
 												{alertsSummary.detailed_alerts.low_stock_alerts.length > 3 && (
 													<span className="ml-1">
 														and {alertsSummary.detailed_alerts.low_stock_alerts.length - 3} more...
@@ -200,7 +169,7 @@ export default function AlertsSummary({
 											</p>
 											<div className="text-xs text-gray-500">
 												<span className="font-medium">Affected SKUs: </span>
-												{alertsSummary.detailed_alerts.overstock_alerts.slice(0, 3).map(alert => alert.sku).join(', ')}
+												{alertsSummary.detailed_alerts.overstock_alerts.slice(0, 3).map(alert => alert.sku || alert.sku_code).join(', ')}
 												{alertsSummary.detailed_alerts.overstock_alerts.length > 3 && (
 													<span className="ml-1">
 														and {alertsSummary.detailed_alerts.overstock_alerts.length - 3} more...
@@ -240,13 +209,13 @@ export default function AlertsSummary({
 												{getSeverityBadge("medium")}
 											</div>
 											<p className="text-sm text-gray-600 mb-2">
-												{alertsSummary.detailed_alerts.sales_spike_alerts[0]?.message || "Unusual sales increases detected"}
+												{alertsSummary.sales_spike_alerts[0]?.message || "Unusual sales increases detected"}
 											</p>
 										</div>
 									</div>
 									<div className="flex items-center gap-2">
 										<span className="text-2xl font-bold text-green-700">
-											{alertsSummary.detailed_alerts.sales_spike_alerts.length}
+											{alertsSummary.sales_spike_alerts.length}
 										</span>
 										<button 
 											className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -275,13 +244,13 @@ export default function AlertsSummary({
 												{getSeverityBadge("medium")}
 											</div>
 											<p className="text-sm text-gray-600 mb-2">
-												{alertsSummary.detailed_alerts.sales_slowdown_alerts[0]?.message || "Sales declines detected"}
+												{alertsSummary.sales_slowdown_alerts[0]?.message || "Sales declines detected"}
 											</p>
 										</div>
 									</div>
 									<div className="flex items-center gap-2">
 										<span className="text-2xl font-bold text-orange-700">
-											{alertsSummary.detailed_alerts.sales_slowdown_alerts.length}
+											{alertsSummary.sales_slowdown_alerts.length}
 										</span>
 										<button 
 											className="text-gray-400 hover:text-gray-600 transition-colors"
