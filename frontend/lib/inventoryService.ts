@@ -42,18 +42,22 @@ export interface InventoryAnalytics {
 }
 
 export interface SKUData {
+  platform: string;
   sku_code: string;
   item_name: string;
+  variant_title?: string;
   on_hand_inventory: number;
   incoming_inventory: number;
   outgoing_inventory: number;
   current_availability: number;
   unit_price: number;
   total_value: number;
-  units_sold: number;
-  total_revenue: number;
-  last_updated: string;
-  stock_status: 'in_stock' | 'low_stock' | 'out_of_stock' | 'overstock';
+  option1?: string;
+  option2?: string;
+  units_sold?: number;
+  total_revenue?: number;
+  last_updated?: string;
+  stock_status?: 'in_stock' | 'low_stock' | 'out_of_stock' | 'overstock';
 }
 
 export interface SKUSummaryStats {
@@ -65,13 +69,25 @@ export interface SKUSummaryStats {
 }
 
 export interface SalesKPIs {
-  total_sales_7_days: KPIMetric;
-  total_sales_30_days: KPIMetric;
-  total_sales_90_days: KPIMetric;
-  inventory_turnover_rate: KPIMetric;
-  days_of_stock_remaining: KPIMetric;
-  average_order_value: KPIMetric;
-  total_active_skus: number;
+  total_sales_7_days: {
+    revenue: number;
+    units: number;
+    orders: number;
+  };
+  total_sales_30_days: {
+    revenue: number;
+    units: number;
+    orders: number;
+  };
+  total_sales_90_days: {
+    revenue: number;
+    units: number;
+    orders: number;
+  };
+  inventory_turnover_rate: number;
+  days_stock_remaining: number;
+  avg_daily_sales: number;
+  total_inventory_units: number;
 }
 
 export interface KPIMetric {
@@ -85,14 +101,28 @@ export interface KPIMetric {
 }
 
 export interface TrendAnalysis {
-  daily_sales_trends: TrendDataPoint[];
-  daily_inventory_trends: TrendDataPoint[];
-  weekly_sales_trends: TrendDataPoint[];
-  sales_comparison: ComparisonData;
-  trend_summary: {
-    overall_direction: string;
-    growth_rate: number;
-    volatility: number;
+  weekly_data_12_weeks: {
+    week: string;
+    date: string;
+    revenue: number;
+    units_sold: number;
+    orders: number;
+  }[];
+  inventory_levels_chart: {
+    date: string;
+    inventory_level: number;
+  }[];
+  units_sold_chart: {
+    date: string;
+    units_sold: number;
+  }[];
+  sales_comparison: {
+    current_period_avg_revenue: number;
+    historical_avg_revenue: number;
+    revenue_change_percent: number;
+    current_period_avg_units: number;
+    historical_avg_units: number;
+    units_change_percent: number;
   };
 }
 

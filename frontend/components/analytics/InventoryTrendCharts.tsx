@@ -4,7 +4,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Calendar, TrendingUp, BarChart3, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import * as Charts from "../charts";
-
+import { type TrendAnalysis } from "../../lib/inventoryService";
+import useInventoryData from "../../hooks/useInventoryData";
 
 interface InventoryTrendChartsProps {
 	clientData?: any[];
@@ -18,117 +19,83 @@ export default function InventoryTrendCharts({
 	refreshInterval = 300000,
 }: InventoryTrendChartsProps) {
 	const [selectedRange, setSelectedRange] = useState<DateRange>("30");
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-	const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+	
+	// Use shared inventory data hook to get trend analysis
+	const {
+		loading,
+		error,
+		trendAnalysis,
+		lastUpdated,
+		refresh
+	} = useInventoryData({
+		refreshInterval,
+		fastMode: true
+	});
 
-	// Process data for inventory level trends
-	const processInventoryTrends = (data: any[], days: number) => {
+	// Process inventory levels from API trend data
+	const processInventoryTrends = (days: number) => {
+		if (!trendAnalysis?.inventory_levels_chart) return [];
+		
 		const now = new Date();
 		const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 		
-		// Group data by date
-		const dateGroups = new Map<string, number>();
-		
-		data.forEach(item => {
-			const itemDate = item.created_at || item.updated_at || item.date || new Date().toISOString();
-			const date = new Date(itemDate);
-			
-			if (date >= startDate && date <= now) {
-				const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-				const inventory = parseInt(item.inventory_quantity || item.stock || item.on_hand || 0);
-				
-				dateGroups.set(dateKey, (dateGroups.get(dateKey) || 0) + inventory);
-			}
-		});
-
-		// Convert to chart format
-		return Array.from(dateGroups.entries())
-			.map(([date, inventory]) => ({
-				date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-				inventory: inventory,
-				value: inventory
+		return trendAnalysis.inventory_levels_chart
+			.filter((item: { date: string; inventory_level: number }) => {
+				const itemDate = new Date(item.date);
+				return itemDate >= startDate && itemDate <= now;
+			})
+			.map((item: { date: string; inventory_level: number }) => ({
+				date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+				inventory: item.inventory_level,
+				value: item.inventory_level
 			}))
-			.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-			.slice(-30); // Limit to last 30 data points
+			.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 	};
 
-	// Process data for sales trends
-	const processSalesTrends = (data: any[], days: number) => {
+	// Process sales trends from API trend data
+	const processSalesTrends = (days: number) => {
+		if (!trendAnalysis?.units_sold_chart) return [];
+		
 		const now = new Date();
 		const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 		
-		const dateGroups = new Map<string, { units: number, revenue: number }>();
-		
-		data.forEach(item => {
-			const itemDate = item.created_at || item.order_date || item.date || new Date().toISOString();
-			const date = new Date(itemDate);
-			
-			if (date >= startDate && date <= now) {
-				const dateKey = date.toISOString().split('T')[0];
-				const units = parseInt(item.quantity || item.units_sold || item.qty || 1);
-				const revenue = parseFloat(item.total_price || item.amount || item.revenue || item.value || 0);
-				
-				const existing = dateGroups.get(dateKey) || { units: 0, revenue: 0 };
-				dateGroups.set(dateKey, {
-					units: existing.units + units,
-					revenue: existing.revenue + revenue
-				});
-			}
-		});
-
-		return Array.from(dateGroups.entries())
-			.map(([date, sales]) => ({
-				date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-				units: sales.units,
-				revenue: sales.revenue,
-				value: sales.units
+		return trendAnalysis.units_sold_chart
+			.filter((item: { date: string; units_sold: number }) => {
+				const itemDate = new Date(item.date);
+				return itemDate >= startDate && itemDate <= now;
+			})
+			.map((item: { date: string; units_sold: number }) => ({
+				date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+				units: item.units_sold,
+				revenue: 0, // We don't have daily revenue in units_sold_chart, use weekly data if needed
+				value: item.units_sold
 			}))
-			.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-			.slice(-30);
+			.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 	};
 
-	// Process data for sales comparison (current vs historical)
-	const processSalesComparison = (data: any[]) => {
-		const now = new Date();
-		const days = parseInt(selectedRange);
-		const currentStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-		const historicalStart = new Date(currentStart.getTime() - days * 24 * 60 * 60 * 1000);
-		const historicalEnd = currentStart;
-
-		// Calculate current period sales
-		const currentSales = data
-			.filter(item => {
-				const itemDate = new Date(item.created_at || item.order_date || item.date || new Date());
-				return itemDate >= currentStart && itemDate <= now;
-			})
-			.reduce((sum, item) => sum + parseFloat(item.total_price || item.amount || item.revenue || 0), 0);
-
-		// Calculate historical period sales
-		const historicalSales = data
-			.filter(item => {
-				const itemDate = new Date(item.created_at || item.order_date || item.date || new Date());
-				return itemDate >= historicalStart && itemDate < historicalEnd;
-			})
-			.reduce((sum, item) => sum + parseFloat(item.total_price || item.amount || item.revenue || 0), 0);
-
+	// Process sales comparison from API trend data
+	const processSalesComparison = () => {
+		if (!trendAnalysis?.sales_comparison) return [];
+		
+		const comparison = trendAnalysis.sales_comparison;
+		
 		return [
 			{
-				name: `Previous ${days} Days`,
-				value: historicalSales,
-				revenue: historicalSales
+				name: "Historical Average",
+				value: comparison.historical_avg_revenue,
+				revenue: comparison.historical_avg_revenue
 			},
 			{
-				name: `Current ${days} Days`,
-				value: currentSales,
-				revenue: currentSales
+				name: "Current Period",
+				value: comparison.current_period_avg_revenue,
+				revenue: comparison.current_period_avg_revenue
 			}
 		];
 	};
 
 	// Memoized chart data
 	const chartData = useMemo(() => {
-		if (!clientData || clientData.length === 0) {
+		if (!trendAnalysis) {
 			return {
 				inventoryTrends: [],
 				salesTrends: [],
@@ -139,32 +106,13 @@ export default function InventoryTrendCharts({
 		const days = parseInt(selectedRange);
 		
 		return {
-			inventoryTrends: processInventoryTrends(clientData, days),
-			salesTrends: processSalesTrends(clientData, days),
-			salesComparison: processSalesComparison(clientData)
+			inventoryTrends: processInventoryTrends(days),
+			salesTrends: processSalesTrends(days),
+			salesComparison: processSalesComparison()
 		};
-	}, [clientData, selectedRange]);
+	}, [trendAnalysis, selectedRange]);
 
-	// Update data when clientData changes
-	useEffect(() => {
-		setLoading(true);
-		setError(null);
 
-		try {
-			if (clientData && clientData.length > 0) {
-				// Data processing is handled by useMemo
-				setError(null);
-			} else {
-				setError("No data available for trend analysis");
-			}
-			setLastUpdated(new Date());
-		} catch (err: any) {
-			console.error("Error processing trend data:", err);
-			setError(`Failed to process trend data: ${err.message}`);
-		} finally {
-			setLoading(false);
-		}
-	}, [clientData]);
 
 	// Date range selector
 	const DateRangeSelector = () => (

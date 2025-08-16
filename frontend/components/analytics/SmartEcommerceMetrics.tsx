@@ -41,11 +41,13 @@ export default function SmartEcommerceMetrics({
 
 		// Total Sales (7 Days)
 		if (kpis.total_sales_7_days) {
+			const revenue7d = kpis.total_sales_7_days.revenue;
+			const units7d = kpis.total_sales_7_days.units;
 			metrics.push({
 				title: "Total Sales (7 Days)",
-				value: kpis.total_sales_7_days.display_value,
-				change: kpis.total_sales_7_days.change_percentage || "N/A",
-				changeType: kpis.total_sales_7_days.trend === "up" ? "increase" : "decrease",
+				value: `$${revenue7d.toLocaleString()}`,
+				change: `${units7d} units`,
+				changeType: "increase",
 				icon: DollarSign,
 				color: "text-green-600",
 			});
@@ -53,37 +55,48 @@ export default function SmartEcommerceMetrics({
 
 		// Total Sales (30 Days)
 		if (kpis.total_sales_30_days) {
+			const revenue30d = kpis.total_sales_30_days.revenue;
+			const units30d = kpis.total_sales_30_days.units;
+			// Calculate growth vs 7 days
+			const avgDaily7d = kpis.total_sales_7_days ? kpis.total_sales_7_days.revenue / 7 : 0;
+			const avgDaily30d = revenue30d / 30;
+			const growth = avgDaily7d > 0 ? ((avgDaily7d - avgDaily30d) / avgDaily30d * 100) : 0;
+			
 			metrics.push({
 				title: "Total Sales (30 Days)",
-				value: kpis.total_sales_30_days.display_value,
-				change: kpis.total_sales_30_days.change_percentage || "N/A",
-				changeType: kpis.total_sales_30_days.trend === "up" ? "increase" : "decrease",
+				value: `$${revenue30d.toLocaleString()}`,
+				change: `${growth > 0 ? '+' : ''}${growth.toFixed(1)}%`,
+				changeType: growth >= 0 ? "increase" : "decrease",
 				icon: TrendingUp,
 				color: "text-blue-600",
 			});
 		}
 
 		// Inventory Turnover Rate
-		if (kpis.inventory_turnover_rate) {
+		if (kpis.inventory_turnover_rate !== undefined) {
+			const turnover = kpis.inventory_turnover_rate;
+			const isGood = turnover > 0.05; // 5% turnover is reasonable
+			
 			metrics.push({
 				title: "Inventory Turnover Rate",
-				value: kpis.inventory_turnover_rate.display_value,
-				change: kpis.inventory_turnover_rate.change_percentage || "N/A",
-				changeType: kpis.inventory_turnover_rate.trend === "up" ? "increase" : "decrease",
+				value: `${(turnover * 100).toFixed(2)}%`,
+				change: isGood ? "Healthy" : "Low",
+				changeType: isGood ? "increase" : "decrease",
 				icon: Package,
 				color: "text-purple-600",
 			});
 		}
 
 		// Days of Stock Remaining
-		if (kpis.days_of_stock_remaining) {
-			const isLowStock = kpis.days_of_stock_remaining.status === "critical" || 
-			                  kpis.days_of_stock_remaining.status === "warning";
+		if (kpis.days_stock_remaining !== undefined) {
+			const days = kpis.days_stock_remaining;
+			const isLowStock = days < 30;
+			const isCritical = days < 7;
+			
 			metrics.push({
 				title: "Days of Stock Remaining",
-				value: kpis.days_of_stock_remaining.display_value,
-				change: kpis.days_of_stock_remaining.status === "critical" ? "Critical" : 
-				        kpis.days_of_stock_remaining.status === "warning" ? "Low Stock" : "Healthy",
+				value: days > 999 ? "999+" : days.toString(),
+				change: isCritical ? "Critical" : isLowStock ? "Low Stock" : "Healthy",
 				changeType: isLowStock ? "decrease" : "increase",
 				icon: Users,
 				color: isLowStock ? "text-red-600" : "text-green-600",
