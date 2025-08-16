@@ -5,7 +5,7 @@ const api = axios.create({
 	baseURL: process.env.NEXT_PUBLIC_API_URL
 		? `${process.env.NEXT_PUBLIC_API_URL}/api`
 		: "http://localhost:8000/api",
-	timeout: 180000, // 3 minutes - increased for LLM processing
+	timeout: 18000000, // 5 hours - increased 100x for heavy processing
 	headers: {
 		"Content-Type": "application/json",
 	},
@@ -20,7 +20,7 @@ export const testTimeoutConfig = async () => {
 	console.log("🔧 Default timeout:", defaultConfig.timeout);
 	
 	// Test 2: Check request interceptor (simplified)
-	const testConfig = { url: '/dashboard/metrics', timeout: 1500000 };
+	const testConfig = { url: '/dashboard/metrics', timeout: 150000000 };
 	console.log("🔧 Test config timeout:", testConfig.timeout);
 	
 	return testConfig;
@@ -44,25 +44,25 @@ api.interceptors.request.use(
 			
 			// Check if force_llm=true for even longer timeout
 			if (config.url?.includes('force_llm=true')) {
-				config.timeout = 600000; // 10 minutes for forced LLM analysis
-				console.log("🔧 Setting 10min timeout for forced LLM endpoint:", config.url);
+				config.timeout = 60000000; // 16.67 hours for forced LLM analysis (100x increase)
+				console.log("🔧 Setting 16.67hr timeout for forced LLM endpoint:", config.url);
 			} else {
-				config.timeout = 300000; // 5 minutes for regular LLM endpoints
-				console.log("🔧 Setting 5min timeout for LLM endpoint:", config.url);
+				config.timeout = 30000000; // 8.33 hours for regular LLM endpoints (100x increase)
+				console.log("🔧 Setting 8.33hr timeout for LLM endpoint:", config.url);
 			}
 		}
 		
 		// Set longer timeout for inventory analytics endpoints
 		if (config.url?.includes('/dashboard/sku-inventory') || 
 		    config.url?.includes('/dashboard/inventory-analytics')) {
-			config.timeout = 6000000; // 100 minutes for inventory processing
-			console.log("🔧 Setting 100min timeout for inventory endpoint:", config.url);
+			config.timeout = 600000000; // 166.67 hours (~7 days) for inventory processing (100x increase)
+			console.log("🔧 Setting 166.67hr timeout for inventory endpoint:", config.url);
 		}
 		
 		// Set longer timeout for client creation with file uploads (especially BAK files)
 		if (config.url?.includes('/superadmin/clients') && config.method?.toLowerCase() === 'post') {
-			config.timeout = 30000000; // ~8 hours for processing very large BAK files
-			console.log("🔧 Setting extended timeout for large BAK file processing:", config.url);
+			config.timeout = 3000000000; // ~833 hours (~35 days) for processing very large BAK files (100x increase)
+			console.log("🔧 Setting 833hr timeout for large BAK file processing:", config.url);
 		}
 		
 		console.log("🔧 Request config timeout:", config.timeout, "for URL:", config.url);

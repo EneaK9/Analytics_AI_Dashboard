@@ -15,6 +15,7 @@ import jwt
 import pandas as pd
 from contextlib import asynccontextmanager
 import time
+import math
 import traceback
 
 # Import our custom modules
@@ -2541,13 +2542,82 @@ async def get_paginated_sku_inventory(
         shopify_data = await dashboard_inventory_analyzer._get_shopify_data(client_id)
         amazon_data = await dashboard_inventory_analyzer._get_amazon_data(client_id)
         
+        # Check if we have any organized data, if not, try legacy approach
+        total_organized_records = len(shopify_data.get('products', [])) + len(amazon_data.get('products', []))
+        
+        if total_organized_records == 0:
+            logger.info(f"📋 No organized data found for client {client_id}, trying legacy SKU extraction")
+            
+            # Try to get SKU data from raw client_data (legacy approach)
+            try:
+                from inventory_analyzer import inventory_analyzer
+                
+                # Get raw client data
+                response = db_client.table("client_data").select("*").eq("client_id", client_id).order("created_at", desc=True).limit(1000).execute()
+                
+                if response.data:
+                    client_data_for_legacy = {
+                        "client_id": client_id,
+                        "data": []
+                    }
+                    
+                    for record in response.data:
+                        if record.get('data'):
+                            try:
+                                if isinstance(record['data'], dict):
+                                    parsed_data = record['data']
+                                elif isinstance(record['data'], str):
+                                    parsed_data = json.loads(record['data'])
+                                else:
+                                    continue
+                                    
+                                client_data_for_legacy["data"].append(parsed_data)
+                            except:
+                                continue
+                    
+                    # Use legacy analyzer to get SKU data
+                    legacy_analytics = inventory_analyzer.analyze_inventory_data(client_data_for_legacy)
+                    legacy_skus = legacy_analytics.get("sku_inventory", {}).get("skus", [])
+                    
+                    if legacy_skus:
+                        logger.info(f"✅ Found {len(legacy_skus)} SKUs from legacy data")
+                        
+                        # Paginate the legacy SKUs
+                        start_idx = (page - 1) * page_size
+                        end_idx = start_idx + page_size
+                        paginated_skus = legacy_skus[start_idx:end_idx]
+                        
+                        return {
+                            "client_id": client_id,
+                            "success": True,
+                            "sku_inventory": {
+                                "skus": paginated_skus,
+                                "summary_stats": legacy_analytics.get("summary_stats", {})
+                            },
+                            "pagination": {
+                                "current_page": page,
+                                "page_size": page_size,
+                                "total_count": len(legacy_skus),
+                                "total_pages": math.ceil(len(legacy_skus) / page_size),
+                                "has_next": end_idx < len(legacy_skus),
+                                "has_previous": page > 1
+                            },
+                            "cached": False,
+                            "timestamp": datetime.now().isoformat(),
+                            "processing_time": "legacy_conversion",
+                            "data_source": "legacy_client_data"
+                        }
+                        
+            except Exception as legacy_error:
+                logger.warning(f"⚠️ Legacy SKU extraction failed: {legacy_error}")
+        
         # If force refresh, clear cache first
         if force_refresh:
             from sku_cache_manager import get_sku_cache_manager
             cache_manager = get_sku_cache_manager(db_client)
             await cache_manager.invalidate_cache(client_id)
         
-        # Get paginated SKU data
+        # Get paginated SKU data using organized approach
         sku_result = await dashboard_inventory_analyzer._get_sku_list(
             client_id, shopify_data, amazon_data, page, page_size, use_cache
         )
@@ -2702,13 +2772,25 @@ async def get_inventory_analytics(
             if not db_client:
                 raise HTTPException(status_code=503, detail="Database not configured")
             
-            # Quick check for organized tables
+            # Quick check for organized tables (check both Shopify and Amazon)
             shopify_table = f"{client_id.replace('-', '_')}_shopify_products"
+            amazon_table = f"{client_id.replace('-', '_')}_amazon_orders"
+            has_organized_data = False
+            
             try:
                 test_response = db_client.table(shopify_table).select("id").limit(1).execute()
                 has_organized_data = bool(test_response.data)
             except:
-                has_organized_data = False
+                pass
+                
+            # Also check for Amazon organized tables
+            if not has_organized_data:
+                try:
+                    test_response = db_client.table(amazon_table).select("id").limit(1).execute()
+                    has_organized_data = bool(test_response.data)
+                    logger.info(f"🛒 Found Amazon organized tables for client {client_id}")
+                except:
+                    pass
             
             if has_organized_data:
                 logger.info(f"🚀 Using organized tables for client {client_id}")
@@ -2793,38 +2875,98 @@ async def get_inventory_analytics(
                 for key, value in list(sample_record.items())[:10]:
                     logger.info(f"  {key}: {type(value).__name__} = {str(value)[:100]}")
             
-            # Perform comprehensive inventory analysis
-            inventory_analytics = inventory_analyzer.analyze_inventory_data(client_data)
-            
-            return {
-                "client_id": client_id,
-                "success": True,
-                "message": f"Analyzed {len(client_data['data'])} records",
-                "timestamp": datetime.now().isoformat(),
-                "data_type": "inventory_analytics",
-                "schema_type": "inventory_analytics",
-                "total_records": len(client_data['data']),
-                "inventory_analytics": inventory_analytics,
-                "cached": False,
-                "processing_time": "real-time"
-            }
+            # Use dashboard structure even for legacy data
+            try:
+                from dashboard_inventory_analyzer import dashboard_inventory_analyzer
+                
+                # Transform legacy data into dashboard format
+                legacy_analytics = inventory_analyzer.analyze_inventory_data(client_data)
+                
+                # Convert legacy structure to dashboard structure
+                dashboard_analytics = {
+                    "success": True,
+                    "timestamp": datetime.now().isoformat(),
+                    "client_id": client_id,
+                    "sales_kpis": legacy_analytics.get("sales_kpis", {}),
+                    "trend_analysis": legacy_analytics.get("trend_analysis", {}),
+                    "alerts_summary": legacy_analytics.get("alerts_summary", {}),
+                    "data_summary": legacy_analytics.get("data_summary", {}),
+                    "sku_inventory": {
+                        "skus": [],  # Will be provided by separate SKU endpoint
+                        "summary_stats": legacy_analytics.get("summary_stats", {})
+                    },
+                    "recommendations": [
+                        "Legacy data detected - consider organizing data for better performance",
+                        "Use /api/dashboard/sku-inventory for detailed SKU data",
+                        "Contact support to organize data into structured tables"
+                    ]
+                }
+                
+                return {
+                    "client_id": client_id,
+                    "success": True,
+                    "message": f"Analyzed {len(client_data['data'])} records (legacy format converted to dashboard structure)",
+                    "timestamp": datetime.now().isoformat(),
+                    "data_type": "dashboard_inventory_analytics",
+                    "schema_type": "dashboard_inventory_analytics",
+                    "total_records": len(client_data['data']),
+                    "inventory_analytics": dashboard_analytics,
+                    "cached": False,
+                    "processing_time": "real-time",
+                    "data_source": "legacy_converted"
+                }
+                
+            except Exception as dashboard_error:
+                logger.warning(f"⚠️ Failed to convert to dashboard structure: {dashboard_error}")
+                
+                # Fallback to original legacy structure
+                inventory_analytics = inventory_analyzer.analyze_inventory_data(client_data)
+                
+                return {
+                    "client_id": client_id,
+                    "success": True,
+                    "message": f"Analyzed {len(client_data['data'])} records",
+                    "timestamp": datetime.now().isoformat(),
+                    "data_type": "inventory_analytics",
+                    "schema_type": "inventory_analytics",
+                    "total_records": len(client_data['data']),
+                    "inventory_analytics": inventory_analytics,
+                    "cached": False,
+                    "processing_time": "real-time"
+                }
             
         except Exception as data_error:
             logger.error(f"❌ Error fetching client data: {str(data_error)}")
-            # Return empty analytics if data fetch fails
-            inventory_analytics = inventory_analyzer.analyze_inventory_data({"client_id": client_id, "data": []})
+            # Return empty dashboard analytics if data fetch fails
+            
+            empty_dashboard_analytics = {
+                "success": True,
+                "timestamp": datetime.now().isoformat(),
+                "client_id": client_id,
+                "sales_kpis": {},
+                "trend_analysis": {},
+                "alerts_summary": {
+                    "summary_counts": {"total_alerts": 0, "low_stock_alerts": 0, "overstock_alerts": 0},
+                    "detailed_alerts": {"low_stock_alerts": [], "overstock_alerts": []},
+                    "quick_links": {}
+                },
+                "data_summary": {"total_records": 0, "total_skus": 0},
+                "sku_inventory": {"skus": [], "summary_stats": {}},
+                "recommendations": ["No data available - please upload inventory data first"]
+            }
             
             return {
                 "client_id": client_id,
                 "success": True,
                 "message": f"No data available for analysis: {str(data_error)}",
                 "timestamp": datetime.now().isoformat(),
-                "data_type": "inventory_analytics",
-                "schema_type": "inventory_analytics", 
+                "data_type": "dashboard_inventory_analytics",
+                "schema_type": "dashboard_inventory_analytics", 
                 "total_records": 0,
-                "inventory_analytics": inventory_analytics,
+                "inventory_analytics": empty_dashboard_analytics,
                 "cached": False,
-                "processing_time": "instant"
+                "processing_time": "instant",
+                "data_source": "empty"
             }
         
     except HTTPException:

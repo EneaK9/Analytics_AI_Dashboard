@@ -41,8 +41,8 @@ export default function SmartEcommerceMetrics({
 
 		// Total Sales (7 Days)
 		if (kpis.total_sales_7_days) {
-			const revenue7d = kpis.total_sales_7_days.revenue;
-			const units7d = kpis.total_sales_7_days.units;
+			const revenue7d = kpis.total_sales_7_days.revenue || 0;
+			const units7d = kpis.total_sales_7_days.units || 0;
 			metrics.push({
 				title: "Total Sales (7 Days)",
 				value: `$${revenue7d.toLocaleString()}`,
@@ -55,12 +55,12 @@ export default function SmartEcommerceMetrics({
 
 		// Total Sales (30 Days)
 		if (kpis.total_sales_30_days) {
-			const revenue30d = kpis.total_sales_30_days.revenue;
-			const units30d = kpis.total_sales_30_days.units;
+			const revenue30d = kpis.total_sales_30_days.revenue || 0;
+			const units30d = kpis.total_sales_30_days.units || 0;
 			// Calculate growth vs 7 days
-			const avgDaily7d = kpis.total_sales_7_days ? kpis.total_sales_7_days.revenue / 7 : 0;
+			const avgDaily7d = kpis.total_sales_7_days ? (kpis.total_sales_7_days.revenue || 0) / 7 : 0;
 			const avgDaily30d = revenue30d / 30;
-			const growth = avgDaily7d > 0 ? ((avgDaily7d - avgDaily30d) / avgDaily30d * 100) : 0;
+			const growth = avgDaily30d > 0 ? ((avgDaily7d - avgDaily30d) / avgDaily30d * 100) : 0;
 			
 			metrics.push({
 				title: "Total Sales (30 Days)",
