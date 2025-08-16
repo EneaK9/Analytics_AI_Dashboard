@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import { Search, Download, AlertCircle, Package, TrendingUp, TrendingDown } from "lucide-react";
 import DataTable from "../ui/DataTable";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { inventoryService, type SKUData, type SKUSummaryStats } from "../../lib/inventoryService";
+import { type SKUData, type SKUSummaryStats } from "../../lib/inventoryService";
+import useInventoryData from "../../hooks/useInventoryData";
 
 interface InventorySKUListProps {
 	clientData?: any[];
@@ -15,63 +16,23 @@ export default function InventorySKUList({
 	clientData,
 	refreshInterval = 300000,
 }: InventorySKUListProps) {
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-	const [skuData, setSKUData] = useState<SKUData[]>([]);
-	const [summaryStats, setSummaryStats] = useState<SKUSummaryStats | null>(null);
-	const [currentPage, setCurrentPage] = useState(1);
-	const [totalPages, setTotalPages] = useState(1);
-	const [totalCount, setTotalCount] = useState(0);
-	const [pageSize] = useState(50); // Fixed page size
+	// Use the comprehensive inventory hook - single API call, optimized
+	const {
+		loading,
+		error,
+		skuData,
+		summaryStats,
+		pagination,
+		cached,
+		lastUpdated,
+		refresh
+	} = useInventoryData({
+		refreshInterval,
+		fastMode: true
+	});
 
-	// Fetch SKU inventory data from dedicated paginated service
-	const fetchSKUData = async (page: number = 1, forceRefresh: boolean = false) => {
-		try {
-			setLoading(true);
-			setError(null);
-
-			console.log(`🔍 Fetching SKU data for page ${page}...`);
-			const response = await inventoryService.getPaginatedSKUInventory(page, pageSize, true, forceRefresh);
-			
-			setSKUData(response.skus);
-			setSummaryStats(response.summary_stats || null);
-			setCurrentPage(response.pagination.current_page);
-			setTotalPages(response.pagination.total_pages);
-			setTotalCount(response.pagination.total_count);
-			setError(null);
-			
-			console.log(`✅ Loaded ${response.skus.length} SKUs (page ${page}/${response.pagination.total_pages})`);
-			setLoading(false);
-		} catch (err: any) {
-			console.error("Error fetching SKU data:", err);
-			setSKUData([]);
-			setSummaryStats(null);
-			setError(`Failed to fetch SKU data: ${err.message}`);
-			setLoading(false);
-		}
-	};
-
-	// Handle page changes
-	const handlePageChange = (newPage: number) => {
-		if (newPage >= 1 && newPage <= totalPages) {
-			fetchSKUData(newPage);
-		}
-	};
-
-	useEffect(() => {
-		fetchSKUData(1);
-
-		// Set up refresh interval if specified
-		if (refreshInterval > 0) {
-			const interval = setInterval(() => fetchSKUData(currentPage), refreshInterval);
-			return () => clearInterval(interval);
-		}
-	}, [refreshInterval]);
-
-	// Refresh current page
-	const handleRefresh = () => {
-		fetchSKUData(currentPage, true);
-	};
+	// Refresh handler for manual refresh
+	const handleRefresh = () => refresh(true);
 
 	// Define table columns for SKU data
 	const columns = [
@@ -184,7 +145,7 @@ export default function InventorySKUList({
 		},
 	];
 
-
+	// Data loading and refresh are now handled by the useInventoryData hook
 
 	return (
 		<div className="space-y-6">
@@ -243,68 +204,20 @@ export default function InventorySKUList({
 				</div>
 			)}
 
-			{/* SKU Data Table with Server-Side Pagination */}
-			<div className="bg-white shadow-sm rounded-lg">
-				<div className="px-6 py-4 border-b border-gray-200">
-					<div className="flex items-center justify-between">
-						<div>
-							<h3 className="text-lg font-medium text-gray-900">SKU Inventory List</h3>
-							<p className="text-sm text-gray-600">
-								Comprehensive inventory management with real-time availability tracking • 
-								{totalCount > 0 ? ` ${totalCount} total SKUs` : ` ${skuData.length} SKUs`}
-								{totalPages > 1 && ` • Page ${currentPage} of ${totalPages}`}
-							</p>
-						</div>
-						<button
-							onClick={handleRefresh}
-							disabled={loading}
-							className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-						>
-							{loading ? 'Loading...' : 'Refresh'}
-						</button>
-					</div>
-				</div>
-
-				<DataTable
-					data={skuData}
-					columns={columns}
-					loading={loading}
-					search={true}
-					export={true}
-					pagination={false} // Disable client-side pagination
-					emptyMessage="No inventory data available. Please upload CSV data or check data connections."
-					className="border-0 shadow-none"
-				/>
-
-				{/* Server-Side Pagination Controls */}
-				{totalPages > 1 && (
-					<div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-						<div className="text-sm text-gray-700">
-							Showing {Math.min((currentPage - 1) * pageSize + 1, totalCount)} to{' '}
-							{Math.min(currentPage * pageSize, totalCount)} of {totalCount} SKUs
-						</div>
-						<div className="flex space-x-2">
-							<button
-								onClick={() => handlePageChange(currentPage - 1)}
-								disabled={currentPage <= 1 || loading}
-								className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								Previous
-							</button>
-							<span className="px-3 py-1 text-sm font-medium text-gray-700">
-								Page {currentPage} of {totalPages}
-							</span>
-							<button
-								onClick={() => handlePageChange(currentPage + 1)}
-								disabled={currentPage >= totalPages || loading}
-								className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								Next
-							</button>
-						</div>
-					</div>
-				)}
-			</div>
+			{/* SKU Data Table */}
+			<DataTable
+				title="SKU Inventory List"
+				subtitle={`Comprehensive inventory management with real-time availability tracking • ${skuData.length} SKUs`}
+				data={skuData}
+				columns={columns}
+				loading={loading}
+				search={true}
+				export={true}
+				pagination={true}
+				pageSize={20}
+				emptyMessage="No inventory data available. Please upload CSV data or check data connections."
+				className="bg-white shadow-sm"
+			/>
 		</div>
 	);
 }

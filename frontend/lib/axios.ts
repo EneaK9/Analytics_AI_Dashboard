@@ -52,6 +52,13 @@ api.interceptors.request.use(
 			}
 		}
 		
+		// Set longer timeout for inventory analytics endpoints
+		if (config.url?.includes('/dashboard/sku-inventory') || 
+		    config.url?.includes('/dashboard/inventory-analytics')) {
+			config.timeout = 6000000; // 100 minutes for inventory processing
+			console.log("🔧 Setting 100min timeout for inventory endpoint:", config.url);
+		}
+		
 		// Set longer timeout for client creation with file uploads (especially BAK files)
 		if (config.url?.includes('/superadmin/clients') && config.method?.toLowerCase() === 'post') {
 			config.timeout = 30000000; // ~8 hours for processing very large BAK files

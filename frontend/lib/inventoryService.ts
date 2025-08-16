@@ -176,7 +176,13 @@ class InventoryService {
           sku_inventory: { skus: [], summary_stats: { total_skus: 0, total_inventory_value: 0, low_stock_count: 0, out_of_stock_count: 0, overstock_count: 0 } },
           sales_kpis: {} as SalesKPIs,
           trend_analysis: {} as TrendAnalysis,
-          alerts_summary: { summary: { total_alerts: 0, critical_alerts: 0, high_priority_alerts: 0, affected_skus: [], total_affected_skus: 0 } } as AlertsSummary,
+          alerts_summary: { 
+            low_stock_alerts: [], 
+            overstock_alerts: [], 
+            sales_spike_alerts: [], 
+            sales_slowdown_alerts: [], 
+            summary: { total_alerts: 0, critical_alerts: 0, high_priority_alerts: 0, affected_skus: [], total_affected_skus: 0 } 
+          } as AlertsSummary,
           recommendations: []
         },
         cached: false,
@@ -210,7 +216,7 @@ class InventoryService {
     try {
       console.log(`🔍 Fetching paginated SKU inventory (page ${page}, size ${pageSize})...`);
       
-      const response = await api.get('/api/dashboard/sku-inventory', {
+      const response = await api.get('/dashboard/sku-inventory', {
         params: {
           page,
           page_size: pageSize,
