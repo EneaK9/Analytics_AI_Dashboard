@@ -4,7 +4,6 @@
  */
 
 import api from './axios';
-import requestManager from './requestManager';
 
 export interface InventoryAnalyticsResponse {
   client_id: string;
@@ -42,22 +41,18 @@ export interface InventoryAnalytics {
 }
 
 export interface SKUData {
-  platform: string;
   sku_code: string;
   item_name: string;
-  variant_title?: string;
   on_hand_inventory: number;
   incoming_inventory: number;
   outgoing_inventory: number;
   current_availability: number;
   unit_price: number;
   total_value: number;
-  option1?: string;
-  option2?: string;
-  units_sold?: number;
-  total_revenue?: number;
-  last_updated?: string;
-  stock_status?: 'in_stock' | 'low_stock' | 'out_of_stock' | 'overstock';
+  units_sold: number;
+  total_revenue: number;
+  last_updated: string;
+  stock_status: 'in_stock' | 'low_stock' | 'out_of_stock' | 'overstock';
 }
 
 export interface SKUSummaryStats {
@@ -69,25 +64,13 @@ export interface SKUSummaryStats {
 }
 
 export interface SalesKPIs {
-  total_sales_7_days: {
-    revenue: number;
-    units: number;
-    orders: number;
-  };
-  total_sales_30_days: {
-    revenue: number;
-    units: number;
-    orders: number;
-  };
-  total_sales_90_days: {
-    revenue: number;
-    units: number;
-    orders: number;
-  };
-  inventory_turnover_rate: number;
-  days_stock_remaining: number;
-  avg_daily_sales: number;
-  total_inventory_units: number;
+  total_sales_7_days: KPIMetric;
+  total_sales_30_days: KPIMetric;
+  total_sales_90_days: KPIMetric;
+  inventory_turnover_rate: KPIMetric;
+  days_of_stock_remaining: KPIMetric;
+  average_order_value: KPIMetric;
+  total_active_skus: number;
 }
 
 export interface KPIMetric {
@@ -101,28 +84,14 @@ export interface KPIMetric {
 }
 
 export interface TrendAnalysis {
-  weekly_data_12_weeks: {
-    week: string;
-    date: string;
-    revenue: number;
-    units_sold: number;
-    orders: number;
-  }[];
-  inventory_levels_chart: {
-    date: string;
-    inventory_level: number;
-  }[];
-  units_sold_chart: {
-    date: string;
-    units_sold: number;
-  }[];
-  sales_comparison: {
-    current_period_avg_revenue: number;
-    historical_avg_revenue: number;
-    revenue_change_percent: number;
-    current_period_avg_units: number;
-    historical_avg_units: number;
-    units_change_percent: number;
+  daily_sales_trends: TrendDataPoint[];
+  daily_inventory_trends: TrendDataPoint[];
+  weekly_sales_trends: TrendDataPoint[];
+  sales_comparison: ComparisonData;
+  trend_summary: {
+    overall_direction: string;
+    growth_rate: number;
+    volatility: number;
   };
 }
 
@@ -140,42 +109,56 @@ export interface ComparisonData {
 }
 
 export interface AlertsSummary {
-  summary_counts: {
+  // Direct alert arrays (backward compatibility)
+  low_stock_alerts?: Alert[];
+  overstock_alerts?: Alert[];
+  sales_spike_alerts?: Alert[];
+  sales_slowdown_alerts?: Alert[];
+  
+  // New structure with detailed_alerts
+  detailed_alerts?: {
+    low_stock_alerts?: Alert[];
+    overstock_alerts?: Alert[];
+    sales_spike_alerts?: Alert[];
+    sales_slowdown_alerts?: Alert[];
+  };
+  
+  // Summary can be in either format
+  summary?: {
+    total_alerts: number;
+    critical_alerts: number;
+    high_priority_alerts: number;
+    affected_skus: string[];
+    total_affected_skus: number;
+  };
+  
+  summary_counts?: {
+    total_alerts: number;
+    critical_alerts: number;
     low_stock_alerts: number;
     overstock_alerts: number;
     sales_spike_alerts: number;
     sales_slowdown_alerts: number;
-    total_alerts: number;
-    critical_alerts?: number;
-    high_priority_alerts?: number;
-  };
-  detailed_alerts: {
-    low_stock_alerts: Alert[];
-    overstock_alerts: Alert[];
-    sales_spike_alerts: Alert[];
-    sales_slowdown_alerts: Alert[];
-  };
-  quick_links?: {
-    view_low_stock: string;
-    view_overstock: string;
-    view_sales_alerts: string;
   };
 }
 
 export interface Alert {
-  platform: string;
-  sku?: string;
-  sku_code?: string;
-  item_name: string;
-  current_stock: number;
-  severity: 'low' | 'medium' | 'high' | 'critical';
   type?: 'low_stock' | 'out_of_stock' | 'overstock' | 'sales_spike' | 'sales_slowdown';
+  sku_code?: string;
+  sku?: string; // Alternative SKU field
+  asin?: string; // Amazon ASIN
+  item_name?: string;
+  platform?: string;
+  current_availability?: number;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
   message?: string;
   recommendation?: string;
   affected_skus?: string[];
   current_sales?: number;
   previous_sales?: number;
-  current_availability?: number;
+  current_revenue?: number;
+  previous_revenue?: number;
+  change_percent?: number;
 }
 
 class InventoryService {
@@ -186,37 +169,25 @@ class InventoryService {
    */
   async getInventoryAnalytics(
     fastMode: boolean = true,
-    forceRefresh: boolean = false
+    forceRefresh: boolean = false,
+    platform: string = "shopify"
   ): Promise<InventoryAnalyticsResponse> {
-    const requestKey = `inventory-analytics-${fastMode}`;
-    
     try {
-      const response = await requestManager.executeRequest(
-        requestKey,
-        async (signal: AbortSignal) => {
-          console.log('🔍 Fetching inventory analytics...');
-          
-          const apiResponse = await api.get<InventoryAnalyticsResponse>(
-            `${this.baseURL}/inventory-analytics`,
-            {
-              params: {
-                fast_mode: fastMode,
-                force_refresh: forceRefresh,
-              },
-              signal,
-            }
-          );
-
-          console.log('✅ Inventory analytics fetched successfully');
-          return apiResponse.data;
-        },
+      console.log(`🔍 Fetching inventory analytics (platform: ${platform})...`);
+      
+      const response = await api.get<InventoryAnalyticsResponse>(
+        `${this.baseURL}/inventory-analytics`,
         {
-          cacheTTL: 60000, // 1 minute cache
-          forceRefresh,
+          params: {
+            fast_mode: fastMode,
+            force_refresh: forceRefresh,
+            platform: platform,
+          },
         }
       );
 
-      return response;
+      console.log('✅ Inventory analytics fetched successfully:', response.data);
+      return response.data;
     } catch (error: any) {
       console.error('❌ Failed to fetch inventory analytics:', error);
       
@@ -234,21 +205,11 @@ class InventoryService {
           sales_kpis: {} as SalesKPIs,
           trend_analysis: {} as TrendAnalysis,
           alerts_summary: { 
-            summary_counts: { 
-              low_stock_alerts: 0, 
-              overstock_alerts: 0, 
-              sales_spike_alerts: 0, 
-              sales_slowdown_alerts: 0, 
-              total_alerts: 0,
-              critical_alerts: 0,
-              high_priority_alerts: 0
-            },
-            detailed_alerts: {
-              low_stock_alerts: [], 
-              overstock_alerts: [], 
-              sales_spike_alerts: [], 
-              sales_slowdown_alerts: []
-            }
+            low_stock_alerts: [], 
+            overstock_alerts: [], 
+            sales_spike_alerts: [], 
+            sales_slowdown_alerts: [], 
+            summary: { total_alerts: 0, critical_alerts: 0, high_priority_alerts: 0, affected_skus: [], total_affected_skus: 0 } 
           } as AlertsSummary,
           recommendations: []
         },
@@ -266,7 +227,8 @@ class InventoryService {
     page: number = 1, 
     pageSize: number = 50, 
     useCache: boolean = true, 
-    forceRefresh: boolean = false
+    forceRefresh: boolean = false,
+    platform: string = "shopify"
   ): Promise<{
     skus: SKUData[];
     pagination: {
@@ -280,42 +242,29 @@ class InventoryService {
     summary_stats?: SKUSummaryStats;
     cached: boolean;
   }> {
-    const requestKey = `sku-inventory-${page}-${pageSize}`;
-    
     try {
-      const response = await requestManager.executeRequest(
-        requestKey,
-        async (signal: AbortSignal) => {
-          console.log(`🔍 Fetching paginated SKU inventory (page ${page}, size ${pageSize})...`);
-          
-          const apiResponse = await api.get('/dashboard/sku-inventory', {
-            params: {
-              page,
-              page_size: pageSize,
-              use_cache: useCache,
-              force_refresh: forceRefresh,
-            },
-            signal,
-          });
-
-          if (apiResponse.data && apiResponse.data.success) {
-            return {
-              skus: apiResponse.data.sku_inventory.skus || [],
-              pagination: apiResponse.data.pagination,
-              summary_stats: apiResponse.data.sku_inventory.summary_stats,
-              cached: apiResponse.data.cached || false,
-            };
-          } else {
-            throw new Error(apiResponse.data?.error || 'Failed to fetch paginated SKU data');
-          }
+      console.log(`🔍 Fetching paginated SKU inventory (page ${page}, size ${pageSize}, platform: ${platform})...`);
+      
+      const response = await api.get('/dashboard/sku-inventory', {
+        params: {
+          page,
+          page_size: pageSize,
+          use_cache: useCache,
+          force_refresh: forceRefresh,
+          platform: platform,
         },
-        {
-          cacheTTL: 30000, // 30 seconds cache
-          forceRefresh: !useCache || forceRefresh,
-        }
-      );
+      });
 
-      return response;
+      if (response.data && response.data.success) {
+        return {
+          skus: response.data.sku_inventory.skus || [],
+          pagination: response.data.pagination,
+          summary_stats: response.data.sku_inventory.summary_stats,
+          cached: response.data.cached || false,
+        };
+      } else {
+        throw new Error(response.data?.error || 'Failed to fetch paginated SKU data');
+      }
     } catch (error: any) {
       console.error('❌ Failed to fetch paginated SKU inventory:', error);
       throw error;
@@ -325,10 +274,10 @@ class InventoryService {
   /**
    * Get only SKU inventory data (now properly uses pagination)
    */
-  async getSKUInventory(): Promise<SKUData[]> {
+  async getSKUInventory(platform: string = "shopify"): Promise<SKUData[]> {
     try {
       // Get first page of SKUs from the dedicated endpoint
-      const response = await this.getPaginatedSKUInventory(1, 100, true, false);
+      const response = await this.getPaginatedSKUInventory(1, 100, true, false, platform);
       return response.skus;
     } catch (error) {
       console.error('❌ Failed to fetch SKU inventory:', error);
@@ -339,9 +288,9 @@ class InventoryService {
   /**
    * Get only sales KPIs
    */
-  async getSalesKPIs(): Promise<SalesKPIs | null> {
+  async getSalesKPIs(platform: string = "shopify"): Promise<SalesKPIs | null> {
     try {
-      const response = await this.getInventoryAnalytics();
+      const response = await this.getInventoryAnalytics(true, false, platform);
       return response.inventory_analytics.sales_kpis;
     } catch (error) {
       console.error('❌ Failed to fetch sales KPIs:', error);
@@ -352,9 +301,9 @@ class InventoryService {
   /**
    * Get only trend analysis data
    */
-  async getTrendAnalysis(): Promise<TrendAnalysis | null> {
+  async getTrendAnalysis(platform: string = "shopify"): Promise<TrendAnalysis | null> {
     try {
-      const response = await this.getInventoryAnalytics();
+      const response = await this.getInventoryAnalytics(true, false, platform);
       return response.inventory_analytics.trend_analysis;
     } catch (error) {
       console.error('❌ Failed to fetch trend analysis:', error);
@@ -365,9 +314,9 @@ class InventoryService {
   /**
    * Get only alerts summary
    */
-  async getAlertsSummary(): Promise<AlertsSummary | null> {
+  async getAlertsSummary(platform: string = "shopify"): Promise<AlertsSummary | null> {
     try {
-      const response = await this.getInventoryAnalytics();
+      const response = await this.getInventoryAnalytics(true, false, platform);
       return response.inventory_analytics.alerts_summary;
     } catch (error) {
       console.error('❌ Failed to fetch alerts summary:', error);
@@ -402,7 +351,7 @@ class InventoryService {
       
       const totalSKUs = analytics.sku_inventory.summary_stats.total_skus;
       const totalValue = analytics.sku_inventory.summary_stats.total_inventory_value;
-      const alertsCount = analytics.alerts_summary.summary_counts.total_alerts;
+      const alertsCount = analytics.alerts_summary.summary_counts?.total_alerts;
       
       // Calculate stock health score (0-100)
       const lowStockCount = analytics.sku_inventory.summary_stats.low_stock_count;

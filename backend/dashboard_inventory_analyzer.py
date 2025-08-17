@@ -17,29 +17,48 @@ class DashboardInventoryAnalyzer:
     """Dashboard-focused inventory analyzer with specific KPIs and data structures"""
     
     def __init__(self):
-        self.admin_client = get_admin_client()
-        if not self.admin_client:
-            raise Exception("❌ No admin database client available")
+        self.admin_client = None
+        self._client_initialized = False
     
-    async def get_dashboard_inventory_analytics(self, client_id: str) -> Dict[str, Any]:
+    def _ensure_client(self):
+        """Lazy initialization of database client"""
+        if not self._client_initialized:
+            self.admin_client = get_admin_client()
+            self._client_initialized = True
+            if not self.admin_client:
+                raise Exception("No admin database client available")
+        return self.admin_client
+
+    async def get_dashboard_inventory_analytics(self, client_id: str, platform: str = "shopify") -> Dict[str, Any]:
         """Get complete dashboard inventory analytics"""
         try:
-            logger.info(f"📊 Getting dashboard inventory analytics for client {client_id}")
+            # Ensure database client is available
+            self._ensure_client()
             
-            # Get all data sources
-            shopify_data = await self._get_shopify_data(client_id)
-            amazon_data = await self._get_amazon_data(client_id)
+            logger.info(f"Getting dashboard inventory analytics for client {client_id} (platform: {platform})")
             
-            # Calculate dashboard components
+            # Get data sources based on platform selection
+            if platform.lower() == "shopify":
+                shopify_data = await self._get_shopify_data(client_id)
+                amazon_data = {"products": [], "orders": []}  # Empty Amazon data
+            elif platform.lower() == "amazon":
+                amazon_data = await self._get_amazon_data(client_id)
+                shopify_data = {"products": [], "orders": []}  # Empty Shopify data
+            else:
+                # For backward compatibility, get both if platform is invalid
+                shopify_data = await self._get_shopify_data(client_id)
+                amazon_data = await self._get_amazon_data(client_id)
+            
+            # Calculate dashboard components using platform-specific data
             analytics = {
                 "success": True,
                 "timestamp": datetime.now().isoformat(),
                 "client_id": client_id,
-
                 "sales_kpis": await self._get_kpi_charts(client_id, shopify_data, amazon_data),
                 "trend_analysis": await self._get_trend_visualizations(client_id, shopify_data, amazon_data),
                 "alerts_summary": await self._get_alerts_summary(client_id, shopify_data, amazon_data),
                 "data_summary": {
+                    "platform": platform,
                     "total_records": len(shopify_data.get('products', [])) + len(amazon_data.get('products', [])) + len(shopify_data.get('orders', [])) + len(amazon_data.get('orders', [])),
                     "total_skus": len([p for p in shopify_data.get('products', []) if p.get('sku')]) + len([p for p in amazon_data.get('products', []) if p.get('sku')]),
                     "analysis_period": "30_days", 
@@ -66,11 +85,11 @@ class DashboardInventoryAnalyzer:
                 ]
             }
             
-            logger.info(f"✅ Dashboard inventory analytics completed for client {client_id}")
+            logger.info(f"Dashboard inventory analytics completed for client {client_id}")
             return analytics
             
         except Exception as e:
-            logger.error(f"❌ Dashboard inventory analytics failed: {e}")
+            logger.error(f"Dashboard inventory analytics failed: {e}")
             return {
                 "success": False,
                 "timestamp": datetime.now().isoformat(),
@@ -81,146 +100,117 @@ class DashboardInventoryAnalyzer:
     async def _get_shopify_data(self, client_id: str) -> Dict[str, Any]:
         """Get Shopify data from organized tables with optimized queries"""
         try:
+            # Ensure database client is available
+            admin_client = self._ensure_client()
+            
             products_table = f"{client_id.replace('-', '_')}_shopify_products"
             orders_table = f"{client_id.replace('-', '_')}_shopify_orders"
             
             # Get only necessary product fields for performance
             try:
-                products_response = self.admin_client.table(products_table).select(
+                products_response = admin_client.table(products_table).select(
                     "sku,title,variant_title,inventory_quantity,price,option1,option2,variant_id"
                 ).execute()
                 products = products_response.data if products_response.data else []
-                logger.info(f"📦 Found {len(products)} Shopify product variants")
+                logger.info(f"Found {len(products)} Shopify product variants")
             except Exception as e:
-                logger.info(f"ℹ️ Shopify products table not found or empty: {e}")
+                logger.info(f"Shopify products table not found or empty: {e}")
                 products = []
             
             # Get only necessary order fields for performance
             try:
-                orders_response = self.admin_client.table(orders_table).select(
+                orders_response = admin_client.table(orders_table).select(
                     "order_id,total_price,created_at,line_items_count,financial_status,fulfillment_status,order_number"
                 ).execute()
                 orders = orders_response.data if orders_response.data else []
-                logger.info(f"📦 Found {len(orders)} Shopify orders")
+                logger.info(f"Found {len(orders)} Shopify orders")
             except Exception as e:
-                logger.info(f"ℹ️ Shopify orders table not found or empty: {e}")
+                logger.info(f"Shopify orders table not found or empty: {e}")
                 orders = []
             
             return {"products": products, "orders": orders}
             
         except Exception as e:
-            logger.warning(f"⚠️ Could not get Shopify data: {e}")
+            logger.warning(f"Could not get Shopify data: {e}")
             return {"products": [], "orders": []}
     
     async def _get_amazon_data(self, client_id: str) -> Dict[str, Any]:
         """Get Amazon data from organized tables with optimized queries"""
         try:
+            # Ensure database client is available
+            admin_client = self._ensure_client()
+            
             orders_table = f"{client_id.replace('-', '_')}_amazon_orders"
             products_table = f"{client_id.replace('-', '_')}_amazon_products"
             
             # Get only necessary Amazon order fields for performance
             try:
-                orders_response = self.admin_client.table(orders_table).select(
+                orders_response = admin_client.table(orders_table).select(
                     "order_id,total_price,created_at,number_of_items_shipped,order_status,order_number"
                 ).execute()
                 orders = orders_response.data if orders_response.data else []
-                logger.info(f"📦 Found {len(orders)} Amazon orders")
+                logger.info(f"Found {len(orders)} Amazon orders")
             except Exception as e:
-                logger.info(f"ℹ️ Amazon orders table not found or empty: {e}")
+                logger.info(f"Amazon orders table not found or empty: {e}")
                 orders = []
             
             # Get only necessary Amazon product fields for performance
             try:
-                products_response = self.admin_client.table(products_table).select(
+                products_response = admin_client.table(products_table).select(
                     "sku,asin,title,quantity,price,brand,status"
                 ).execute()
                 products = products_response.data if products_response.data else []
-                logger.info(f"📦 Found {len(products)} Amazon products")
+                logger.info(f"Found {len(products)} Amazon products")
             except Exception as e:
-                logger.info(f"ℹ️ Amazon products table not found or empty: {e}")
+                logger.info(f"Amazon products table not found or empty: {e}")
                 products = []
             
             return {"orders": orders, "products": products}
             
         except Exception as e:
-            logger.warning(f"⚠️ Could not get Amazon data: {e}")
+            logger.warning(f"Could not get Amazon data: {e}")
             return {"orders": [], "products": []}
     
-    async def _get_sku_list(self, client_id: str, shopify_data: Dict, amazon_data: Dict, page: int = 1, page_size: int = 50, use_cache: bool = True) -> Dict[str, Any]:
+    async def get_sku_list(self, client_id: str, page: int = 1, page_size: int = 50, use_cache: bool = True, platform: str = "shopify") -> Dict[str, Any]:
         """Get optimized SKU list with fast calculations and caching support"""
         try:
             # Import cache manager
             from sku_cache_manager import get_sku_cache_manager
             cache_manager = get_sku_cache_manager(self.admin_client)
             
+            # Create a unique cache key that includes platform
+            cache_key = f"{client_id}_{platform}"
+            
             # Try to get from cache first if enabled
             if use_cache:
-                cached_result = await cache_manager.get_cached_skus(client_id, page, page_size)
+                cached_result = await cache_manager.get_cached_skus(cache_key, page, page_size)
                 if cached_result.get("success"):
                     return cached_result
                     
-            logger.info(f"🔄 Generating fresh SKU list for client {client_id}")
+            logger.info(f"Generating fresh SKU list for client {client_id} (platform: {platform})")
+            
+            # Get data based on platform
+            if platform.lower() == "shopify":
+                shopify_data = await self._get_shopify_data(client_id)
+                amazon_data = {"products": [], "orders": []}
+            elif platform.lower() == "amazon":
+                amazon_data = await self._get_amazon_data(client_id)
+                shopify_data = {"products": [], "orders": []}
+            else:
+                shopify_data = await self._get_shopify_data(client_id)
+                amazon_data = await self._get_amazon_data(client_id)
             
             sku_list = []
             
-            # Process Shopify products (simplified for speed)
-            shopify_products = shopify_data.get('products', [])
-            
-            for product in shopify_products:
-                sku = product.get('sku')
-                if not sku:
-                    continue
-                
-                on_hand = product.get('inventory_quantity', 0) or 0
-                incoming = 0  # TODO: Implement purchase order tracking
-                outgoing = self._calculate_outgoing_for_sku(sku, shopify_data.get('orders', []))
-                current_availability = max(0, on_hand + incoming - outgoing)
-                unit_price = product.get('price', 0) or 0
-                
-                sku_list.append({
-                    "platform": "shopify",
-                    "item_name": product.get('title', 'Unknown Product'),
-                    "sku_code": sku,
-                    "variant_title": product.get('variant_title', ''),
-                    "on_hand_inventory": on_hand,
-                    "incoming_inventory": incoming,
-                    "outgoing_inventory": outgoing,
-                    "current_availability": current_availability,
-                    "unit_price": unit_price,
-                    "total_value": current_availability * unit_price,
-                    "option1": product.get('option1'),
-                    "option2": product.get('option2')
-                })
-            
-            # Process Amazon products (simplified for speed)
-            amazon_products = amazon_data.get('products', [])
-            
-            for product in amazon_products:
-                sku = product.get('sku')
-                asin = product.get('asin')
-                
-                if not sku and not asin:
-                    continue
-                
-                on_hand = product.get('quantity', 0) or 0
-                incoming = 0  # TODO: Implement purchase order tracking  
-                outgoing = self._calculate_outgoing_for_asin(asin or sku, amazon_data.get('orders', []))
-                current_availability = max(0, on_hand + incoming - outgoing)
-                unit_price = product.get('price', 0) or 0
-                
-                sku_list.append({
-                    "platform": "amazon",
-                    "item_name": product.get('title', 'Unknown Product'),
-                    "sku_code": sku or asin,
-                    "asin": asin,
-                    "on_hand_inventory": on_hand,
-                    "incoming_inventory": incoming,
-                    "outgoing_inventory": outgoing,
-                    "current_availability": current_availability,
-                    "unit_price": unit_price,
-                    "total_value": current_availability * unit_price,
-                    "brand": product.get('brand')
-                })
+            # Process products based on platform selection
+            if platform.lower() == "shopify":
+                self._process_shopify_products(shopify_data, sku_list)
+            elif platform.lower() == "amazon":
+                self._process_amazon_products(amazon_data, sku_list)
+            else:
+                # Process both platforms
+                self._process_shopify_products(shopify_data, sku_list)
+                self._process_amazon_products(amazon_data, sku_list)
             
             # If no products found but we have orders, try to extract products from orders
             if len(sku_list) == 0:
@@ -230,11 +220,11 @@ class DashboardInventoryAnalyzer:
             # Sort by current availability (lowest first for attention)
             sku_list.sort(key=lambda x: x['current_availability'])
             
-            logger.info(f"📦 Generated SKU list with {len(sku_list)} items in fast mode")
+            logger.info(f"Generated SKU list with {len(sku_list)} items")
             
             # Cache the full result for future requests
             if use_cache and sku_list:
-                await cache_manager.cache_skus(client_id, sku_list)
+                await cache_manager.cache_skus(cache_key, sku_list)
             
             # Apply pagination to the fresh data
             total_count = len(sku_list)
@@ -259,7 +249,7 @@ class DashboardInventoryAnalyzer:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error generating SKU list: {e}")
+            logger.error(f"Error generating SKU list: {e}")
             return {
                 "success": False,
                 "error": str(e),
@@ -273,6 +263,67 @@ class DashboardInventoryAnalyzer:
                     "has_previous": False
                 }
             }
+
+    def _process_shopify_products(self, shopify_data: Dict, sku_list: List[Dict]):
+        """Process Shopify products and add to SKU list"""
+        shopify_products = shopify_data.get('products', [])
+        
+        for product in shopify_products:
+            sku = product.get('sku')
+            if not sku:
+                continue
+            
+            on_hand = product.get('inventory_quantity', 0) or 0
+            incoming = 0  # TODO: Implement purchase order tracking
+            outgoing = self._calculate_outgoing_for_sku(sku, shopify_data.get('orders', []))
+            current_availability = max(0, on_hand + incoming - outgoing)
+            unit_price = product.get('price', 0) or 0
+            
+            sku_list.append({
+                "platform": "shopify",
+                "item_name": product.get('title', 'Unknown Product'),
+                "sku_code": sku,
+                "variant_title": product.get('variant_title', ''),
+                "on_hand_inventory": on_hand,
+                "incoming_inventory": incoming,
+                "outgoing_inventory": outgoing,
+                "current_availability": current_availability,
+                "unit_price": unit_price,
+                "total_value": current_availability * unit_price,
+                "option1": product.get('option1'),
+                "option2": product.get('option2')
+            })
+
+    def _process_amazon_products(self, amazon_data: Dict, sku_list: List[Dict]):
+        """Process Amazon products and add to SKU list"""
+        amazon_products = amazon_data.get('products', [])
+        
+        for product in amazon_products:
+            sku = product.get('sku')
+            asin = product.get('asin')
+            
+            if not sku and not asin:
+                continue
+            
+            on_hand = product.get('quantity', 0) or 0
+            incoming = 0  # TODO: Implement purchase order tracking  
+            outgoing = self._calculate_outgoing_for_asin(asin or sku, amazon_data.get('orders', []))
+            current_availability = max(0, on_hand + incoming - outgoing)
+            unit_price = product.get('price', 0) or 0
+            
+            sku_list.append({
+                "platform": "amazon",
+                "item_name": product.get('title', 'Unknown Product'),
+                "sku_code": sku or asin,
+                "asin": asin,
+                "on_hand_inventory": on_hand,
+                "incoming_inventory": incoming,
+                "outgoing_inventory": outgoing,
+                "current_availability": current_availability,
+                "unit_price": unit_price,
+                "total_value": current_availability * unit_price,
+                "brand": product.get('brand')
+            })
     
     def _calculate_outgoing_for_sku(self, sku: str, orders: List[Dict]) -> int:
         """Calculate outgoing inventory for a specific SKU from unfulfilled orders"""
@@ -423,7 +474,6 @@ class DashboardInventoryAnalyzer:
             return "HIGH"
         else:
             return "PREMIUM"
-    
     async def _get_kpi_charts(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> Dict[str, Any]:
         """Get optimized KPI charts data with corrected calculations"""
         try:
@@ -436,17 +486,18 @@ class DashboardInventoryAnalyzer:
             thirty_days_ago = now - timedelta(days=30)
             ninety_days_ago = now - timedelta(days=90)
             
-            logger.info(f"🔍 Calculating KPIs for {len(shopify_orders)} Shopify orders, {len(amazon_orders)} Amazon orders")
+            logger.info(f"Calculating KPIs for {len(shopify_orders)} Shopify orders, {len(amazon_orders)} Amazon orders")
             
             # Calculate sales for each period with proper date filtering
-            sales_7_days = self._calculate_sales_for_period(shopify_orders + amazon_orders, seven_days_ago, now)
-            sales_30_days = self._calculate_sales_for_period(shopify_orders + amazon_orders, thirty_days_ago, now)
-            sales_90_days = self._calculate_sales_for_period(shopify_orders + amazon_orders, ninety_days_ago, now)
+            all_orders = shopify_orders + amazon_orders
+            sales_7_days = self._calculate_sales_for_period(all_orders, seven_days_ago, now)
+            sales_30_days = self._calculate_sales_for_period(all_orders, thirty_days_ago, now)
+            sales_90_days = self._calculate_sales_for_period(all_orders, ninety_days_ago, now)
             
-            logger.info(f"📊 Sales calculated - 7d: {sales_7_days}, 30d: {sales_30_days}, 90d: {sales_90_days}")
+            logger.info(f"Sales calculated - 7d: {sales_7_days}, 30d: {sales_30_days}, 90d: {sales_90_days}")
             
             # Fast inventory calculation
-            total_inventory = self._fast_calculate_inventory(shopify_data, amazon_data)
+            total_inventory = self._calculate_total_inventory(shopify_data, amazon_data)
             avg_daily_sales = sales_30_days['units'] / 30 if sales_30_days['units'] > 0 else 0
             
             # Simple metrics
@@ -476,7 +527,7 @@ class DashboardInventoryAnalyzer:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error calculating KPI charts: {e}")
+            logger.error(f"Error calculating KPI charts: {e}")
             return {"error": str(e)}
     
     def _calculate_sales_for_period(self, orders: List[Dict], start_date: datetime, end_date: datetime) -> Dict[str, float]:
@@ -485,7 +536,7 @@ class DashboardInventoryAnalyzer:
         units = 0
         order_count = 0
         
-        logger.debug(f"🔍 Calculating sales from {start_date} to {end_date} for {len(orders)} orders")
+        logger.debug(f"Calculating sales from {start_date} to {end_date} for {len(orders)} orders")
         
         for order in orders:
             try:
@@ -525,37 +576,14 @@ class DashboardInventoryAnalyzer:
                             units += 1
                         
                         order_count += 1
-                        logger.debug(f"📦 Order {order.get('order_id')} - Revenue: ${order_revenue}, Date: {order_date}")
+                        logger.debug(f"Order {order.get('order_id')} - Revenue: ${order_revenue}, Date: {order_date}")
                         
             except Exception as e:
-                logger.debug(f"⚠️ Error processing order: {e}")
+                logger.debug(f"Error processing order: {e}")
                 continue
         
-        logger.info(f"📊 Period totals - Orders: {order_count}, Revenue: ${revenue:.2f}, Units: {units}")
+        logger.info(f"Period totals - Orders: {order_count}, Revenue: ${revenue:.2f}, Units: {units}")
         return {"revenue": revenue, "units": units, "orders": order_count}
-    
-    def _calculate_sales_in_period(self, orders: List[Dict], start_date: datetime, end_date: datetime) -> Dict[str, float]:
-        """Calculate sales metrics for a specific time period (legacy method)"""
-        return self._calculate_sales_for_period(orders, start_date, end_date)
-    
-    def _fast_calculate_sales(self, orders: List[Dict], since_date: datetime) -> Dict[str, float]:
-        """Fast sales calculation for KPIs - now uses the improved date handling"""
-        now = datetime.now()
-        return self._calculate_sales_for_period(orders, since_date, now)
-    
-    def _fast_calculate_inventory(self, shopify_data: Dict, amazon_data: Dict) -> int:
-        """Fast inventory calculation"""
-        total = 0
-        
-        # Shopify inventory
-        for product in shopify_data.get('products', []):
-            total += product.get('inventory_quantity', 0) or 0
-        
-        # Amazon inventory
-        for product in amazon_data.get('products', []):
-            total += product.get('quantity', 0) or 0
-        
-        return total
     
     def _calculate_total_inventory(self, shopify_data: Dict, amazon_data: Dict) -> int:
         """Calculate total inventory units"""
@@ -578,7 +606,7 @@ class DashboardInventoryAnalyzer:
             amazon_orders = amazon_data.get('orders', [])
             all_orders = shopify_orders + amazon_orders
             
-            logger.info(f"📈 Generating trends for {len(all_orders)} total orders")
+            logger.info(f"Generating trends for {len(all_orders)} total orders")
             
             # Calculate weekly data for last 12 weeks
             now = datetime.now()
@@ -620,10 +648,10 @@ class DashboardInventoryAnalyzer:
                 revenue_change = units_change = 0
             
             # Calculate inventory levels with estimated historical changes
-            current_inventory = self._fast_calculate_inventory(shopify_data, amazon_data)
+            current_inventory = self._calculate_total_inventory(shopify_data, amazon_data)
             inventory_levels_chart = self._estimate_historical_inventory_levels(weekly_data, current_inventory, all_orders)
             
-            logger.info(f"📊 Trends calculated - {len(weekly_data)} weeks, current avg revenue: ${current_avg_revenue:.2f}")
+            logger.info(f"Trends calculated - {len(weekly_data)} weeks, current avg revenue: ${current_avg_revenue:.2f}")
             
             return {
                 "weekly_data_12_weeks": weekly_data,
@@ -643,7 +671,7 @@ class DashboardInventoryAnalyzer:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error generating trend visualizations: {e}")
+            logger.error(f"Error generating trend visualizations: {e}")
             return {"error": str(e)}
     
     def _estimate_historical_inventory_levels(self, weekly_data: List[Dict], current_inventory: int, all_orders: List[Dict]) -> List[Dict]:
@@ -669,28 +697,10 @@ class DashboardInventoryAnalyzer:
         
         return inventory_chart
     
-    def _estimate_inventory_level_for_date(self, date: datetime, shopify_data: Dict, amazon_data: Dict) -> int:
-        """Estimate inventory level for a specific date (simplified)"""
-        # This is a simplified estimation - in reality you'd need historical inventory data
-        # For now, we'll use current inventory as baseline
-        current_inventory = self._calculate_total_inventory(shopify_data, amazon_data)
-        
-        # Estimate based on sales since that date
-        now = datetime.now()
-        if date >= now:
-            return current_inventory
-        
-        # Rough estimation: current inventory + estimated sales since that date
-        days_since = (now - date).days
-        avg_daily_consumption = 5  # Simplified average
-        estimated_inventory = current_inventory + (days_since * avg_daily_consumption)
-        
-        return max(0, estimated_inventory)
-    
     async def _get_alerts_summary(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> Dict[str, Any]:
         """Get comprehensive alerts summary with proper calculations"""
         try:
-            logger.info(f"🚨 Generating alerts for client {client_id}")
+            logger.info(f"Generating alerts for client {client_id}")
             
             # Initialize counters
             low_stock_count = 0
@@ -807,7 +817,7 @@ class DashboardInventoryAnalyzer:
             
             total_alerts = low_stock_count + overstock_count + sales_spike_count + sales_slowdown_count
             
-            logger.info(f"🚨 Alerts calculated - Low stock: {low_stock_count}, Overstock: {overstock_count}, Spikes: {sales_spike_count}, Slowdowns: {sales_slowdown_count}")
+            logger.info(f"Alerts calculated - Low stock: {low_stock_count}, Overstock: {overstock_count}, Spikes: {sales_spike_count}, Slowdowns: {sales_slowdown_count}")
             
             return {
                 "summary_counts": {
@@ -831,8 +841,9 @@ class DashboardInventoryAnalyzer:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error generating alerts summary: {e}")
+            logger.error(f"Error generating alerts summary: {e}")
             return {"error": str(e)}
+
 
 # Global instance
 dashboard_inventory_analyzer = DashboardInventoryAnalyzer()

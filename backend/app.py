@@ -2514,7 +2514,8 @@ async def get_paginated_sku_inventory(
     page: int = 1,
     page_size: int = 50,
     use_cache: bool = True,
-    force_refresh: bool = False
+    force_refresh: bool = False,
+    platform: str = "shopify"
 ):
     """Get paginated SKU inventory with caching support to prevent timeouts"""
     try:
@@ -2522,7 +2523,7 @@ async def get_paginated_sku_inventory(
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        logger.info(f"📦 Paginated SKU inventory request for client {client_id} (page={page}, size={page_size})")
+        logger.info(f"📦 Paginated SKU inventory request for client {client_id} (page={page}, size={page_size}, platform={platform})")
         
         # Validate pagination parameters
         if page < 1:
@@ -2538,9 +2539,17 @@ async def get_paginated_sku_inventory(
         if not db_client:
             raise HTTPException(status_code=503, detail="Database not configured")
         
-        # Get data efficiently
-        shopify_data = await dashboard_inventory_analyzer._get_shopify_data(client_id)
-        amazon_data = await dashboard_inventory_analyzer._get_amazon_data(client_id)
+        # Get data efficiently based on platform
+        if platform.lower() == "shopify":
+            shopify_data = await dashboard_inventory_analyzer._get_shopify_data(client_id)
+            amazon_data = {"products": [], "orders": []}
+        elif platform.lower() == "amazon":
+            amazon_data = await dashboard_inventory_analyzer._get_amazon_data(client_id)
+            shopify_data = {"products": [], "orders": []}
+        else:
+            # For backward compatibility, get both if platform is invalid
+            shopify_data = await dashboard_inventory_analyzer._get_shopify_data(client_id)
+            amazon_data = await dashboard_inventory_analyzer._get_amazon_data(client_id)
         
         # Check if we have any organized data, if not, try legacy approach
         total_organized_records = len(shopify_data.get('products', [])) + len(amazon_data.get('products', []))
@@ -2618,8 +2627,8 @@ async def get_paginated_sku_inventory(
             await cache_manager.invalidate_cache(client_id)
         
         # Get paginated SKU data using organized approach
-        sku_result = await dashboard_inventory_analyzer._get_sku_list(
-            client_id, shopify_data, amazon_data, page, page_size, use_cache
+        sku_result = await dashboard_inventory_analyzer.get_sku_list(
+            client_id, page, page_size, use_cache, platform
         )
         
         if not sku_result.get("success"):
@@ -2712,11 +2721,9 @@ async def get_sku_summary_stats(token: str = Depends(security)):
         else:
             # Fallback: calculate from fresh data
             from dashboard_inventory_analyzer import dashboard_inventory_analyzer
-            shopify_data = await dashboard_inventory_analyzer._get_shopify_data(client_id)
-            amazon_data = await dashboard_inventory_analyzer._get_amazon_data(client_id)
             
-            sku_result = await dashboard_inventory_analyzer._get_sku_list(
-                client_id, shopify_data, amazon_data, 1, 10000, False  # Get all data without cache
+            sku_result = await dashboard_inventory_analyzer.get_sku_list(
+                client_id, 1, 10000, False  # Get all data without cache
             )
             
             if sku_result.get("success"):
@@ -2753,7 +2760,8 @@ async def get_sku_summary_stats(token: str = Depends(security)):
 async def get_inventory_analytics(
     token: str = Depends(security),
     fast_mode: bool = True,
-    force_refresh: bool = False
+    force_refresh: bool = False,
+    platform: str = "shopify"
 ):
     """Get comprehensive inventory analytics using organized tables with fallback to legacy data"""
     try:
@@ -2761,7 +2769,7 @@ async def get_inventory_analytics(
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        logger.info(f"📦 Enhanced inventory analytics request for client {client_id} (fast_mode={fast_mode}, force_refresh={force_refresh})")
+        logger.info(f"📦 Enhanced inventory analytics request for client {client_id} (fast_mode={fast_mode}, force_refresh={force_refresh}, platform={platform})")
         
         # Try organized approach first
         try:
@@ -2798,7 +2806,7 @@ async def get_inventory_analytics(
                 # Use dashboard-focused inventory analyzer
                 from dashboard_inventory_analyzer import dashboard_inventory_analyzer
                 
-                analytics = await dashboard_inventory_analyzer.get_dashboard_inventory_analytics(client_id)
+                analytics = await dashboard_inventory_analyzer.get_dashboard_inventory_analytics(client_id, platform)
                 
                 if analytics.get('success'):
                     logger.info(f"✅ Dashboard inventory analytics completed for client {client_id}")

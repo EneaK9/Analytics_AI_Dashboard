@@ -10,11 +10,13 @@ import useInventoryData from "../../hooks/useInventoryData";
 interface InventorySKUListProps {
 	clientData?: any[];
 	refreshInterval?: number;
+	platform?: "shopify" | "amazon";
 }
 
 export default function InventorySKUList({
 	clientData,
 	refreshInterval = 300000,
+	platform = "shopify"
 }: InventorySKUListProps) {
 	// Use the comprehensive inventory hook - single API call, optimized
 	const {
@@ -25,11 +27,11 @@ export default function InventorySKUList({
 		pagination,
 		cached,
 		lastUpdated,
-		refresh,
-		loadPage
+		refresh
 	} = useInventoryData({
 		refreshInterval,
-		fastMode: true
+		fastMode: true,
+		platform
 	});
 
 	// Refresh handler for manual refresh
@@ -208,49 +210,17 @@ export default function InventorySKUList({
 			{/* SKU Data Table */}
 			<DataTable
 				title="SKU Inventory List"
-				subtitle={`Comprehensive inventory management with real-time availability tracking • ${skuData.length} of ${pagination?.total_count || 0} total SKUs`}
+				subtitle={`Comprehensive inventory management with real-time availability tracking • ${skuData.length} SKUs`}
 				data={skuData}
 				columns={columns}
 				loading={loading}
 				search={true}
 				export={true}
-				pagination={false} // Disable client-side pagination since we handle server-side
+				pagination={true}
 				pageSize={20}
 				emptyMessage="No inventory data available. Please upload CSV data or check data connections."
 				className="bg-white shadow-sm"
 			/>
-			
-			{/* Server-side Pagination Controls */}
-			{pagination && pagination.total_pages > 1 && (
-				<Card className="mt-4">
-					<CardContent className="p-4">
-						<div className="flex items-center justify-between">
-							<div className="text-sm text-gray-600">
-								Showing {((pagination.current_page - 1) * pagination.page_size) + 1} to {Math.min(pagination.current_page * pagination.page_size, pagination.total_count)} of {pagination.total_count} SKUs
-							</div>
-							<div className="flex items-center gap-2">
-								<button
-									onClick={() => loadPage(pagination.current_page - 1)}
-									disabled={!pagination.has_previous || loading}
-									className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-								>
-									Previous
-								</button>
-								<span className="px-3 py-1 text-sm">
-									Page {pagination.current_page} of {pagination.total_pages}
-								</span>
-								<button
-									onClick={() => loadPage(pagination.current_page + 1)}
-									disabled={!pagination.has_next || loading}
-									className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-								>
-									Next
-								</button>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-			)}
 		</div>
 	);
 }

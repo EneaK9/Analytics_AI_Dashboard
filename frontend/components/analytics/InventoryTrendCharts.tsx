@@ -10,6 +10,7 @@ import useInventoryData from "../../hooks/useInventoryData";
 interface InventoryTrendChartsProps {
 	clientData?: any[];
 	refreshInterval?: number;
+	platform?: "shopify" | "amazon";
 }
 
 type DateRange = "7" | "30" | "90";
@@ -17,6 +18,7 @@ type DateRange = "7" | "30" | "90";
 export default function InventoryTrendCharts({
 	clientData,
 	refreshInterval = 300000,
+	platform = "shopify",
 }: InventoryTrendChartsProps) {
 	const [selectedRange, setSelectedRange] = useState<DateRange>("30");
 	
@@ -29,7 +31,8 @@ export default function InventoryTrendCharts({
 		refresh
 	} = useInventoryData({
 		refreshInterval,
-		fastMode: true
+		fastMode: true,
+		platform: platform
 	});
 
 	// Process inventory levels from API trend data

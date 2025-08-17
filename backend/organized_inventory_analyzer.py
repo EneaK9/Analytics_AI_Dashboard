@@ -16,13 +16,24 @@ class OrganizedInventoryAnalyzer:
     """Analyzer that works with organized client tables for inventory analytics"""
     
     def __init__(self):
-        self.admin_client = get_admin_client()
-        if not self.admin_client:
-            raise Exception("❌ No admin database client available")
+        self.admin_client = None
+        self._client_initialized = False
     
+    def _ensure_client(self):
+        """Lazy initialization of database client"""
+        if not self._client_initialized:
+            self.admin_client = get_admin_client()
+            self._client_initialized = True
+            if not self.admin_client:
+                raise Exception("❌ No admin database client available")
+        return self.admin_client
+
     async def analyze_client_inventory(self, client_id: str) -> Dict[str, Any]:
         """Main analysis function for organized client tables"""
         try:
+            # Ensure database client is available
+            self._ensure_client()
+            
             logger.info(f"🔍 Starting organized inventory analysis for client {client_id}")
             
             # Get data from organized tables
@@ -69,14 +80,14 @@ class OrganizedInventoryAnalyzer:
             
             # Get all Shopify products/variants
             try:
-                products_response = self.admin_client.table(products_table).select("*").execute()
+                products_response = self._ensure_client().table(products_table).select("*").execute()
                 products = products_response.data if products_response.data else []
             except Exception:
                 products = []
             
             # Get all Shopify orders
             try:
-                orders_response = self.admin_client.table(orders_table).select("*").execute()
+                orders_response = self._ensure_client().table(orders_table).select("*").execute()
                 orders = orders_response.data if orders_response.data else []
             except Exception:
                 orders = []
@@ -97,14 +108,14 @@ class OrganizedInventoryAnalyzer:
             
             # Get Amazon orders
             try:
-                orders_response = self.admin_client.table(orders_table).select("*").execute()
+                orders_response = self._ensure_client().table(orders_table).select("*").execute()
                 orders = orders_response.data if orders_response.data else []
             except Exception:
                 orders = []
             
             # Get Amazon products
             try:
-                products_response = self.admin_client.table(products_table).select("*").execute()
+                products_response = self._ensure_client().table(products_table).select("*").execute()
                 products = products_response.data if products_response.data else []
             except Exception:
                 products = []
