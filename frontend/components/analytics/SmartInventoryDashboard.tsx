@@ -5,10 +5,10 @@
 
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { TrendingUp, TrendingDown, Package, AlertTriangle, DollarSign, BarChart3 } from "lucide-react";
+import { TrendingUp, TrendingDown, Package, AlertTriangle, DollarSign, BarChart3, ShoppingCart, Package2 } from "lucide-react";
 import useInventoryData from "../../hooks/useInventoryData";
 import InventorySKUList from "./InventorySKUList";
 import { formatCurrency } from "../../lib/utils";
@@ -22,6 +22,10 @@ export default function SmartInventoryDashboard({
   clientData,
   refreshInterval = 300000, // 5 minutes
 }: SmartInventoryDashboardProps) {
+  
+  // Platform state management
+  const [selectedPlatform, setSelectedPlatform] = useState<"shopify" | "amazon">("shopify");
+  
   // Single API call for ALL inventory data - no more multiple requests!
   const {
     loading,
@@ -37,6 +41,7 @@ export default function SmartInventoryDashboard({
   } = useInventoryData({
     refreshInterval,
     fastMode: true,
+    platform: selectedPlatform,
   });
 
   if (loading) {
@@ -77,7 +82,7 @@ export default function SmartInventoryDashboard({
 
   return (
     <div className="space-y-6">
-      {/* Header with refresh info */}
+      {/* Header with platform toggle and refresh info */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold">Inventory Analytics</h2>
@@ -88,14 +93,52 @@ export default function SmartInventoryDashboard({
                 Cached
               </Badge>
             )}
+            <Badge variant="secondary" className="ml-2">
+              {selectedPlatform === "shopify" ? "Shopify" : "Amazon"} Data
+            </Badge>
           </p>
         </div>
-        <button
-          onClick={() => refresh(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Refresh Data
-        </button>
+        
+        <div className="flex items-center space-x-4">
+          {/* Platform Toggle */}
+          <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
+                      <button
+            onClick={() => {
+              setSelectedPlatform("shopify");
+              refresh(true); // Force refresh when platform changes
+            }}
+            className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              selectedPlatform === "shopify"
+                ? "bg-white text-green-700 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            <ShoppingCart className="h-4 w-4" />
+            <span>Shopify</span>
+          </button>
+          <button
+            onClick={() => {
+              setSelectedPlatform("amazon");
+              refresh(true); // Force refresh when platform changes
+            }}
+            className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              selectedPlatform === "amazon"
+                ? "bg-white text-orange-700 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            <Package2 className="h-4 w-4" />
+            <span>Amazon</span>
+          </button>
+          </div>
+          
+          <button
+            onClick={() => refresh(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Refresh Data
+          </button>
+        </div>
       </div>
 
       {/* KPI Summary Cards - All from one API call */}

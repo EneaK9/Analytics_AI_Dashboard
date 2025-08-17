@@ -5,7 +5,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../lib/axios';
-import requestManager from '../lib/requestManager';
 import { 
   InventoryAnalyticsResponse, 
   SKUData, 
@@ -19,6 +18,7 @@ interface UseInventoryDataOptions {
   refreshInterval?: number; // Auto-refresh interval in ms (0 to disable)
   fastMode?: boolean;       // Use fast mode for analytics
   pageSize?: number;        // Page size for SKU data (always paginated)
+  platform?: string;       // Platform selection: "shopify" or "amazon"
 }
 
 interface InventoryDataState {
@@ -58,7 +58,8 @@ export const useInventoryData = (options: UseInventoryDataOptions = {}): Invento
   const {
     refreshInterval = 0,
     fastMode = true,
-    pageSize = 50
+    pageSize = 50,
+    platform = "shopify"
   } = options;
 
   // State management
@@ -77,6 +78,7 @@ export const useInventoryData = (options: UseInventoryDataOptions = {}): Invento
 
   // Refs for cleanup and request management
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const isRequestInProgressRef = useRef<boolean>(false);
 
   /**
@@ -97,46 +99,34 @@ export const useInventoryData = (options: UseInventoryDataOptions = {}): Invento
       setLoading(true);
       setError(null);
 
-      // Request manager handles deduplication and cancellation
+      // Only abort if there's a genuine conflict (forced refresh)
+      if (forceRefresh && abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
 
-      console.log('🔍 Fetching comprehensive inventory data...');
+      console.log('🔍 Fetching comprehensive inventory data...', { platform, page, forceRefresh });
 
-      // Use request manager for deduplication and caching
+      // Always use paginated SKU endpoint + analytics endpoint
       const [skuResponse, analyticsResponse] = await Promise.all([
-        requestManager.executeRequest(
-          `sku-inventory-${page}-${pageSize}`,
-          async (signal: AbortSignal) => {
-            return await api.get('/dashboard/sku-inventory', {
-              params: {
-                page,
-                page_size: pageSize,
-                use_cache: !forceRefresh,
-                force_refresh: forceRefresh,
-              },
-              signal,
-            });
+        api.get('/dashboard/sku-inventory', {
+          params: {
+            page,
+            page_size: pageSize,
+            use_cache: !forceRefresh,
+            force_refresh: forceRefresh,
+            platform: platform,
           },
-          {
-            cacheTTL: 30000, // 30 seconds
-            forceRefresh,
-          }
-        ),
-        requestManager.executeRequest(
-          `inventory-analytics-${fastMode}`,
-          async (signal: AbortSignal) => {
-            return await api.get('/dashboard/inventory-analytics', {
-              params: {
-                fast_mode: fastMode,
-                force_refresh: forceRefresh,
-              },
-              signal,
-            });
+          signal: abortControllerRef.current.signal,
+        }),
+        api.get('/dashboard/inventory-analytics', {
+          params: {
+            fast_mode: fastMode,
+            force_refresh: forceRefresh,
+            platform: platform,
           },
-          {
-            cacheTTL: 60000, // 1 minute
-            forceRefresh,
-          }
-        )
+          signal: abortControllerRef.current.signal,
+        })
       ]);
 
       // Process SKU data
@@ -183,7 +173,7 @@ export const useInventoryData = (options: UseInventoryDataOptions = {}): Invento
       isRequestInProgressRef.current = false;
       setLoading(false);
     }
-  }, [pageSize, fastMode]);
+  }, [pageSize, fastMode, platform]);
 
   /**
    * Refresh data with optional force refresh
@@ -206,9 +196,7 @@ export const useInventoryData = (options: UseInventoryDataOptions = {}): Invento
    */
   const clearCache = useCallback(async (): Promise<void> => {
     try {
-      // Clear both API cache and request manager cache
       await api.delete('/dashboard/sku-cache');
-      requestManager.clearCache();
       await refresh(true);
     } catch (err: any) {
       // Handle request cancellation silently
@@ -218,16 +206,15 @@ export const useInventoryData = (options: UseInventoryDataOptions = {}): Invento
       }
       
       console.error('❌ Failed to clear cache:', err);
-      // Still refresh even if cache clear fails - clear local cache at least
-      requestManager.clearCache();
+      // Still refresh even if cache clear fails
       await refresh(true);
     }
   }, [refresh]);
 
-  // Initial data load - run when fetchInventoryData changes
+  // Initial data load and platform change handling
   useEffect(() => {
     fetchInventoryData(1, false);
-  }, [fetchInventoryData]);
+  }, [fetchInventoryData, platform]); // Include platform to trigger reload on platform change
 
   // Auto-refresh setup
   useEffect(() => {
@@ -255,8 +242,15 @@ export const useInventoryData = (options: UseInventoryDataOptions = {}): Invento
       // Reset request progress flag
       isRequestInProgressRef.current = false;
       
-      // Cancel all requests handled by request manager
-      requestManager.cancelAllRequests();
+      // Abort any ongoing requests
+      if (abortControllerRef.current) {
+        try {
+          abortControllerRef.current.abort();
+        } catch (error) {
+          // Ignore cleanup errors
+          console.log('Cleanup: Request already aborted or completed');
+        }
+      }
     };
   }, []);
 
