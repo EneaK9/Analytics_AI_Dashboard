@@ -1,4 +1,3 @@
-
 import * as React from "react";
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
@@ -14,7 +13,6 @@ import Copyright from "../internals/components/Copyright";
 import StatCard, { StatCardProps } from "./StatCard";
 import { DateRange } from "./CustomDatePicker";
 import api from "../../../lib/axios";
-
 
 // Import various chart components
 import * as Charts from "../../charts";
@@ -300,9 +298,11 @@ export function OriginalMainGrid({
 	const [loading, setLoading] = React.useState(true);
 	const [error, setError] = React.useState<string | null>(null);
 	const [isLoadingDateFilter, setIsLoadingDateFilter] = React.useState(false);
-	
+
 	// Platform state management
-	const [selectedPlatform, setSelectedPlatform] = React.useState<"shopify" | "amazon">("shopify");
+	const [selectedPlatform, setSelectedPlatform] = React.useState<
+		"shopify" | "amazon"
+	>("shopify");
 
 	// Build timeline series from llm_analysis.timeline when present
 	const timelineSeries = React.useMemo(() => {
@@ -467,7 +467,7 @@ export function OriginalMainGrid({
 				console.log(
 					"🗓️ Main dashboard: Date range changed, loading filtered data"
 				);
-				
+
 				// Inline date filtering logic to avoid dependency loop
 				if (!user?.client_id || !dateRange) {
 					return;
@@ -490,24 +490,28 @@ export function OriginalMainGrid({
 						`/dashboard/metrics?start_date=${startDate}&end_date=${endDate}&fast_mode=true`
 					);
 
-                    if (response.data?.llm_analysis) {
-                        console.log("✅ Date-filtered data loaded successfully");
-                        const analysis = response.data.llm_analysis;
+					if (response.data?.llm_analysis) {
+						console.log("✅ Date-filtered data loaded successfully");
+						const analysis = response.data.llm_analysis;
 
-                        // Ensure timeline for multi-day ranges
-                        const startStr = startDate;
-                        const endStr = endDate;
-                        const isMultiDay = Boolean(startStr && endStr && startStr !== endStr);
+						// Ensure timeline for multi-day ranges
+						const startStr = startDate;
+						const endStr = endDate;
+						const isMultiDay = Boolean(
+							startStr && endStr && startStr !== endStr
+						);
 
-                        if (isMultiDay && !Array.isArray((analysis as any).timeline)) {
-                            // Wrap into minimal timeline so TimelineTrendsCard renders
-                            setLlmAnalysis({ timeline: [{ date: endStr as string, llm_analysis: analysis }] });
-                        } else {
-                            setLlmAnalysis(analysis);
-                        }
+						if (isMultiDay && !Array.isArray((analysis as any).timeline)) {
+							// Wrap into minimal timeline so TimelineTrendsCard renders
+							setLlmAnalysis({
+								timeline: [{ date: endStr as string, llm_analysis: analysis }],
+							});
+						} else {
+							setLlmAnalysis(analysis);
+						}
 
-                        setError(null);
-                    }
+						setError(null);
+					}
 				} catch (error) {
 					console.error("❌ Error loading date-filtered data:", error);
 					setError("Failed to load date-filtered data");
@@ -837,23 +841,21 @@ export function OriginalMainGrid({
 
 			{/* Platform Toggle for Inventory Analytics */}
 			{clientData && clientData.length > 0 && (
-				<Box 
-					sx={{ 
-						mb: 3, 
-						display: "flex", 
-						justifyContent: "space-between", 
+				<Box
+					sx={{
+						mb: 3,
+						display: "flex",
+						justifyContent: "space-between",
 						alignItems: "center",
 						flexWrap: "wrap",
-						gap: 2
-					}}
-				>
+						gap: 2,
+					}}>
 					<Typography
 						variant="h5"
 						sx={{
 							fontWeight: 600,
 							fontSize: { xs: "1.25rem", sm: "1.5rem" },
-						}}
-					>
+						}}>
 						Inventory Analytics Dashboard
 					</Typography>
 					<PlatformToggle
@@ -1016,72 +1018,55 @@ export function OriginalMainGrid({
 				</Grid>
 			)}
 
-			{/* KPI Cards - Only render if kpis array exists and has items */}
-			{llmAnalysis?.kpis && llmAnalysis.kpis.length > 0 && (
-				<Grid container spacing={2} sx={{ mb: 3 }}>
-					{llmAnalysis.kpis.map((kpi: any, index: number) => {
-						const trendDisplay = getTrendDisplay(kpi.trend);
-
-						const isHit =
-							highlightQuery &&
-							(kpi.display_name || "").toLowerCase().includes(highlightQuery);
-						return (
-							<Grid key={index} size={{ xs: 12, sm: 6, lg: 3 }}>
-								<StatCard
-									title={kpi.display_name}
-									value={formatKPIValue(kpi.value, kpi.format)}
-									interval={kpi.trend.description}
-									trend={kpi.trend.direction || "neutral"}
-									trendValue={(() => {
-										if (!kpi.trend?.percentage && kpi.trend?.percentage !== 0) {
-											return "0%";
-										}
-										const numPercentage = parseFloat(
-											kpi.trend.percentage.toString()
-										);
-										if (isNaN(numPercentage)) {
-											return "0%";
-										}
-										const sign = numPercentage > 0 ? "+" : "";
-										return `${sign}${numPercentage}%`;
-									})()}
-									data={Array.from(
-										{ length: 30 },
-										() => parseFloat(kpi.value) || 0
-									)}
-									highlight={Boolean(isHit)}
-									highlightText={isHit ? highlightQuery : undefined}
+			{/* PLATFORM-AWARE KPI Cards - Now change with Amazon/Shopify toggle! */}
+			<Grid container spacing={2} sx={{ mb: 3 }}>
+				<Grid size={{ xs: 12 }}>
+					<Card>
+						<CardHeader
+							title={`Key Performance Indicators - ${
+								selectedPlatform === "shopify" ? "Shopify" : "Amazon"
+							}`}
+							subheader="Real-time sales metrics and inventory analytics"
+							action={
+								<PlatformToggle
+									selectedPlatform={selectedPlatform}
+									onPlatformChange={(platform) => {
+										console.log(`🔄 INSTANT Platform switch to: ${platform}`);
+										// INSTANT switch - no loading, no waiting!
+										setSelectedPlatform(platform);
+										// Force refresh client data for the new platform in background
+										setTimeout(() => {
+											setLoading(true);
+											loadClientData();
+										}, 100);
+									}}
 								/>
-							</Grid>
-						);
-					})}
+							}
+						/>
+						<CardContent>
+							<SmartEcommerceMetrics
+								clientData={clientData}
+								platform={selectedPlatform}
+							/>
+						</CardContent>
+					</Card>
 				</Grid>
-			)}
+			</Grid>
 
 			{/* Inventory Management Section - Real-time inventory and sales analytics */}
 			{clientData && clientData.length > 0 && (
 				<>
-					{/* KPI Charts - Key Performance Indicators */}
-					<Grid container spacing={2} sx={{ mb: 3 }}>
-						<Grid size={{ xs: 12 }}>
-							<Card>
-								<CardHeader
-									title="Key Performance Indicators"
-									subheader="Real-time sales metrics and inventory analytics"
-								/>
-								<CardContent>
-									<SmartEcommerceMetrics clientData={clientData} platform={selectedPlatform} />
-								</CardContent>
-							</Card>
-						</Grid>
-					</Grid>
+					{/* KPI section moved to top - no duplicate needed */}
 
 					{/* Alerts Summary */}
 					<Grid container spacing={2} sx={{ mb: 3 }}>
 						<Grid size={{ xs: 12 }}>
 							<Card>
 								<CardContent sx={{ p: 0 }}>
-									<AlertsSummary clientData={clientData} platform={selectedPlatform} />
+									<AlertsSummary
+										clientData={clientData}
+										platform={selectedPlatform}
+									/>
 								</CardContent>
 							</Card>
 						</Grid>
@@ -1096,7 +1081,10 @@ export function OriginalMainGrid({
 									subheader="Time-series analysis with customizable date ranges"
 								/>
 								<CardContent>
-									<InventoryTrendCharts clientData={clientData} platform={selectedPlatform} />
+									<InventoryTrendCharts
+										clientData={clientData}
+										platform={selectedPlatform}
+									/>
 								</CardContent>
 							</Card>
 						</Grid>
@@ -1111,7 +1099,30 @@ export function OriginalMainGrid({
 									subheader={`Comprehensive inventory tracking • ${clientData.length} records analyzed`}
 								/>
 								<CardContent sx={{ p: 0 }}>
-									<InventorySKUList clientData={clientData} platform={selectedPlatform} />
+									<InventorySKUList
+										clientData={clientData}
+										platform={selectedPlatform}
+									/>
+								</CardContent>
+							</Card>
+						</Grid>
+					</Grid>
+
+					{/* 🚀 PLATFORM-SPECIFIC CHARTS - These actually change with Amazon/Shopify! */}
+					<Grid container spacing={2} sx={{ mb: 3 }}>
+						<Grid size={{ xs: 12 }}>
+							<Card>
+								<CardHeader
+									title={`${
+										selectedPlatform === "shopify" ? "Shopify" : "Amazon"
+									} Analytics Charts`}
+									subheader="Platform-specific revenue, orders, and product distribution"
+								/>
+								<CardContent>
+									<InventoryTrendCharts
+										clientData={clientData}
+										platform={selectedPlatform}
+									/>
 								</CardContent>
 							</Card>
 						</Grid>
@@ -1140,23 +1151,29 @@ export function OriginalMainGrid({
 							// Filter data based on dropdown selection if filters exist
 							let filteredData = chart.data;
 							let availableCategories: string[] = [];
-							
+
 							// Extract unique categories from chart data for dropdown options
 							if (chart.data && Array.isArray(chart.data)) {
 								const uniqueCategories = new Set<string>();
 								chart.data.forEach((item: any) => {
-									const category = item.name || item.category || item.label || item.id || "";
+									const category =
+										item.name || item.category || item.label || item.id || "";
 									if (category && category.toString().trim() !== "") {
 										uniqueCategories.add(category.toString());
 									}
 								});
 								availableCategories = Array.from(uniqueCategories).sort();
 							}
-							
+
 							// Apply filtering based on selected category
-							if (selectedValue !== "all" && chart.data && Array.isArray(chart.data)) {
+							if (
+								selectedValue !== "all" &&
+								chart.data &&
+								Array.isArray(chart.data)
+							) {
 								filteredData = chart.data.filter((item: any) => {
-									const itemCategory = item.name || item.category || item.label || item.id || "";
+									const itemCategory =
+										item.name || item.category || item.label || item.id || "";
 									return itemCategory.toString() === selectedValue;
 								});
 							}
@@ -1191,11 +1208,19 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-                                                <CardHeader
-                                                    className="mui-card-header-single-line"
-                                                    titleTypographyProps={{ title: chart.display_name || undefined }}
-                                                    subheaderTypographyProps={{ title: (chart.config?.x_axis?.display_name && chart.config?.y_axis?.display_name) ? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}` : "Data visualization" }}
-                                                    title={(() => {
+												<CardHeader
+													className="mui-card-header-single-line"
+													titleTypographyProps={{
+														title: chart.display_name || undefined,
+													}}
+													subheaderTypographyProps={{
+														title:
+															chart.config?.x_axis?.display_name &&
+															chart.config?.y_axis?.display_name
+																? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
+																: "Data visualization",
+													}}
+													title={(() => {
 														const name = chart.display_name || "";
 														const q = highlightQuery;
 														if (q && name.toLowerCase().includes(q)) {
@@ -1238,15 +1263,17 @@ export function OriginalMainGrid({
 																<Select
 																	value={selectedValue}
 																	sx={{
-																		'& .MuiOutlinedInput-notchedOutline': {
-																			border: 'none'
+																		"& .MuiOutlinedInput-notchedOutline": {
+																			border: "none",
 																		},
-																		'&:hover .MuiOutlinedInput-notchedOutline': {
-																			border: 'none'
-																		},
-																		'&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-																			border: 'none'
-																		}
+																		"&:hover .MuiOutlinedInput-notchedOutline":
+																			{
+																				border: "none",
+																			},
+																		"&.Mui-focused .MuiOutlinedInput-notchedOutline":
+																			{
+																				border: "none",
+																			},
 																	}}
 																	onChange={(e) =>
 																		handleDropdownChange(
@@ -1255,27 +1282,27 @@ export function OriginalMainGrid({
 																		)
 																	}>
 																	<MenuItem value="all">All</MenuItem>
-																	{availableCategories.map((category: string) => (
-																		<MenuItem
-																			key={category}
-																			value={category}>
-																			{category}
-																		</MenuItem>
-																	))}
+																	{availableCategories.map(
+																		(category: string) => (
+																			<MenuItem key={category} value={category}>
+																				{category}
+																			</MenuItem>
+																		)
+																	)}
 																</Select>
 															</FormControl>
 														)
 													}
 												/>
 												<CardContent>
-                                                    <Box
-                                                        sx={{
-                                                            height: 350,
-                                                            width: "100%",
-                                                            display: "flex",
-                                                            justifyContent: "center",
-                                                            alignItems: "center",
-                                                        }}>
+													<Box
+														sx={{
+															height: 350,
+															width: "100%",
+															display: "flex",
+															justifyContent: "center",
+															alignItems: "center",
+														}}>
 														<PieChart
 															series={[
 																{
@@ -1338,11 +1365,19 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-                                                <CardHeader
-                                                    className="mui-card-header-single-line"
-                                                    titleTypographyProps={{ title: chart.display_name || undefined }}
-                                                    subheaderTypographyProps={{ title: (chart.config?.x_axis?.display_name && chart.config?.y_axis?.display_name) ? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}` : "Data visualization" }}
-                                                    title={(() => {
+												<CardHeader
+													className="mui-card-header-single-line"
+													titleTypographyProps={{
+														title: chart.display_name || undefined,
+													}}
+													subheaderTypographyProps={{
+														title:
+															chart.config?.x_axis?.display_name &&
+															chart.config?.y_axis?.display_name
+																? `${chart.config.x_axis.display_name} vs ${chart.config.y_axis.display_name}`
+																: "Data visualization",
+													}}
+													title={(() => {
 														const name = chart.display_name || "";
 														const q = highlightQuery;
 														if (q && name.toLowerCase().includes(q)) {
@@ -1385,15 +1420,17 @@ export function OriginalMainGrid({
 																<Select
 																	value={selectedValue}
 																	sx={{
-																		'& .MuiOutlinedInput-notchedOutline': {
-																			border: 'none'
+																		"& .MuiOutlinedInput-notchedOutline": {
+																			border: "none",
 																		},
-																		'&:hover .MuiOutlinedInput-notchedOutline': {
-																			border: 'none'
-																		},
-																		'&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-																			border: 'none'
-																		}
+																		"&:hover .MuiOutlinedInput-notchedOutline":
+																			{
+																				border: "none",
+																			},
+																		"&.Mui-focused .MuiOutlinedInput-notchedOutline":
+																			{
+																				border: "none",
+																			},
 																	}}
 																	onChange={(e) =>
 																		handleDropdownChange(
@@ -1402,20 +1439,20 @@ export function OriginalMainGrid({
 																		)
 																	}>
 																	<MenuItem value="all">All</MenuItem>
-																	{availableCategories.map((category: string) => (
-																		<MenuItem
-																			key={category}
-																			value={category}>
-																			{category}
-																		</MenuItem>
-																	))}
+																	{availableCategories.map(
+																		(category: string) => (
+																			<MenuItem key={category} value={category}>
+																				{category}
+																			</MenuItem>
+																		)
+																	)}
 																</Select>
 															</FormControl>
 														)
 													}
 												/>
 												<CardContent>
-                                                <Box sx={{ height: 350, width: "100%" }}>
+													<Box sx={{ height: 350, width: "100%" }}>
 														<BarChart
 															dataset={filteredData.map((item: any) => {
 																// Get the actual field names from chart config
@@ -1495,8 +1532,8 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-                                                <CardHeader
-                                                    className="mui-card-header-single-line"
+												<CardHeader
+													className="mui-card-header-single-line"
 													title={chart.display_name}
 													subtitle={
 														chart.config?.x_axis?.display_name &&
@@ -1510,15 +1547,17 @@ export function OriginalMainGrid({
 																<Select
 																	value={selectedValue}
 																	sx={{
-																		'& .MuiOutlinedInput-notchedOutline': {
-																			border: 'none'
+																		"& .MuiOutlinedInput-notchedOutline": {
+																			border: "none",
 																		},
-																		'&:hover .MuiOutlinedInput-notchedOutline': {
-																			border: 'none'
-																		},
-																		'&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-																			border: 'none'
-																		}
+																		"&:hover .MuiOutlinedInput-notchedOutline":
+																			{
+																				border: "none",
+																			},
+																		"&.Mui-focused .MuiOutlinedInput-notchedOutline":
+																			{
+																				border: "none",
+																			},
 																	}}
 																	onChange={(e) =>
 																		handleDropdownChange(
@@ -1527,20 +1566,20 @@ export function OriginalMainGrid({
 																		)
 																	}>
 																	<MenuItem value="all">All</MenuItem>
-																	{availableCategories.map((category: string) => (
-																		<MenuItem
-																			key={category}
-																			value={category}>
-																			{category}
-																		</MenuItem>
-																	))}
+																	{availableCategories.map(
+																		(category: string) => (
+																			<MenuItem key={category} value={category}>
+																				{category}
+																			</MenuItem>
+																		)
+																	)}
 																</Select>
 															</FormControl>
 														)
 													}
 												/>
 												<CardContent>
-                                                <Box sx={{ height: 350, width: "100%" }}>
+													<Box sx={{ height: 350, width: "100%" }}>
 														<LineChart
 															dataset={filteredData.map((item: any) => {
 																// Get the actual field names from chart config
@@ -1619,13 +1658,13 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-                                                        <CardHeader
-                                                            className="mui-card-header-single-line"
+												<CardHeader
+													className="mui-card-header-single-line"
 													title={chart.display_name}
 													subtitle="Multi-dimensional performance analysis"
 												/>
 												<CardContent>
-                                                <Box sx={{ height: 350, width: "100%" }}>
+													<Box sx={{ height: 350, width: "100%" }}>
 														<Charts.RadarChart
 															data={filteredData}
 															title={chart.display_name}
@@ -1640,13 +1679,13 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-                                            <CardHeader
-                                                className="mui-card-header-single-line"
+												<CardHeader
+													className="mui-card-header-single-line"
 													title={chart.display_name}
 													subtitle="Correlation and relationship analysis"
 												/>
 												<CardContent>
-                                                <Box sx={{ height: 350, width: "100%" }}>
+													<Box sx={{ height: 350, width: "100%" }}>
 														<Charts.ScatterChart
 															data={filteredData}
 															title={chart.display_name}
@@ -1667,15 +1706,19 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-                                                <CardHeader
-                                                    className="mui-card-header-single-line"
-                                                    titleTypographyProps={{ title: chart.display_name || undefined }}
-                                                    subheaderTypographyProps={{ title: "Pattern and intensity visualization" }}
-                                                    title={chart.display_name}
-                                                    subtitle="Pattern and intensity visualization"
-                                                />
+												<CardHeader
+													className="mui-card-header-single-line"
+													titleTypographyProps={{
+														title: chart.display_name || undefined,
+													}}
+													subheaderTypographyProps={{
+														title: "Pattern and intensity visualization",
+													}}
+													title={chart.display_name}
+													subtitle="Pattern and intensity visualization"
+												/>
 												<CardContent>
-                                                <Box sx={{ height: 350, width: "100%" }}>
+													<Box sx={{ height: 350, width: "100%" }}>
 														<Charts.HeatmapChart
 															data={filteredData}
 															title={chart.display_name}
@@ -1697,20 +1740,20 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-                                                        <CardHeader
-                                                            className="mui-card-header-single-line"
+												<CardHeader
+													className="mui-card-header-single-line"
 													title={chart.display_name}
 													subtitle="Progress and completion tracking"
 												/>
 												<CardContent>
-                                                    <Box
-                                                        sx={{
-                                                            height: 350,
-                                                            width: "100%",
-                                                            display: "flex",
-                                                            justifyContent: "center",
-                                                            alignItems: "center",
-                                                        }}>
+													<Box
+														sx={{
+															height: 350,
+															width: "100%",
+															display: "flex",
+															justifyContent: "center",
+															alignItems: "center",
+														}}>
 														<PieChart
 															series={[
 																{
@@ -1760,8 +1803,8 @@ export function OriginalMainGrid({
 									return (
 										<Grid key={index} size={getChartSize()}>
 											<Card>
-                                            <CardHeader
-                                                className="mui-card-header-single-line"
+												<CardHeader
+													className="mui-card-header-single-line"
 													title={(() => {
 														const name = chart.display_name || "";
 														const q = highlightQuery;
@@ -1799,7 +1842,7 @@ export function OriginalMainGrid({
 													}
 												/>
 												<CardContent>
-                                                <Box sx={{ height: 350, width: "100%" }}>
+													<Box sx={{ height: 350, width: "100%" }}>
 														<Charts.PieChart
 															data={filteredData}
 															title={chart.display_name}
@@ -3080,8 +3123,8 @@ function TemplateDashboard({
 										border: "1px solid #e3f2fd",
 										boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
 									}}>
-                                    <CardHeader
-                                        className="mui-card-header-single-line"
+									<CardHeader
+										className="mui-card-header-single-line"
 										title={
 											<Box
 												sx={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -3237,12 +3280,20 @@ function TemplateDashboard({
 															display: "flex",
 															flexDirection: "column",
 														}}>
-                                    <CardHeader
-                                        className="mui-card-header-single-line"
-                                        titleTypographyProps={{ title: (chartData.title || chartKey) as string }}
-                                        subheaderTypographyProps={{ title: `${chartData.type?.toUpperCase() || "CHART"} • AI Analysis` }}
-                                        title={chartData.title || chartKey}
-                                        subheader={`${chartData.type?.toUpperCase() || "CHART"} • AI Analysis`}
+														<CardHeader
+															className="mui-card-header-single-line"
+															titleTypographyProps={{
+																title: (chartData.title || chartKey) as string,
+															}}
+															subheaderTypographyProps={{
+																title: `${
+																	chartData.type?.toUpperCase() || "CHART"
+																} • AI Analysis`,
+															}}
+															title={chartData.title || chartKey}
+															subheader={`${
+																chartData.type?.toUpperCase() || "CHART"
+															} • AI Analysis`}
 															sx={{
 																pb: 1,
 																"& .MuiCardHeader-title": {
@@ -3285,7 +3336,7 @@ function TemplateDashboard({
 																		<Box
 																			sx={{
 																				flex: 1,
-																																				minHeight: 300,
+																				minHeight: 300,
 																				width: "100%",
 																				position: "relative",
 																			}}>
@@ -3615,8 +3666,8 @@ function TemplateDashboard({
 								{(config as any).tables.map((table: any, index: number) => (
 									<Grid key={index} size={{ xs: 12 }}>
 										<Card>
-                            <CardHeader
-                                className="mui-card-header-single-line"
+											<CardHeader
+												className="mui-card-header-single-line"
 												title={
 													table.display_name ||
 													table.title ||
@@ -3662,7 +3713,6 @@ function TemplateDashboard({
 																	p: 1,
 																	borderBottom: "1px solid",
 																	borderColor: "grey.200",
-
 																}}>
 																{Array.isArray(row)
 																	? // Handle array format (row is an array)
@@ -4527,11 +4577,11 @@ function TemplateDashboard({
 														/>
 														<CardContent>
 															<Box
-                                                            sx={{
-                                                                height: 350,
-                                                                display: "flex",
-                                                                flexDirection: "column",
-                                                            }}>
+																sx={{
+																	height: 350,
+																	display: "flex",
+																	flexDirection: "column",
+																}}>
 																{isValidChartData(chartData) ? (
 																	<>
 																		{/* Render Actual Chart Components */}
@@ -4906,7 +4956,6 @@ function TemplateDashboard({
 																	p: 1,
 																	borderBottom: "1px solid",
 																	borderColor: "grey.200",
-
 																}}>
 																{Array.isArray(row)
 																	? // Handle array format (row is an array)
@@ -5185,7 +5234,7 @@ function TemplateDashboard({
 																color: "#dc004e",
 															},
 														]}
-																													height={280}
+														height={280}
 														skipAnimation={true}
 														slotProps={{
 															noDataOverlay: { message: "No data available" },
@@ -5326,7 +5375,7 @@ function TemplateDashboard({
 																},
 															},
 														]}
-																													height={280}
+														height={280}
 														skipAnimation={true}
 														slotProps={{
 															noDataOverlay: { message: "No data available" },
@@ -5355,7 +5404,7 @@ function TemplateDashboard({
 										subheader="Quarterly analysis of market trends"
 									/>
 									<CardContent>
-                                        <Box sx={{ height: 350 }}>
+										<Box sx={{ height: 350 }}>
 											{clientData.length > 0 ? (
 												<div style={{ width: "100%", height: "250px" }}>
 													<LineChart
@@ -5449,7 +5498,7 @@ function TemplateDashboard({
 															},
 														]}
 														width={400}
-																													height={280}
+														height={280}
 														skipAnimation={true}
 														slotProps={{
 															noDataOverlay: { message: "No data available" },
@@ -5479,7 +5528,7 @@ function TemplateDashboard({
 										subheader="Multi-factor risk analysis"
 									/>
 									<CardContent>
-                                        <Box sx={{ height: 350 }}>
+										<Box sx={{ height: 350 }}>
 											{clientData.length > 0 && dataColumns.length >= 3 ? (
 												<div style={{ height: "250px" }}>
 													{/* Radar Chart Component */}

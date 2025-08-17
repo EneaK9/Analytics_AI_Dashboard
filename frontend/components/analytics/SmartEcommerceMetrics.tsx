@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { TrendingUp, TrendingDown, Users, DollarSign, Package } from "lucide-react";
+import {
+	TrendingUp,
+	TrendingDown,
+	Users,
+	DollarSign,
+	Package,
+} from "lucide-react";
 import { type SalesKPIs } from "../../lib/inventoryService";
 import useInventoryData from "../../hooks/useInventoryData";
 
@@ -23,19 +29,13 @@ interface MetricData {
 export default function SmartEcommerceMetrics({
 	clientData,
 	refreshInterval = 300000, // 5 minutes
-	platform = "shopify"
+	platform = "shopify",
 }: SmartEcommerceMetricsProps) {
 	// Use shared inventory data hook - no more duplicate API calls!
-	const {
-		loading,
-		error,
-		salesKPIs,
-		lastUpdated,
-		refresh
-	} = useInventoryData({
+	const { loading, error, salesKPIs, lastUpdated, refresh } = useInventoryData({
 		refreshInterval,
 		fastMode: true,
-		platform
+		platform,
 	});
 
 	// Convert backend KPIs to frontend MetricData format
@@ -62,12 +62,17 @@ export default function SmartEcommerceMetrics({
 			const revenue30d = kpis.total_sales_30_days.revenue || 0;
 			const units30d = kpis.total_sales_30_days.units || 0;
 			const orders30d = kpis.total_sales_30_days.orders || 0;
-			
+
 			// Calculate growth vs 7 days (daily average comparison)
-			const avgDaily7d = kpis.total_sales_7_days ? (kpis.total_sales_7_days.revenue || 0) / 7 : 0;
+			const avgDaily7d = kpis.total_sales_7_days
+				? (kpis.total_sales_7_days.revenue || 0) / 7
+				: 0;
 			const avgDaily30d = revenue30d / 30;
-			const growth = avgDaily30d > 0 && avgDaily7d > 0 ? ((avgDaily7d - avgDaily30d) / avgDaily30d * 100) : 0;
-			
+			const growth =
+				avgDaily30d > 0 && avgDaily7d > 0
+					? ((avgDaily7d - avgDaily30d) / avgDaily30d) * 100
+					: 0;
+
 			metrics.push({
 				title: "Total Sales (30 Days)",
 				value: `$${revenue30d.toLocaleString()}`,
@@ -95,11 +100,16 @@ export default function SmartEcommerceMetrics({
 		if (kpis.days_stock_remaining !== undefined) {
 			const daysStock = Number(kpis.days_stock_remaining) || 0;
 			const isHealthy = daysStock >= 7 && daysStock <= 60; // 1 week to 2 months is healthy
-			const displayValue = daysStock > 999 ? "999+" : `${Math.round(daysStock)}`;
+			const displayValue =
+				daysStock > 999 ? "999+" : `${Math.round(daysStock)}`;
 			metrics.push({
 				title: "Days Stock Remaining",
 				value: `${displayValue} days`,
-				change: isHealthy ? "Optimal" : (daysStock < 7 ? "Low Stock" : "High Stock"),
+				change: isHealthy
+					? "Optimal"
+					: daysStock < 7
+					? "Low Stock"
+					: "High Stock",
 				changeType: isHealthy ? "increase" : "decrease",
 				icon: TrendingDown,
 				color: "text-orange-600",
@@ -115,7 +125,8 @@ export default function SmartEcommerceMetrics({
 		return convertKPIsToMetrics(salesKPIs);
 	}, [salesKPIs]);
 
-	if (loading) {
+	// Only show loading if we have NO data at all - show data immediately if available
+	if (loading && !salesKPIs) {
 		return (
 			<div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-4 2xl:gap-7.5">
 				{[...Array(4)].map((_, i) => (
@@ -139,12 +150,13 @@ export default function SmartEcommerceMetrics({
 				<div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
 					<TrendingDown className="h-8 w-8 text-red-600" />
 				</div>
-				<h3 className="text-lg font-semibold text-gray-900 mb-2">Metrics Error</h3>
+				<h3 className="text-lg font-semibold text-gray-900 mb-2">
+					Metrics Error
+				</h3>
 				<p className="text-gray-600 mb-4">{error}</p>
 				<button
 					onClick={() => refresh(true)}
-					className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-				>
+					className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
 					Retry
 				</button>
 			</div>
@@ -194,7 +206,8 @@ export default function SmartEcommerceMetrics({
 			{lastUpdated && (
 				<div className="col-span-full text-center mt-2">
 					<p className="text-xs text-gray-500">
-						{platform === "shopify" ? "Shopify" : "Amazon"} metrics • Last updated: {lastUpdated.toLocaleTimeString()}
+						{platform === "shopify" ? "Shopify" : "Amazon"} metrics • Last
+						updated: {lastUpdated.toLocaleTimeString()}
 					</p>
 				</div>
 			)}

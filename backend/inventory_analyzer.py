@@ -222,8 +222,9 @@ class InventoryAnalyzer:
             unit_price = total_price / max(items_shipped, 1) if items_shipped > 0 else total_price
             
             # Create a synthetic SKU from order information
-            # Use a combination that's more meaningful than just order_id
-            synthetic_sku = f"AMZ-ORDER-{order_id[-8:]}"  # Last 8 chars of order ID
+            # Convert order_id to string to handle both int and string types
+            order_id_str = str(order_id)
+            synthetic_sku = f"AMZ-ORDER-{order_id_str[-8:]}"  # Last 8 chars of order ID
             
             # Try to extract more meaningful product info if available
             product_name = "Amazon Order Item"
@@ -243,8 +244,8 @@ class InventoryAnalyzer:
                 'category': 'amazon_order',
                 '_source_type': record.get('_source_type', 'amazon_order'),
                 '_source_file': record.get('_source_file', 'amazon_order'),
-                '_record_id': record.get('_record_id', order_id),
-                '_original_order_id': order_id  # Keep reference to original order
+                '_record_id': record.get('_record_id', order_id_str),
+                '_original_order_id': order_id_str  # Keep reference to original order
             }
             
         except Exception as e:

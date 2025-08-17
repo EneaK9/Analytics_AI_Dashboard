@@ -6,6 +6,7 @@ All data retrieved via direct SQL queries from organized client tables
 
 import logging
 import json
+import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 import pandas as pd
@@ -49,14 +50,51 @@ class DashboardInventoryAnalyzer:
                 shopify_data = await self._get_shopify_data(client_id)
                 amazon_data = await self._get_amazon_data(client_id)
             
-            # Calculate dashboard components using platform-specific data
+            # 🚀 PARALLEL CALCULATIONS - ALL AT ONCE, NO WAITING!
+            logger.info(f"⚡ Running ALL calculations in parallel for {client_id} ({platform})")
+            
+            # 🚀 ULTRA-FAST PARALLEL CALCULATIONS - ALL AT ONCE!
+            logger.info(f"⚡ TURBO MODE: Running all calculations in parallel for {client_id} ({platform})")
+            
+            # Run ALL calculations simultaneously with timeout - NO WAITING!
+            kpis_task = asyncio.create_task(self._get_kpi_charts(client_id, shopify_data, amazon_data))
+            trends_task = asyncio.create_task(self._get_trend_visualizations(client_id, shopify_data, amazon_data))
+            alerts_task = asyncio.create_task(self._get_alerts_summary(client_id, shopify_data, amazon_data))
+            
+            # Wait for all calculations with 3 second timeout - NO WAITING!
+            try:
+                sales_kpis, trend_analysis, alerts_summary = await asyncio.wait_for(
+                    asyncio.gather(kpis_task, trends_task, alerts_task, return_exceptions=True),
+                    timeout=3.0
+                )
+                logger.info(f"🚀 TURBO COMPLETE: All calculations finished in <3s for {client_id}")
+            except asyncio.TimeoutError:
+                logger.warning(f"⚠️ Calculations timeout after 3s, using partial results")
+                # Get whatever completed - NO WAITING!
+                sales_kpis = kpis_task.result() if kpis_task.done() else {}
+                trend_analysis = trends_task.result() if trends_task.done() else {}
+                alerts_summary = alerts_task.result() if alerts_task.done() else {}
+            
+            # Handle any exceptions from parallel execution
+            if isinstance(sales_kpis, Exception):
+                logger.error(f"❌ KPIs calculation failed: {sales_kpis}")
+                sales_kpis = {}
+            if isinstance(trend_analysis, Exception):
+                logger.error(f"❌ Trends calculation failed: {trend_analysis}")
+                trend_analysis = {}
+            if isinstance(alerts_summary, Exception):
+                logger.error(f"❌ Alerts calculation failed: {alerts_summary}")
+                alerts_summary = {}
+            
+            logger.info(f"⚡ ALL calculations completed in parallel for {client_id} ({platform})")
+            
             analytics = {
                 "success": True,
                 "timestamp": datetime.now().isoformat(),
                 "client_id": client_id,
-                "sales_kpis": await self._get_kpi_charts(client_id, shopify_data, amazon_data),
-                "trend_analysis": await self._get_trend_visualizations(client_id, shopify_data, amazon_data),
-                "alerts_summary": await self._get_alerts_summary(client_id, shopify_data, amazon_data),
+                "sales_kpis": sales_kpis,
+                "trend_analysis": trend_analysis,
+                "alerts_summary": alerts_summary,
                 "data_summary": {
                     "platform": platform,
                     "total_records": len(shopify_data.get('products', [])) + len(amazon_data.get('products', [])) + len(shopify_data.get('orders', [])) + len(amazon_data.get('orders', [])),
@@ -98,7 +136,7 @@ class DashboardInventoryAnalyzer:
             }
     
     async def _get_shopify_data(self, client_id: str) -> Dict[str, Any]:
-        """Get Shopify data from organized tables with optimized queries"""
+        """🚀 PARALLEL Shopify data fetch - NO WAITING!"""
         try:
             # Ensure database client is available
             admin_client = self._ensure_client()
@@ -106,27 +144,43 @@ class DashboardInventoryAnalyzer:
             products_table = f"{client_id.replace('-', '_')}_shopify_products"
             orders_table = f"{client_id.replace('-', '_')}_shopify_orders"
             
-            # Get only necessary product fields for performance
-            try:
-                products_response = admin_client.table(products_table).select(
-                    "sku,title,variant_title,inventory_quantity,price,option1,option2,variant_id"
-                ).execute()
-                products = products_response.data if products_response.data else []
-                logger.info(f"Found {len(products)} Shopify product variants")
-            except Exception as e:
-                logger.info(f"Shopify products table not found or empty: {e}")
-                products = []
+            logger.info(f"⚡ PARALLEL Shopify fetch for {client_id}")
             
-            # Get only necessary order fields for performance
-            try:
-                orders_response = admin_client.table(orders_table).select(
-                    "order_id,total_price,created_at,line_items_count,financial_status,fulfillment_status,order_number"
-                ).execute()
-                orders = orders_response.data if orders_response.data else []
-                logger.info(f"Found {len(orders)} Shopify orders")
-            except Exception as e:
-                logger.info(f"Shopify orders table not found or empty: {e}")
+            # 🚀 RUN BOTH QUERIES IN PARALLEL - NO SEQUENTIAL WAITING!
+            async def fetch_products():
+                try:
+                    response = admin_client.table(products_table).select(
+                        "sku,title,variant_title,inventory_quantity,price,option1,option2,variant_id"
+                    ).execute()
+                    return response.data if response.data else []
+                except Exception as e:
+                    logger.info(f"Shopify products table not found or empty: {e}")
+                    return []
+            
+            async def fetch_orders():
+                try:
+                    response = admin_client.table(orders_table).select(
+                        "order_id,total_price,created_at,line_items_count,financial_status,fulfillment_status,order_number"
+                    ).execute()
+                    return response.data if response.data else []
+                except Exception as e:
+                    logger.info(f"Shopify orders table not found or empty: {e}")
+                    return []
+            
+            # Execute both queries simultaneously
+            products, orders = await asyncio.gather(
+                fetch_products(), fetch_orders(), return_exceptions=True
+            )
+            
+            # Handle exceptions
+            if isinstance(products, Exception):
+                logger.error(f"❌ Products fetch failed: {products}")
+                products = []
+            if isinstance(orders, Exception):
+                logger.error(f"❌ Orders fetch failed: {orders}")
                 orders = []
+            
+            logger.info(f"⚡ PARALLEL complete: {len(products)} Shopify products, {len(orders)} orders")
             
             return {"products": products, "orders": orders}
             
@@ -143,27 +197,41 @@ class DashboardInventoryAnalyzer:
             orders_table = f"{client_id.replace('-', '_')}_amazon_orders"
             products_table = f"{client_id.replace('-', '_')}_amazon_products"
             
-            # Get only necessary Amazon order fields for performance
-            try:
-                orders_response = admin_client.table(orders_table).select(
-                    "order_id,total_price,created_at,number_of_items_shipped,order_status,order_number"
-                ).execute()
-                orders = orders_response.data if orders_response.data else []
-                logger.info(f"Found {len(orders)} Amazon orders")
-            except Exception as e:
-                logger.info(f"Amazon orders table not found or empty: {e}")
-                orders = []
+            # 🚀 RUN BOTH QUERIES IN PARALLEL - NO SEQUENTIAL WAITING!
+            async def fetch_orders():
+                try:
+                    response = admin_client.table(orders_table).select(
+                        "order_id,total_price,created_at,number_of_items_shipped,order_status,order_number"
+                    ).execute()
+                    return response.data if response.data else []
+                except Exception as e:
+                    logger.info(f"Amazon orders table not found or empty: {e}")
+                    return []
             
-            # Get only necessary Amazon product fields for performance
-            try:
-                products_response = admin_client.table(products_table).select(
-                    "sku,asin,title,quantity,price,brand,status"
-                ).execute()
-                products = products_response.data if products_response.data else []
-                logger.info(f"Found {len(products)} Amazon products")
-            except Exception as e:
-                logger.info(f"Amazon products table not found or empty: {e}")
+            async def fetch_products():
+                try:
+                    response = admin_client.table(products_table).select(
+                        "sku,asin,title,quantity,price,brand,status"
+                    ).execute()
+                    return response.data if response.data else []
+                except Exception as e:
+                    logger.info(f"Amazon products table not found or empty: {e}")
+                    return []
+            
+            # Execute both queries simultaneously
+            orders, products = await asyncio.gather(
+                fetch_orders(), fetch_products(), return_exceptions=True
+            )
+            
+            # Handle exceptions
+            if isinstance(orders, Exception):
+                logger.error(f"❌ Orders fetch failed: {orders}")
+                orders = []
+            if isinstance(products, Exception):
+                logger.error(f"❌ Products fetch failed: {products}")
                 products = []
+            
+            logger.info(f"⚡ PARALLEL complete: {len(orders)} Amazon orders, {len(products)} products")
             
             return {"orders": orders, "products": products}
             

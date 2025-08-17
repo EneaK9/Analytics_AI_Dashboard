@@ -1,15 +1,15 @@
 "use client";
 
 import React from "react";
-import { 
-	AlertCircle, 
-	AlertTriangle, 
-	TrendingUp, 
-	TrendingDown, 
-	Package, 
+import {
+	AlertCircle,
+	AlertTriangle,
+	TrendingUp,
+	TrendingDown,
+	Package,
 	ExternalLink,
 	RefreshCw,
-	Bell
+	Bell,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import useInventoryData from "../../hooks/useInventoryData";
@@ -23,20 +23,15 @@ interface AlertsSummaryProps {
 export default function AlertsSummary({
 	clientData,
 	refreshInterval = 300000,
-	platform = "shopify"
+	platform = "shopify",
 }: AlertsSummaryProps) {
 	// Use shared inventory data hook - no more duplicate API calls!
-	const {
-		loading,
-		error,
-		alertsSummary,
-		lastUpdated,
-		refresh
-	} = useInventoryData({
-		refreshInterval,
-		fastMode: true,
-		platform
-	});
+	const { loading, error, alertsSummary, lastUpdated, refresh } =
+		useInventoryData({
+			refreshInterval,
+			fastMode: true,
+			platform,
+		});
 
 	// Get severity badge styling
 	const getSeverityBadge = (severity: string) => {
@@ -44,26 +39,40 @@ export default function AlertsSummary({
 			low: "bg-gray-100 text-gray-700 border-gray-200",
 			medium: "bg-yellow-100 text-yellow-700 border-yellow-200",
 			high: "bg-orange-100 text-orange-700 border-orange-200",
-			critical: "bg-red-100 text-red-700 border-red-200"
+			critical: "bg-red-100 text-red-700 border-red-200",
 		};
 
 		return (
-			<span className={`px-2 py-1 text-xs font-medium rounded-full border ${styles[severity as keyof typeof styles] || styles.low}`}>
+			<span
+				className={`px-2 py-1 text-xs font-medium rounded-full border ${
+					styles[severity as keyof typeof styles] || styles.low
+				}`}>
 				{severity.toUpperCase()}
 			</span>
 		);
 	};
 
 	// Calculate total alerts from summary (handle both old and new structure)
-	const totalAlerts = (alertsSummary as any)?.summary?.total_alerts || (alertsSummary as any)?.summary_counts?.total_alerts || 0;
-	const criticalAlerts = (alertsSummary as any)?.summary?.critical_alerts || (alertsSummary as any)?.summary_counts?.critical_alerts || 0;
+	const totalAlerts =
+		(alertsSummary as any)?.summary?.total_alerts ||
+		(alertsSummary as any)?.summary_counts?.total_alerts ||
+		0;
+	const criticalAlerts =
+		(alertsSummary as any)?.summary?.critical_alerts ||
+		(alertsSummary as any)?.summary_counts?.critical_alerts ||
+		0;
 
 	// Helper function to get alerts with fallback
 	const getAlerts = (type: string) => {
-		return (alertsSummary as any)?.[type] || (alertsSummary as any)?.detailed_alerts?.[type] || [];
+		return (
+			(alertsSummary as any)?.[type] ||
+			(alertsSummary as any)?.detailed_alerts?.[type] ||
+			[]
+		);
 	};
 
-	if (loading) {
+	// Only show loading if we have NO data at all - show data immediately if available
+	if (loading && !alertsSummary) {
 		return (
 			<Card>
 				<CardHeader>
@@ -72,7 +81,9 @@ export default function AlertsSummary({
 				<CardContent>
 					<div className="space-y-4">
 						{[...Array(4)].map((_, i) => (
-							<div key={i} className="h-16 bg-gray-200 rounded animate-pulse"></div>
+							<div
+								key={i}
+								className="h-16 bg-gray-200 rounded animate-pulse"></div>
 						))}
 					</div>
 				</CardContent>
@@ -80,10 +91,10 @@ export default function AlertsSummary({
 		);
 	}
 
-	const lowStockAlerts = getAlerts('low_stock_alerts');
-	const overstockAlerts = getAlerts('overstock_alerts');
-	const salesSpikeAlerts = getAlerts('sales_spike_alerts');
-	const salesSlowdownAlerts = getAlerts('sales_slowdown_alerts');
+	const lowStockAlerts = getAlerts("low_stock_alerts");
+	const overstockAlerts = getAlerts("overstock_alerts");
+	const salesSpikeAlerts = getAlerts("sales_spike_alerts");
+	const salesSlowdownAlerts = getAlerts("sales_slowdown_alerts");
 
 	return (
 		<Card>
@@ -112,8 +123,13 @@ export default function AlertsSummary({
 				) : totalAlerts === 0 ? (
 					<div className="text-center py-8">
 						<Bell className="h-12 w-12 text-green-400 mx-auto mb-4" />
-						<h3 className="text-lg font-medium text-gray-900 mb-2">All Clear!</h3>
-						<p className="text-gray-600">No active alerts for {platform === "shopify" ? "Shopify" : "Amazon"} at this time.</p>
+						<h3 className="text-lg font-medium text-gray-900 mb-2">
+							All Clear!
+						</h3>
+						<p className="text-gray-600">
+							No active alerts for{" "}
+							{platform === "shopify" ? "Shopify" : "Amazon"} at this time.
+						</p>
 					</div>
 				) : (
 					<div className="space-y-4">
@@ -137,7 +153,13 @@ export default function AlertsSummary({
 											</p>
 											<div className="text-xs text-gray-500">
 												<span className="font-medium">Affected SKUs: </span>
-												{lowStockAlerts.slice(0, 3).map((alert: any) => alert.sku_code || alert.sku || 'Unknown').join(', ')}
+												{lowStockAlerts
+													.slice(0, 3)
+													.map(
+														(alert: any) =>
+															alert.sku_code || alert.sku || "Unknown"
+													)
+													.join(", ")}
 												{lowStockAlerts.length > 3 && (
 													<span className="ml-1">
 														and {lowStockAlerts.length - 3} more...
@@ -150,10 +172,9 @@ export default function AlertsSummary({
 										<span className="text-2xl font-bold text-yellow-700">
 											{lowStockAlerts.length}
 										</span>
-										<button 
+										<button
 											className="text-gray-400 hover:text-gray-600 transition-colors"
-											title="View detailed alert conditions"
-										>
+											title="View detailed alert conditions">
 											<ExternalLink className="h-4 w-4" />
 										</button>
 									</div>
@@ -181,7 +202,13 @@ export default function AlertsSummary({
 											</p>
 											<div className="text-xs text-gray-500">
 												<span className="font-medium">Affected SKUs: </span>
-												{overstockAlerts.slice(0, 3).map((alert: any) => alert.sku_code || alert.sku || 'Unknown').join(', ')}
+												{overstockAlerts
+													.slice(0, 3)
+													.map(
+														(alert: any) =>
+															alert.sku_code || alert.sku || "Unknown"
+													)
+													.join(", ")}
 												{overstockAlerts.length > 3 && (
 													<span className="ml-1">
 														and {overstockAlerts.length - 3} more...
@@ -194,10 +221,9 @@ export default function AlertsSummary({
 										<span className="text-2xl font-bold text-blue-700">
 											{overstockAlerts.length}
 										</span>
-										<button 
+										<button
 											className="text-gray-400 hover:text-gray-600 transition-colors"
-											title="View detailed alert conditions"
-										>
+											title="View detailed alert conditions">
 											<ExternalLink className="h-4 w-4" />
 										</button>
 									</div>
@@ -221,7 +247,8 @@ export default function AlertsSummary({
 												{getSeverityBadge("medium")}
 											</div>
 											<p className="text-sm text-gray-600 mb-2">
-												{salesSpikeAlerts[0]?.message || "Unusual sales increases detected"}
+												{salesSpikeAlerts[0]?.message ||
+													"Unusual sales increases detected"}
 											</p>
 										</div>
 									</div>
@@ -229,10 +256,9 @@ export default function AlertsSummary({
 										<span className="text-2xl font-bold text-green-700">
 											{salesSpikeAlerts.length}
 										</span>
-										<button 
+										<button
 											className="text-gray-400 hover:text-gray-600 transition-colors"
-											title="View detailed alert conditions"
-										>
+											title="View detailed alert conditions">
 											<ExternalLink className="h-4 w-4" />
 										</button>
 									</div>
@@ -256,7 +282,8 @@ export default function AlertsSummary({
 												{getSeverityBadge("medium")}
 											</div>
 											<p className="text-sm text-gray-600 mb-2">
-												{salesSlowdownAlerts[0]?.message || "Sales declines detected"}
+												{salesSlowdownAlerts[0]?.message ||
+													"Sales declines detected"}
 											</p>
 										</div>
 									</div>
@@ -264,10 +291,9 @@ export default function AlertsSummary({
 										<span className="text-2xl font-bold text-orange-700">
 											{salesSlowdownAlerts.length}
 										</span>
-										<button 
+										<button
 											className="text-gray-400 hover:text-gray-600 transition-colors"
-											title="View detailed alert conditions"
-										>
+											title="View detailed alert conditions">
 											<ExternalLink className="h-4 w-4" />
 										</button>
 									</div>
@@ -282,8 +308,9 @@ export default function AlertsSummary({
 					<div className="mt-6 pt-4 border-t border-gray-200 text-center">
 						<p className="text-xs text-gray-500">
 							<RefreshCw className="inline h-3 w-3 mr-1" />
-							Last updated: {lastUpdated.toLocaleTimeString()} • 
-							Real-time alert monitoring active for {platform === "shopify" ? "Shopify" : "Amazon"}
+							Last updated: {lastUpdated.toLocaleTimeString()} • Real-time alert
+							monitoring active for{" "}
+							{platform === "shopify" ? "Shopify" : "Amazon"}
 						</p>
 					</div>
 				)}

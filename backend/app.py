@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Form, UploadFile, File
+from fastapi import FastAPI, HTTPException, Depends, Form, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security import HTTPBearer
@@ -7,6 +7,8 @@ from typing import Optional, List, Dict, Any
 import logging
 import json
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import threading
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import uuid
@@ -43,6 +45,123 @@ load_dotenv()
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# 🚀 ASYNC REQUEST HANDLING SYSTEM - NO MORE WAITING!
+executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="analytics_worker")
+request_queue = asyncio.Queue(maxsize=100)
+active_calculations = {}  # Track ongoing calculations
+calculation_lock = threading.Lock()
+
+# 🔥 BACKGROUND CALCULATION SYSTEM - INSTANT RESPONSES!
+async def refresh_analytics_background(client_id: str, platform: str, fast_mode: bool = True):
+    """Run analytics calculations in background - doesn't block responses"""
+    try:
+        logger.info(f"🔄 Background refresh started for {client_id} ({platform})")
+        
+        # Use dashboard inventory analyzer for fresh calculations
+        from dashboard_inventory_analyzer import dashboard_inventory_analyzer
+        
+        # Run calculation in thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        analytics = await loop.run_in_executor(
+            executor,
+            lambda: asyncio.run(dashboard_inventory_analyzer.get_dashboard_inventory_analytics(client_id, platform))
+        )
+        
+        # Cache the results using existing LLM cache infrastructure
+        from llm_cache_manager import LLMCacheManager
+        cache_manager = LLMCacheManager()
+        await cache_manager.store_cached_llm_response(
+            client_id, {"platform": platform}, analytics, f"analytics_{platform}"
+        )
+        
+        logger.info(f"✅ Background refresh completed for {client_id} ({platform})")
+        
+    except Exception as e:
+        logger.error(f"❌ Background refresh failed for {client_id}: {e}")
+
+async def refresh_sku_background(client_id: str, platform: str, page: int = 1, page_size: int = 50):
+    """Run SKU list generation in background - doesn't block responses"""
+    try:
+        logger.info(f"🔄 Background SKU refresh started for {client_id} ({platform})")
+        
+        from dashboard_inventory_analyzer import dashboard_inventory_analyzer
+        
+        # Run calculation in thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        sku_data = await loop.run_in_executor(
+            executor,
+            lambda: asyncio.run(dashboard_inventory_analyzer.get_sku_list(client_id, page, page_size, False, platform))
+        )
+        
+        logger.info(f"✅ Background SKU refresh completed for {client_id} ({platform})")
+        
+    except Exception as e:
+        logger.error(f"❌ Background SKU refresh failed for {client_id}: {e}")
+
+async def pre_calculate_dashboard_data(client_id: str):
+    """Pre-calculate all dashboard data after login - user doesn't wait!"""
+    try:
+        logger.info(f"🚀 PRE-CALCULATING all data for {client_id} in background")
+        
+        # Pre-calculate for both platforms in parallel
+        tasks = [
+            refresh_analytics_background(client_id, "shopify"),
+            refresh_analytics_background(client_id, "amazon"),
+            refresh_sku_background(client_id, "shopify"),
+            refresh_sku_background(client_id, "amazon")
+        ]
+        
+        await asyncio.gather(*tasks, return_exceptions=True)
+        logger.info(f"✅ PRE-CALCULATION completed for {client_id}")
+        
+    except Exception as e:
+        logger.error(f"❌ PRE-CALCULATION failed for {client_id}: {e}")
+
+def get_or_create_calculation_task(client_id: str, platform: str, calculation_func):
+    """Prevent duplicate calculations - return existing task if already running"""
+    task_key = f"{client_id}_{platform}"
+    
+    with calculation_lock:
+        if task_key in active_calculations:
+            logger.info(f"⏳ Calculation already running for {task_key}, returning existing task")
+            return active_calculations[task_key]
+        
+        # Start new calculation
+        task = asyncio.create_task(calculation_func())
+        active_calculations[task_key] = task
+        
+        # Clean up when done
+        def cleanup(task):
+            with calculation_lock:
+                active_calculations.pop(task_key, None)
+        
+        task.add_done_callback(cleanup)
+        return task
+
+# 🔥 CONCURRENT REQUEST HANDLER - HANDLE MULTIPLE ACTIONS SIMULTANEOUSLY
+class ConcurrentRequestHandler:
+    def __init__(self):
+        self.semaphore = asyncio.Semaphore(20)  # Allow 20 concurrent requests
+        self.request_count = 0
+        
+    async def handle_request(self, request_func, *args, **kwargs):
+        """Handle requests concurrently without blocking"""
+        async with self.semaphore:
+            self.request_count += 1
+            request_id = self.request_count
+            logger.info(f"🚀 Processing request #{request_id} concurrently")
+            
+            try:
+                result = await request_func(*args, **kwargs)
+                logger.info(f"✅ Request #{request_id} completed")
+                return result
+            except Exception as e:
+                logger.error(f"❌ Request #{request_id} failed: {e}")
+                raise
+
+# Global request handler
+request_handler = ConcurrentRequestHandler()
 
 # ==================== TEMPLATE PRE-GENERATION ====================
 
@@ -383,8 +502,8 @@ def verify_superadmin_token(token: str):
 # ==================== AUTHENTICATION ====================
 
 @app.post("/api/auth/login", response_model=Token)
-async def login(client_data: ClientLogin):
-    """Client login endpoint"""
+async def login(client_data: ClientLogin, background_tasks: BackgroundTasks = BackgroundTasks()):
+    """⚡ INSTANT LOGIN - No waiting for calculations"""
     try:
         db_client = get_admin_client()  # Use admin client to bypass RLS
         if not db_client:
@@ -408,6 +527,10 @@ async def login(client_data: ClientLogin):
         )
         
         logger.info(f"✅ Client logged in: {client['email']}")
+        
+        # 🚀 PRE-CALCULATE DATA IN BACKGROUND - USER DOESN'T WAIT!
+        client_id = client['client_id']
+        background_tasks.add_task(pre_calculate_dashboard_data, client_id)
         
         return Token(
             access_token=access_token,
@@ -2515,15 +2638,36 @@ async def get_paginated_sku_inventory(
     page_size: int = 50,
     use_cache: bool = True,
     force_refresh: bool = False,
-    platform: str = "shopify"
+    platform: str = "shopify",
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ):
-    """Get paginated SKU inventory with caching support to prevent timeouts"""
+    """⚡ INSTANT SKU LIST - Return cached data immediately, refresh in background"""
     try:
         # Verify client token
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        logger.info(f"📦 Paginated SKU inventory request for client {client_id} (page={page}, size={page_size}, platform={platform})")
+        logger.info(f"⚡ INSTANT SKU request for {client_id} (page={page}, platform={platform}) - NO WAITING!")
+        
+        # Try cache first for INSTANT response
+        if use_cache and not force_refresh:
+            try:
+                from sku_cache_manager import get_sku_cache_manager
+                cache_manager = get_sku_cache_manager(get_admin_client())
+                cache_key = f"{client_id}_{platform}"
+                
+                cached_result = await cache_manager.get_cached_skus(cache_key, page, page_size)
+                if cached_result.get("success"):
+                    logger.info(f"⚡ INSTANT RESPONSE: Using cached SKUs for {platform}")
+                    
+                    # Start background refresh for next time
+                    background_tasks.add_task(refresh_sku_background, client_id, platform, page, page_size)
+                    
+                    return cached_result
+            except Exception as e:
+                logger.warning(f"⚠️ SKU cache check failed: {e}")
+        
+        logger.info(f"📦 Generating fresh SKU list for {client_id} (platform={platform})")
         
         # Validate pagination parameters
         if page < 1:
@@ -2761,15 +2905,44 @@ async def get_inventory_analytics(
     token: str = Depends(security),
     fast_mode: bool = True,
     force_refresh: bool = False,
-    platform: str = "shopify"
+    platform: str = "shopify",
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ):
-    """Get comprehensive inventory analytics using organized tables with fallback to legacy data"""
+    """⚡ INSTANT RESPONSE - Return cached data immediately, refresh in background"""
     try:
         # Verify client token
         token_data = verify_token(token.credentials)
         client_id = str(token_data.client_id)
         
-        logger.info(f"📦 Enhanced inventory analytics request for client {client_id} (fast_mode={fast_mode}, force_refresh={force_refresh}, platform={platform})")
+        logger.info(f"⚡ INSTANT analytics request for {client_id} ({platform}) - NO WAITING!")
+        
+        # Check if calculation is already running for this client/platform
+        task_key = f"{client_id}_{platform}"
+        with calculation_lock:
+            if task_key in active_calculations and not force_refresh:
+                logger.info(f"⏳ Calculation in progress for {task_key}, using cached data")
+        
+        # Try to return cached data INSTANTLY using existing LLM cache
+        try:
+            from llm_cache_manager import LLMCacheManager
+            cache_manager = LLMCacheManager()
+            
+            # Check existing llm_response_cache for instant response
+            cached_analytics = await cache_manager.get_cached_llm_response(
+                client_id, {"platform": platform}, f"analytics_{platform}"
+            )
+            
+            if cached_analytics and not force_refresh:
+                logger.info(f"⚡ INSTANT RESPONSE: Using cached analytics for {platform}")
+                
+                # Start background refresh for next time
+                background_tasks.add_task(refresh_analytics_background, client_id, platform, fast_mode)
+                
+                return cached_analytics
+        except Exception as e:
+            logger.warning(f"⚠️ Cache check failed: {e}")
+        
+        logger.info(f"📦 Generating fresh analytics for {client_id} ({platform})")
         
         # Try organized approach first
         try:

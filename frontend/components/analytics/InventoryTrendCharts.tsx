@@ -21,78 +21,85 @@ export default function InventoryTrendCharts({
 	platform = "shopify",
 }: InventoryTrendChartsProps) {
 	const [selectedRange, setSelectedRange] = useState<DateRange>("30");
-	
+
 	// Use shared inventory data hook to get trend analysis
-	const {
-		loading,
-		error,
-		trendAnalysis,
-		lastUpdated,
-		refresh
-	} = useInventoryData({
-		refreshInterval,
-		fastMode: true,
-		platform: platform
-	});
+	const { loading, error, trendAnalysis, lastUpdated, refresh } =
+		useInventoryData({
+			refreshInterval,
+			fastMode: true,
+			platform: platform,
+		});
 
 	// Process inventory levels from API trend data
 	const processInventoryTrends = (days: number) => {
-		if (!trendAnalysis?.inventory_levels_chart) return [];
-		
+		if (!(trendAnalysis as any)?.inventory_levels_chart) return [];
+
 		const now = new Date();
 		const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-		
-		return trendAnalysis.inventory_levels_chart
+
+		return (trendAnalysis as any).inventory_levels_chart
 			.filter((item: { date: string; inventory_level: number }) => {
 				const itemDate = new Date(item.date);
 				return itemDate >= startDate && itemDate <= now;
 			})
 			.map((item: { date: string; inventory_level: number }) => ({
-				date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+				date: new Date(item.date).toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+				}),
 				inventory: item.inventory_level,
-				value: item.inventory_level
+				value: item.inventory_level,
 			}))
-			.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+			.sort(
+				(a: any, b: any) =>
+					new Date(a.date).getTime() - new Date(b.date).getTime()
+			);
 	};
 
 	// Process sales trends from API trend data
 	const processSalesTrends = (days: number) => {
-		if (!trendAnalysis?.units_sold_chart) return [];
-		
+		if (!(trendAnalysis as any)?.units_sold_chart) return [];
+
 		const now = new Date();
 		const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-		
-		return trendAnalysis.units_sold_chart
+
+		return (trendAnalysis as any).units_sold_chart
 			.filter((item: { date: string; units_sold: number }) => {
 				const itemDate = new Date(item.date);
 				return itemDate >= startDate && itemDate <= now;
 			})
 			.map((item: { date: string; units_sold: number }) => ({
-				date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+				date: new Date(item.date).toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+				}),
 				units: item.units_sold,
 				revenue: 0, // We don't have daily revenue in units_sold_chart, use weekly data if needed
-				value: item.units_sold
+				value: item.units_sold,
 			}))
-			.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+			.sort(
+				(a: any, b: any) =>
+					new Date(a.date).getTime() - new Date(b.date).getTime()
+			);
 	};
 
 	// Process sales comparison from API trend data
 	const processSalesComparison = () => {
-		if (!trendAnalysis?.sales_comparison) return [];
-		
-		const comparison = trendAnalysis.sales_comparison;
-		
+		if (!(trendAnalysis as any)?.sales_comparison) return [];
+
+		const comparison = (trendAnalysis as any).sales_comparison;
+
 		return [
 			{
 				name: "Historical Average",
-				value: comparison.historical_avg_revenue,
-				revenue: comparison.historical_avg_revenue
+				value: (comparison as any).historical_avg_revenue,
+				revenue: (comparison as any).historical_avg_revenue,
 			},
 			{
 				name: "Current Period",
-				value: comparison.current_period_avg_revenue,
-				revenue: comparison.current_period_avg_revenue
-			}
+				value: (comparison as any).current_period_avg_revenue,
+				revenue: (comparison as any).current_period_avg_revenue,
+			},
 		];
 	};
 
@@ -102,20 +109,18 @@ export default function InventoryTrendCharts({
 			return {
 				inventoryTrends: [],
 				salesTrends: [],
-				salesComparison: []
+				salesComparison: [],
 			};
 		}
 
 		const days = parseInt(selectedRange);
-		
+
 		return {
 			inventoryTrends: processInventoryTrends(days),
 			salesTrends: processSalesTrends(days),
-			salesComparison: processSalesComparison()
+			salesComparison: processSalesComparison(),
 		};
 	}, [trendAnalysis, selectedRange]);
-
-
 
 	// Date range selector
 	const DateRangeSelector = () => (
@@ -130,8 +135,7 @@ export default function InventoryTrendCharts({
 							selectedRange === range
 								? "bg-blue-500 text-white rounded-md"
 								: "text-gray-600 hover:text-gray-900"
-						}`}
-					>
+						}`}>
 						{range}d
 					</button>
 				))}
@@ -139,7 +143,8 @@ export default function InventoryTrendCharts({
 		</div>
 	);
 
-	if (loading) {
+	// Only show loading if we have NO data at all - show data immediately if available
+	if (loading && !trendAnalysis) {
 		return (
 			<div className="space-y-6">
 				{/* Loading skeletons */}
@@ -164,7 +169,9 @@ export default function InventoryTrendCharts({
 					<div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
 						<TrendingUp className="h-8 w-8 text-red-600" />
 					</div>
-					<h3 className="text-lg font-semibold text-gray-900 mb-2">Trend Analysis Error</h3>
+					<h3 className="text-lg font-semibold text-gray-900 mb-2">
+						Trend Analysis Error
+					</h3>
 					<p className="text-gray-600">{error}</p>
 				</CardContent>
 			</Card>
@@ -258,8 +265,9 @@ export default function InventoryTrendCharts({
 			{lastUpdated && (
 				<div className="text-center text-sm text-gray-500">
 					<RefreshCw className="inline h-4 w-4 mr-1" />
-					Last updated: {lastUpdated.toLocaleTimeString()} • 
-					Showing {chartData.inventoryTrends.length} inventory data points, {chartData.salesTrends.length} sales data points
+					Last updated: {lastUpdated.toLocaleTimeString()} • Showing{" "}
+					{chartData.inventoryTrends.length} inventory data points,{" "}
+					{chartData.salesTrends.length} sales data points
 				</div>
 			)}
 		</div>

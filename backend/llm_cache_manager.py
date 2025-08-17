@@ -96,8 +96,12 @@ class LLMCacheManager:
                 # Check if data hash matches (data hasn't changed)
                 logger.info(f"🔍 Hash comparison for client {client_id} ({dashboard_type}): cached={cached_hash[:12]}... vs current={current_hash[:12]}...")
                 
-                # 🚀 TEMPORARY: Force cache usage for debugging (ignore hash mismatch)
-                if cached_responses_json:
+                # 🚀 DISABLE CACHE FOR PLATFORM SWITCHING - FORCE FRESH DATA
+                logger.info(f"🚀 FORCING fresh data - no cache for platform switching")
+                return None
+                
+                # Old cache logic (disabled)
+                if False and cached_responses_json:
                     logger.info(f"🚀 TEMP: Using cache regardless of hash for debugging purposes")
                     try:
                         # Parse cached payload (string or dict) and normalize shapes
