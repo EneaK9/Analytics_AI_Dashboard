@@ -171,7 +171,7 @@ export default function InventorySKUList({
 								<div>
 									<p className="text-sm font-medium text-gray-600">Total Inventory Value</p>
 									<p className="text-2xl font-bold text-green-600">
-										${summaryStats.total_inventory_value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+										${(summaryStats.total_inventory_value || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
 									</p>
 								</div>
 								<TrendingUp className="h-8 w-8 text-green-600" />

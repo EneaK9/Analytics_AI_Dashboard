@@ -111,11 +111,15 @@ class InventoryAnalyzer:
         try:
             flat_record = {}
             
+            # Check if this is Amazon order data and handle specially
+            if self._is_amazon_order_data(record):
+                return self._extract_from_amazon_order(record)
+            
             # Comprehensive field mappings for inventory data - expanded to catch more variations
             field_mappings = {
-                # Product/SKU identifiers - expanded list
-                'sku': ['sku', 'sku_code', 'product_id', 'item_id', 'product_code', 'code', 'id', 'item_code', 
-                       'product_sku', 'barcode', 'upc', 'part_number', 'catalog_number', 'model'],
+                # Product/SKU identifiers - be more careful with 'id' to avoid order_id confusion
+                'sku': ['sku', 'sku_code', 'product_id', 'item_id', 'product_code', 'code', 'item_code', 
+                       'product_sku', 'barcode', 'upc', 'part_number', 'catalog_number', 'model', 'asin'],
                 'product_name': ['product_name', 'item_name', 'name', 'product', 'item', 'title', 'description',
                                'product_title', 'item_description', 'product_description', 'goods', 'article'],
                 
@@ -185,6 +189,66 @@ class InventoryAnalyzer:
             
         except Exception as e:
             logger.warning(f"⚠️  Error flattening record: {str(e)}")
+            return None
+    
+    def _is_amazon_order_data(self, record: Dict) -> bool:
+        """Check if this record is Amazon order data"""
+        try:
+            # Check for Amazon-specific order fields
+            amazon_order_indicators = [
+                'order_id' in record and 'marketplace_id' in record,
+                'order_id' in record and record.get('platform', '').lower() == 'amazon',
+                'order_id' in record and 'sales_channel' in record and 'amazon' in str(record.get('sales_channel', '')).lower(),
+                'order_id' in record and 'number_of_items_shipped' in record,
+                'order_id' in record and len(str(record.get('order_id', ''))) > 10  # Amazon order IDs are long
+            ]
+            
+            return any(amazon_order_indicators)
+        except:
+            return False
+    
+    def _extract_from_amazon_order(self, record: Dict) -> Optional[Dict]:
+        """Extract product information from Amazon order data"""
+        try:
+            # For Amazon orders, we need to create synthetic product records
+            # since we don't have actual product data
+            
+            order_id = record.get('order_id', '')
+            total_price = record.get('total_price', 0)
+            items_shipped = record.get('number_of_items_shipped', 1)
+            items_unshipped = record.get('number_of_items_unshipped', 0)
+            
+            # Calculate estimated unit price
+            unit_price = total_price / max(items_shipped, 1) if items_shipped > 0 else total_price
+            
+            # Create a synthetic SKU from order information
+            # Use a combination that's more meaningful than just order_id
+            synthetic_sku = f"AMZ-ORDER-{order_id[-8:]}"  # Last 8 chars of order ID
+            
+            # Try to extract more meaningful product info if available
+            product_name = "Amazon Order Item"
+            if 'product_name' in record:
+                product_name = record['product_name']
+            elif 'title' in record:
+                product_name = record['title']
+            
+            return {
+                'sku': synthetic_sku,
+                'product_name': product_name,
+                'sales_amount': total_price,
+                'unit_price': unit_price,
+                'units_sold': items_shipped,
+                'quantity': 0,  # No inventory data available from orders
+                'date': record.get('created_at') or record.get('updated_at'),
+                'category': 'amazon_order',
+                '_source_type': record.get('_source_type', 'amazon_order'),
+                '_source_file': record.get('_source_file', 'amazon_order'),
+                '_record_id': record.get('_record_id', order_id),
+                '_original_order_id': order_id  # Keep reference to original order
+            }
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error extracting from Amazon order: {e}")
             return None
     
     def _extract_field_value(self, record: Dict, field_names: List[str]) -> Any:

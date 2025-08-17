@@ -222,6 +222,11 @@ class DashboardInventoryAnalyzer:
                     "brand": product.get('brand')
                 })
             
+            # If no products found but we have orders, try to extract products from orders
+            if len(sku_list) == 0:
+                logger.info("📦 No products found, attempting to extract from order data...")
+                sku_list.extend(self._extract_products_from_orders(shopify_data.get('orders', []), amazon_data.get('orders', [])))
+            
             # Sort by current availability (lowest first for attention)
             sku_list.sort(key=lambda x: x['current_availability'])
             
@@ -342,6 +347,82 @@ class DashboardInventoryAnalyzer:
                 continue
         
         return outgoing
+    
+    def _extract_products_from_orders(self, shopify_orders: List[Dict], amazon_orders: List[Dict]) -> List[Dict]:
+        """Extract synthetic product data from order information when no product tables exist"""
+        try:
+            synthetic_products = []
+            order_aggregates = {}  # Track aggregated data per synthetic SKU
+            
+            # Process Amazon orders to extract product information
+            for order in amazon_orders:
+                try:
+                    order_id = order.get('order_id', '')
+                    total_price = float(order.get('total_price', 0))
+                    items_shipped = int(order.get('number_of_items_shipped', 1))
+                    
+                    if total_price <= 0 or items_shipped <= 0:
+                        continue
+                    
+                    # Create synthetic SKU based on order characteristics
+                    # Group similar orders together to create meaningful products
+                    unit_price = total_price / items_shipped
+                    price_range = self._get_price_range(unit_price)
+                    synthetic_sku = f"AMZ-{price_range}-ITEM"
+                    
+                    # Aggregate data for this synthetic SKU
+                    if synthetic_sku not in order_aggregates:
+                        order_aggregates[synthetic_sku] = {
+                            'total_revenue': 0,
+                            'total_units': 0,
+                            'order_count': 0,
+                            'avg_price': 0,
+                            'platform': 'amazon'
+                        }
+                    
+                    agg = order_aggregates[synthetic_sku]
+                    agg['total_revenue'] += total_price
+                    agg['total_units'] += items_shipped
+                    agg['order_count'] += 1
+                    agg['avg_price'] = agg['total_revenue'] / agg['total_units']
+                    
+                except Exception as e:
+                    logger.debug(f"Error processing Amazon order: {e}")
+                    continue
+            
+            # Convert aggregated data to synthetic products
+            for sku, agg in order_aggregates.items():
+                synthetic_products.append({
+                    "platform": agg['platform'],
+                    "item_name": f"Amazon Product ({agg['order_count']} orders)",
+                    "sku_code": sku,
+                    "on_hand_inventory": 0,  # Unknown from orders
+                    "incoming_inventory": 0,
+                    "outgoing_inventory": 0,
+                    "current_availability": 0,  # Can't determine from orders alone
+                    "unit_price": round(agg['avg_price'], 2),
+                    "total_value": 0,  # No inventory to value
+                    "units_sold_30d": agg['total_units'],  # Additional context
+                    "revenue_30d": round(agg['total_revenue'], 2)
+                })
+            
+            logger.info(f"📦 Extracted {len(synthetic_products)} synthetic products from {len(amazon_orders)} orders")
+            return synthetic_products
+            
+        except Exception as e:
+            logger.error(f"❌ Error extracting products from orders: {e}")
+            return []
+    
+    def _get_price_range(self, price: float) -> str:
+        """Categorize price into ranges for synthetic SKU grouping"""
+        if price < 10:
+            return "LOW"
+        elif price < 50:
+            return "MED"
+        elif price < 100:
+            return "HIGH"
+        else:
+            return "PREMIUM"
     
     async def _get_kpi_charts(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> Dict[str, Any]:
         """Get optimized KPI charts data with corrected calculations"""
