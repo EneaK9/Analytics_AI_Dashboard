@@ -1,21 +1,22 @@
-import * as React from "react";
+import React, { Suspense, lazy } from "react";
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
+import CircularProgress from "@mui/material/CircularProgress";
 import Copyright from "../internals/components/Copyright";
 import { DateRange } from "./CustomDatePicker";
 
-// Import new restructured components
-import TotalSalesKPIs from "../../analytics/TotalSalesKPIs";
-import InventoryTurnoverKPIs from "../../analytics/InventoryTurnoverKPIs";
-import DaysOfStockKPIs from "../../analytics/DaysOfStockKPIs";
-import InventoryLevelsCharts from "../../analytics/InventoryLevelsCharts";
-import UnitsSoldCharts from "../../analytics/UnitsSoldCharts";
-import HistoricalComparisonCharts from "../../analytics/HistoricalComparisonCharts";
-import LowStockAlerts from "../../analytics/LowStockAlerts";
-import OverstockAlerts from "../../analytics/OverstockAlerts";
-import SalesPerformanceAlerts from "../../analytics/SalesPerformanceAlerts";
-import PlatformSKUList from "../../analytics/PlatformSKUList";
+// Lazy load components for better performance
+const TotalSalesKPIs = lazy(() => import("../../analytics/TotalSalesKPIs"));
+const InventoryTurnoverKPIs = lazy(() => import("../../analytics/InventoryTurnoverKPIs"));
+const DaysOfStockKPIs = lazy(() => import("../../analytics/DaysOfStockKPIs"));
+const InventoryLevelsCharts = lazy(() => import("../../analytics/InventoryLevelsCharts"));
+const UnitsSoldCharts = lazy(() => import("../../analytics/UnitsSoldCharts"));
+const HistoricalComparisonCharts = lazy(() => import("../../analytics/HistoricalComparisonCharts"));
+const LowStockAlerts = lazy(() => import("../../analytics/LowStockAlerts"));
+const OverstockAlerts = lazy(() => import("../../analytics/OverstockAlerts"));
+const SalesPerformanceAlerts = lazy(() => import("../../analytics/SalesPerformanceAlerts"));
+const PlatformSKUList = lazy(() => import("../../analytics/PlatformSKUList"));
 
 interface MainGridProps {
 	dashboardData?: any;
@@ -25,15 +26,30 @@ interface MainGridProps {
 	sharedDashboardMetrics?: any;
 }
 
-export default function MainGrid({
+// Loading fallback component
+const LoadingFallback = ({ height = "200px" }: { height?: string }) => (
+	<Box
+		sx={{
+			display: "flex",
+			justifyContent: "center",
+			alignItems: "center",
+			height,
+			minHeight: "120px",
+		}}
+	>
+		<CircularProgress size={40} />
+	</Box>
+);
+
+const MainGrid = React.memo(function MainGrid({
 	dashboardData,
 	user,
 	dashboardType = "main",
 	dateRange,
 	sharedDashboardMetrics,
 }: MainGridProps) {
-	// Simplified component - no complex state management needed
-	// Each child component handles its own data loading and state
+	// Simplified component using global state - no complex state management needed
+	// Each child component uses global state for optimized data loading
 
 	return (
 		<Box
@@ -48,70 +64,90 @@ export default function MainGrid({
 			{/* Total Sales KPIs */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
-					<TotalSalesKPIs />
+					<Suspense fallback={<LoadingFallback height="150px" />}>
+						<TotalSalesKPIs />
+					</Suspense>
 				</Grid>
 			</Grid>
 
 			{/* Inventory Turnover KPIs */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
-					<InventoryTurnoverKPIs />
+					<Suspense fallback={<LoadingFallback height="150px" />}>
+						<InventoryTurnoverKPIs />
+					</Suspense>
 				</Grid>
 			</Grid>
 
 			{/* Days of Stock KPIs */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
-					<DaysOfStockKPIs />
+					<Suspense fallback={<LoadingFallback height="150px" />}>
+						<DaysOfStockKPIs />
+					</Suspense>
 				</Grid>
 			</Grid>
 
 			{/* Inventory Levels Charts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
-					<InventoryLevelsCharts />
+					<Suspense fallback={<LoadingFallback height="300px" />}>
+						<InventoryLevelsCharts />
+					</Suspense>
 				</Grid>
 			</Grid>
 
 			{/* Units Sold Charts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
-					<UnitsSoldCharts />
+					<Suspense fallback={<LoadingFallback height="300px" />}>
+						<UnitsSoldCharts />
+					</Suspense>
 				</Grid>
 			</Grid>
 
 			{/* Historical Comparison Charts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
-					<HistoricalComparisonCharts />
+					<Suspense fallback={<LoadingFallback height="300px" />}>
+						<HistoricalComparisonCharts />
+					</Suspense>
 				</Grid>
 			</Grid>
 
 			{/* Low Stock Alerts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
-					<LowStockAlerts />
+					<Suspense fallback={<LoadingFallback height="200px" />}>
+						<LowStockAlerts />
+					</Suspense>
 				</Grid>
 			</Grid>
 
 			{/* Overstock Alerts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
-					<OverstockAlerts />
+					<Suspense fallback={<LoadingFallback height="200px" />}>
+						<OverstockAlerts />
+					</Suspense>
 				</Grid>
 			</Grid>
 
 			{/* Sales Performance Alerts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
-					<SalesPerformanceAlerts />
+					<Suspense fallback={<LoadingFallback height="200px" />}>
+						<SalesPerformanceAlerts />
+					</Suspense>
 				</Grid>
 			</Grid>
 
 			{/* Platform SKU List */}
 			<Grid container spacing={3} sx={{ mb: 4 }}>
 				<Grid size={{ xs: 12 }}>
-					<PlatformSKUList />
+					<Suspense fallback={<LoadingFallback height="400px" />}>
+						<PlatformSKUList />
+					</Suspense>
 				</Grid>
 			</Grid>
 
@@ -121,7 +157,6 @@ export default function MainGrid({
 			</Box>
 		</Box>
 	);
-}
+});
 
-// Export the main component as default
-export { MainGrid as OriginalMainGrid };
+export default MainGrid;

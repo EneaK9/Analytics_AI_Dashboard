@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Calendar, TrendingUp, Store, ShoppingBag, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import CompactDatePicker, { DateRange, getDateRange } from "../ui/CompactDatePicker";
-import useInventoryData from "../../hooks/useInventoryData";
+import { useInventoryData, useFilters } from "../../store/globalDataStore";
 
 interface DaysOfStockKPIsProps {
 	clientData?: any[];
@@ -23,10 +23,17 @@ interface StockDaysData {
 	subtitle: string;
 }
 
-export default function DaysOfStockKPIs({
+const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 	clientData,
 	className = "",
 }: DaysOfStockKPIsProps) {
+	// Use global state for data - no manual fetching needed
+	const { data: inventoryData, loading, error } = useInventoryData();
+	// Remove filters for now to prevent any potential issues
+	// const { filters, setFilters } = useFilters();
+
+	// No manual fetching - GlobalDataProvider handles this
+
 	// Date range states for each platform
 	const [shopifyDateRange, setShopifyDateRange] = useState<DateRange>(
 		getDateRange("month")
@@ -37,25 +44,6 @@ export default function DaysOfStockKPIs({
 	const [allDateRange, setAllDateRange] = useState<DateRange>(
 		getDateRange("month")
 	);
-
-	// Data hooks for each platform
-	const {
-		loading: shopifyLoading,
-		error: shopifyError,
-		trendAnalysis: shopifyData,
-	} = useInventoryData({
-		platform: "shopify",
-		fastMode: true,
-	});
-
-	const {
-		loading: amazonLoading,
-		error: amazonError,
-		trendAnalysis: amazonData,
-	} = useInventoryData({
-		platform: "amazon",
-		fastMode: true,
-	});
 
 	// Calculate days of stock data for each platform
 	const calculateStockDaysData = (
@@ -114,19 +102,19 @@ export default function DaysOfStockKPIs({
 		};
 	};
 
-	// Memoized stock days data for each platform
-	const shopifyStockDays = useMemo(
-		() => calculateStockDaysData(shopifyData, shopifyDateRange, "shopify"),
-		[shopifyData, shopifyDateRange]
-	);
+	// Memoized stock days data for each platform using global state
+	const shopifyStockDays = useMemo(() => {
+		const shopifyData = inventoryData?.shopify_data || inventoryData?.trendAnalysis;
+		return calculateStockDaysData(shopifyData, shopifyDateRange, "shopify");
+	}, [inventoryData, shopifyDateRange]);
 
-	const amazonStockDays = useMemo(
-		() => calculateStockDaysData(amazonData, amazonDateRange, "amazon"),
-		[amazonData, amazonDateRange]
-	);
+	const amazonStockDays = useMemo(() => {
+		const amazonData = inventoryData?.amazon_data || inventoryData?.trendAnalysis;
+		return calculateStockDaysData(amazonData, amazonDateRange, "amazon");
+	}, [inventoryData, amazonDateRange]);
 
 	const allStockDays = useMemo(() => {
-		if (!shopifyData || !amazonData) {
+		if (!inventoryData) {
 			return {
 				value: 0,
 				trend: {
@@ -138,9 +126,11 @@ export default function DaysOfStockKPIs({
 			};
 		}
 
-		// Calculate weighted average based on inventory values
-		const shopifyDays = shopifyData.days_of_stock_remaining || 0;
-		const amazonDays = amazonData.days_of_stock_remaining || 0;
+		// Calculate weighted average based on inventory values from global data
+		const shopifyData = inventoryData.shopify_data || inventoryData;
+		const amazonData = inventoryData.amazon_data || inventoryData;
+		const shopifyDays = shopifyData?.days_of_stock_remaining || 0;
+		const amazonDays = amazonData?.days_of_stock_remaining || 0;
 		
 		// For simplicity, we'll average the days (in a real app, this would be weighted by inventory value)
 		const combinedDays = (shopifyDays + amazonDays) / 2;
@@ -176,15 +166,15 @@ export default function DaysOfStockKPIs({
 			},
 			subtitle,
 		};
-	}, [shopifyData, amazonData, allDateRange]);
+	}, [inventoryData, allDateRange]);
 
 	// Format stock days
 	const formatStockDays = (value: number) => {
 		return `${Math.round(value)} days`;
 	};
 
-	// Individual KPI Card Component
-	const StockDaysKPICard = ({
+	// Individual KPI Card Component (memoized for performance)
+	const StockDaysKPICard = React.memo(({
 		title,
 		data,
 		dateRange,
@@ -301,7 +291,7 @@ export default function DaysOfStockKPIs({
 				</CardContent>
 			</Card>
 		);
-	};
+	});
 
 	return (
 		<div className={`space-y-4 ${className}`}>
@@ -319,8 +309,8 @@ export default function DaysOfStockKPIs({
 					data={shopifyStockDays}
 					dateRange={shopifyDateRange}
 					onDateRangeChange={setShopifyDateRange}
-					loading={shopifyLoading}
-					error={shopifyError}
+					loading={loading}
+					error={error}
 					icon={<Calendar className="h-4 w-4" style={{ color: "#059669" }} />}
 					iconColor="#059669"
 					iconBgColor="#ecfdf5"
@@ -332,8 +322,8 @@ export default function DaysOfStockKPIs({
 					data={amazonStockDays}
 					dateRange={amazonDateRange}
 					onDateRangeChange={setAmazonDateRange}
-					loading={amazonLoading}
-					error={amazonError}
+					loading={loading}
+					error={error}
 					icon={<Calendar className="h-4 w-4" style={{ color: "#f59e0b" }} />}
 					iconColor="#f59e0b"
 					iconBgColor="#fffbeb"
@@ -345,8 +335,8 @@ export default function DaysOfStockKPIs({
 					data={allStockDays}
 					dateRange={allDateRange}
 					onDateRangeChange={setAllDateRange}
-					loading={shopifyLoading || amazonLoading}
-					error={shopifyError || amazonError}
+					loading={loading}
+					error={error}
 					icon={<Clock className="h-4 w-4" style={{ color: "#dc2626" }} />}
 					iconColor="#dc2626"
 					iconBgColor="#fef2f2"
@@ -354,4 +344,6 @@ export default function DaysOfStockKPIs({
 			</div>
 		</div>
 	);
-}
+});
+
+export default DaysOfStockKPIs;

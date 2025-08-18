@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { DollarSign, TrendingUp, Store, ShoppingBag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import CompactDatePicker, { DateRange, getDateRange } from "../ui/CompactDatePicker";
-import useInventoryData from "../../hooks/useInventoryData";
+import { useInventoryData, useFilters } from "../../store/globalDataStore";
 
 interface TotalSalesKPIsProps {
 	clientData?: any[];
@@ -23,10 +23,17 @@ interface SalesData {
 	subtitle: string;
 }
 
-export default function TotalSalesKPIs({
+const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 	clientData,
 	className = "",
 }: TotalSalesKPIsProps) {
+	// Use global state for data - no manual fetching needed
+	const { data: inventoryData, loading, error } = useInventoryData();
+	// Remove filters for now to prevent any potential issues
+	// const { filters, setFilters } = useFilters();
+
+	// No manual fetching - GlobalDataProvider handles this
+
 	// Date range states for each platform
 	const [shopifyDateRange, setShopifyDateRange] = useState<DateRange>(
 		getDateRange("month")
@@ -37,25 +44,6 @@ export default function TotalSalesKPIs({
 	const [allDateRange, setAllDateRange] = useState<DateRange>(
 		getDateRange("month")
 	);
-
-	// Data hooks for each platform
-	const {
-		loading: shopifyLoading,
-		error: shopifyError,
-		trendAnalysis: shopifyData,
-	} = useInventoryData({
-		platform: "shopify",
-		fastMode: true,
-	});
-
-	const {
-		loading: amazonLoading,
-		error: amazonError,
-		trendAnalysis: amazonData,
-	} = useInventoryData({
-		platform: "amazon",
-		fastMode: true,
-	});
 
 	// Calculate sales data for each platform
 	const calculateSalesData = (
@@ -99,19 +87,21 @@ export default function TotalSalesKPIs({
 		};
 	};
 
-	// Memoized sales data for each platform
-	const shopifySales = useMemo(
-		() => calculateSalesData(shopifyData, shopifyDateRange, "shopify"),
-		[shopifyData, shopifyDateRange]
-	);
+	// Memoized sales data for each platform using global state
+	const shopifySales = useMemo(() => {
+		// Extract Shopify data from global inventory data
+		const shopifyData = inventoryData?.shopify_data || inventoryData?.trendAnalysis;
+		return calculateSalesData(shopifyData, shopifyDateRange, "shopify");
+	}, [inventoryData, shopifyDateRange]);
 
-	const amazonSales = useMemo(
-		() => calculateSalesData(amazonData, amazonDateRange, "amazon"),
-		[amazonData, amazonDateRange]
-	);
+	const amazonSales = useMemo(() => {
+		// Extract Amazon data from global inventory data
+		const amazonData = inventoryData?.amazon_data || inventoryData?.trendAnalysis;
+		return calculateSalesData(amazonData, amazonDateRange, "amazon");
+	}, [inventoryData, amazonDateRange]);
 
 	const allSales = useMemo(() => {
-		if (!shopifyData || !amazonData) {
+		if (!inventoryData) {
 			return {
 				value: 0,
 				trend: {
@@ -123,17 +113,20 @@ export default function TotalSalesKPIs({
 			};
 		}
 
-		// Combine both platforms
+		// Combine both platforms from global data
+		const shopifyData = inventoryData.shopify_data || inventoryData;
+		const amazonData = inventoryData.amazon_data || inventoryData;
+
 		const shopifyRevenue =
-			shopifyData.sales_comparison?.current_period_avg_revenue || 0;
+			shopifyData?.sales_comparison?.current_period_avg_revenue || 0;
 		const amazonRevenue =
-			amazonData.sales_comparison?.current_period_avg_revenue || 0;
+			amazonData?.sales_comparison?.current_period_avg_revenue || 0;
 		const combinedRevenue = shopifyRevenue + amazonRevenue;
 
 		const shopifyHistorical =
-			shopifyData.sales_comparison?.historical_avg_revenue || 0;
+			shopifyData?.sales_comparison?.historical_avg_revenue || 0;
 		const amazonHistorical =
-			amazonData.sales_comparison?.historical_avg_revenue || 0;
+			amazonData?.sales_comparison?.historical_avg_revenue || 0;
 		const combinedHistorical = shopifyHistorical + amazonHistorical;
 
 		const trendValue =
@@ -153,7 +146,7 @@ export default function TotalSalesKPIs({
 			},
 			subtitle: "Combined Shopify + Amazon sales",
 		};
-	}, [shopifyData, amazonData, allDateRange]);
+	}, [inventoryData, allDateRange]);
 
 	// Format currency
 	const formatCurrency = (value: number) => {
@@ -165,8 +158,8 @@ export default function TotalSalesKPIs({
 		}).format(value);
 	};
 
-	// Individual KPI Card Component
-	const SalesKPICard = ({
+	// Individual KPI Card Component (memoized for performance)
+	const SalesKPICard = React.memo(({
 		title,
 		data,
 		dateRange,
@@ -283,7 +276,7 @@ export default function TotalSalesKPIs({
 				</CardContent>
 			</Card>
 		);
-	};
+	});
 
 	return (
 		<div className={`space-y-4 ${className}`}>
@@ -301,8 +294,8 @@ export default function TotalSalesKPIs({
 					data={shopifySales}
 					dateRange={shopifyDateRange}
 					onDateRangeChange={setShopifyDateRange}
-					loading={shopifyLoading}
-					error={shopifyError}
+					loading={loading}
+					error={error}
 					icon={<Store className="h-4 w-4" style={{ color: "#059669" }} />}
 					iconColor="#059669"
 					iconBgColor="#ecfdf5"
@@ -314,8 +307,8 @@ export default function TotalSalesKPIs({
 					data={amazonSales}
 					dateRange={amazonDateRange}
 					onDateRangeChange={setAmazonDateRange}
-					loading={amazonLoading}
-					error={amazonError}
+					loading={loading}
+					error={error}
 					icon={<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />}
 					iconColor="#f59e0b"
 					iconBgColor="#fffbeb"
@@ -327,8 +320,8 @@ export default function TotalSalesKPIs({
 					data={allSales}
 					dateRange={allDateRange}
 					onDateRangeChange={setAllDateRange}
-					loading={shopifyLoading || amazonLoading}
-					error={shopifyError || amazonError}
+					loading={loading}
+					error={error}
 					icon={<DollarSign className="h-4 w-4" style={{ color: "#3b82f6" }} />}
 					iconColor="#3b82f6"
 					iconBgColor="#eff6ff"
@@ -336,4 +329,6 @@ export default function TotalSalesKPIs({
 			</div>
 		</div>
 	);
-}
+});
+
+export default TotalSalesKPIs;

@@ -5,7 +5,7 @@ import { Search, Download, AlertCircle, Package, TrendingUp, TrendingDown, Store
 import DataTable from "../ui/DataTable";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { type SKUData, type SKUSummaryStats } from "../../lib/inventoryService";
-import useInventoryData from "../../hooks/useInventoryData";
+import { useGlobalDataStore } from "../../store/globalDataStore";
 
 interface PlatformSKUListProps {
 	clientData?: any[];
@@ -23,40 +23,19 @@ export default function PlatformSKUList({
 	// Platform selection state
 	const [selectedPlatform, setSelectedPlatform] = useState<Platform>("shopify");
 
-	// Data hooks for both platforms
-	const {
-		loading: shopifyLoading,
-		error: shopifyError,
-		skuData: shopifyData,
-		summaryStats: shopifyStats,
-		lastUpdated: shopifyLastUpdated,
-		refresh: shopifyRefresh,
-	} = useInventoryData({
-		platform: "shopify",
-		fastMode: true,
-		refreshInterval,
-	});
-
-	const {
-		loading: amazonLoading,
-		error: amazonError,
-		skuData: amazonData,
-		summaryStats: amazonStats,
-		lastUpdated: amazonLastUpdated,
-		refresh: amazonRefresh,
-	} = useInventoryData({
-		platform: "amazon",
-		fastMode: true,
-		refreshInterval,
-	});
-
-	// Get current platform data
-	const currentData = selectedPlatform === "shopify" ? shopifyData : amazonData;
-	const currentStats = selectedPlatform === "shopify" ? shopifyStats : amazonStats;
-	const currentLoading = selectedPlatform === "shopify" ? shopifyLoading : amazonLoading;
-	const currentError = selectedPlatform === "shopify" ? shopifyError : amazonError;
-	const currentLastUpdated = selectedPlatform === "shopify" ? shopifyLastUpdated : amazonLastUpdated;
-	const currentRefresh = selectedPlatform === "shopify" ? shopifyRefresh : amazonRefresh;
+	// Use global store data instead of making separate requests
+	const shopifyData = useGlobalDataStore((state) => state.skuData || []);
+	const shopifyLoading = useGlobalDataStore((state) => state.loading.skuData);
+	const shopifyError = useGlobalDataStore((state) => state.errors.skuData);
+	
+	// For now, use the same data for both platforms since global store handles platform switching
+	// TODO: Implement platform-specific data storage in global store
+	const currentData = Array.isArray(shopifyData) ? shopifyData : [];
+	const currentStats = null; // Will be calculated from skuData
+	const currentLoading = shopifyLoading;
+	const currentError = shopifyError;
+	const currentLastUpdated = new Date();
+	const currentRefresh = useGlobalDataStore((state) => state.fetchSKUData);
 
 	// Refresh handler for manual refresh
 	const handleRefresh = () => currentRefresh(true);
