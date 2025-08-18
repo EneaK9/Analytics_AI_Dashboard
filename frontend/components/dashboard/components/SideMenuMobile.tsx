@@ -62,7 +62,7 @@ export default function SideMenuMobile({
 							component="p" 
 							variant="h6"
 							sx={{ display: "flex", alignItems: "center" }}>
-							{user?.company_name || "User"}
+							Shfa AI LLC
 						</Typography>
 					</Stack>
 					<MenuButton showBadge>
