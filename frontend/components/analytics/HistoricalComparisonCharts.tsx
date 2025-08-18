@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { BarChart3, Store, ShoppingBag, TrendingUp, Calendar, GitCompare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import DateRangePicker, { DateRange, getDateRange } from "../ui/DateRangePicker";
-import * as Charts from "../charts";
+import CompactDatePicker, { DateRange, getDateRange } from "../ui/CompactDatePicker";
+import SimpleBarChart from "../charts/SimpleBarChart";
 import useInventoryData from "../../hooks/useInventoryData";
 
 interface HistoricalComparisonChartsProps {
@@ -168,18 +168,18 @@ export default function HistoricalComparisonCharts({
 
 		if (loading) {
 			return (
-				<Card className="group hover:shadow-lg transition-all duration-300">
-					<CardHeader>
+				<Card className="bg-gray-100 border-gray-300 hover:shadow-md transition-all duration-300">
+					<CardHeader className="pb-3">
 						<div className="flex items-center justify-between">
-							<CardTitle className="flex items-center gap-2">
+							<CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
 								{icon}
 								{title}
 							</CardTitle>
-							<div className="w-32 h-8 bg-gray-200 rounded animate-pulse"></div>
+							<div className="w-24 h-6 bg-gray-200 rounded animate-pulse"></div>
 						</div>
 					</CardHeader>
 					<CardContent>
-						<div className="h-64 bg-gray-200 rounded animate-pulse"></div>
+						<div className="h-48 bg-gray-200 rounded animate-pulse"></div>
 					</CardContent>
 				</Card>
 			);
@@ -187,22 +187,21 @@ export default function HistoricalComparisonCharts({
 
 		if (error) {
 			return (
-				<Card className="group hover:shadow-lg transition-all duration-300 border-red-200">
-					<CardHeader>
+				<Card className="bg-gray-100 border-red-200 hover:shadow-md transition-all duration-300">
+					<CardHeader className="pb-3">
 						<div className="flex items-center justify-between">
-							<CardTitle className="flex items-center gap-2">
+							<CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
 								{icon}
 								{title}
 							</CardTitle>
-							<DateRangePicker
+							<CompactDatePicker
 								value={dateRange}
 								onChange={onDateRangeChange}
-								className="w-32"
 							/>
 						</div>
 					</CardHeader>
 					<CardContent>
-						<div className="h-64 flex items-center justify-center text-red-600">
+						<div className="h-48 flex items-center justify-center text-red-600">
 							<p className="text-sm">Error loading comparison data</p>
 						</div>
 					</CardContent>
@@ -211,17 +210,16 @@ export default function HistoricalComparisonCharts({
 		}
 
 		return (
-			<Card className="group hover:shadow-lg transition-all duration-300">
-				<CardHeader>
+			<Card className="bg-gray-100 border-gray-300 hover:shadow-md hover:bg-gray-200 transition-all duration-300">
+				<CardHeader className="pb-3">
 					<div className="flex items-center justify-between">
-						<CardTitle className="flex items-center gap-2">
+						<CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
 							{icon}
 							{title}
 						</CardTitle>
-						<DateRangePicker
+						<CompactDatePicker
 							value={dateRange}
 							onChange={onDateRangeChange}
-							className="w-32"
 						/>
 					</div>
 				</CardHeader>
@@ -229,11 +227,11 @@ export default function HistoricalComparisonCharts({
 					{data.length > 0 ? (
 						<>
 							{/* Performance Indicator */}
-							<div className="mb-6 p-4 bg-gray-50 rounded-lg">
+							<div className="mb-4 p-3 bg-gray-200 rounded-lg">
 								<div className="flex items-center justify-between">
 									<div>
-										<p className="text-sm text-gray-600">Period Comparison</p>
-										<p className="text-lg font-semibold text-gray-900">
+										<p className="text-xs text-gray-600">Period Comparison</p>
+										<p className="text-sm font-semibold text-gray-900">
 											{Math.abs(stats.change).toLocaleString('en-US', {
 												style: 'currency',
 												currency: 'USD',
@@ -241,10 +239,10 @@ export default function HistoricalComparisonCharts({
 											})}
 										</p>
 									</div>
-									<div className={`flex items-center gap-1 px-3 py-1 rounded-lg font-semibold text-sm ${
+									<div className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${
 										stats.isPositive
-											? "text-green-700 bg-green-100 border border-green-200"
-											: "text-red-700 bg-red-100 border border-red-200"
+											? "text-green-700 bg-green-100"
+											: "text-red-700 bg-red-100"
 									}`}>
 										<TrendingUp
 											className={`h-3 w-3 ${
@@ -259,50 +257,17 @@ export default function HistoricalComparisonCharts({
 								</p>
 							</div>
 
-							{/* Detailed Comparison */}
-							{data.length === 2 && (
-								<div className="grid grid-cols-2 gap-4 mb-6">
-									<div className="text-center p-3 bg-blue-50 rounded-lg">
-										<p className="text-sm text-blue-600">Previous Period</p>
-										<p className="text-lg font-semibold text-blue-900">
-											{data[0].value.toLocaleString('en-US', {
-												style: 'currency',
-												currency: 'USD',
-												minimumFractionDigits: 0,
-											})}
-										</p>
-										<p className="text-xs text-blue-600">
-											{data[0].units?.toLocaleString()} units
-										</p>
-									</div>
-									<div className="text-center p-3 bg-green-50 rounded-lg">
-										<p className="text-sm text-green-600">Current Period</p>
-										<p className="text-lg font-semibold text-green-900">
-											{data[1].value.toLocaleString('en-US', {
-												style: 'currency',
-												currency: 'USD',
-												minimumFractionDigits: 0,
-											})}
-										</p>
-										<p className="text-xs text-green-600">
-											{data[1].units?.toLocaleString()} units
-										</p>
-									</div>
-								</div>
-							)}
-
 							{/* Bar Chart */}
-							<Charts.BarChartOne
+							<SimpleBarChart
 								data={data}
-								title="Revenue Comparison"
-								description={`Comparing ${dateRange.label.toLowerCase()} performance`}
-								minimal={true}
+								color={iconColor}
+								height={140}
 							/>
 						</>
 					) : (
-						<div className="h-64 flex items-center justify-center text-gray-500">
+						<div className="h-48 flex items-center justify-center text-gray-500">
 							<div className="text-center">
-								<GitCompare className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+								<GitCompare className="h-4 w-4 mx-auto mb-2 text-gray-400" />
 								<p className="text-sm">No comparison data available</p>
 								<p className="text-xs text-gray-400">
 									Need data from multiple periods for comparison
@@ -333,7 +298,7 @@ export default function HistoricalComparisonCharts({
 					onDateRangeChange={setShopifyDateRange}
 					loading={shopifyLoading}
 					error={shopifyError}
-					icon={<Store className="h-5 w-5" style={{ color: "#059669" }} />}
+					icon={<Store className="h-4 w-4" style={{ color: "#059669" }} />}
 					iconColor="#059669"
 					iconBgColor="#ecfdf5"
 				/>
@@ -346,7 +311,7 @@ export default function HistoricalComparisonCharts({
 					onDateRangeChange={setAmazonDateRange}
 					loading={amazonLoading}
 					error={amazonError}
-					icon={<ShoppingBag className="h-5 w-5" style={{ color: "#f59e0b" }} />}
+					icon={<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />}
 					iconColor="#f59e0b"
 					iconBgColor="#fffbeb"
 				/>
@@ -359,7 +324,7 @@ export default function HistoricalComparisonCharts({
 					onDateRangeChange={setAllDateRange}
 					loading={shopifyLoading || amazonLoading}
 					error={shopifyError || amazonError}
-					icon={<GitCompare className="h-5 w-5" style={{ color: "#3b82f6" }} />}
+					icon={<GitCompare className="h-4 w-4" style={{ color: "#3b82f6" }} />}
 					iconColor="#3b82f6"
 					iconBgColor="#eff6ff"
 				/>

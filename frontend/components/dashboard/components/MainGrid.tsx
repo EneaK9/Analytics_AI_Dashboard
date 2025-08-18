@@ -45,70 +45,70 @@ export default function MainGrid({
 				overflow: "hidden",
 			}}>
 			
-			{/* 💰 TOTAL SALES KPIs */}
+			{/* Total Sales KPIs */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
 					<TotalSalesKPIs />
 				</Grid>
 			</Grid>
 
-			{/* 🔄 INVENTORY TURNOVER KPIs */}
+			{/* Inventory Turnover KPIs */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
 					<InventoryTurnoverKPIs />
 				</Grid>
 			</Grid>
 
-			{/* 📅 DAYS OF STOCK KPIs */}
+			{/* Days of Stock KPIs */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
 					<DaysOfStockKPIs />
 				</Grid>
 			</Grid>
 
-			{/* 📊 INVENTORY LEVELS CHARTS */}
+			{/* Inventory Levels Charts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
 					<InventoryLevelsCharts />
 				</Grid>
 			</Grid>
 
-			{/* 📈 UNITS SOLD CHARTS */}
+			{/* Units Sold Charts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
 					<UnitsSoldCharts />
 				</Grid>
 			</Grid>
 
-			{/* 📊 HISTORICAL COMPARISON CHARTS */}
+			{/* Historical Comparison Charts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
 					<HistoricalComparisonCharts />
 				</Grid>
 			</Grid>
 
-			{/* 🚨 LOW STOCK ALERTS */}
+			{/* Low Stock Alerts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
 					<LowStockAlerts />
 				</Grid>
 			</Grid>
 
-			{/* 📦 OVERSTOCK ALERTS */}
+			{/* Overstock Alerts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
 					<OverstockAlerts />
 				</Grid>
 			</Grid>
 
-			{/* 📈 SALES PERFORMANCE ALERTS */}
+			{/* Sales Performance Alerts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
 					<SalesPerformanceAlerts />
 				</Grid>
 			</Grid>
 
-			{/* 📦 PLATFORM SKU LIST */}
+			{/* Platform SKU List */}
 			<Grid container spacing={3} sx={{ mb: 4 }}>
 				<Grid size={{ xs: 12 }}>
 					<PlatformSKUList />
