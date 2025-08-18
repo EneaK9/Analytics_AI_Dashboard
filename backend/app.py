@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 import time
 import math
 import traceback
+import hashlib
 
 # Import our custom modules
 from models import *
@@ -350,6 +351,167 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 DEBUG = os.getenv("DEBUG", "true").lower() == "true"
 
 logger.info(f"🚀 Starting Analytics AI Dashboard API in {ENVIRONMENT} mode")
+
+# ==================== CACHING FUNCTIONS ====================
+
+async def create_client_cache_table(client_id: str):
+    """Create a daily cache table for a client if it doesn't exist"""
+    try:
+        # Clean client_id for table name
+        clean_client_id = client_id.replace('-', '_')
+        table_name = f"{clean_client_id}_cached_responses"
+        
+        db_client = get_admin_client()
+        if not db_client:
+            logger.error("❌ Database not configured for cache table creation")
+            return False
+        
+        # Create table if it doesn't exist
+        create_table_sql = f"""
+        CREATE TABLE IF NOT EXISTS "{table_name}" (
+            id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+            client_id uuid NOT NULL,
+            endpoint_url text NOT NULL,
+            cache_key text NOT NULL,
+            response_data jsonb NOT NULL,
+            created_at timestamptz DEFAULT now(),
+            expires_at timestamptz NOT NULL,
+            UNIQUE(cache_key)
+        );
+        
+        CREATE INDEX IF NOT EXISTS "idx_{clean_client_id}_cached_responses_cache_key" ON "{table_name}" (cache_key);
+        CREATE INDEX IF NOT EXISTS "idx_{clean_client_id}_cached_responses_expires_at" ON "{table_name}" (expires_at);
+        """
+        
+        # Execute using raw SQL
+        from database import get_db_manager
+        db_manager = get_db_manager()
+        
+        # Use Supabase's SQL execution if available
+        try:
+            # Create table using admin client
+            db_client.rpc('exec_sql', {'sql': create_table_sql}).execute()
+            logger.info(f"✅ Created cache table: {table_name}")
+            return True
+        except Exception as e:
+            # Alternative: Use PostgREST direct table creation (might not work for CREATE TABLE)
+            logger.warning(f"⚠️ Could not create cache table via RPC: {e}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to create cache table for client {client_id}: {e}")
+        return False
+
+async def get_cached_response(client_id: str, endpoint_url: str, params: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
+    """Get cached response for today if it exists"""
+    try:
+        # Generate cache key
+        params_str = json.dumps(params or {}, sort_keys=True)
+        cache_key_data = f"{endpoint_url}_{params_str}"
+        cache_key = hashlib.md5(cache_key_data.encode()).hexdigest()
+        
+        # Clean client_id for table name
+        clean_client_id = client_id.replace('-', '_')
+        table_name = f"{clean_client_id}_cached_responses"
+        
+        db_client = get_admin_client()
+        if not db_client:
+            return None
+        
+        try:
+            # Query cached response
+            response = db_client.table(table_name).select("*").eq("cache_key", cache_key).gte("expires_at", datetime.now().isoformat()).limit(1).execute()
+            
+            if response.data and len(response.data) > 0:
+                cached_data = response.data[0]
+                logger.info(f"✅ Found cached response for client {client_id}")
+                return cached_data["response_data"]
+            
+        except Exception as e:
+            # Table might not exist yet
+            logger.info(f"📝 Cache table not found for client {client_id}, will create on save")
+            
+        return None
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get cached response for client {client_id}: {e}")
+        return None
+
+async def save_cached_response(client_id: str, endpoint_url: str, response_data: Dict[str, Any], params: Dict[str, Any] = None):
+    """Save response to cache with daily expiration"""
+    try:
+        # Generate cache key
+        params_str = json.dumps(params or {}, sort_keys=True)
+        cache_key_data = f"{endpoint_url}_{params_str}"
+        cache_key = hashlib.md5(cache_key_data.encode()).hexdigest()
+        
+        # Set expiration to end of today (midnight tonight/start of tomorrow)
+        today = datetime.now().date()
+        expires_at = datetime.combine(today + timedelta(days=1), datetime.min.time())
+        
+        # Clean client_id for table name
+        clean_client_id = client_id.replace('-', '_')
+        table_name = f"{clean_client_id}_cached_responses"
+        
+        db_client = get_admin_client()
+        if not db_client:
+            logger.error("❌ Database not configured for cache saving")
+            return False
+        
+        # Ensure cache table exists
+        await create_client_cache_table(client_id)
+        
+        try:
+            # Insert or update cached response
+            cache_record = {
+                "client_id": client_id,
+                "endpoint_url": endpoint_url,
+                "cache_key": cache_key,
+                "response_data": response_data,
+                "expires_at": expires_at.isoformat()
+            }
+            
+            # Try to upsert (insert or update if exists)
+            db_client.table(table_name).upsert(cache_record, on_conflict="cache_key").execute()
+            
+            logger.info(f"✅ Saved cached response for client {client_id} (expires: {expires_at})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save cached response: {e}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to save cached response for client {client_id}: {e}")
+        return False
+
+async def cleanup_expired_cache(client_id: str):
+    """Clean up expired cache entries for a client"""
+    try:
+        # Clean client_id for table name
+        clean_client_id = client_id.replace('-', '_')
+        table_name = f"{clean_client_id}_cached_responses"
+        
+        db_client = get_admin_client()
+        if not db_client:
+            return False
+        
+        try:
+            # Delete expired entries
+            current_time = datetime.now().isoformat()
+            db_client.table(table_name).delete().lt("expires_at", current_time).execute()
+            
+            logger.info(f"✅ Cleaned up expired cache entries for client {client_id}")
+            return True
+            
+        except Exception as e:
+            # Table might not exist, which is fine
+            logger.info(f"📝 No cache table to clean for client {client_id}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to cleanup expired cache for client {client_id}: {e}")
+        return False
 
 # ==================== BASIC ENDPOINTS ====================
 
@@ -3208,6 +3370,30 @@ async def get_inventory_analytics(
         task_key = f"{client_id}_{platform}_{date_key}"
         cache_key = f"analytics_{platform}_{date_key}"
         
+        # 🗄️ CHECK DAILY DATABASE CACHE FIRST (if not force_refresh)
+        if not force_refresh:
+            endpoint_url = "/api/dashboard/inventory-analytics"
+            # Cache key should NOT include force_refresh - we want same cache for same data request
+            cache_params = {
+                "fast_mode": fast_mode,
+                "platform": platform
+            }
+            if start_date:
+                cache_params["start_date"] = start_date
+            if end_date:
+                cache_params["end_date"] = end_date
+            
+            # Clean up expired cache first
+            await cleanup_expired_cache(client_id)
+            
+            # Try to get cached response from today
+            cached_response = await get_cached_response(client_id, endpoint_url, cache_params)
+            if cached_response:
+                logger.info(f"🗄️ DAILY CACHE HIT: Using database cached response for {client_id}")
+                cached_response["cached"] = True
+                cached_response["cache_source"] = "daily_database"
+                return cached_response
+        
         with calculation_lock:
             if task_key in active_calculations and not force_refresh:
                 logger.info(f"⏳ Calculation in progress for {task_key}, using cached data")
@@ -3280,7 +3466,7 @@ async def get_inventory_analytics(
                 if analytics.get('success'):
                     logger.info(f"✅ Dashboard inventory analytics completed for client {client_id}")
                     
-                    return {
+                    response_data = {
                         "client_id": client_id,
                         "success": True,
                         "message": f"Dashboard analytics from organized data - {analytics.get('data_summary', {}).get('shopify_products', 0) + analytics.get('data_summary', {}).get('amazon_products', 0)} products, {analytics.get('data_summary', {}).get('shopify_orders', 0) + analytics.get('data_summary', {}).get('amazon_orders', 0)} orders (SKU data available via /api/dashboard/sku-inventory)",
@@ -3293,6 +3479,21 @@ async def get_inventory_analytics(
                         "processing_time": "optimized",
                         "data_source": "organized_tables"
                     }
+                    
+                    # 🗄️ Save response to daily cache
+                    endpoint_url = "/api/dashboard/inventory-analytics"
+                    cache_params = {
+                        "fast_mode": fast_mode,
+                        "platform": platform
+                    }
+                    if start_date:
+                        cache_params["start_date"] = start_date
+                    if end_date:
+                        cache_params["end_date"] = end_date
+                    
+                    await save_cached_response(client_id, endpoint_url, response_data, cache_params)
+                    
+                    return response_data
                 else:
                     logger.warning(f"⚠️ Dashboard analysis failed, falling back to legacy for client {client_id}")
             else:
@@ -3401,7 +3602,7 @@ async def get_inventory_analytics(
                     }
                 }
                 
-                return {
+                response_data = {
                     "client_id": client_id,
                     "success": True,
                     "message": f"Multi-platform analysis: {len(shopify_data['data'])} Shopify + {len(amazon_data['data'])} Amazon records",
@@ -3414,6 +3615,21 @@ async def get_inventory_analytics(
                     "processing_time": "real-time",
                     "data_source": "legacy_multi_platform"
                 }
+                
+                # 🗄️ Save response to daily cache
+                endpoint_url = "/api/dashboard/inventory-analytics"
+                cache_params = {
+                    "fast_mode": fast_mode,
+                    "platform": platform
+                }
+                if start_date:
+                    cache_params["start_date"] = start_date
+                if end_date:
+                    cache_params["end_date"] = end_date
+                
+                await save_cached_response(client_id, endpoint_url, response_data, cache_params)
+                
+                return response_data
             
             # Use dashboard structure even for legacy data (single platform)
             try:
@@ -3442,7 +3658,7 @@ async def get_inventory_analytics(
                     ]
                 }
                 
-                return {
+                response_data = {
                     "client_id": client_id,
                     "success": True,
                     "message": f"Analyzed {len(client_data['data'])} records (legacy format converted to dashboard structure)",
@@ -3456,13 +3672,28 @@ async def get_inventory_analytics(
                     "data_source": "legacy_converted"
                 }
                 
+                # 🗄️ Save response to daily cache
+                endpoint_url = "/api/dashboard/inventory-analytics"
+                cache_params = {
+                    "fast_mode": fast_mode,
+                    "platform": platform
+                }
+                if start_date:
+                    cache_params["start_date"] = start_date
+                if end_date:
+                    cache_params["end_date"] = end_date
+                
+                await save_cached_response(client_id, endpoint_url, response_data, cache_params)
+                
+                return response_data
+                
             except Exception as dashboard_error:
                 logger.warning(f"⚠️ Failed to convert to dashboard structure: {dashboard_error}")
                 
                 # Fallback to original legacy structure
                 inventory_analytics = inventory_analyzer.analyze_inventory_data(client_data)
                 
-                return {
+                response_data = {
                     "client_id": client_id,
                     "success": True,
                     "message": f"Analyzed {len(client_data['data'])} records",
@@ -3474,6 +3705,21 @@ async def get_inventory_analytics(
                     "cached": False,
                     "processing_time": "real-time"
                 }
+                
+                # 🗄️ Save response to daily cache
+                endpoint_url = "/api/dashboard/inventory-analytics"
+                cache_params = {
+                    "fast_mode": fast_mode,
+                    "platform": platform
+                }
+                if start_date:
+                    cache_params["start_date"] = start_date
+                if end_date:
+                    cache_params["end_date"] = end_date
+                
+                await save_cached_response(client_id, endpoint_url, response_data, cache_params)
+                
+                return response_data
             
         except Exception as data_error:
             logger.error(f"❌ Error fetching client data: {str(data_error)}")

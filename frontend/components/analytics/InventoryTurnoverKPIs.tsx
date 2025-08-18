@@ -7,7 +7,7 @@ import CompactDatePicker, {
 	DateRange,
 	getDateRange,
 } from "../ui/CompactDatePicker";
-import { useInventoryData } from "../../store/globalDataStore";
+import { useGlobalDataStore } from "../../store/globalDataStore";
 
 interface InventoryTurnoverKPIsProps {
 	clientData?: any[];
@@ -30,12 +30,18 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 	clientData,
 	className = "",
 }: InventoryTurnoverKPIsProps) {
-	// Use global state for data - no manual fetching needed
-	const { data: inventoryData, loading, error } = useInventoryData();
-	// Remove filters for now to prevent any potential issues
-	// const { filters, setFilters } = useFilters();
-
-	// No manual fetching - GlobalDataProvider handles this
+	// Use global store directly instead of useInventoryData hook
+	const inventoryData = useGlobalDataStore((state) => state.inventoryData);
+	const loading = useGlobalDataStore((state) => state.loading.inventoryData);
+	const error = useGlobalDataStore((state) => state.errors.inventoryData);
+	const fetchInventoryData = useGlobalDataStore((state) => state.fetchInventoryData);
+	
+	// Trigger data fetch on mount if no data
+	React.useEffect(() => {
+		if (!inventoryData && !loading) {
+			fetchInventoryData();
+		}
+	}, [inventoryData, loading, fetchInventoryData]);
 
 	// Date range states for each platform
 	const [shopifyDateRange, setShopifyDateRange] = useState<DateRange>(
@@ -54,7 +60,7 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 		dateRange: DateRange,
 		platform: Platform
 	): TurnoverData => {
-		if (!data || !data.inventory_turnover_rate) {
+		if (!data?.sales_kpis?.inventory_turnover_rate) {
 			return {
 				value: 0,
 				trend: {
@@ -66,7 +72,7 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 			};
 		}
 
-		const turnoverRate = data.inventory_turnover_rate || 0;
+		const turnoverRate = data.sales_kpis.inventory_turnover_rate || 0;
 
 		// Calculate trend based on historical comparison if available
 		// For demo purposes, we'll generate a reasonable trend based on the turnover rate
@@ -108,19 +114,17 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 
 	// Memoized turnover data for each platform using global state
 	const shopifyTurnover = useMemo(() => {
-		const shopifyData =
-			inventoryData?.shopify_data || inventoryData?.trendAnalysis;
+		const shopifyData = inventoryData?.inventory_analytics?.platforms?.shopify;
 		return calculateTurnoverData(shopifyData, shopifyDateRange, "shopify");
 	}, [inventoryData, shopifyDateRange]);
 
 	const amazonTurnover = useMemo(() => {
-		const amazonData =
-			inventoryData?.amazon_data || inventoryData?.trendAnalysis;
+		const amazonData = inventoryData?.inventory_analytics?.platforms?.amazon;
 		return calculateTurnoverData(amazonData, amazonDateRange, "amazon");
 	}, [inventoryData, amazonDateRange]);
 
 	const allTurnover = useMemo(() => {
-		if (!inventoryData) {
+		if (!inventoryData?.inventory_analytics?.platforms) {
 			return {
 				value: 0,
 				trend: {
@@ -132,45 +136,9 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 			};
 		}
 
-		// Calculate weighted average based on inventory values from global data
-		const shopifyData = inventoryData.shopify_data || inventoryData;
-		const amazonData = inventoryData.amazon_data || inventoryData;
-		const shopifyRate = shopifyData?.inventory_turnover_rate || 0;
-		const amazonRate = amazonData?.inventory_turnover_rate || 0;
-
-		// For simplicity, we'll average the rates (in a real app, this would be weighted by inventory value)
-		const combinedRate = (shopifyRate + amazonRate) / 2;
-
-		// Simulate trend calculation
-		const historicalRate = combinedRate * (0.85 + Math.random() * 0.3);
-		const trendValue =
-			historicalRate > 0
-				? ((combinedRate - historicalRate) / historicalRate) * 100
-				: 0;
-
-		const isPositive = trendValue >= 0;
-		const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
-
-		let subtitle = "Combined platform turnover rate";
-		if (combinedRate > 12) {
-			subtitle += " • Excellent";
-		} else if (combinedRate > 6) {
-			subtitle += " • Good";
-		} else if (combinedRate > 3) {
-			subtitle += " • Fair";
-		} else {
-			subtitle += " • Needs attention";
-		}
-
-		return {
-			value: combinedRate,
-			trend: {
-				value: trendFormatted,
-				isPositive,
-				label: `vs ${allDateRange.label.toLowerCase()}`,
-			},
-			subtitle,
-		};
+		// Use the combined platform data which already aggregates both platforms
+		const combinedData = inventoryData.inventory_analytics.platforms.combined;
+		return calculateTurnoverData(combinedData, allDateRange, "all");
 	}, [inventoryData, allDateRange]);
 
 	// Format turnover rate

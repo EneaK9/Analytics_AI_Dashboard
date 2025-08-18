@@ -7,7 +7,7 @@ import CompactDatePicker, {
 	DateRange,
 	getDateRange,
 } from "../ui/CompactDatePicker";
-import { useInventoryData } from "../../store/globalDataStore";
+import { useGlobalDataStore } from "../../store/globalDataStore";
 
 interface DaysOfStockKPIsProps {
 	clientData?: any[];
@@ -30,12 +30,18 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 	clientData,
 	className = "",
 }: DaysOfStockKPIsProps) {
-	// Use global state for data - no manual fetching needed
-	const { data: inventoryData, loading, error } = useInventoryData();
-	// Remove filters for now to prevent any potential issues
-	// const { filters, setFilters } = useFilters();
-
-	// No manual fetching - GlobalDataProvider handles this
+	// Use global store directly instead of useInventoryData hook
+	const inventoryData = useGlobalDataStore((state) => state.inventoryData);
+	const loading = useGlobalDataStore((state) => state.loading.inventoryData);
+	const error = useGlobalDataStore((state) => state.errors.inventoryData);
+	const fetchInventoryData = useGlobalDataStore((state) => state.fetchInventoryData);
+	
+	// Trigger data fetch on mount if no data
+	React.useEffect(() => {
+		if (!inventoryData && !loading) {
+			fetchInventoryData();
+		}
+	}, [inventoryData, loading, fetchInventoryData]);
 
 	// Date range states for each platform
 	const [shopifyDateRange, setShopifyDateRange] = useState<DateRange>(
@@ -54,7 +60,7 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 		dateRange: DateRange,
 		platform: Platform
 	): StockDaysData => {
-		if (!data || !data.days_of_stock_remaining) {
+		if (!data?.sales_kpis?.days_stock_remaining) {
 			return {
 				value: 0,
 				trend: {
@@ -66,7 +72,7 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 			};
 		}
 
-		const stockDays = data.days_of_stock_remaining || 0;
+		const stockDays = data.sales_kpis.days_stock_remaining || 0;
 
 		// Calculate trend based on historical comparison if available
 		// For demo purposes, we'll generate a reasonable trend based on typical stock patterns
@@ -112,19 +118,17 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 
 	// Memoized stock days data for each platform using global state
 	const shopifyStockDays = useMemo(() => {
-		const shopifyData =
-			inventoryData?.shopify_data || inventoryData?.trendAnalysis;
+		const shopifyData = inventoryData?.inventory_analytics?.platforms?.shopify;
 		return calculateStockDaysData(shopifyData, shopifyDateRange, "shopify");
 	}, [inventoryData, shopifyDateRange]);
 
 	const amazonStockDays = useMemo(() => {
-		const amazonData =
-			inventoryData?.amazon_data || inventoryData?.trendAnalysis;
+		const amazonData = inventoryData?.inventory_analytics?.platforms?.amazon;
 		return calculateStockDaysData(amazonData, amazonDateRange, "amazon");
 	}, [inventoryData, amazonDateRange]);
 
 	const allStockDays = useMemo(() => {
-		if (!inventoryData) {
+		if (!inventoryData?.inventory_analytics?.platforms) {
 			return {
 				value: 0,
 				trend: {
@@ -136,47 +140,9 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 			};
 		}
 
-		// Calculate weighted average based on inventory values from global data
-		const shopifyData = inventoryData.shopify_data || inventoryData;
-		const amazonData = inventoryData.amazon_data || inventoryData;
-		const shopifyDays = shopifyData?.days_of_stock_remaining || 0;
-		const amazonDays = amazonData?.days_of_stock_remaining || 0;
-
-		// For simplicity, we'll average the days (in a real app, this would be weighted by inventory value)
-		const combinedDays = (shopifyDays + amazonDays) / 2;
-
-		// Simulate trend calculation
-		const historicalDays = combinedDays * (0.9 + Math.random() * 0.2);
-		const trendValue =
-			historicalDays > 0
-				? ((combinedDays - historicalDays) / historicalDays) * 100
-				: 0;
-
-		const isPositive = combinedDays > 30 ? trendValue <= 0 : trendValue >= 0;
-		const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
-
-		let subtitle = "Combined platform average";
-		if (combinedDays > 90) {
-			subtitle += " • Overstock risk";
-		} else if (combinedDays > 60) {
-			subtitle += " • High stock";
-		} else if (combinedDays > 30) {
-			subtitle += " • Optimal";
-		} else if (combinedDays > 14) {
-			subtitle += " • Low stock";
-		} else {
-			subtitle += " • Critical";
-		}
-
-		return {
-			value: combinedDays,
-			trend: {
-				value: trendFormatted,
-				isPositive,
-				label: `vs ${allDateRange.label.toLowerCase()}`,
-			},
-			subtitle,
-		};
+		// Use the combined platform data which already aggregates both platforms
+		const combinedData = inventoryData.inventory_analytics.platforms.combined;
+		return calculateStockDaysData(combinedData, allDateRange, "all");
 	}, [inventoryData, allDateRange]);
 
 	// Format stock days

@@ -167,8 +167,8 @@ export const useGlobalDataStore = create<GlobalDataState>()((set, get) => ({
     activeRequests: new Set(),
     
     filters: {
-      platform: 'shopify',
-      dateRange: '7d',
+      platform: 'combined',
+      dateRange: '30d',
     },
     
     rawDataFilters: {
@@ -264,7 +264,7 @@ export const useGlobalDataStore = create<GlobalDataState>()((set, get) => ({
       try {
         const { platform } = state.filters;
         const params = {
-          platform: platform === 'combined' ? undefined : platform,
+          platform: platform === 'combined' ? 'all' : platform,
           fast_mode: true,
           force_refresh: forceRefresh,
         };

@@ -7,7 +7,7 @@ import CompactDatePicker, {
 	DateRange,
 	getDateRange,
 } from "../ui/CompactDatePicker";
-import { useInventoryData } from "../../store/globalDataStore";
+import { useGlobalDataStore } from "../../store/globalDataStore";
 
 interface TotalSalesKPIsProps {
 	clientData?: any[];
@@ -30,12 +30,18 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 	clientData,
 	className = "",
 }: TotalSalesKPIsProps) {
-	// Use global state for data - no manual fetching needed
-	const { data: inventoryData, loading, error } = useInventoryData();
-	// Remove filters for now to prevent any potential issues
-	// const { filters, setFilters } = useFilters();
-
-	// No manual fetching - GlobalDataProvider handles this
+	// Use global store directly instead of useInventoryData hook
+	const inventoryData = useGlobalDataStore((state) => state.inventoryData);
+	const loading = useGlobalDataStore((state) => state.loading.inventoryData);
+	const error = useGlobalDataStore((state) => state.errors.inventoryData);
+	const fetchInventoryData = useGlobalDataStore((state) => state.fetchInventoryData);
+	
+	// Trigger data fetch on mount if no data
+	React.useEffect(() => {
+		if (!inventoryData && !loading) {
+			fetchInventoryData();
+		}
+	}, [inventoryData, loading, fetchInventoryData]);
 
 	// Date range states for each platform
 	const [shopifyDateRange, setShopifyDateRange] = useState<DateRange>(
@@ -54,7 +60,7 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 		dateRange: DateRange,
 		platform: Platform
 	): SalesData => {
-		if (!data || !data.sales_comparison) {
+		if (!data?.sales_kpis?.total_sales_30_days) {
 			return {
 				value: 0,
 				trend: {
@@ -66,21 +72,26 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 			};
 		}
 
-		const salesComparison = data.sales_comparison;
-		const currentRevenue = salesComparison.current_period_avg_revenue || 0;
-		const historicalRevenue = salesComparison.historical_avg_revenue || 0;
+		// Get 30-day sales data (default to 30 days as requested)
+		const salesData = data.sales_kpis.total_sales_30_days;
+		const currentRevenue = salesData.revenue || 0;
+		
+		// Get trend data from trend_analysis if available
+		const trendData = data.trend_analysis?.sales_comparison;
+		const currentPeriodRevenue = trendData?.current_period_avg_revenue || 0;
+		const historicalRevenue = trendData?.historical_avg_revenue || 0;
 
 		// Calculate trend percentage
 		const trendValue =
 			historicalRevenue > 0
-				? ((currentRevenue - historicalRevenue) / historicalRevenue) * 100
+				? ((currentPeriodRevenue - historicalRevenue) / historicalRevenue) * 100
 				: 0;
 
 		const isPositive = trendValue >= 0;
 		const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
 
 		return {
-			value: currentRevenue,
+			value: currentRevenue, // Use 30-day total revenue
 			trend: {
 				value: trendFormatted,
 				isPositive,
@@ -90,27 +101,25 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 				platform === "all"
 					? "Combined"
 					: platform.charAt(0).toUpperCase() + platform.slice(1)
-			} total sales`,
+			} total sales (30 days)`,
 		};
 	};
 
 	// Memoized sales data for each platform using global state
 	const shopifySales = useMemo(() => {
-		// Extract Shopify data from global inventory data
-		const shopifyData =
-			inventoryData?.shopify_data || inventoryData?.trendAnalysis;
+		// Extract Shopify data from the correct nested path
+		const shopifyData = inventoryData?.inventory_analytics?.platforms?.shopify;
 		return calculateSalesData(shopifyData, shopifyDateRange, "shopify");
 	}, [inventoryData, shopifyDateRange]);
 
 	const amazonSales = useMemo(() => {
-		// Extract Amazon data from global inventory data
-		const amazonData =
-			inventoryData?.amazon_data || inventoryData?.trendAnalysis;
+		// Extract Amazon data from the correct nested path
+		const amazonData = inventoryData?.inventory_analytics?.platforms?.amazon;
 		return calculateSalesData(amazonData, amazonDateRange, "amazon");
 	}, [inventoryData, amazonDateRange]);
 
 	const allSales = useMemo(() => {
-		if (!inventoryData) {
+		if (!inventoryData?.inventory_analytics?.platforms) {
 			return {
 				value: 0,
 				trend: {
@@ -122,39 +131,9 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 			};
 		}
 
-		// Combine both platforms from global data
-		const shopifyData = inventoryData.shopify_data || inventoryData;
-		const amazonData = inventoryData.amazon_data || inventoryData;
-
-		const shopifyRevenue =
-			shopifyData?.sales_comparison?.current_period_avg_revenue || 0;
-		const amazonRevenue =
-			amazonData?.sales_comparison?.current_period_avg_revenue || 0;
-		const combinedRevenue = shopifyRevenue + amazonRevenue;
-
-		const shopifyHistorical =
-			shopifyData?.sales_comparison?.historical_avg_revenue || 0;
-		const amazonHistorical =
-			amazonData?.sales_comparison?.historical_avg_revenue || 0;
-		const combinedHistorical = shopifyHistorical + amazonHistorical;
-
-		const trendValue =
-			combinedHistorical > 0
-				? ((combinedRevenue - combinedHistorical) / combinedHistorical) * 100
-				: 0;
-
-		const isPositive = trendValue >= 0;
-		const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
-
-		return {
-			value: combinedRevenue,
-			trend: {
-				value: trendFormatted,
-				isPositive,
-				label: `vs ${allDateRange.label.toLowerCase()}`,
-			},
-			subtitle: "Combined Shopify + Amazon sales",
-		};
+		// Use the combined platform data which already aggregates both platforms
+		const combinedData = inventoryData.inventory_analytics.platforms.combined;
+		return calculateSalesData(combinedData, allDateRange, "all");
 	}, [inventoryData, allDateRange]);
 
 	// Format currency
