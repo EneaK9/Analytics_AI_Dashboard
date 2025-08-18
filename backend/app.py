@@ -2343,7 +2343,7 @@ async def get_raw_data_tables(
         logger.info(f"🔍 Querying table: {table_name} (page: {page}, size: {page_size}, search: {search})")
         
         # Columns to exclude from results
-        excluded_columns = ['variants', 'options', 'images', 'raw_data']
+        excluded_columns = ['id', 'client_id', 'product_id', 'variants', 'options', 'images', 'raw_data']
         
         try:
             # Build base query using Supabase client
