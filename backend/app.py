@@ -355,7 +355,7 @@ logger.info(f"🚀 Starting Analytics AI Dashboard API in {ENVIRONMENT} mode")
 # ==================== CACHING FUNCTIONS ====================
 
 async def create_client_cache_table(client_id: str):
-    """Create a daily cache table for a client if it doesn't exist"""
+    """Create a persistent cache table for a client if it doesn't exist"""
     try:
         # Clean client_id for table name
         clean_client_id = client_id.replace('-', '_')
@@ -375,12 +375,12 @@ async def create_client_cache_table(client_id: str):
             cache_key text NOT NULL,
             response_data jsonb NOT NULL,
             created_at timestamptz DEFAULT now(),
-            expires_at timestamptz NOT NULL,
+            expires_at timestamptz,
             UNIQUE(cache_key)
         );
         
         CREATE INDEX IF NOT EXISTS "idx_{clean_client_id}_cached_responses_cache_key" ON "{table_name}" (cache_key);
-        CREATE INDEX IF NOT EXISTS "idx_{clean_client_id}_cached_responses_expires_at" ON "{table_name}" (expires_at);
+        CREATE INDEX IF NOT EXISTS "idx_{clean_client_id}_cached_responses_client_id" ON "{table_name}" (client_id);
         """
         
         # Execute using raw SQL
@@ -403,7 +403,7 @@ async def create_client_cache_table(client_id: str):
         return False
 
 async def get_cached_response(client_id: str, endpoint_url: str, params: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
-    """Get cached response for today if it exists"""
+    """Get cached response if it exists (no expiration)"""
     try:
         # Generate cache key
         params_str = json.dumps(params or {}, sort_keys=True)
@@ -419,8 +419,8 @@ async def get_cached_response(client_id: str, endpoint_url: str, params: Dict[st
             return None
         
         try:
-            # Query cached response
-            response = db_client.table(table_name).select("*").eq("cache_key", cache_key).gte("expires_at", datetime.now().isoformat()).limit(1).execute()
+            # Query cached response (no expiration check)
+            response = db_client.table(table_name).select("*").eq("cache_key", cache_key).limit(1).execute()
             
             if response.data and len(response.data) > 0:
                 cached_data = response.data[0]
@@ -438,16 +438,12 @@ async def get_cached_response(client_id: str, endpoint_url: str, params: Dict[st
         return None
 
 async def save_cached_response(client_id: str, endpoint_url: str, response_data: Dict[str, Any], params: Dict[str, Any] = None):
-    """Save response to cache with daily expiration"""
+    """Save response to cache (persistent until manually cleared)"""
     try:
         # Generate cache key
         params_str = json.dumps(params or {}, sort_keys=True)
         cache_key_data = f"{endpoint_url}_{params_str}"
         cache_key = hashlib.md5(cache_key_data.encode()).hexdigest()
-        
-        # Set expiration to end of today (midnight tonight/start of tomorrow)
-        today = datetime.now().date()
-        expires_at = datetime.combine(today + timedelta(days=1), datetime.min.time())
         
         # Clean client_id for table name
         clean_client_id = client_id.replace('-', '_')
@@ -462,19 +458,19 @@ async def save_cached_response(client_id: str, endpoint_url: str, response_data:
         await create_client_cache_table(client_id)
         
         try:
-            # Insert or update cached response
+            # Insert or update cached response (no expiration)
             cache_record = {
                 "client_id": client_id,
                 "endpoint_url": endpoint_url,
                 "cache_key": cache_key,
                 "response_data": response_data,
-                "expires_at": expires_at.isoformat()
+                "expires_at": None  # No expiration
             }
             
             # Try to upsert (insert or update if exists)
             db_client.table(table_name).upsert(cache_record, on_conflict="cache_key").execute()
             
-            logger.info(f"✅ Saved cached response for client {client_id} (expires: {expires_at})")
+            logger.info(f"✅ Saved cached response for client {client_id} (persistent)")
             return True
             
         except Exception as e:
@@ -485,33 +481,7 @@ async def save_cached_response(client_id: str, endpoint_url: str, response_data:
         logger.error(f"❌ Failed to save cached response for client {client_id}: {e}")
         return False
 
-async def cleanup_expired_cache(client_id: str):
-    """Clean up expired cache entries for a client"""
-    try:
-        # Clean client_id for table name
-        clean_client_id = client_id.replace('-', '_')
-        table_name = f"{clean_client_id}_cached_responses"
-        
-        db_client = get_admin_client()
-        if not db_client:
-            return False
-        
-        try:
-            # Delete expired entries
-            current_time = datetime.now().isoformat()
-            db_client.table(table_name).delete().lt("expires_at", current_time).execute()
-            
-            logger.info(f"✅ Cleaned up expired cache entries for client {client_id}")
-            return True
-            
-        except Exception as e:
-            # Table might not exist, which is fine
-            logger.info(f"📝 No cache table to clean for client {client_id}")
-            return False
-            
-    except Exception as e:
-        logger.error(f"❌ Failed to cleanup expired cache for client {client_id}: {e}")
-        return False
+
 
 # ==================== BASIC ENDPOINTS ====================
 
@@ -3383,15 +3353,12 @@ async def get_inventory_analytics(
             if end_date:
                 cache_params["end_date"] = end_date
             
-            # Clean up expired cache first
-            await cleanup_expired_cache(client_id)
-            
-            # Try to get cached response from today
+            # Try to get cached response
             cached_response = await get_cached_response(client_id, endpoint_url, cache_params)
             if cached_response:
-                logger.info(f"🗄️ DAILY CACHE HIT: Using database cached response for {client_id}")
+                logger.info(f"🗄️ CACHE HIT: Using database cached response for {client_id}")
                 cached_response["cached"] = True
-                cached_response["cache_source"] = "daily_database"
+                cached_response["cache_source"] = "persistent_database"
                 return cached_response
         
         with calculation_lock:

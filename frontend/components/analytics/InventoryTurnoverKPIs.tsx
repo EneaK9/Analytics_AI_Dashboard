@@ -60,7 +60,7 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 		dateRange: DateRange,
 		platform: Platform
 	): TurnoverData => {
-		if (!data?.sales_kpis?.inventory_turnover_rate) {
+		if (!data?.sales_kpis?.inventory_turnover_rate && data?.sales_kpis?.inventory_turnover_rate !== 0) {
 			return {
 				value: 0,
 				trend: {
@@ -72,7 +72,7 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 			};
 		}
 
-		const turnoverRate = data.sales_kpis.inventory_turnover_rate || 0;
+		const turnoverRate = data.sales_kpis.inventory_turnover_rate;
 
 		// Calculate trend based on historical comparison if available
 		// For demo purposes, we'll generate a reasonable trend based on the turnover rate
@@ -141,9 +141,16 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 		return calculateTurnoverData(combinedData, allDateRange, "all");
 	}, [inventoryData, allDateRange]);
 
-	// Format turnover rate
+	// Format turnover rate with proper precision
 	const formatTurnover = (value: number) => {
-		return `${value.toFixed(1)}x`;
+		// Show 2 decimal places for small values, 1 for larger values
+		if (value < 0.1) {
+			return `${value.toFixed(2)}x`;
+		} else if (value < 1) {
+			return `${value.toFixed(1)}x`;
+		} else {
+			return `${value.toFixed(1)}x`;
+		}
 	};
 
 	// Individual KPI Card Component (memoized for performance)
