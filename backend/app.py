@@ -53,10 +53,11 @@ active_calculations = {}  # Track ongoing calculations
 calculation_lock = threading.Lock()
 
 # 🔥 BACKGROUND CALCULATION SYSTEM - INSTANT RESPONSES!
-async def refresh_analytics_background(client_id: str, platform: str, fast_mode: bool = True):
+async def refresh_analytics_background(client_id: str, platform: str, fast_mode: bool = True, start_date: Optional[str] = None, end_date: Optional[str] = None):
     """Run analytics calculations in background - doesn't block responses"""
     try:
-        logger.info(f"🔄 Background refresh started for {client_id} ({platform})")
+        date_info = f" (dates: {start_date} to {end_date})" if start_date or end_date else ""
+        logger.info(f"🔄 Background refresh started for {client_id} ({platform}){date_info}")
         
         # Use dashboard inventory analyzer for fresh calculations
         from dashboard_inventory_analyzer import dashboard_inventory_analyzer
@@ -65,17 +66,27 @@ async def refresh_analytics_background(client_id: str, platform: str, fast_mode:
         loop = asyncio.get_event_loop()
         analytics = await loop.run_in_executor(
             executor,
-            lambda: asyncio.run(dashboard_inventory_analyzer.get_dashboard_inventory_analytics(client_id, platform))
+            lambda: asyncio.run(dashboard_inventory_analyzer.get_dashboard_inventory_analytics(client_id, platform, start_date, end_date))
         )
         
-        # Cache the results using existing LLM cache infrastructure
+        # Cache the results using existing LLM cache infrastructure with date range
         from llm_cache_manager import LLMCacheManager
         cache_manager = LLMCacheManager()
+        
+        cache_params = {"platform": platform}
+        if start_date:
+            cache_params["start_date"] = start_date
+        if end_date:
+            cache_params["end_date"] = end_date
+            
+        date_key = f"{start_date or 'no_start'}_{end_date or 'no_end'}"
+        cache_key = f"analytics_{platform}_{date_key}"
+        
         await cache_manager.store_cached_llm_response(
-            client_id, {"platform": platform}, analytics, f"analytics_{platform}"
+            client_id, cache_params, analytics, cache_key
         )
         
-        logger.info(f"✅ Background refresh completed for {client_id} ({platform})")
+        logger.info(f"✅ Background refresh completed for {client_id} ({platform}){date_info}")
         
     except Exception as e:
         logger.error(f"❌ Background refresh failed for {client_id}: {e}")
@@ -2906,6 +2917,8 @@ async def get_inventory_analytics(
     fast_mode: bool = True,
     force_refresh: bool = False,
     platform: str = "shopify",
+    start_date: Optional[str] = None,  # Date filtering support
+    end_date: Optional[str] = None,    # Date filtering support
     background_tasks: BackgroundTasks = BackgroundTasks()
 ):
     """⚡ INSTANT RESPONSE - Return cached data immediately, refresh in background"""
@@ -2916,8 +2929,11 @@ async def get_inventory_analytics(
         
         logger.info(f"⚡ INSTANT analytics request for {client_id} ({platform}) - NO WAITING!")
         
-        # Check if calculation is already running for this client/platform
-        task_key = f"{client_id}_{platform}"
+        # Create unique cache key including date range for independent caching
+        date_key = f"{start_date or 'no_start'}_{end_date or 'no_end'}"
+        task_key = f"{client_id}_{platform}_{date_key}"
+        cache_key = f"analytics_{platform}_{date_key}"
+        
         with calculation_lock:
             if task_key in active_calculations and not force_refresh:
                 logger.info(f"⏳ Calculation in progress for {task_key}, using cached data")
@@ -2927,16 +2943,22 @@ async def get_inventory_analytics(
             from llm_cache_manager import LLMCacheManager
             cache_manager = LLMCacheManager()
             
-            # Check existing llm_response_cache for instant response
+            # Check existing llm_response_cache for instant response with date range
+            cache_params = {"platform": platform}
+            if start_date:
+                cache_params["start_date"] = start_date
+            if end_date:
+                cache_params["end_date"] = end_date
+                
             cached_analytics = await cache_manager.get_cached_llm_response(
-                client_id, {"platform": platform}, f"analytics_{platform}"
+                client_id, cache_params, cache_key
             )
             
             if cached_analytics and not force_refresh:
                 logger.info(f"⚡ INSTANT RESPONSE: Using cached analytics for {platform}")
                 
                 # Start background refresh for next time
-                background_tasks.add_task(refresh_analytics_background, client_id, platform, fast_mode)
+                background_tasks.add_task(refresh_analytics_background, client_id, platform, fast_mode, start_date, end_date)
                 
                 return cached_analytics
         except Exception as e:
@@ -2979,7 +3001,7 @@ async def get_inventory_analytics(
                 # Use dashboard-focused inventory analyzer
                 from dashboard_inventory_analyzer import dashboard_inventory_analyzer
                 
-                analytics = await dashboard_inventory_analyzer.get_dashboard_inventory_analytics(client_id, platform)
+                analytics = await dashboard_inventory_analyzer.get_dashboard_inventory_analytics(client_id, platform, start_date, end_date)
                 
                 if analytics.get('success'):
                     logger.info(f"✅ Dashboard inventory analytics completed for client {client_id}")
