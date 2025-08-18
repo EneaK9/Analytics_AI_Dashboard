@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Search, Download, AlertCircle, Package, TrendingUp, TrendingDown, Store, ShoppingBag } from "lucide-react";
+import {
+	Search,
+	Download,
+	AlertCircle,
+	Package,
+	TrendingUp,
+	TrendingDown,
+	Store,
+	ShoppingBag,
+} from "lucide-react";
 import DataTable from "../ui/DataTable";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { type SKUData, type SKUSummaryStats } from "../../lib/inventoryService";
@@ -27,18 +36,23 @@ export default function PlatformSKUList({
 	const shopifyData = useGlobalDataStore((state) => state.skuData || []);
 	const shopifyLoading = useGlobalDataStore((state) => state.loading.skuData);
 	const shopifyError = useGlobalDataStore((state) => state.errors.skuData);
-	
+
 	// For now, use the same data for both platforms since global store handles platform switching
 	// TODO: Implement platform-specific data storage in global store
 	const currentData = Array.isArray(shopifyData) ? shopifyData : [];
-	const currentStats = null; // Will be calculated from skuData
+	const currentStats = {
+		total_skus: currentData.length,
+		total_inventory_value: 0,
+		low_stock_count: 0,
+		out_of_stock_count: 0,
+	};
 	const currentLoading = shopifyLoading;
 	const currentError = shopifyError;
 	const currentLastUpdated = new Date();
 	const currentRefresh = useGlobalDataStore((state) => state.fetchSKUData);
 
 	// Refresh handler for manual refresh
-	const handleRefresh = () => currentRefresh(true);
+	const handleRefresh = () => currentRefresh(1, true);
 
 	// Define table columns for SKU data
 	const columns = [
@@ -84,7 +98,9 @@ export default function PlatformSKUList({
 			width: "130px",
 			render: (value: number) => (
 				<div className="text-center">
-					<span className="text-blue-600 font-semibold">{value.toLocaleString()}</span>
+					<span className="text-blue-600 font-semibold">
+						{value.toLocaleString()}
+					</span>
 					<TrendingUp className="inline ml-1 h-3 w-3 text-blue-600" />
 				</div>
 			),
@@ -97,7 +113,9 @@ export default function PlatformSKUList({
 			width: "130px",
 			render: (value: number) => (
 				<div className="text-center">
-					<span className="text-red-600 font-semibold">{value.toLocaleString()}</span>
+					<span className="text-red-600 font-semibold">
+						{value.toLocaleString()}
+					</span>
 					<TrendingDown className="inline ml-1 h-3 w-3 text-red-600" />
 				</div>
 			),
@@ -111,16 +129,17 @@ export default function PlatformSKUList({
 			render: (value: number, row: SKUData) => {
 				const isLowStock = value < 10;
 				const isOutOfStock = value <= 0;
-				
+
 				return (
 					<div className="text-center">
-						<span 
+						<span
 							className={`font-bold ${
-								isOutOfStock ? 'text-red-700' : 
-								isLowStock ? 'text-yellow-600' : 
-								'text-green-600'
-							}`}
-						>
+								isOutOfStock
+									? "text-red-700"
+									: isLowStock
+									? "text-yellow-600"
+									: "text-green-600"
+							}`}>
 							{value.toLocaleString()}
 						</span>
 						{isLowStock && (
@@ -145,7 +164,11 @@ export default function PlatformSKUList({
 			width: "120px",
 			render: (value: number) => (
 				<div className="text-right font-semibold text-gray-900">
-					${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+					$
+					{value.toLocaleString(undefined, {
+						minimumFractionDigits: 2,
+						maximumFractionDigits: 2,
+					})}
 				</div>
 			),
 		},
@@ -154,7 +177,9 @@ export default function PlatformSKUList({
 	// Platform Toggle Component
 	const PlatformTabs = () => (
 		<div className="flex items-center justify-between mb-6">
-			<h2 className="text-xl font-semibold text-gray-900">SKU Inventory Management</h2>
+			<h2 className="text-xl font-semibold text-gray-900">
+				SKU Inventory Management
+			</h2>
 			<div className="flex rounded-lg border border-gray-300 bg-gray-50">
 				<button
 					onClick={() => setSelectedPlatform("shopify")}
@@ -192,8 +217,12 @@ export default function PlatformSKUList({
 						<CardContent className="p-4">
 							<div className="flex items-center justify-between">
 								<div>
-									<p className="text-sm font-medium text-gray-600">Total SKUs</p>
-									<p className="text-2xl font-bold text-gray-900">{currentStats.total_skus}</p>
+									<p className="text-sm font-medium text-gray-600">
+										Total SKUs
+									</p>
+									<p className="text-2xl font-bold text-gray-900">
+										{currentStats.total_skus}
+									</p>
 								</div>
 								<Package className="h-8 w-8 text-blue-600" />
 							</div>
@@ -204,9 +233,15 @@ export default function PlatformSKUList({
 						<CardContent className="p-4">
 							<div className="flex items-center justify-between">
 								<div>
-									<p className="text-sm font-medium text-gray-600">Total Inventory Value</p>
+									<p className="text-sm font-medium text-gray-600">
+										Total Inventory Value
+									</p>
 									<p className="text-2xl font-bold text-green-600">
-										${(currentStats.total_inventory_value || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+										$
+										{(currentStats.total_inventory_value || 0).toLocaleString(
+											undefined,
+											{ minimumFractionDigits: 0, maximumFractionDigits: 0 }
+										)}
 									</p>
 								</div>
 								<TrendingUp className="h-8 w-8 text-green-600" />
@@ -218,8 +253,12 @@ export default function PlatformSKUList({
 						<CardContent className="p-4">
 							<div className="flex items-center justify-between">
 								<div>
-									<p className="text-sm font-medium text-gray-600">Low Stock Alerts</p>
-									<p className="text-2xl font-bold text-yellow-600">{currentStats.low_stock_count}</p>
+									<p className="text-sm font-medium text-gray-600">
+										Low Stock Alerts
+									</p>
+									<p className="text-2xl font-bold text-yellow-600">
+										{currentStats.low_stock_count}
+									</p>
 								</div>
 								<AlertCircle className="h-8 w-8 text-yellow-600" />
 							</div>
@@ -230,8 +269,12 @@ export default function PlatformSKUList({
 						<CardContent className="p-4">
 							<div className="flex items-center justify-between">
 								<div>
-									<p className="text-sm font-medium text-gray-600">Out of Stock</p>
-									<p className="text-2xl font-bold text-red-600">{currentStats.out_of_stock_count}</p>
+									<p className="text-sm font-medium text-gray-600">
+										Out of Stock
+									</p>
+									<p className="text-2xl font-bold text-red-600">
+										{currentStats.out_of_stock_count}
+									</p>
 								</div>
 								<AlertCircle className="h-8 w-8 text-red-600" />
 							</div>
@@ -242,8 +285,12 @@ export default function PlatformSKUList({
 
 			{/* SKU Data Table */}
 			<DataTable
-				title={`SKU Inventory List - ${selectedPlatform === "shopify" ? "Shopify" : "Amazon"}`}
-				subtitle={`Comprehensive inventory management with real-time availability tracking • ${currentData?.length || 0} SKUs`}
+				title={`SKU Inventory List - ${
+					selectedPlatform === "shopify" ? "Shopify" : "Amazon"
+				}`}
+				subtitle={`Comprehensive inventory management with real-time availability tracking • ${
+					currentData?.length || 0
+				} SKUs`}
 				data={currentData || []}
 				columns={columns}
 				loading={currentLoading}
@@ -251,15 +298,18 @@ export default function PlatformSKUList({
 				export={true}
 				pagination={true}
 				pageSize={20}
-				emptyMessage={`No inventory data available for ${selectedPlatform === "shopify" ? "Shopify" : "Amazon"}. Please upload CSV data or check data connections.`}
+				emptyMessage={`No inventory data available for ${
+					selectedPlatform === "shopify" ? "Shopify" : "Amazon"
+				}. Please upload CSV data or check data connections.`}
 				className="bg-white shadow-sm"
 			/>
 
 			{/* Footer with last updated info */}
 			{currentLastUpdated && (
 				<div className="text-center text-sm text-gray-500">
-					Last updated: {currentLastUpdated.toLocaleTimeString()} • 
-					{selectedPlatform === "shopify" ? " Shopify" : " Amazon"} platform data
+					Last updated: {currentLastUpdated.toLocaleTimeString()} •
+					{selectedPlatform === "shopify" ? " Shopify" : " Amazon"} platform
+					data
 				</div>
 			)}
 		</div>

@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Calendar, TrendingUp, Store, ShoppingBag, Clock } from "lucide-react";
+import { Calendar, TrendingUp, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import CompactDatePicker, { DateRange, getDateRange } from "../ui/CompactDatePicker";
-import { useInventoryData, useFilters } from "../../store/globalDataStore";
+import CompactDatePicker, {
+	DateRange,
+	getDateRange,
+} from "../ui/CompactDatePicker";
+import { useInventoryData } from "../../store/globalDataStore";
 
 interface DaysOfStockKPIsProps {
 	clientData?: any[];
@@ -64,13 +67,14 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 		}
 
 		const stockDays = data.days_of_stock_remaining || 0;
-		
+
 		// Calculate trend based on historical comparison if available
 		// For demo purposes, we'll generate a reasonable trend based on typical stock patterns
 		const historicalDays = stockDays * (0.9 + Math.random() * 0.2); // Simulate historical data
-		const trendValue = historicalDays > 0 
-			? ((stockDays - historicalDays) / historicalDays) * 100 
-			: 0;
+		const trendValue =
+			historicalDays > 0
+				? ((stockDays - historicalDays) / historicalDays) * 100
+				: 0;
 
 		// For stock days, lower values might be concerning (trending toward stockout)
 		// Higher values might indicate overstocking
@@ -78,7 +82,11 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 		const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
 
 		// Determine health status based on stock days
-		let subtitle = `${platform === "all" ? "Combined" : platform.charAt(0).toUpperCase() + platform.slice(1)} average stock days`;
+		let subtitle = `${
+			platform === "all"
+				? "Combined"
+				: platform.charAt(0).toUpperCase() + platform.slice(1)
+		} average stock days`;
 		if (stockDays > 90) {
 			subtitle += " • Overstock risk";
 		} else if (stockDays > 60) {
@@ -104,12 +112,14 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 
 	// Memoized stock days data for each platform using global state
 	const shopifyStockDays = useMemo(() => {
-		const shopifyData = inventoryData?.shopify_data || inventoryData?.trendAnalysis;
+		const shopifyData =
+			inventoryData?.shopify_data || inventoryData?.trendAnalysis;
 		return calculateStockDaysData(shopifyData, shopifyDateRange, "shopify");
 	}, [inventoryData, shopifyDateRange]);
 
 	const amazonStockDays = useMemo(() => {
-		const amazonData = inventoryData?.amazon_data || inventoryData?.trendAnalysis;
+		const amazonData =
+			inventoryData?.amazon_data || inventoryData?.trendAnalysis;
 		return calculateStockDaysData(amazonData, amazonDateRange, "amazon");
 	}, [inventoryData, amazonDateRange]);
 
@@ -131,15 +141,16 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 		const amazonData = inventoryData.amazon_data || inventoryData;
 		const shopifyDays = shopifyData?.days_of_stock_remaining || 0;
 		const amazonDays = amazonData?.days_of_stock_remaining || 0;
-		
+
 		// For simplicity, we'll average the days (in a real app, this would be weighted by inventory value)
 		const combinedDays = (shopifyDays + amazonDays) / 2;
 
 		// Simulate trend calculation
 		const historicalDays = combinedDays * (0.9 + Math.random() * 0.2);
-		const trendValue = historicalDays > 0 
-			? ((combinedDays - historicalDays) / historicalDays) * 100 
-			: 0;
+		const trendValue =
+			historicalDays > 0
+				? ((combinedDays - historicalDays) / historicalDays) * 100
+				: 0;
 
 		const isPositive = combinedDays > 30 ? trendValue <= 0 : trendValue >= 0;
 		const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
@@ -174,58 +185,85 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 	};
 
 	// Individual KPI Card Component (memoized for performance)
-	const StockDaysKPICard = React.memo(({
-		title,
-		data,
-		dateRange,
-		onDateRangeChange,
-		loading,
-		error,
-		icon,
-		iconColor,
-		iconBgColor,
-	}: {
-		title: string;
-		data: StockDaysData;
-		dateRange: DateRange;
-		onDateRangeChange: (range: DateRange) => void;
-		loading: boolean;
-		error: string | null;
-		icon: React.ReactNode;
-		iconColor: string;
-		iconBgColor: string;
-	}) => {
-		if (loading) {
-			return (
-				<Card className="bg-gray-100 border-gray-300 hover:shadow-md transition-all duration-300">
-					<CardHeader className="pb-3">
-						<div className="flex items-center justify-between">
-							<CardTitle className="text-sm font-medium text-gray-600">{title}</CardTitle>
-							<div className="w-24 h-6 bg-gray-200 rounded animate-pulse"></div>
-						</div>
-					</CardHeader>
-					<CardContent>
-						<div className="animate-pulse">
-							<div className="flex items-center justify-between mb-3">
-								<div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
-								<div className="w-12 h-5 bg-gray-200 rounded"></div>
+	const StockDaysKPICard = React.memo(
+		({
+			title,
+			data,
+			dateRange,
+			onDateRangeChange,
+			loading,
+			error,
+			icon,
+			iconColor,
+			iconBgColor,
+		}: {
+			title: string;
+			data: StockDaysData;
+			dateRange: DateRange;
+			onDateRangeChange: (range: DateRange) => void;
+			loading: boolean;
+			error: string | null;
+			icon: React.ReactNode;
+			iconColor: string;
+			iconBgColor: string;
+		}) => {
+			if (loading) {
+				return (
+					<Card className="bg-gray-100 border-gray-300 hover:shadow-md transition-all duration-300">
+						<CardHeader className="pb-3">
+							<div className="flex items-center justify-between">
+								<CardTitle className="text-sm font-medium text-gray-600">
+									{title}
+								</CardTitle>
+								<div className="w-24 h-6 bg-gray-200 rounded animate-pulse"></div>
 							</div>
-							<div className="space-y-2">
-								<div className="h-6 bg-gray-200 rounded"></div>
-								<div className="h-3 bg-gray-200 rounded w-2/3"></div>
+						</CardHeader>
+						<CardContent>
+							<div className="animate-pulse">
+								<div className="flex items-center justify-between mb-3">
+									<div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
+									<div className="w-12 h-5 bg-gray-200 rounded"></div>
+								</div>
+								<div className="space-y-2">
+									<div className="h-6 bg-gray-200 rounded"></div>
+									<div className="h-3 bg-gray-200 rounded w-2/3"></div>
+								</div>
 							</div>
-						</div>
-					</CardContent>
-				</Card>
-			);
-		}
+						</CardContent>
+					</Card>
+				);
+			}
 
-		if (error) {
+			if (error) {
+				return (
+					<Card className="bg-gray-100 border-red-200 hover:shadow-md transition-all duration-300">
+						<CardHeader className="pb-3">
+							<div className="flex items-center justify-between">
+								<CardTitle className="text-sm font-medium text-gray-600">
+									{title}
+								</CardTitle>
+								<CompactDatePicker
+									value={dateRange}
+									onChange={onDateRangeChange}
+								/>
+							</div>
+						</CardHeader>
+						<CardContent>
+							<div className="flex items-center justify-center h-20 text-red-600">
+								<p className="text-sm">Error loading data</p>
+							</div>
+						</CardContent>
+					</Card>
+				);
+			}
+
 			return (
-				<Card className="bg-gray-100 border-red-200 hover:shadow-md transition-all duration-300">
+				<Card className="bg-gray-100 border-gray-300 hover:shadow-md hover:bg-gray-200 transition-all duration-300">
 					<CardHeader className="pb-3">
 						<div className="flex items-center justify-between">
-							<CardTitle className="text-sm font-medium text-gray-600">{title}</CardTitle>
+							<CardTitle className="text-sm font-medium text-gray-600">
+								{title}
+							</CardTitle>
 							<CompactDatePicker
 								value={dateRange}
 								onChange={onDateRangeChange}
@@ -233,70 +271,55 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 						</div>
 					</CardHeader>
 					<CardContent>
-						<div className="flex items-center justify-center h-20 text-red-600">
-							<p className="text-sm">Error loading data</p>
+						{/* Header with Trend */}
+						<div className="flex items-center justify-between mb-3">
+							<div
+								className="h-10 w-10 rounded-lg flex items-center justify-center"
+								style={{ backgroundColor: iconBgColor }}>
+								{icon}
+							</div>
+
+							<div
+								className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${
+									data.trend.isPositive
+										? "text-green-700 bg-green-100"
+										: "text-red-700 bg-red-100"
+								}`}>
+								<TrendingUp
+									className={`h-3 w-3 ${
+										data.trend.isPositive ? "" : "rotate-180"
+									}`}
+								/>
+								{data.trend.value}
+							</div>
+						</div>
+
+						{/* Value and Subtitle */}
+						<div className="space-y-1">
+							<h3 className="text-2xl font-bold text-gray-900">
+								{formatStockDays(data.value)}
+							</h3>
+							<p className="text-xs text-gray-500">{data.subtitle}</p>
+						</div>
+
+						{/* Trend Label */}
+						<div className="mt-2 pt-2 border-t border-gray-300">
+							<p className="text-xs text-gray-400">{data.trend.label}</p>
 						</div>
 					</CardContent>
 				</Card>
 			);
 		}
+	);
 
-		return (
-			<Card className="bg-gray-100 border-gray-300 hover:shadow-md hover:bg-gray-200 transition-all duration-300">
-				<CardHeader className="pb-3">
-					<div className="flex items-center justify-between">
-						<CardTitle className="text-sm font-medium text-gray-600">{title}</CardTitle>
-						<CompactDatePicker
-							value={dateRange}
-							onChange={onDateRangeChange}
-						/>
-					</div>
-				</CardHeader>
-				<CardContent>
-					{/* Header with Trend */}
-					<div className="flex items-center justify-between mb-3">
-						<div
-							className="h-10 w-10 rounded-lg flex items-center justify-center"
-							style={{ backgroundColor: iconBgColor }}>
-							{icon}
-						</div>
-
-						<div
-							className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${
-								data.trend.isPositive
-									? "text-green-700 bg-green-100"
-									: "text-red-700 bg-red-100"
-							}`}>
-							<TrendingUp
-								className={`h-3 w-3 ${
-									data.trend.isPositive ? "" : "rotate-180"
-								}`}
-							/>
-							{data.trend.value}
-						</div>
-					</div>
-
-					{/* Value and Subtitle */}
-					<div className="space-y-1">
-						<h3 className="text-2xl font-bold text-gray-900">
-							{formatStockDays(data.value)}
-						</h3>
-						<p className="text-xs text-gray-500">{data.subtitle}</p>
-					</div>
-
-					{/* Trend Label */}
-					<div className="mt-2 pt-2 border-t border-gray-300">
-						<p className="text-xs text-gray-400">{data.trend.label}</p>
-					</div>
-				</CardContent>
-			</Card>
-		);
-	});
+	StockDaysKPICard.displayName = "StockDaysKPICard";
 
 	return (
 		<div className={`space-y-4 ${className}`}>
 			<div className="flex items-center justify-between">
-				<h2 className="text-xl font-semibold text-gray-900">Days of Stock Remaining</h2>
+				<h2 className="text-xl font-semibold text-gray-900">
+					Days of Stock Remaining
+				</h2>
 				<p className="text-sm text-gray-600">
 					Estimated time until inventory runs out
 				</p>

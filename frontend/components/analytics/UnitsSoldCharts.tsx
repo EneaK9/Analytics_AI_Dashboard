@@ -1,11 +1,20 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
-import { BarChart3, Store, ShoppingBag, TrendingUp, Calendar } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import {
+	BarChart3,
+	Store,
+	ShoppingBag,
+	TrendingUp,
+	Calendar,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import CompactDatePicker, { DateRange, getDateRange } from "../ui/CompactDatePicker";
+import CompactDatePicker, {
+	DateRange,
+	getDateRange,
+} from "../ui/CompactDatePicker";
 import SimpleBarChart from "../charts/SimpleBarChart";
-import useInventoryData from "../../hooks/useInventoryData";
+import useMultiPlatformData from "../../hooks/useMultiPlatformData";
 
 interface UnitsSoldChartsProps {
 	clientData?: any[];
@@ -29,24 +38,31 @@ export default function UnitsSoldCharts({
 		getDateRange("month")
 	);
 
-	// Data hooks for each platform
+	// ⚡ OPTIMIZED: Single API call for ALL platforms - NO re-rendering!
 	const {
-		loading: shopifyLoading,
-		error: shopifyError,
-		trendAnalysis: shopifyData,
-	} = useInventoryData({
-		platform: "shopify",
+		loading: multiLoading,
+		error: multiError,
+		shopifyData: shopifyPlatformData,
+		amazonData: amazonPlatformData,
+	} = useMultiPlatformData({
 		fastMode: true,
 	});
 
-	const {
-		loading: amazonLoading,
-		error: amazonError,
-		trendAnalysis: amazonData,
-	} = useInventoryData({
-		platform: "amazon",
-		fastMode: true,
-	});
+	// Extract trend analysis from platform data - MEMOIZED
+	const shopifyData = useMemo(
+		() => shopifyPlatformData?.trend_analysis || null,
+		[shopifyPlatformData]
+	);
+	const amazonData = useMemo(
+		() => amazonPlatformData?.trend_analysis || null,
+		[amazonPlatformData]
+	);
+
+	// Derived loading/error states
+	const shopifyLoading = multiLoading;
+	const amazonLoading = multiLoading;
+	const shopifyError = multiError;
+	const amazonError = multiError;
 
 	// Process units sold data for a specific platform and date range
 	const processUnitsSoldData = (data: any, days: number) => {
@@ -153,11 +169,14 @@ export default function UnitsSoldCharts({
 	// Calculate summary stats for each chart
 	const calculateStats = (data: any[]) => {
 		if (!data.length) return { total: 0, average: 0, peak: 0 };
-		
-		const total = data.reduce((sum, item) => sum + (item.units || item.value), 0);
+
+		const total = data.reduce(
+			(sum, item) => sum + (item.units || item.value),
+			0
+		);
 		const average = total / data.length;
-		const peak = Math.max(...data.map(item => item.units || item.value));
-		
+		const peak = Math.max(...data.map((item) => item.units || item.value));
+
 		return { total, average, peak };
 	};
 
@@ -236,10 +255,7 @@ export default function UnitsSoldCharts({
 							{icon}
 							{title}
 						</CardTitle>
-						<CompactDatePicker
-							value={dateRange}
-							onChange={onDateRangeChange}
-						/>
+						<CompactDatePicker value={dateRange} onChange={onDateRangeChange} />
 					</div>
 				</CardHeader>
 				<CardContent>
@@ -268,11 +284,7 @@ export default function UnitsSoldCharts({
 							</div>
 
 							{/* Bar Chart */}
-							<SimpleBarChart
-								data={data}
-								color={iconColor}
-								height={160}
-							/>
+							<SimpleBarChart data={data} color={iconColor} height={160} />
 						</>
 					) : (
 						<div className="h-48 flex items-center justify-center text-gray-500">
@@ -321,7 +333,9 @@ export default function UnitsSoldCharts({
 					onDateRangeChange={setAmazonDateRange}
 					loading={amazonLoading}
 					error={amazonError}
-					icon={<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />}
+					icon={
+						<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />
+					}
 					iconColor="#f59e0b"
 					iconBgColor="#fffbeb"
 				/>
@@ -343,7 +357,8 @@ export default function UnitsSoldCharts({
 			{/* Data Info */}
 			<div className="text-center text-sm text-gray-500">
 				<Calendar className="inline h-4 w-4 mr-1" />
-				Showing units sold for selected date ranges • Data updates every 5 minutes
+				Showing units sold for selected date ranges • Data updates every 5
+				minutes
 			</div>
 		</div>
 	);

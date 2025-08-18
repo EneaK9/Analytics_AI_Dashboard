@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import {
 	Package,
 	Store,
@@ -11,7 +11,7 @@ import {
 	RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import useInventoryData from "../../hooks/useInventoryData";
+import useMultiPlatformData from "../../hooks/useMultiPlatformData";
 
 interface OverstockAlertsProps {
 	className?: string;
@@ -29,35 +29,45 @@ interface AlertItem {
 export default function OverstockAlerts({
 	className = "",
 }: OverstockAlertsProps) {
-	// Data hooks for both platforms
+	// ⚡ OPTIMIZED: Single API call for ALL platforms - NO re-rendering!
 	const {
-		loading: shopifyLoading,
-		error: shopifyError,
-		alertsSummary: shopifyAlerts,
-		lastUpdated: shopifyLastUpdated,
-	} = useInventoryData({
-		platform: "shopify",
+		loading: multiLoading,
+		error: multiError,
+		shopifyData: shopifyPlatformData,
+		amazonData: amazonPlatformData,
+		lastUpdated,
+	} = useMultiPlatformData({
 		fastMode: true,
 	});
 
-	const {
-		loading: amazonLoading,
-		error: amazonError,
-		alertsSummary: amazonAlerts,
-		lastUpdated: amazonLastUpdated,
-	} = useInventoryData({
-		platform: "amazon",
-		fastMode: true,
-	});
+	// Extract alerts from platform data - MEMOIZED
+	const shopifyAlerts = useMemo(
+		() => shopifyPlatformData?.alerts_summary || null,
+		[shopifyPlatformData]
+	);
+	const amazonAlerts = useMemo(
+		() => amazonPlatformData?.alerts_summary || null,
+		[amazonPlatformData]
+	);
+
+	// Derived loading/error states
+	const shopifyLoading = multiLoading;
+	const amazonLoading = multiLoading;
+	const shopifyError = multiError;
+	const amazonError = multiError;
+	const shopifyLastUpdated = lastUpdated;
+	const amazonLastUpdated = lastUpdated;
 
 	// Process alerts for each platform
 	const processOverstockAlerts = (data: any): AlertItem[] => {
-		const alerts = data?.overstock_alerts || data?.detailed_alerts?.overstock_alerts || [];
-		
+		const alerts =
+			data?.overstock_alerts || data?.detailed_alerts?.overstock_alerts || [];
+
 		return alerts.map((alert: any, index: number) => ({
 			id: `overstock-${index}`,
 			sku: alert.sku_code || alert.sku || `Unknown-${index}`,
-			message: alert.message || `Excess inventory: ${alert.excess_units || 0} units`,
+			message:
+				alert.message || `Excess inventory: ${alert.excess_units || 0} units`,
 			severity: alert.severity || "medium",
 			excessUnits: alert.excess_units,
 			quickLink: `/inventory/sku/${alert.sku_code || alert.sku}`,
@@ -130,7 +140,9 @@ export default function OverstockAlerts({
 					<CardContent>
 						<div className="space-y-3">
 							{[...Array(3)].map((_, i) => (
-								<div key={i} className="h-16 bg-gray-200 rounded animate-pulse"></div>
+								<div
+									key={i}
+									className="h-16 bg-gray-200 rounded animate-pulse"></div>
 							))}
 						</div>
 					</CardContent>
@@ -158,7 +170,8 @@ export default function OverstockAlerts({
 		}
 
 		return (
-			<Card className={`border ${borderColor} ${bgColor} hover:shadow-lg transition-shadow`}>
+			<Card
+				className={`border ${borderColor} ${bgColor} hover:shadow-lg transition-shadow`}>
 				<CardHeader className="pb-3">
 					<CardTitle className={`flex items-center gap-2 ${textColor}`}>
 						{icon}
@@ -173,7 +186,9 @@ export default function OverstockAlerts({
 						<div className="text-center py-6 text-gray-500">
 							<TrendingUp className="h-8 w-8 mx-auto mb-2 text-green-500" />
 							<p className="text-sm">No overstock alerts</p>
-							<p className="text-xs text-gray-400">Inventory levels are optimized</p>
+							<p className="text-xs text-gray-400">
+								Inventory levels are optimized
+							</p>
 						</div>
 					) : (
 						<div className="space-y-3 max-h-64 overflow-y-auto">
@@ -188,7 +203,9 @@ export default function OverstockAlerts({
 											</h4>
 											{getSeverityBadge(alert.severity)}
 										</div>
-										<p className="text-xs text-gray-600 mb-2">{alert.message}</p>
+										<p className="text-xs text-gray-600 mb-2">
+											{alert.message}
+										</p>
 										{alert.excessUnits !== undefined && (
 											<p className="text-xs text-blue-600 font-medium">
 												{alert.excessUnits} excess units
@@ -226,7 +243,9 @@ export default function OverstockAlerts({
 	return (
 		<div className={`space-y-4 ${className}`}>
 			<div className="flex items-center justify-between">
-				<h2 className="text-xl font-semibold text-gray-900">Overstock Alerts</h2>
+				<h2 className="text-xl font-semibold text-gray-900">
+					Overstock Alerts
+				</h2>
 				<p className="text-sm text-gray-600">
 					Excess inventory levels requiring attention
 				</p>

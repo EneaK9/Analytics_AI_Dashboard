@@ -30,13 +30,17 @@ class DashboardInventoryAnalyzer:
                 raise Exception("No admin database client available")
         return self.admin_client
 
-    async def get_dashboard_inventory_analytics(self, client_id: str, platform: str = "shopify") -> Dict[str, Any]:
+    async def get_dashboard_inventory_analytics(self, client_id: str, platform: str = "shopify", start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
         """Get complete dashboard inventory analytics"""
         try:
             # Ensure database client is available
             self._ensure_client()
             
             logger.info(f"Getting dashboard inventory analytics for client {client_id} (platform: {platform})")
+            
+            # NEW: Support for getting both platforms separately
+            if platform.lower() == "all":
+                return await self._get_multi_platform_analytics(client_id, start_date, end_date)
             
             # Get data sources based on platform selection
             if platform.lower() == "shopify":
@@ -135,6 +139,113 @@ class DashboardInventoryAnalyzer:
                 "error": str(e)
             }
     
+    async def _get_multi_platform_analytics(self, client_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
+        """Get analytics for both Shopify and Amazon platforms separately"""
+        try:
+            logger.info(f"🔄 Getting SEPARATE analytics for both platforms: {client_id}")
+            
+            # Get both platform data in parallel
+            shopify_data_task = asyncio.create_task(self._get_shopify_data(client_id))
+            amazon_data_task = asyncio.create_task(self._get_amazon_data(client_id))
+            
+            shopify_data, amazon_data = await asyncio.gather(shopify_data_task, amazon_data_task)
+            
+            # Calculate analytics for Shopify only
+            shopify_kpis_task = asyncio.create_task(self._get_kpi_charts(client_id, shopify_data, {"products": [], "orders": []}))
+            shopify_trends_task = asyncio.create_task(self._get_trend_visualizations(client_id, shopify_data, {"products": [], "orders": []}))
+            shopify_alerts_task = asyncio.create_task(self._get_alerts_summary(client_id, shopify_data, {"products": [], "orders": []}))
+            
+            # Calculate analytics for Amazon only
+            amazon_kpis_task = asyncio.create_task(self._get_kpi_charts(client_id, {"products": [], "orders": []}, amazon_data))
+            amazon_trends_task = asyncio.create_task(self._get_trend_visualizations(client_id, {"products": [], "orders": []}, amazon_data))
+            amazon_alerts_task = asyncio.create_task(self._get_alerts_summary(client_id, {"products": [], "orders": []}, amazon_data))
+            
+            # Wait for all calculations
+            (shopify_kpis, shopify_trends, shopify_alerts, 
+             amazon_kpis, amazon_trends, amazon_alerts) = await asyncio.gather(
+                shopify_kpis_task, shopify_trends_task, shopify_alerts_task,
+                amazon_kpis_task, amazon_trends_task, amazon_alerts_task,
+                return_exceptions=True
+            )
+            
+            # Handle exceptions
+            def safe_result(result):
+                return result if not isinstance(result, Exception) else {}
+            
+            shopify_kpis = safe_result(shopify_kpis)
+            shopify_trends = safe_result(shopify_trends) 
+            shopify_alerts = safe_result(shopify_alerts)
+            amazon_kpis = safe_result(amazon_kpis)
+            amazon_trends = safe_result(amazon_trends)
+            amazon_alerts = safe_result(amazon_alerts)
+            
+            # Also calculate COMBINED analytics (Shopify + Amazon together)
+            combined_kpis_task = asyncio.create_task(self._get_kpi_charts(client_id, shopify_data, amazon_data))
+            combined_trends_task = asyncio.create_task(self._get_trend_visualizations(client_id, shopify_data, amazon_data))
+            combined_alerts_task = asyncio.create_task(self._get_alerts_summary(client_id, shopify_data, amazon_data))
+            
+            combined_kpis, combined_trends, combined_alerts = await asyncio.gather(
+                combined_kpis_task, combined_trends_task, combined_alerts_task,
+                return_exceptions=True
+            )
+            
+            combined_kpis = safe_result(combined_kpis)
+            combined_trends = safe_result(combined_trends) 
+            combined_alerts = safe_result(combined_alerts)
+            
+            logger.info(f"✅ Multi-platform analytics completed for {client_id}")
+            
+            return {
+                "success": True,
+                "timestamp": datetime.now().isoformat(),
+                "client_id": client_id,
+                "platform": "all",
+                "platforms": {
+                    "shopify": {
+                        "sales_kpis": shopify_kpis,
+                        "trend_analysis": shopify_trends,
+                        "alerts_summary": shopify_alerts,
+                        "data_summary": {
+                            "platform": "shopify",
+                            "shopify_products": len(shopify_data.get('products', [])),
+                            "shopify_orders": len(shopify_data.get('orders', [])),
+                            "amazon_products": 0,
+                            "amazon_orders": 0
+                        }
+                    },
+                    "amazon": {
+                        "sales_kpis": amazon_kpis,
+                        "trend_analysis": amazon_trends,
+                        "alerts_summary": amazon_alerts,
+                        "data_summary": {
+                            "platform": "amazon",
+                            "shopify_products": 0,
+                            "shopify_orders": 0,
+                            "amazon_orders": len(amazon_data.get('orders', [])),
+                            "amazon_products": len(amazon_data.get('products', [])),
+                        }
+                    },
+                    "combined": {
+                        "sales_kpis": combined_kpis,
+                        "trend_analysis": combined_trends,
+                        "alerts_summary": combined_alerts,
+                        "data_summary": {
+                            "platform": "combined",
+                            "shopify_products": len(shopify_data.get('products', [])),
+                            "shopify_orders": len(shopify_data.get('orders', [])),
+                            "amazon_orders": len(amazon_data.get('orders', [])),
+                            "amazon_products": len(amazon_data.get('products', [])),
+                            "total_records": len(shopify_data.get('products', [])) + len(amazon_data.get('products', [])) + len(shopify_data.get('orders', [])) + len(amazon_data.get('orders', []))
+                        }
+                    }
+                },
+                "message": "Multi-platform analytics with separate Shopify, Amazon, and combined data"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting multi-platform analytics: {e}")
+            return {"success": False, "error": str(e)}
+    
     async def _get_shopify_data(self, client_id: str) -> Dict[str, Any]:
         """🚀 PARALLEL Shopify data fetch - NO WAITING!"""
         try:
@@ -160,7 +271,7 @@ class DashboardInventoryAnalyzer:
             async def fetch_orders():
                 try:
                     response = admin_client.table(orders_table).select(
-                        "order_id,total_price,created_at,line_items_count,financial_status,fulfillment_status,order_number"
+                        "order_id,total_price,created_at,line_items_count,financial_status,fulfillment_status,order_number,raw_data"
                     ).execute()
                     return response.data if response.data else []
                 except Exception as e:
@@ -399,21 +510,56 @@ class DashboardInventoryAnalyzer:
             return 0
             
         outgoing = 0
+        sku_normalized = str(sku).strip().lower()
         
         for order in orders:
             try:
                 # Only count orders that are paid but not yet fulfilled
-                financial_status = order.get('financial_status', '').lower()
-                fulfillment_status = order.get('fulfillment_status', '').lower()
+                financial_status = (order.get('financial_status') or '').lower()
+                fulfillment_status = (order.get('fulfillment_status') or '').lower()
                 
                 # Consider orders that are paid but not fully fulfilled
                 if financial_status in ['paid', 'authorized'] and fulfillment_status in ['', 'unfulfilled', 'partial']:
-                    # Estimate 1 unit per order for this SKU (conservative estimate)
-                    # TODO: Parse actual line_items when available for exact quantities
-                    outgoing += 1
+                    # Parse actual line_items from raw_data for exact quantities
+                    line_items = []
+                    
+                    # Extract line_items from raw_data
+                    raw_data = order.get('raw_data')
+                    if raw_data:
+                        try:
+                            import json
+                            if isinstance(raw_data, str):
+                                raw_order = json.loads(raw_data)
+                            else:
+                                raw_order = raw_data
+                            
+                            line_items = raw_order.get('line_items', [])
+                        except Exception as e:
+                            logger.debug(f"Error parsing raw_data for order {order.get('order_number')}: {e}")
+                    
+                    if isinstance(line_items, list) and line_items:
+                        # Parse line items to find matching SKU
+                        for item in line_items:
+                            if isinstance(item, dict):
+                                item_sku = (item.get('sku') or '').strip().lower()
+                                item_variant_id = str(item.get('variant_id', '')).strip()
+                                
+                                # Match by SKU or variant_id  
+                                if (item_sku and item_sku == sku_normalized) or (item_variant_id and item_variant_id in str(sku)):
+                                    quantity = int(item.get('quantity', 1))
+                                    outgoing += quantity
+                                    logger.debug(f"Found SKU {sku} in order {order.get('order_number')}: +{quantity} units")
+                    else:
+                        # Fallback: if no line_items data available, estimate based on line_items_count
+                        line_items_count = order.get('line_items_count', 1)
+                        if line_items_count > 0:
+                            # Conservative estimate: assume equal distribution across line items
+                            estimated_quantity = max(1, line_items_count // 2) if line_items_count > 1 else 1
+                            outgoing += estimated_quantity
+                            logger.debug(f"Estimated SKU {sku} quantity in order {order.get('order_number')}: +{estimated_quantity} units (fallback)")
                     
             except Exception as e:
-                logger.debug(f"Error processing order for outgoing calculation: {e}")
+                logger.debug(f"Error processing order {order.get('order_number', 'unknown')} for outgoing calculation: {e}")
                 continue
         
         return outgoing

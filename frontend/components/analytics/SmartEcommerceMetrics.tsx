@@ -9,7 +9,7 @@ import {
 	Package,
 } from "lucide-react";
 import { type SalesKPIs } from "../../lib/inventoryService";
-import useInventoryData from "../../hooks/useInventoryData";
+import useMultiPlatformData from "../../hooks/useMultiPlatformData";
 
 interface SmartEcommerceMetricsProps {
 	clientData?: any[];
@@ -31,12 +31,22 @@ export default function SmartEcommerceMetrics({
 	refreshInterval = 300000, // 5 minutes
 	platform = "shopify",
 }: SmartEcommerceMetricsProps) {
-	// Use shared inventory data hook - no more duplicate API calls!
-	const { loading, error, salesKPIs, lastUpdated, refresh } = useInventoryData({
-		refreshInterval,
+	// ⚡ OPTIMIZED: Use multi-platform data - one API call for all platforms!
+	const {
+		loading,
+		error,
+		shopifyData,
+		amazonData,
+		combinedData,
+		lastUpdated,
+		refresh,
+	} = useMultiPlatformData({
 		fastMode: true,
-		platform,
 	});
+
+	// Extract salesKPIs based on selected platform
+	const salesKPIs =
+		platform === "shopify" ? shopifyData?.sales_kpis : amazonData?.sales_kpis;
 
 	// Convert backend KPIs to frontend MetricData format
 	const convertKPIsToMetrics = (kpis: any): MetricData[] => {
@@ -88,7 +98,7 @@ export default function SmartEcommerceMetrics({
 			const turnover = Number(kpis.inventory_turnover_rate) || 0;
 			metrics.push({
 				title: "Inventory Turnover",
-				value: `${turnover.toFixed(2)}x`,
+				value: `${(turnover || 0).toFixed(2)}x`,
 				change: turnover > 1 ? "Healthy" : "Slow",
 				changeType: turnover > 1 ? "increase" : "decrease",
 				icon: Package,

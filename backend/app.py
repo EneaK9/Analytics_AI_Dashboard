@@ -51,6 +51,8 @@ executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="analytics_work
 request_queue = asyncio.Queue(maxsize=100)
 active_calculations = {}  # Track ongoing calculations
 calculation_lock = threading.Lock()
+pending_requests = {}  # Queue identical requests to avoid duplicate processing
+calculation_cache = {}  # Short-term cache for identical requests
 
 # 🔥 BACKGROUND CALCULATION SYSTEM - INSTANT RESPONSES!
 async def refresh_analytics_background(client_id: str, platform: str, fast_mode: bool = True, start_date: Optional[str] = None, end_date: Optional[str] = None):
@@ -129,26 +131,48 @@ async def pre_calculate_dashboard_data(client_id: str):
     except Exception as e:
         logger.error(f"❌ PRE-CALCULATION failed for {client_id}: {e}")
 
-def get_or_create_calculation_task(client_id: str, platform: str, calculation_func):
-    """Prevent duplicate calculations - return existing task if already running"""
-    task_key = f"{client_id}_{platform}"
+async def get_or_create_calculation_task(client_id: str, platform: str, calculation_func, start_date: str = None, end_date: str = None):
+    """⚡ ENHANCED: Prevent duplicate calculations and queue identical requests for maximum parallelization"""
+    date_key = f"{start_date or 'no_start'}_{end_date or 'no_end'}"
+    task_key = f"{client_id}_{platform}_{date_key}"
     
     with calculation_lock:
+        # Check if exact same calculation is already running
         if task_key in active_calculations:
-            logger.info(f"⏳ Calculation already running for {task_key}, returning existing task")
-            return active_calculations[task_key]
+            logger.info(f"⏳ Exact calculation in progress for {task_key}, waiting for result")
+            # Return the same task to share results
+            return await active_calculations[task_key]
         
-        # Start new calculation
-        task = asyncio.create_task(calculation_func())
+        # Check short-term cache (last 30 seconds)
+        cache_time = calculation_cache.get(f"{task_key}_time")
+        if cache_time and (time.time() - cache_time) < 30:
+            cached_result = calculation_cache.get(task_key)
+            if cached_result:
+                logger.info(f"⚡ Using 30s cached result for {task_key}")
+                return cached_result
+        
+        # Start new enhanced calculation
+        async def enhanced_calculation():
+            try:
+                result = await calculation_func()
+                # Cache result for 30 seconds for identical requests
+                with calculation_lock:
+                    calculation_cache[task_key] = result  
+                    calculation_cache[f"{task_key}_time"] = time.time()
+                logger.info(f"✅ Calculation completed and cached for {task_key}")
+                return result
+            finally:
+                # Clean up active calculations
+                with calculation_lock:
+                    active_calculations.pop(task_key, None)
+                    pending_requests.pop(task_key, None)
+        
+        task = asyncio.create_task(enhanced_calculation())
         active_calculations[task_key] = task
+        pending_requests[task_key] = task
         
-        # Clean up when done
-        def cleanup(task):
-            with calculation_lock:
-                active_calculations.pop(task_key, None)
-        
-        task.add_done_callback(cleanup)
-        return task
+        logger.info(f"🚀 Started new PARALLEL calculation for {task_key}")
+        return await task
 
 # 🔥 CONCURRENT REQUEST HANDLER - HANDLE MULTIPLE ACTIONS SIMULTANEOUSLY
 class ConcurrentRequestHandler:
@@ -2987,7 +3011,7 @@ async def get_inventory_analytics(
                 pass
                 
             # Also check for Amazon organized tables
-            if not has_organized_data:
+            if not has_organized_data: 
                 try:
                     test_response = db_client.table(amazon_table).select("id").limit(1).execute()
                     has_organized_data = bool(test_response.data)
@@ -3078,7 +3102,70 @@ async def get_inventory_analytics(
                 for key, value in list(sample_record.items())[:10]:
                     logger.info(f"  {key}: {type(value).__name__} = {str(value)[:100]}")
             
-            # Use dashboard structure even for legacy data
+            # ⚡ HANDLE MULTI-PLATFORM REQUEST for legacy data
+            if platform.lower() == "all":
+                logger.info(f"🔄 Processing MULTI-PLATFORM legacy request for {client_id}")
+                
+                # Separate data by platform
+                shopify_data = {"client_id": client_id, "data": []}
+                amazon_data = {"client_id": client_id, "data": []}
+                
+                for record in client_data['data']:
+                    record_platform = record.get('platform', '').lower()
+                    if record_platform == 'shopify':
+                        shopify_data['data'].append(record)
+                    elif record_platform == 'amazon':
+                        amazon_data['data'].append(record)
+                    # Skip records without platform info
+                
+                # Analyze each platform separately
+                shopify_analytics = inventory_analyzer.analyze_inventory_data(shopify_data) if shopify_data['data'] else {}
+                amazon_analytics = inventory_analyzer.analyze_inventory_data(amazon_data) if amazon_data['data'] else {}
+                combined_analytics = inventory_analyzer.analyze_inventory_data(client_data)  # All data together
+                
+                # Create multi-platform response structure
+                multi_platform_analytics = {
+                    "success": True,
+                    "timestamp": datetime.now().isoformat(),
+                    "client_id": client_id,
+                    "platform": "all",
+                    "platforms": {
+                        "shopify": {
+                            "sales_kpis": shopify_analytics.get("sales_kpis", {}),
+                            "trend_analysis": shopify_analytics.get("trend_analysis", {}),
+                            "alerts_summary": shopify_analytics.get("alerts_summary", {}),
+                            "data_summary": shopify_analytics.get("data_summary", {})
+                        },
+                        "amazon": {
+                            "sales_kpis": amazon_analytics.get("sales_kpis", {}),
+                            "trend_analysis": amazon_analytics.get("trend_analysis", {}),
+                            "alerts_summary": amazon_analytics.get("alerts_summary", {}),
+                            "data_summary": amazon_analytics.get("data_summary", {})
+                        },
+                        "combined": {
+                            "sales_kpis": combined_analytics.get("sales_kpis", {}),
+                            "trend_analysis": combined_analytics.get("trend_analysis", {}),
+                            "alerts_summary": combined_analytics.get("alerts_summary", {}),
+                            "data_summary": combined_analytics.get("data_summary", {})
+                        }
+                    }
+                }
+                
+                return {
+                    "client_id": client_id,
+                    "success": True,
+                    "message": f"Multi-platform analysis: {len(shopify_data['data'])} Shopify + {len(amazon_data['data'])} Amazon records",
+                    "timestamp": datetime.now().isoformat(),
+                    "data_type": "dashboard_inventory_analytics",
+                    "schema_type": "dashboard_inventory_analytics",
+                    "total_records": len(client_data['data']),
+                    "inventory_analytics": multi_platform_analytics,
+                    "cached": False,
+                    "processing_time": "real-time",
+                    "data_source": "legacy_multi_platform"
+                }
+            
+            # Use dashboard structure even for legacy data (single platform)
             try:
                 from dashboard_inventory_analyzer import dashboard_inventory_analyzer
                 

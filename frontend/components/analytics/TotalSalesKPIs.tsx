@@ -3,8 +3,11 @@
 import React, { useState, useMemo } from "react";
 import { DollarSign, TrendingUp, Store, ShoppingBag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import CompactDatePicker, { DateRange, getDateRange } from "../ui/CompactDatePicker";
-import { useInventoryData, useFilters } from "../../store/globalDataStore";
+import CompactDatePicker, {
+	DateRange,
+	getDateRange,
+} from "../ui/CompactDatePicker";
+import { useInventoryData } from "../../store/globalDataStore";
 
 interface TotalSalesKPIsProps {
 	clientData?: any[];
@@ -83,20 +86,26 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 				isPositive,
 				label: `vs ${dateRange.label.toLowerCase()}`,
 			},
-			subtitle: `${platform === "all" ? "Combined" : platform.charAt(0).toUpperCase() + platform.slice(1)} total sales`,
+			subtitle: `${
+				platform === "all"
+					? "Combined"
+					: platform.charAt(0).toUpperCase() + platform.slice(1)
+			} total sales`,
 		};
 	};
 
 	// Memoized sales data for each platform using global state
 	const shopifySales = useMemo(() => {
 		// Extract Shopify data from global inventory data
-		const shopifyData = inventoryData?.shopify_data || inventoryData?.trendAnalysis;
+		const shopifyData =
+			inventoryData?.shopify_data || inventoryData?.trendAnalysis;
 		return calculateSalesData(shopifyData, shopifyDateRange, "shopify");
 	}, [inventoryData, shopifyDateRange]);
 
 	const amazonSales = useMemo(() => {
 		// Extract Amazon data from global inventory data
-		const amazonData = inventoryData?.amazon_data || inventoryData?.trendAnalysis;
+		const amazonData =
+			inventoryData?.amazon_data || inventoryData?.trendAnalysis;
 		return calculateSalesData(amazonData, amazonDateRange, "amazon");
 	}, [inventoryData, amazonDateRange]);
 
@@ -159,58 +168,85 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 	};
 
 	// Individual KPI Card Component (memoized for performance)
-	const SalesKPICard = React.memo(({
-		title,
-		data,
-		dateRange,
-		onDateRangeChange,
-		loading,
-		error,
-		icon,
-		iconColor,
-		iconBgColor,
-	}: {
-		title: string;
-		data: SalesData;
-		dateRange: DateRange;
-		onDateRangeChange: (range: DateRange) => void;
-		loading: boolean;
-		error: string | null;
-		icon: React.ReactNode;
-		iconColor: string;
-		iconBgColor: string;
-	}) => {
-		if (loading) {
-			return (
-				<Card className="bg-gray-100 border-gray-300 hover:shadow-md transition-all duration-300">
-					<CardHeader className="pb-3">
-						<div className="flex items-center justify-between">
-							<CardTitle className="text-sm font-medium text-gray-600">{title}</CardTitle>
-							<div className="w-24 h-6 bg-gray-200 rounded animate-pulse"></div>
-						</div>
-					</CardHeader>
-					<CardContent>
-						<div className="animate-pulse">
-							<div className="flex items-center justify-between mb-3">
-								<div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
-								<div className="w-12 h-5 bg-gray-200 rounded"></div>
+	const SalesKPICard = React.memo(
+		({
+			title,
+			data,
+			dateRange,
+			onDateRangeChange,
+			loading,
+			error,
+			icon,
+			iconColor,
+			iconBgColor,
+		}: {
+			title: string;
+			data: SalesData;
+			dateRange: DateRange;
+			onDateRangeChange: (range: DateRange) => void;
+			loading: boolean;
+			error: string | null;
+			icon: React.ReactNode;
+			iconColor: string;
+			iconBgColor: string;
+		}) => {
+			if (loading) {
+				return (
+					<Card className="bg-gray-100 border-gray-300 hover:shadow-md transition-all duration-300">
+						<CardHeader className="pb-3">
+							<div className="flex items-center justify-between">
+								<CardTitle className="text-sm font-medium text-gray-600">
+									{title}
+								</CardTitle>
+								<div className="w-24 h-6 bg-gray-200 rounded animate-pulse"></div>
 							</div>
-							<div className="space-y-2">
-								<div className="h-6 bg-gray-200 rounded"></div>
-								<div className="h-3 bg-gray-200 rounded w-2/3"></div>
+						</CardHeader>
+						<CardContent>
+							<div className="animate-pulse">
+								<div className="flex items-center justify-between mb-3">
+									<div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
+									<div className="w-12 h-5 bg-gray-200 rounded"></div>
+								</div>
+								<div className="space-y-2">
+									<div className="h-6 bg-gray-200 rounded"></div>
+									<div className="h-3 bg-gray-200 rounded w-2/3"></div>
+								</div>
 							</div>
-						</div>
-					</CardContent>
-				</Card>
-			);
-		}
+						</CardContent>
+					</Card>
+				);
+			}
 
-		if (error) {
+			if (error) {
+				return (
+					<Card className="bg-gray-100 border-red-200 hover:shadow-md transition-all duration-300">
+						<CardHeader className="pb-3">
+							<div className="flex items-center justify-between">
+								<CardTitle className="text-sm font-medium text-gray-600">
+									{title}
+								</CardTitle>
+								<CompactDatePicker
+									value={dateRange}
+									onChange={onDateRangeChange}
+								/>
+							</div>
+						</CardHeader>
+						<CardContent>
+							<div className="flex items-center justify-center h-20 text-red-600">
+								<p className="text-sm">Error loading data</p>
+							</div>
+						</CardContent>
+					</Card>
+				);
+			}
+
 			return (
-				<Card className="bg-gray-100 border-red-200 hover:shadow-md transition-all duration-300">
+				<Card className="bg-gray-100 border-gray-300 hover:shadow-md hover:bg-gray-200 transition-all duration-300">
 					<CardHeader className="pb-3">
 						<div className="flex items-center justify-between">
-							<CardTitle className="text-sm font-medium text-gray-600">{title}</CardTitle>
+							<CardTitle className="text-sm font-medium text-gray-600">
+								{title}
+							</CardTitle>
 							<CompactDatePicker
 								value={dateRange}
 								onChange={onDateRangeChange}
@@ -218,65 +254,48 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 						</div>
 					</CardHeader>
 					<CardContent>
-						<div className="flex items-center justify-center h-20 text-red-600">
-							<p className="text-sm">Error loading data</p>
+						{/* Header with Trend */}
+						<div className="flex items-center justify-between mb-3">
+							<div
+								className="h-10 w-10 rounded-lg flex items-center justify-center"
+								style={{ backgroundColor: iconBgColor }}>
+								{icon}
+							</div>
+
+							<div
+								className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${
+									data.trend.isPositive
+										? "text-green-700 bg-green-100"
+										: "text-red-700 bg-red-100"
+								}`}>
+								<TrendingUp
+									className={`h-3 w-3 ${
+										data.trend.isPositive ? "" : "rotate-180"
+									}`}
+								/>
+								{data.trend.value}
+							</div>
+						</div>
+
+						{/* Value and Subtitle */}
+						<div className="space-y-1">
+							<h3 className="text-2xl font-bold text-gray-900">
+								{formatCurrency(data.value)}
+							</h3>
+							<p className="text-xs text-gray-500">{data.subtitle}</p>
+						</div>
+
+						{/* Trend Label */}
+						<div className="mt-2 pt-2 border-t border-gray-300">
+							<p className="text-xs text-gray-400">{data.trend.label}</p>
 						</div>
 					</CardContent>
 				</Card>
 			);
 		}
+	);
 
-		return (
-			<Card className="bg-gray-100 border-gray-300 hover:shadow-md hover:bg-gray-200 transition-all duration-300">
-				<CardHeader className="pb-3">
-					<div className="flex items-center justify-between">
-						<CardTitle className="text-sm font-medium text-gray-600">{title}</CardTitle>
-						<CompactDatePicker
-							value={dateRange}
-							onChange={onDateRangeChange}
-						/>
-					</div>
-				</CardHeader>
-				<CardContent>
-					{/* Header with Trend */}
-					<div className="flex items-center justify-between mb-3">
-						<div
-							className="h-10 w-10 rounded-lg flex items-center justify-center"
-							style={{ backgroundColor: iconBgColor }}>
-							{icon}
-						</div>
-
-						<div
-							className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${
-								data.trend.isPositive
-									? "text-green-700 bg-green-100"
-									: "text-red-700 bg-red-100"
-							}`}>
-							<TrendingUp
-								className={`h-3 w-3 ${
-									data.trend.isPositive ? "" : "rotate-180"
-								}`}
-							/>
-							{data.trend.value}
-						</div>
-					</div>
-
-					{/* Value and Subtitle */}
-					<div className="space-y-1">
-						<h3 className="text-2xl font-bold text-gray-900">
-							{formatCurrency(data.value)}
-						</h3>
-						<p className="text-xs text-gray-500">{data.subtitle}</p>
-					</div>
-
-					{/* Trend Label */}
-					<div className="mt-2 pt-2 border-t border-gray-300">
-						<p className="text-xs text-gray-400">{data.trend.label}</p>
-					</div>
-				</CardContent>
-			</Card>
-		);
-	});
+	SalesKPICard.displayName = "SalesKPICard";
 
 	return (
 		<div className={`space-y-4 ${className}`}>
@@ -309,7 +328,9 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 					onDateRangeChange={setAmazonDateRange}
 					loading={loading}
 					error={error}
-					icon={<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />}
+					icon={
+						<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />
+					}
 					iconColor="#f59e0b"
 					iconBgColor="#fffbeb"
 				/>

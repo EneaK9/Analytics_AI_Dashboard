@@ -12,7 +12,7 @@ import {
 	Bell,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import useInventoryData from "../../hooks/useInventoryData";
+import useMultiPlatformData from "../../hooks/useMultiPlatformData";
 
 interface AlertsSummaryProps {
 	clientData?: any[];
@@ -25,13 +25,24 @@ export default function AlertsSummary({
 	refreshInterval = 300000,
 	platform = "shopify",
 }: AlertsSummaryProps) {
-	// Use shared inventory data hook - no more duplicate API calls!
-	const { loading, error, alertsSummary, lastUpdated, refresh } =
-		useInventoryData({
-			refreshInterval,
-			fastMode: true,
-			platform,
-		});
+	// ⚡ OPTIMIZED: Use multi-platform data - one API call for all platforms!
+	const {
+		loading,
+		error,
+		shopifyData,
+		amazonData,
+		combinedData,
+		lastUpdated,
+		refresh,
+	} = useMultiPlatformData({
+		fastMode: true,
+	});
+
+	// Extract alertsSummary based on selected platform
+	const alertsSummary =
+		platform === "shopify"
+			? shopifyData?.alerts_summary
+			: amazonData?.alerts_summary;
 
 	// Get severity badge styling
 	const getSeverityBadge = (severity: string) => {

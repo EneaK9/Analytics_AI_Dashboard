@@ -1,52 +1,70 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
-import { BarChart3, Store, ShoppingBag, TrendingUp, Calendar, GitCompare } from "lucide-react";
+import React, { useState, useMemo, memo } from "react";
+import {
+	Store,
+	ShoppingBag,
+	TrendingUp,
+	Calendar,
+	GitCompare,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import CompactDatePicker, { DateRange, getDateRange } from "../ui/CompactDatePicker";
+import CompactDatePicker, {
+	DateRange,
+	getDateRange,
+} from "../ui/CompactDatePicker";
 import SimpleBarChart from "../charts/SimpleBarChart";
-import useInventoryData from "../../hooks/useInventoryData";
+import useMultiPlatformData from "../../hooks/useMultiPlatformData";
 
 interface HistoricalComparisonChartsProps {
 	clientData?: any[];
 	className?: string;
 }
 
-type Platform = "shopify" | "amazon" | "all";
+// Memoize initial date ranges to prevent re-renders
+const INITIAL_DATE_RANGE_HIST = getDateRange("month");
 
-export default function HistoricalComparisonCharts({
+const HistoricalComparisonCharts = memo(function HistoricalComparisonCharts({
 	clientData,
 	className = "",
 }: HistoricalComparisonChartsProps) {
-	// Date range states for each platform
+	// Date range states for each platform - use memoized initial value
 	const [shopifyDateRange, setShopifyDateRange] = useState<DateRange>(
-		getDateRange("month")
+		INITIAL_DATE_RANGE_HIST
 	);
 	const [amazonDateRange, setAmazonDateRange] = useState<DateRange>(
-		getDateRange("month")
+		INITIAL_DATE_RANGE_HIST
 	);
 	const [allDateRange, setAllDateRange] = useState<DateRange>(
-		getDateRange("month")
+		INITIAL_DATE_RANGE_HIST
 	);
 
-	// Data hooks for each platform
+	// ⚡ OPTIMIZED: Single API call for ALL platforms - NO re-rendering!
 	const {
-		loading: shopifyLoading,
-		error: shopifyError,
-		trendAnalysis: shopifyData,
-	} = useInventoryData({
-		platform: "shopify",
+		loading: multiLoading,
+		error: multiError,
+		shopifyData: shopifyPlatformData,
+		amazonData: amazonPlatformData,
+		combinedData: combinedPlatformData,
+	} = useMultiPlatformData({
 		fastMode: true,
 	});
 
-	const {
-		loading: amazonLoading,
-		error: amazonError,
-		trendAnalysis: amazonData,
-	} = useInventoryData({
-		platform: "amazon",
-		fastMode: true,
-	});
+	// Extract trend analysis from platform data - MEMOIZED
+	const shopifyData = useMemo(
+		() => shopifyPlatformData?.trend_analysis || null,
+		[shopifyPlatformData]
+	);
+	const amazonData = useMemo(
+		() => amazonPlatformData?.trend_analysis || null,
+		[amazonPlatformData]
+	);
+
+	// Derived loading/error states
+	const shopifyLoading = multiLoading;
+	const amazonLoading = multiLoading;
+	const shopifyError = multiError;
+	const amazonError = multiError;
 
 	// Process historical comparison data for a specific platform
 	const processComparisonData = (data: any, dateRange: DateRange) => {
@@ -54,8 +72,8 @@ export default function HistoricalComparisonCharts({
 			return [];
 		}
 
-		const comparison = data.sales_comparison;
-		
+		const comparison = data.sales_comparison as any;
+
 		return [
 			{
 				name: "Previous Period",
@@ -89,23 +107,23 @@ export default function HistoricalComparisonCharts({
 		}
 
 		// Combine data from both platforms
-		const shopifyComparison = shopifyData.sales_comparison;
-		const amazonComparison = amazonData.sales_comparison;
+		const shopifyComparison = shopifyData.sales_comparison as any;
+		const amazonComparison = amazonData.sales_comparison as any;
 
-		const combinedHistoricalRevenue = 
-			(shopifyComparison.historical_avg_revenue || 0) + 
+		const combinedHistoricalRevenue =
+			(shopifyComparison.historical_avg_revenue || 0) +
 			(amazonComparison.historical_avg_revenue || 0);
-		
-		const combinedCurrentRevenue = 
-			(shopifyComparison.current_period_avg_revenue || 0) + 
+
+		const combinedCurrentRevenue =
+			(shopifyComparison.current_period_avg_revenue || 0) +
 			(amazonComparison.current_period_avg_revenue || 0);
 
-		const combinedHistoricalUnits = 
-			(shopifyComparison.historical_avg_units || 0) + 
+		const combinedHistoricalUnits =
+			(shopifyComparison.historical_avg_units || 0) +
 			(amazonComparison.historical_avg_units || 0);
-		
-		const combinedCurrentUnits = 
-			(shopifyComparison.current_period_avg_units || 0) + 
+
+		const combinedCurrentUnits =
+			(shopifyComparison.current_period_avg_units || 0) +
 			(amazonComparison.current_period_avg_units || 0);
 
 		return [
@@ -117,7 +135,7 @@ export default function HistoricalComparisonCharts({
 				period: `Previous ${allDateRange.label.toLowerCase()}`,
 			},
 			{
-				name: "Current Period", 
+				name: "Current Period",
 				value: combinedCurrentRevenue,
 				revenue: combinedCurrentRevenue,
 				units: combinedCurrentUnits,
@@ -128,13 +146,14 @@ export default function HistoricalComparisonCharts({
 
 	// Calculate comparison stats
 	const calculateComparisonStats = (data: any[]) => {
-		if (data.length < 2) return { change: 0, changePercent: 0, isPositive: true };
-		
+		if (data.length < 2)
+			return { change: 0, changePercent: 0, isPositive: true };
+
 		const previous = data[0].value;
 		const current = data[1].value;
 		const change = current - previous;
 		const changePercent = previous > 0 ? (change / previous) * 100 : 0;
-		
+
 		return {
 			change,
 			changePercent,
@@ -217,10 +236,7 @@ export default function HistoricalComparisonCharts({
 							{icon}
 							{title}
 						</CardTitle>
-						<CompactDatePicker
-							value={dateRange}
-							onChange={onDateRangeChange}
-						/>
+						<CompactDatePicker value={dateRange} onChange={onDateRangeChange} />
 					</div>
 				</CardHeader>
 				<CardContent>
@@ -232,37 +248,36 @@ export default function HistoricalComparisonCharts({
 									<div>
 										<p className="text-xs text-gray-600">Period Comparison</p>
 										<p className="text-sm font-semibold text-gray-900">
-											{Math.abs(stats.change).toLocaleString('en-US', {
-												style: 'currency',
-												currency: 'USD',
+											{Math.abs(stats.change).toLocaleString("en-US", {
+												style: "currency",
+												currency: "USD",
 												minimumFractionDigits: 0,
 											})}
 										</p>
 									</div>
-									<div className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${
-										stats.isPositive
-											? "text-green-700 bg-green-100"
-											: "text-red-700 bg-red-100"
-									}`}>
+									<div
+										className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${
+											stats.isPositive
+												? "text-green-700 bg-green-100"
+												: "text-red-700 bg-red-100"
+										}`}>
 										<TrendingUp
 											className={`h-3 w-3 ${
 												stats.isPositive ? "" : "rotate-180"
 											}`}
 										/>
-										{stats.isPositive ? "+" : ""}{stats.changePercent.toFixed(1)}%
+										{stats.isPositive ? "+" : ""}
+										{(stats.changePercent || 0).toFixed(1)}%
 									</div>
 								</div>
 								<p className="text-xs text-gray-500 mt-1">
-									{stats.isPositive ? "Increase" : "Decrease"} from previous period
+									{stats.isPositive ? "Increase" : "Decrease"} from previous
+									period
 								</p>
 							</div>
 
 							{/* Bar Chart */}
-							<SimpleBarChart
-								data={data}
-								color={iconColor}
-								height={140}
-							/>
+							<SimpleBarChart data={data} color={iconColor} height={140} />
 						</>
 					) : (
 						<div className="h-48 flex items-center justify-center text-gray-500">
@@ -283,7 +298,9 @@ export default function HistoricalComparisonCharts({
 	return (
 		<div className={`space-y-6 ${className}`}>
 			<div className="flex items-center justify-between">
-				<h2 className="text-xl font-semibold text-gray-900">Historical Comparison</h2>
+				<h2 className="text-xl font-semibold text-gray-900">
+					Historical Comparison
+				</h2>
 				<p className="text-sm text-gray-600">
 					Current vs previous period performance analysis
 				</p>
@@ -311,7 +328,9 @@ export default function HistoricalComparisonCharts({
 					onDateRangeChange={setAmazonDateRange}
 					loading={amazonLoading}
 					error={amazonError}
-					icon={<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />}
+					icon={
+						<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />
+					}
 					iconColor="#f59e0b"
 					iconBgColor="#fffbeb"
 				/>
@@ -333,8 +352,11 @@ export default function HistoricalComparisonCharts({
 			{/* Data Info */}
 			<div className="text-center text-sm text-gray-500">
 				<Calendar className="inline h-4 w-4 mr-1" />
-				Comparing selected periods with previous equivalent periods • Data updates every 5 minutes
+				Comparing selected periods with previous equivalent periods • Data
+				updates every 5 minutes
 			</div>
 		</div>
 	);
-}
+});
+
+export default HistoricalComparisonCharts;

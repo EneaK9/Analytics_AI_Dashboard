@@ -1,11 +1,18 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Search, Download, AlertCircle, Package, TrendingUp, TrendingDown } from "lucide-react";
+import {
+	Search,
+	Download,
+	AlertCircle,
+	Package,
+	TrendingUp,
+	TrendingDown,
+} from "lucide-react";
 import DataTable from "../ui/DataTable";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { type SKUData, type SKUSummaryStats } from "../../lib/inventoryService";
-import useInventoryData from "../../hooks/useInventoryData";
+import useMultiPlatformData from "../../hooks/useMultiPlatformData";
 
 interface InventorySKUListProps {
 	clientData?: any[];
@@ -26,21 +33,26 @@ export default function InventorySKUList({
 	skuData: preFetchedSkuData,
 	summaryStats: preFetchedSummaryStats,
 	loading: preFetchedLoading,
-	error: preFetchedError
+	error: preFetchedError,
 }: InventorySKUListProps) {
-	// Only use hook if no pre-fetched data is provided
-	const hookData = useInventoryData({
-		refreshInterval: preFetchedSkuData ? 0 : refreshInterval, // Disable if data is pre-fetched
+	// ⚡ OPTIMIZED: Use multi-platform data - one API call for all platforms!
+	const hookData = useMultiPlatformData({
 		fastMode: true,
-		platform
 	});
 
+	// Extract platform-specific data
+	const platformData =
+		platform === "shopify" ? hookData.shopifyData : hookData.amazonData;
+
 	// Use pre-fetched data if available, otherwise use hook data
-	const loading = preFetchedLoading !== undefined ? preFetchedLoading : hookData.loading;
-	const error = preFetchedError !== undefined ? preFetchedError : hookData.error;
-	const skuData = preFetchedSkuData || hookData.skuData;
-	const summaryStats = preFetchedSummaryStats || hookData.summaryStats;
-	const pagination = hookData.pagination;
+	const loading =
+		preFetchedLoading !== undefined ? preFetchedLoading : hookData.loading;
+	const error =
+		preFetchedError !== undefined ? preFetchedError : hookData.error;
+	const skuData = preFetchedSkuData || platformData?.sku_data || [];
+	const summaryStats =
+		preFetchedSummaryStats || platformData?.sku_summary_stats;
+	const pagination = platformData?.pagination;
 	const cached = hookData.cached;
 	const lastUpdated = hookData.lastUpdated;
 	const refresh = hookData.refresh;
@@ -92,7 +104,9 @@ export default function InventorySKUList({
 			width: "130px",
 			render: (value: number) => (
 				<div className="text-center">
-					<span className="text-blue-600 font-semibold">{value.toLocaleString()}</span>
+					<span className="text-blue-600 font-semibold">
+						{value.toLocaleString()}
+					</span>
 					<TrendingUp className="inline ml-1 h-3 w-3 text-blue-600" />
 				</div>
 			),
@@ -105,7 +119,9 @@ export default function InventorySKUList({
 			width: "130px",
 			render: (value: number) => (
 				<div className="text-center">
-					<span className="text-red-600 font-semibold">{value.toLocaleString()}</span>
+					<span className="text-red-600 font-semibold">
+						{value.toLocaleString()}
+					</span>
 					<TrendingDown className="inline ml-1 h-3 w-3 text-red-600" />
 				</div>
 			),
@@ -119,16 +135,17 @@ export default function InventorySKUList({
 			render: (value: number, row: SKUData) => {
 				const isLowStock = value < 10;
 				const isOutOfStock = value <= 0;
-				
+
 				return (
 					<div className="text-center">
-						<span 
+						<span
 							className={`font-bold ${
-								isOutOfStock ? 'text-red-700' : 
-								isLowStock ? 'text-yellow-600' : 
-								'text-green-600'
-							}`}
-						>
+								isOutOfStock
+									? "text-red-700"
+									: isLowStock
+									? "text-yellow-600"
+									: "text-green-600"
+							}`}>
 							{value.toLocaleString()}
 						</span>
 						{isLowStock && (
@@ -153,7 +170,11 @@ export default function InventorySKUList({
 			width: "120px",
 			render: (value: number) => (
 				<div className="text-right font-semibold text-gray-900">
-					${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+					$
+					{value.toLocaleString(undefined, {
+						minimumFractionDigits: 2,
+						maximumFractionDigits: 2,
+					})}
 				</div>
 			),
 		},
@@ -170,8 +191,12 @@ export default function InventorySKUList({
 						<CardContent className="p-4">
 							<div className="flex items-center justify-between">
 								<div>
-									<p className="text-sm font-medium text-gray-600">Total SKUs</p>
-									<p className="text-2xl font-bold text-gray-900">{summaryStats.total_skus}</p>
+									<p className="text-sm font-medium text-gray-600">
+										Total SKUs
+									</p>
+									<p className="text-2xl font-bold text-gray-900">
+										{summaryStats.total_skus}
+									</p>
 								</div>
 								<Package className="h-8 w-8 text-blue-600" />
 							</div>
@@ -182,9 +207,15 @@ export default function InventorySKUList({
 						<CardContent className="p-4">
 							<div className="flex items-center justify-between">
 								<div>
-									<p className="text-sm font-medium text-gray-600">Total Inventory Value</p>
+									<p className="text-sm font-medium text-gray-600">
+										Total Inventory Value
+									</p>
 									<p className="text-2xl font-bold text-green-600">
-										${(summaryStats.total_inventory_value || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+										$
+										{(summaryStats.total_inventory_value || 0).toLocaleString(
+											undefined,
+											{ minimumFractionDigits: 0, maximumFractionDigits: 0 }
+										)}
 									</p>
 								</div>
 								<TrendingUp className="h-8 w-8 text-green-600" />
@@ -196,8 +227,12 @@ export default function InventorySKUList({
 						<CardContent className="p-4">
 							<div className="flex items-center justify-between">
 								<div>
-									<p className="text-sm font-medium text-gray-600">Low Stock Alerts</p>
-									<p className="text-2xl font-bold text-yellow-600">{summaryStats.low_stock_count}</p>
+									<p className="text-sm font-medium text-gray-600">
+										Low Stock Alerts
+									</p>
+									<p className="text-2xl font-bold text-yellow-600">
+										{summaryStats.low_stock_count}
+									</p>
 								</div>
 								<AlertCircle className="h-8 w-8 text-yellow-600" />
 							</div>
@@ -208,8 +243,12 @@ export default function InventorySKUList({
 						<CardContent className="p-4">
 							<div className="flex items-center justify-between">
 								<div>
-									<p className="text-sm font-medium text-gray-600">Out of Stock</p>
-									<p className="text-2xl font-bold text-red-600">{summaryStats.out_of_stock_count}</p>
+									<p className="text-sm font-medium text-gray-600">
+										Out of Stock
+									</p>
+									<p className="text-2xl font-bold text-red-600">
+										{summaryStats.out_of_stock_count}
+									</p>
 								</div>
 								<AlertCircle className="h-8 w-8 text-red-600" />
 							</div>

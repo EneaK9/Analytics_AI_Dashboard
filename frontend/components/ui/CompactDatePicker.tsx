@@ -67,7 +67,10 @@ export default function CompactDatePicker({
 					return date.toLocaleDateString("en-US", {
 						month: "short",
 						day: "numeric",
-						year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+						year:
+							date.getFullYear() !== new Date().getFullYear()
+								? "numeric"
+								: undefined,
 					});
 				};
 
@@ -104,7 +107,10 @@ export default function CompactDatePicker({
           ${isOpen ? "ring-1 ring-blue-400 border-blue-400 shadow-sm" : ""}
         `}>
 				<Calendar className="h-3.5 w-3.5 text-gray-400" />
-				<span className={`text-xs font-medium truncate ${value ? "text-gray-700" : "text-gray-400"}`}>
+				<span
+					className={`text-xs font-medium truncate ${
+						value ? "text-gray-700" : "text-gray-400"
+					}`}>
 					{displayValue}
 				</span>
 				<div className="flex items-center gap-1">
@@ -206,22 +212,33 @@ export default function CompactDatePicker({
 						</div>
 					</div>
 					{/* Overlay to close dropdown */}
-					<div className="fixed inset-0 z-40" onClick={() => {
-						setIsOpen(false);
-						setShowCustomForm(false);
-						setCustomStart("");
-						setCustomEnd("");
-					}} />
+					<div
+						className="fixed inset-0 z-40"
+						onClick={() => {
+							setIsOpen(false);
+							setShowCustomForm(false);
+							setCustomStart("");
+							setCustomEnd("");
+						}}
+					/>
 				</>
 			)}
 		</div>
 	);
 }
 
-// Utility functions for common date ranges
+// Utility functions for common date ranges - MEMOIZED to prevent re-renders
+const dateRangeCache = new Map<string, DateRange>();
+
 export const getDateRange = (
 	period: "week" | "month" | "quarter" | "year"
 ): DateRange => {
+	// Use cache to prevent creating new Date objects every render
+	const cacheKey = `${period}_${new Date().toDateString()}`;
+	if (dateRangeCache.has(cacheKey)) {
+		return dateRangeCache.get(cacheKey)!;
+	}
+
 	const now = new Date();
 	const ranges = {
 		week: {
@@ -245,5 +262,8 @@ export const getDateRange = (
 			label: "This year",
 		},
 	};
-	return ranges[period];
+
+	const result = ranges[period];
+	dateRangeCache.set(cacheKey, result);
+	return result;
 };

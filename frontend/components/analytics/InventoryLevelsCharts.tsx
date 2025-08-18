@@ -1,11 +1,20 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { TrendingUp, Store, ShoppingBag, BarChart3, Calendar } from "lucide-react";
+import {
+	TrendingUp,
+	Store,
+	ShoppingBag,
+	BarChart3,
+	Calendar,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import CompactDatePicker, { DateRange, getDateRange } from "../ui/CompactDatePicker";
+import CompactDatePicker, {
+	DateRange,
+	getDateRange,
+} from "../ui/CompactDatePicker";
 import SimpleLineChart from "../charts/SimpleLineChart";
-import useInventoryData from "../../hooks/useInventoryData";
+import useMultiPlatformData from "../../hooks/useMultiPlatformData";
 
 interface InventoryLevelsChartsProps {
 	clientData?: any[];
@@ -29,24 +38,31 @@ export default function InventoryLevelsCharts({
 		getDateRange("month")
 	);
 
-	// Data hooks for each platform
+	// ⚡ OPTIMIZED: Single API call for ALL platforms - NO re-rendering!
 	const {
-		loading: shopifyLoading,
-		error: shopifyError,
-		trendAnalysis: shopifyData,
-	} = useInventoryData({
-		platform: "shopify",
+		loading: multiLoading,
+		error: multiError,
+		shopifyData: shopifyPlatformData,
+		amazonData: amazonPlatformData,
+	} = useMultiPlatformData({
 		fastMode: true,
 	});
 
-	const {
-		loading: amazonLoading,
-		error: amazonError,
-		trendAnalysis: amazonData,
-	} = useInventoryData({
-		platform: "amazon",
-		fastMode: true,
-	});
+	// Extract trend analysis from platform data - MEMOIZED
+	const shopifyData = useMemo(
+		() => shopifyPlatformData?.trend_analysis || null,
+		[shopifyPlatformData]
+	);
+	const amazonData = useMemo(
+		() => amazonPlatformData?.trend_analysis || null,
+		[amazonPlatformData]
+	);
+
+	// Derived loading/error states
+	const shopifyLoading = multiLoading;
+	const amazonLoading = multiLoading;
+	const shopifyError = multiError;
+	const amazonError = multiError;
 
 	// Process inventory levels data for a specific platform and date range
 	const processInventoryLevelsData = (data: any, days: number) => {
@@ -92,7 +108,10 @@ export default function InventoryLevelsCharts({
 	}, [amazonData, amazonDateRange]);
 
 	const allChartData = useMemo(() => {
-		if (!shopifyData?.inventory_levels_chart || !amazonData?.inventory_levels_chart) {
+		if (
+			!shopifyData?.inventory_levels_chart ||
+			!amazonData?.inventory_levels_chart
+		) {
 			return [];
 		}
 
@@ -122,21 +141,31 @@ export default function InventoryLevelsCharts({
 		// Create a map to combine data by date
 		const combinedMap = new Map();
 
-		shopifyFiltered.forEach((item: { date: string; inventory_level: number }) => {
-			const date = new Date(item.date).toLocaleDateString("en-US", {
-				month: "short",
-				day: "numeric",
-			});
-			combinedMap.set(date, (combinedMap.get(date) || 0) + item.inventory_level);
-		});
+		shopifyFiltered.forEach(
+			(item: { date: string; inventory_level: number }) => {
+				const date = new Date(item.date).toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+				});
+				combinedMap.set(
+					date,
+					(combinedMap.get(date) || 0) + item.inventory_level
+				);
+			}
+		);
 
-		amazonFiltered.forEach((item: { date: string; inventory_level: number }) => {
-			const date = new Date(item.date).toLocaleDateString("en-US", {
-				month: "short",
-				day: "numeric",
-			});
-			combinedMap.set(date, (combinedMap.get(date) || 0) + item.inventory_level);
-		});
+		amazonFiltered.forEach(
+			(item: { date: string; inventory_level: number }) => {
+				const date = new Date(item.date).toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+				});
+				combinedMap.set(
+					date,
+					(combinedMap.get(date) || 0) + item.inventory_level
+				);
+			}
+		);
 
 		return Array.from(combinedMap.entries())
 			.map(([date, inventory]) => ({
@@ -223,19 +252,12 @@ export default function InventoryLevelsCharts({
 							{icon}
 							{title}
 						</CardTitle>
-						<CompactDatePicker
-							value={dateRange}
-							onChange={onDateRangeChange}
-						/>
+						<CompactDatePicker value={dateRange} onChange={onDateRangeChange} />
 					</div>
 				</CardHeader>
 				<CardContent>
 					{data.length > 0 ? (
-						<SimpleLineChart
-							data={data}
-							color={iconColor}
-							height={180}
-						/>
+						<SimpleLineChart data={data} color={iconColor} height={180} />
 					) : (
 						<div className="h-48 flex items-center justify-center text-gray-500">
 							<div className="text-center">
@@ -255,7 +277,9 @@ export default function InventoryLevelsCharts({
 	return (
 		<div className={`space-y-6 ${className}`}>
 			<div className="flex items-center justify-between">
-				<h2 className="text-xl font-semibold text-gray-900">Inventory Levels</h2>
+				<h2 className="text-xl font-semibold text-gray-900">
+					Inventory Levels
+				</h2>
 				<p className="text-sm text-gray-600">
 					Time series analysis of inventory levels across platforms
 				</p>
@@ -283,7 +307,9 @@ export default function InventoryLevelsCharts({
 					onDateRangeChange={setAmazonDateRange}
 					loading={amazonLoading}
 					error={amazonError}
-					icon={<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />}
+					icon={
+						<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />
+					}
 					iconColor="#f59e0b"
 					iconBgColor="#fffbeb"
 				/>
@@ -305,7 +331,8 @@ export default function InventoryLevelsCharts({
 			{/* Data Info */}
 			<div className="text-center text-sm text-gray-500">
 				<Calendar className="inline h-4 w-4 mr-1" />
-				Showing inventory data for selected date ranges • Data updates every 5 minutes
+				Showing inventory data for selected date ranges • Data updates every 5
+				minutes
 			</div>
 		</div>
 	);
