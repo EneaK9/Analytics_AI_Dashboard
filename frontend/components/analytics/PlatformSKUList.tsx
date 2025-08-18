@@ -1,9 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import {
-	Search,
-	Download,
 	AlertCircle,
 	Package,
 	TrendingUp,
@@ -12,12 +10,12 @@ import {
 	ShoppingBag,
 } from "lucide-react";
 import DataTable from "../ui/DataTable";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { type SKUData, type SKUSummaryStats } from "../../lib/inventoryService";
-import { useGlobalDataStore } from "../../store/globalDataStore";
+import { Card, CardContent } from "../ui/card";
+import { type SKUData } from "../../lib/inventoryService";
+import { useSKUData } from "../../hooks/useSKUData";
 
 interface PlatformSKUListProps {
-	clientData?: any[];
+	clientData?: unknown[];
 	refreshInterval?: number;
 	className?: string;
 }
@@ -25,34 +23,42 @@ interface PlatformSKUListProps {
 type Platform = "shopify" | "amazon";
 
 export default function PlatformSKUList({
-	clientData,
-	refreshInterval = 300000,
 	className = "",
 }: PlatformSKUListProps) {
 	// Platform selection state
 	const [selectedPlatform, setSelectedPlatform] = useState<Platform>("shopify");
 
-	// Use global store data instead of making separate requests
-	const shopifyData = useGlobalDataStore((state) => state.skuData || []);
-	const shopifyLoading = useGlobalDataStore((state) => state.loading.skuData);
-	const shopifyError = useGlobalDataStore((state) => state.errors.skuData);
+	// Use SKU data hook to get actual SKU inventory data
+	const {
+		loading,
+		error,
+		shopifySKUs,
+		amazonSKUs,
+		shopifyStats,
+		amazonStats,
+		lastUpdated,
+		refresh,
+	} = useSKUData({ fastMode: true });
 
-	// For now, use the same data for both platforms since global store handles platform switching
-	// TODO: Implement platform-specific data storage in global store
-	const currentData = Array.isArray(shopifyData) ? shopifyData : [];
-	const currentStats = {
-		total_skus: currentData.length,
+	// Get platform-specific data based on selection
+	const currentData = selectedPlatform === "shopify" ? shopifySKUs : amazonSKUs;
+	const currentStats =
+		selectedPlatform === "shopify" ? shopifyStats : amazonStats;
+
+	// Provide default stats if none available
+	const safeStats = currentStats || {
+		total_skus: currentData?.length || 0,
 		total_inventory_value: 0,
 		low_stock_count: 0,
 		out_of_stock_count: 0,
 	};
-	const currentLoading = shopifyLoading;
-	const currentError = shopifyError;
-	const currentLastUpdated = new Date();
-	const currentRefresh = useGlobalDataStore((state) => state.fetchSKUData);
+
+	const currentLoading = loading;
+	const currentError = error;
+	const currentLastUpdated = lastUpdated;
 
 	// Refresh handler for manual refresh
-	const handleRefresh = () => currentRefresh(1, true);
+	const handleRefresh = () => refresh(undefined, true);
 
 	// Define table columns for SKU data
 	const columns = [
@@ -211,7 +217,7 @@ export default function PlatformSKUList({
 			<PlatformTabs />
 
 			{/* Summary Cards */}
-			{currentStats && (
+			{safeStats && (
 				<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
 					<Card>
 						<CardContent className="p-4">
@@ -221,7 +227,7 @@ export default function PlatformSKUList({
 										Total SKUs
 									</p>
 									<p className="text-2xl font-bold text-gray-900">
-										{currentStats.total_skus}
+										{safeStats.total_skus}
 									</p>
 								</div>
 								<Package className="h-8 w-8 text-blue-600" />
@@ -238,7 +244,7 @@ export default function PlatformSKUList({
 									</p>
 									<p className="text-2xl font-bold text-green-600">
 										$
-										{(currentStats.total_inventory_value || 0).toLocaleString(
+										{(safeStats.total_inventory_value || 0).toLocaleString(
 											undefined,
 											{ minimumFractionDigits: 0, maximumFractionDigits: 0 }
 										)}
@@ -257,7 +263,7 @@ export default function PlatformSKUList({
 										Low Stock Alerts
 									</p>
 									<p className="text-2xl font-bold text-yellow-600">
-										{currentStats.low_stock_count}
+										{safeStats.low_stock_count}
 									</p>
 								</div>
 								<AlertCircle className="h-8 w-8 text-yellow-600" />
@@ -273,7 +279,7 @@ export default function PlatformSKUList({
 										Out of Stock
 									</p>
 									<p className="text-2xl font-bold text-red-600">
-										{currentStats.out_of_stock_count}
+										{safeStats.out_of_stock_count}
 									</p>
 								</div>
 								<AlertCircle className="h-8 w-8 text-red-600" />
@@ -296,8 +302,7 @@ export default function PlatformSKUList({
 				loading={currentLoading}
 				search={true}
 				export={true}
-				pagination={true}
-				pageSize={20}
+				pagination={false}
 				emptyMessage={`No inventory data available for ${
 					selectedPlatform === "shopify" ? "Shopify" : "Amazon"
 				}. Please upload CSV data or check data connections.`}

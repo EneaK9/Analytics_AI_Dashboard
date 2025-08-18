@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import api from "../lib/axios";
+import { isAuthenticated } from "../lib/auth";
 
 interface MultiPlatformDataState {
 	// Loading states
@@ -52,6 +53,14 @@ export const useMultiPlatformData = (
 	 */
 	const fetchAllPlatformData = useCallback(
 		async (forceRefresh: boolean = false): Promise<void> => {
+			// Check authentication before making API calls
+			if (!isAuthenticated()) {
+				console.log("🔒 User not authenticated, skipping API call");
+				setLoading(false);
+				setError(null);
+				return;
+			}
+
 			// Prevent multiple simultaneous requests unless forced
 			if (isRequestInProgressRef.current && !forceRefresh) {
 				console.log(

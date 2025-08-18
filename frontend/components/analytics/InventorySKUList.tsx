@@ -266,8 +266,7 @@ export default function InventorySKUList({
 				loading={loading}
 				search={true}
 				export={true}
-				pagination={true}
-				pageSize={20}
+				pagination={false}
 				emptyMessage="No inventory data available. Please upload CSV data or check data connections."
 				className="bg-white shadow-sm"
 			/>

@@ -71,7 +71,9 @@ export default function SalesPerformanceAlerts({
 			[];
 
 		const processedSpikes = spikeAlerts.map((alert: any, index: number) => ({
-			id: `spike-${index}`,
+			id: `spike-${
+				alert.sku_code || alert.sku || "unknown"
+			}-${index}-${Date.now()}`,
 			sku: alert.sku_code || alert.sku || `Unknown-${index}`,
 			message:
 				alert.message ||
@@ -84,7 +86,9 @@ export default function SalesPerformanceAlerts({
 
 		const processedSlowdowns = slowdownAlerts.map(
 			(alert: any, index: number) => ({
-				id: `slowdown-${index}`,
+				id: `slowdown-${
+					alert.sku_code || alert.sku || "unknown"
+				}-${index}-${Date.now()}`,
 				sku: alert.sku_code || alert.sku || `Unknown-${index}`,
 				message:
 					alert.message ||

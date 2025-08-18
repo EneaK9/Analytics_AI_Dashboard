@@ -447,10 +447,24 @@ class DashboardInventoryAnalyzer:
         """Process Shopify products and add to SKU list"""
         shopify_products = shopify_data.get('products', [])
         
+        logger.info(f"📦 Processing {len(shopify_products)} Shopify products for SKU list")
+        
+        skipped_count = 0
+        processed_count = 0
+        
         for product in shopify_products:
             sku = product.get('sku')
+            # Use variant_id or product_id as fallback if no SKU
             if not sku:
-                continue
+                variant_id = product.get('variant_id')
+                product_id = product.get('product_id')
+                if variant_id:
+                    sku = f"VARIANT-{variant_id}"
+                elif product_id:
+                    sku = f"PRODUCT-{product_id}"
+                else:
+                    skipped_count += 1
+                    continue  # Skip only if we have no identifier at all
             
             on_hand = product.get('inventory_quantity', 0) or 0
             incoming = 0  # TODO: Implement purchase order tracking
@@ -472,10 +486,15 @@ class DashboardInventoryAnalyzer:
                 "option1": product.get('option1'),
                 "option2": product.get('option2')
             })
+            processed_count += 1
+        
+        logger.info(f"✅ Shopify processing complete: {processed_count} processed, {skipped_count} skipped")
 
     def _process_amazon_products(self, amazon_data: Dict, sku_list: List[Dict]):
         """Process Amazon products and add to SKU list"""
         amazon_products = amazon_data.get('products', [])
+        
+        logger.info(f"📦 Processing {len(amazon_products)} Amazon products for SKU list")
         
         for product in amazon_products:
             sku = product.get('sku')
