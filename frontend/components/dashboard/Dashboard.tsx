@@ -15,6 +15,7 @@ import SideMenu from "./components/SideMenu";
 import ExcelDataView from "./components/ExcelDataView";
 // COMMENTED OUT: These components use the dashboard/metrics endpoint
 // import DataTablesPage from "./components/DataTablesPage";
+import OptimizedDataTablesPage from "./components/OptimizedDataTablesPage";
 import AppTheme from "../shared-theme/AppTheme";
 // import useDashboardMetrics from "../../hooks/useDashboardMetrics";
 import { DateRange } from "./components/CustomDatePicker";
@@ -138,24 +139,9 @@ export default function Dashboard({
 							<Box sx={{ width: "100%", mb: 2 }}>
 								<Header onDateRangeChange={onDateRangeChange} />
 							</Box>
-							{/* COMMENTED OUT: DataTablesPage uses dashboard/metrics endpoint */}
+							{/* Optimized DataTablesPage using global state and raw data API */}
 							<Box sx={{ width: "100%", height: "calc(100vh - 200px)" }}>
-								{/* <DataTablesPage user={user} dashboardMetrics={dashboardMetrics} dateRange={dateRange || undefined} /> */}
-								<Box sx={{ 
-									display: 'flex', 
-									justifyContent: 'center', 
-									alignItems: 'center', 
-									height: '100%',
-									flexDirection: 'column',
-									gap: 2
-								}}>
-									<Typography variant="h6" color="text.secondary">
-										Data Tables Disabled
-									</Typography>
-									<Typography color="text.secondary">
-										Dashboard metrics endpoint is currently disabled
-									</Typography>
-								</Box>
+								<OptimizedDataTablesPage user={user} />
 							</Box>
 						</>
 					) : (

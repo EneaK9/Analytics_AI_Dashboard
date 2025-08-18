@@ -2255,6 +2255,256 @@ async def get_client_data(client_id: str, limit: int = 100):
             "message": f"Error retrieving data: {str(e)}"
         }
 
+@app.get("/api/data/available-tables/{client_id}")
+async def get_available_tables(client_id: str):
+    """Get available data tables for a client to build dynamic tabs"""
+    try:
+        logger.info(f"📋 Checking available tables for client {client_id}")
+        
+        db_client = get_admin_client()
+        if not db_client:
+            logger.error("❌ Database not configured")
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        # Normalize client_id for table names (replace hyphens with underscores)
+        safe_client_id = client_id.replace('-', '_')
+        
+        # Define table mapping
+        possible_tables = {
+            'shopify': {
+                'products': f"{safe_client_id}_shopify_products",
+                'orders': f"{safe_client_id}_shopify_orders"
+            },
+            'amazon': {
+                'products': f"{safe_client_id}_amazon_products", 
+                'orders': f"{safe_client_id}_amazon_orders"
+            }
+        }
+        
+        available_tables = {
+            'shopify': [],
+            'amazon': []
+        }
+        
+        # Check each table
+        for platform, tables in possible_tables.items():
+            for data_type, table_name in tables.items():
+                try:
+                    # Try to query the table with count to see if it exists and has data
+                    response = db_client.table(table_name).select("id", count="exact").limit(1).execute()
+                    count = response.count if hasattr(response, 'count') and response.count is not None else 0
+                    
+                    if count > 0:  # Only include tables with data
+                        available_tables[platform].append({
+                            'data_type': data_type,
+                            'table_name': table_name,
+                            'display_name': f"{platform.title()} {data_type.title()}",
+                            'count': count
+                        })
+                        logger.info(f"✅ Found {platform} {data_type} table with {count} records")
+                    else:
+                        logger.info(f"⚠️ {platform} {data_type} table exists but has no data")
+                        
+                except Exception as e:
+                    logger.info(f"❌ {platform} {data_type} table not available: {str(e)}")
+                    continue
+        
+        # Clean up empty platforms
+        available_platforms = {k: v for k, v in available_tables.items() if v}
+        
+        logger.info(f"📋 Available tables for client {client_id}: {available_platforms}")
+        
+        return {
+            "client_id": client_id,
+            "available_tables": available_platforms,
+            "total_platforms": len(available_platforms),
+            "total_tables": sum(len(tables) for tables in available_platforms.values()),
+            "message": f"Found {len(available_platforms)} platforms with data"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to check available tables: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to check available tables: {str(e)}")
+
+@app.get("/api/data/raw/{client_id}")
+async def get_raw_data_tables(
+    client_id: str, 
+    platform: Optional[str] = None,  # 'shopify', 'amazon'
+    data_type: Optional[str] = None,  # 'products', 'orders'
+    page: int = 1,
+    page_size: int = 50,
+    search: Optional[str] = None
+):
+    """Get raw data from organized tables - optimized for DataTables component"""
+    try:
+        logger.info(f"📊 Raw data tables request for client {client_id} (platform: {platform}, type: {data_type})")
+        
+        db_client = get_admin_client()
+        if not db_client:
+            logger.error("❌ Database not configured")
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        # Normalize client_id for table names (replace hyphens with underscores)
+        safe_client_id = client_id.replace('-', '_')
+        
+        # Define table mapping
+        table_mapping = {
+            'shopify_products': f"{safe_client_id}_shopify_products",
+            'shopify_orders': f"{safe_client_id}_shopify_orders", 
+            'amazon_products': f"{safe_client_id}_amazon_products",
+            'amazon_orders': f"{safe_client_id}_amazon_orders"
+        }
+        
+        # Determine which table to query (now only one table at a time)
+        if not platform or not data_type:
+            raise HTTPException(status_code=400, detail="Both platform and data_type are required")
+            
+        table_key = f"{platform.lower()}_{data_type.lower()}"
+        if table_key not in ['shopify_products', 'shopify_orders', 'amazon_products', 'amazon_orders']:
+            raise HTTPException(status_code=400, detail="Invalid platform or data_type combination")
+        
+        table_name = table_mapping[table_key]
+        logger.info(f"🔍 Querying table: {table_name} (page: {page}, size: {page_size}, search: {search})")
+        
+        # Columns to exclude from results
+        excluded_columns = ['id', 'client_id', 'product_id', 'variants', 'options', 'images', 'raw_data']
+        
+        try:
+            # Build base query using Supabase client
+            query = db_client.table(table_name).select("*", count='exact')
+            
+            # Apply search filter if provided
+            if search:
+                logger.info(f"🔍 Applying search filter for: '{search}'")
+                
+                # Define search fields based on table type
+                search_fields = []
+                if 'products' in table_key:
+                    # Product tables: search in title, handle, sku, vendor, variant_title, option1, option2, option3
+                    search_fields = ['title', 'handle', 'sku', 'vendor', 'variant_title', 'option1', 'option2', 'option3']
+                elif 'orders' in table_key:
+                    # Order tables: search in order_number, customer_email, financial_status, order_status, source_name, tags
+                    search_fields = ['order_number', 'customer_email', 'financial_status', 'order_status', 'source_name', 'tags', 'sales_channel', 'marketplace_id']
+                
+                # Build an OR condition for text search - use proper PostgREST syntax
+                search_conditions = []
+                for field in search_fields:
+                    search_conditions.append(f"{field}.ilike.*{search}*")
+                
+                # Apply OR search across multiple fields
+                if search_conditions:
+                    search_filter = ",".join(search_conditions)
+                    logger.info(f"🔍 Search filter: {search_filter}")
+                    query = query.or_(search_filter)
+            
+            # Get total count first (for pagination)
+            count_response = query.execute()
+            total_records = count_response.count if count_response.count is not None else 0
+            
+            # If search returns no results, fall back to showing all data
+            search_fallback = False
+            if search and total_records == 0:
+                logger.info(f"🔍 Search '{search}' returned no results, falling back to all data")
+                search_fallback = True
+                # Reset to page 1 when falling back to all data
+                page = 1
+                # Re-run count query without search filter
+                fallback_query = db_client.table(table_name).select("*", count='exact')
+                count_response = fallback_query.execute()
+                total_records = count_response.count if count_response.count is not None else 0
+            
+            # Calculate pagination
+            offset = (page - 1) * page_size
+            total_pages = (total_records + page_size - 1) // page_size if total_records > 0 else 0
+            
+            # Build main query with pagination
+            main_query = db_client.table(table_name).select("*")
+            
+            # Apply search filter again for data query (only if not falling back)
+            if search and not search_fallback:
+                search_conditions = []
+                if 'products' in table_key:
+                    search_fields = ['title', 'handle', 'sku', 'vendor', 'variant_title', 'option1', 'option2', 'option3']
+                elif 'orders' in table_key:
+                    search_fields = ['order_number', 'customer_email', 'financial_status', 'order_status', 'source_name', 'tags', 'sales_channel', 'marketplace_id']
+                
+                for field in search_fields:
+                    search_conditions.append(f"{field}.ilike.*{search}*")
+                
+                if search_conditions:
+                    search_filter = ",".join(search_conditions)
+                    main_query = main_query.or_(search_filter)
+            
+            # Apply pagination and ordering
+            main_query = main_query.order('processed_at', desc=True).range(offset, offset + page_size - 1)
+            
+            logger.info(f"🔍 Querying table {table_name} with offset {offset}, limit {page_size}")
+            
+            response = main_query.execute()
+            
+            if response.data:
+                # Filter out excluded columns
+                filtered_data = []
+                all_columns = list(response.data[0].keys()) if response.data else []
+                allowed_columns = [col for col in all_columns if col not in excluded_columns]
+                
+                for row in response.data:
+                    filtered_row = {col: row[col] for col in allowed_columns if col in row}
+                    filtered_data.append(filtered_row)
+                
+                result_data = {
+                    'client_id': client_id,
+                    'table_key': table_key,
+                    'display_name': table_key.replace('_', ' ').title(),
+                    'table_name': table_name,
+                    'platform': table_key.split('_')[0],
+                    'data_type': table_key.split('_')[1],
+                    'columns': allowed_columns,
+                    'data': filtered_data,
+                    'pagination': {
+                        'current_page': page,
+                        'page_size': page_size,
+                        'total_records': total_records,
+                        'total_pages': total_pages,
+                        'has_next': page < total_pages,
+                        'has_prev': page > 1
+                    },
+                    'search': search,
+                    'search_fallback': search_fallback,
+                    'message': f"Retrieved {len(filtered_data)} records (page {page} of {total_pages})" + 
+                              (f" - No results found for '{search}', showing all data" if search_fallback else "")
+                }
+                
+                logger.info(f"✅ Retrieved {len(filtered_data)} records from {table_name} (page {page}/{total_pages}, total: {total_records})")
+                return result_data
+            else:
+                logger.warning(f"⚠️ No data found in table {table_name}")
+                return {
+                    'client_id': client_id,
+                    'table_key': table_key,
+                    'display_name': table_key.replace('_', ' ').title(),
+                    'message': "No data found in this table",
+                    'data': [],
+                    'columns': [],
+                    'pagination': {
+                        'current_page': 1,
+                        'page_size': page_size,
+                        'total_records': 0,
+                        'total_pages': 0,
+                        'has_next': False,
+                        'has_prev': False
+                    }
+                }
+                
+        except Exception as table_error:
+            logger.error(f"❌ Failed to query table {table_name}: {table_error}")
+            raise HTTPException(status_code=500, detail=f"Failed to query table {table_name}: {str(table_error)}")
+        
+    except Exception as e:
+        logger.error(f"❌ Raw data retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Raw data retrieval failed: {str(e)}")
+
+
 # ==================== PERSONALIZED DASHBOARD ENDPOINTS ====================
 
 @app.post("/api/dashboard/generate", response_model=DashboardGenerationResponse)
