@@ -7,14 +7,16 @@ import { alpha } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 import AppNavbar from "./components/AppNavbar";
 import Header from "./components/Header";
 import MainGrid from "./components/MainGrid";
 import SideMenu from "./components/SideMenu";
 import ExcelDataView from "./components/ExcelDataView";
-import DataTablesPage from "./components/DataTablesPage";
+// COMMENTED OUT: These components use the dashboard/metrics endpoint
+// import DataTablesPage from "./components/DataTablesPage";
 import AppTheme from "../shared-theme/AppTheme";
-import useDashboardMetrics from "../../hooks/useDashboardMetrics";
+// import useDashboardMetrics from "../../hooks/useDashboardMetrics";
 import { DateRange } from "./components/CustomDatePicker";
 import {
 	chartsCustomizations,
@@ -66,8 +68,9 @@ export default function Dashboard({
 	const [currentDashboardType, setCurrentDashboardType] =
 		React.useState<string>("main");
 	
-	// Shared dashboard metrics hook
-	const dashboardMetrics = useDashboardMetrics(user?.client_id);
+	// COMMENTED OUT: Shared dashboard metrics hook uses dashboard/metrics endpoint
+	// const dashboardMetrics = useDashboardMetrics(user?.client_id);
+	const dashboardMetrics = null; // Fallback for disabled dashboard metrics
 
 
 	// Handle dashboard type changes from the dropdown
@@ -111,9 +114,6 @@ export default function Dashboard({
 					user={user}
 					onRefreshAIData={onRefreshAIData}
 					onLogout={onLogout}
-					selectedSection={selectedSection}
-					onSectionChange={setSelectedSection}
-					onDashboardChange={handleDashboardChange}
 				/>
 				{/* Main content */}
 				<Box
@@ -138,8 +138,24 @@ export default function Dashboard({
 							<Box sx={{ width: "100%", mb: 2 }}>
 								<Header onDateRangeChange={onDateRangeChange} />
 							</Box>
+							{/* COMMENTED OUT: DataTablesPage uses dashboard/metrics endpoint */}
 							<Box sx={{ width: "100%", height: "calc(100vh - 200px)" }}>
-								<DataTablesPage user={user} dashboardMetrics={dashboardMetrics} dateRange={dateRange || undefined} />
+								{/* <DataTablesPage user={user} dashboardMetrics={dashboardMetrics} dateRange={dateRange || undefined} /> */}
+								<Box sx={{ 
+									display: 'flex', 
+									justifyContent: 'center', 
+									alignItems: 'center', 
+									height: '100%',
+									flexDirection: 'column',
+									gap: 2
+								}}>
+									<Typography variant="h6" color="text.secondary">
+										Data Tables Disabled
+									</Typography>
+									<Typography color="text.secondary">
+										Dashboard metrics endpoint is currently disabled
+									</Typography>
+								</Box>
 							</Box>
 						</>
 					) : (
@@ -150,7 +166,7 @@ export default function Dashboard({
 									user={user}
 									dashboardType={currentDashboardType}
 									dateRange={dateRange || undefined}
-									sharedDashboardMetrics={dashboardMetrics}
+									sharedDashboardMetrics={dashboardMetrics} // null - dashboard metrics disabled
 								/>
 							</>
 						)}

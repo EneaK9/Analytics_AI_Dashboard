@@ -61,54 +61,60 @@ export default function DataTablesPage({ user, dashboardMetrics, dateRange }: Da
 		return selectedDate.toDateString() === today.toDateString();
 	}, []);
 
-	// Load date-filtered data when dateRange changes
+	// COMMENTED OUT: Load date-filtered data when dateRange changes
+	// This function uses the dashboard/metrics endpoint
 	const loadDateFilteredData = React.useCallback(async () => {
-		// Check if no date filter or if the date is today (use shared data)
-		if (!user?.client_id || !dateRange || (!dateRange.start && !dateRange.end) || isDateRangeToday(dateRange)) {
-			const isToday = isDateRangeToday(dateRange);
-			console.log(isToday ? "📅 Today selected - using shared data for tables (no filtering needed)" : "📊 No date filter applied - using shared data for tables");
-			setDateFilteredData(null);
-			setDateFilterError(null);
-			return;
-		}
+		// COMMENTED OUT: Check if no date filter or if the date is today (use shared data)
+		// if (!user?.client_id || !dateRange || (!dateRange.start && !dateRange.end) || isDateRangeToday(dateRange)) {
+		// 	const isToday = isDateRangeToday(dateRange);
+		// 	console.log(isToday ? "📅 Today selected - using shared data for tables (no filtering needed)" : "📊 No date filter applied - using shared data for tables");
+		// 	setDateFilteredData(null);
+		// 	setDateFilterError(null);
+		// 	return;
+		// }
 
-		console.log("📅 Loading date-filtered data for Data Tables:", {
-			start: dateRange.start?.format ? dateRange.start.format('YYYY-MM-DD') : dateRange.start,
-			end: dateRange.end?.format ? dateRange.end.format('YYYY-MM-DD') : dateRange.end,
-			label: dateRange.label
-		});
+		// console.log("📅 Loading date-filtered data for Data Tables:", {
+		// 	start: dateRange.start?.format ? dateRange.start.format('YYYY-MM-DD') : dateRange.start,
+		// 	end: dateRange.end?.format ? dateRange.end.format('YYYY-MM-DD') : dateRange.end,
+		// 	label: dateRange.label
+		// });
 
-		setIsLoadingDateFilter(true);
-		setDateFilterError(null);
+		// setIsLoadingDateFilter(true);
+		// setDateFilterError(null);
 
-		try {
-			const params = new URLSearchParams();
-			params.append('fast_mode', 'true');
+		// try {
+		// 	const params = new URLSearchParams();
+		// 	params.append('fast_mode', 'true');
 			
-			if (dateRange.start) {
-				const startDate = dateRange.start?.format ? dateRange.start.format('YYYY-MM-DD') : dateRange.start;
-				params.append('start_date', startDate);
-			}
-			if (dateRange.end) {
-				const endDate = dateRange.end?.format ? dateRange.end.format('YYYY-MM-DD') : dateRange.end;
-				params.append('end_date', endDate);
-			}
+		// 	if (dateRange.start) {
+		// 		const startDate = dateRange.start?.format ? dateRange.start.format('YYYY-MM-DD') : dateRange.start;
+		// 		params.append('start_date', startDate);
+		// 	}
+		// 	if (dateRange.end) {
+		// 		const endDate = dateRange.end?.format ? dateRange.end.format('YYYY-MM-DD') : dateRange.end;
+		// 		params.append('end_date', endDate);
+		// 	}
 
-			const response = await api.get(`/dashboard/metrics?${params.toString()}`);
+		// 	const response = await api.get(`/dashboard/metrics?${params.toString()}`);
 			
-			if (response.data && response.data.llm_analysis) {
-				console.log("✅ Date-filtered data loaded for Data Tables");
-				setDateFilteredData(response.data.llm_analysis);
-			} else {
-				console.error("❌ No LLM analysis in date-filtered response for tables");
-				setDateFilterError("No data available for selected date range");
-			}
-		} catch (error) {
-			console.error("❌ Error loading date-filtered data for tables:", error);
-			setDateFilterError("Failed to load date-filtered data");
-		} finally {
-			setIsLoadingDateFilter(false);
-		}
+		// 	if (response.data && response.data.llm_analysis) {
+		// 		console.log("✅ Date-filtered data loaded for Data Tables");
+		// 		setDateFilteredData(response.data.llm_analysis);
+		// 	} else {
+		// 		console.error("❌ No LLM analysis in date-filtered response for tables");
+		// 		setDateFilterError("No data available for selected date range");
+		// 	}
+		// } catch (error) {
+		// 	console.error("❌ Error loading date-filtered data for tables:", error);
+		// 	setDateFilterError("Failed to load date-filtered data");
+		// } finally {
+		// 	setIsLoadingDateFilter(false);
+		// }
+		
+		console.log("🚫 Dashboard metrics loading is disabled");
+		setDateFilteredData(null);
+		setDateFilterError("Dashboard metrics are currently disabled");
+		setIsLoadingDateFilter(false);
 	}, [user?.client_id, dateRange, isDateRangeToday]);
 
 	// Trigger date filtering when dateRange changes

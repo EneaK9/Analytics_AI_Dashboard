@@ -45,66 +45,79 @@ interface UseDashboardMetricsReturn {
     refetch: (opts?: { startDate?: string; endDate?: string; preset?: string }) => Promise<void>;
 }
 
-export function useDashboardMetrics(userId?: string): UseDashboardMetricsReturn {
-	const [data, setData] = useState<LLMAnalysis | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
+// COMMENTED OUT: This hook uses the dashboard/metrics endpoint
+// export function useDashboardMetrics(userId?: string): UseDashboardMetricsReturn {
+// 	const [data, setData] = useState<LLMAnalysis | null>(null);
+// 	const [loading, setLoading] = useState(true);
+// 	const [error, setError] = useState<string | null>(null);
 
-    const fetchData = useCallback(async (opts?: { startDate?: string; endDate?: string; preset?: string }) => {
-		if (!userId) {
-			setData(null);
-			setLoading(false);
-			return;
-		}
+//     const fetchData = useCallback(async (opts?: { startDate?: string; endDate?: string; preset?: string }) => {
+// 		if (!userId) {
+// 			setData(null);
+// 			setLoading(false);
+// 			return;
+// 		}
 
-		try {
-			setLoading(true);
-			setError(null);
+// 		try {
+// 			setLoading(true);
+// 			setError(null);
 			
-			console.log("🚀 Fetching dashboard metrics from hook");
-            const params: string[] = ["fast_mode=true"];
-            if (opts?.startDate) params.push(`start_date=${encodeURIComponent(opts.startDate)}`);
-            if (opts?.endDate) params.push(`end_date=${encodeURIComponent(opts.endDate)}`);
-            if (opts?.preset) params.push(`preset=${encodeURIComponent(opts.preset)}`);
-            const query = params.length ? `?${params.join("&")}` : "";
-            const response = await api.get(`/dashboard/metrics${query}`);
+// 			console.log("🚀 Fetching dashboard metrics from hook");
+//             const params: string[] = ["fast_mode=true"];
+//             if (opts?.startDate) params.push(`start_date=${encodeURIComponent(opts.startDate)}`);
+//             if (opts?.endDate) params.push(`end_date=${encodeURIComponent(opts.endDate)}`);
+//             if (opts?.preset) params.push(`preset=${encodeURIComponent(opts.preset)}`);
+//             const query = params.length ? `?${params.join("&")}` : "";
+//             const response = await api.get(`/dashboard/metrics${query}`);
 
-			if (response.data && response.data.llm_analysis) {
-				const analysis = response.data.llm_analysis;
-				setData(analysis);
+// 			if (response.data && response.data.llm_analysis) {
+// 				const analysis = response.data.llm_analysis;
+// 				setData(analysis);
 				
-				console.log("✅ Dashboard metrics loaded via hook:", {
-					hasKpis: !!analysis.kpis,
-					kpisCount: analysis.kpis?.length || 0,
-					hasCharts: !!analysis.charts,
-					chartsCount: analysis.charts?.length || 0,
-					hasTables: !!analysis.tables,
-					tablesCount: analysis.tables?.length || 0,
-				});
-			} else {
-				console.warn("⚠️ No LLM analysis found in response");
-				setData(null);
-			}
-		} catch (err: any) {
-			console.error("❌ Error fetching dashboard metrics:", err);
-			setError(err.response?.data?.detail || err.message || "Failed to load dashboard metrics");
-			setData(null);
-		} finally {
-			setLoading(false);
-		}
-    }, [userId]);
+// 				console.log("✅ Dashboard metrics loaded via hook:", {
+// 					hasKpis: !!analysis.kpis,
+// 					kpisCount: analysis.kpis?.length || 0,
+// 					hasCharts: !!analysis.charts,
+// 					chartsCount: analysis.charts?.length || 0,
+// 					hasTables: !!analysis.tables,
+// 					tablesCount: analysis.tables?.length || 0,
+// 				});
+// 			} else {
+// 				console.warn("⚠️ No LLM analysis found in response");
+// 				setData(null);
+// 			}
+// 		} catch (err: any) {
+// 			console.error("❌ Error fetching dashboard metrics:", err);
+// 			setError(err.response?.data?.detail || err.message || "Failed to load dashboard metrics");
+// 			setData(null);
+// 		} finally {
+// 			setLoading(false);
+// 		}
+//     }, [userId]);
 
-	// Initial load
-	useEffect(() => {
-		fetchData();
-	}, [userId]); // Use userId directly instead of fetchData to avoid infinite loop
+// 	// Initial load
+// 	useEffect(() => {
+// 		fetchData();
+// 	}, [userId]); // Use userId directly instead of fetchData to avoid infinite loop
 
-	// Return the hook interface
+// 	// Return the hook interface
+// 	return {
+// 		data,
+// 		loading,
+// 		error,
+// 		refetch: fetchData
+// 	};
+// }
+
+// Fallback hook that returns empty data
+export function useDashboardMetrics(userId?: string): UseDashboardMetricsReturn {
 	return {
-		data,
-		loading,
-		error,
-		refetch: fetchData
+		data: null,
+		loading: false,
+		error: null,
+		refetch: async () => {
+			console.log("🚫 Dashboard metrics hook is disabled");
+		}
 	};
 }
 

@@ -318,10 +318,15 @@ export default function SmartInventoryDashboard({
           </p>
         </CardHeader>
         <CardContent>
-          {/* Pass the data directly instead of letting InventorySKUList make its own API call */}
+          {/* Pass the fetched data directly to avoid duplicate API calls */}
           <InventorySKUList 
             clientData={clientData} 
             refreshInterval={0} // Disable separate refresh since we handle it here
+            platform={selectedPlatform}
+            skuData={skuData}
+            summaryStats={summaryStats}
+            loading={loading}
+            error={error}
           />
         </CardContent>
       </Card>

@@ -11,28 +11,39 @@ interface InventorySKUListProps {
 	clientData?: any[];
 	refreshInterval?: number;
 	platform?: "shopify" | "amazon";
+	// Pre-fetched data props to avoid duplicate API calls
+	skuData?: SKUData[];
+	summaryStats?: SKUSummaryStats;
+	loading?: boolean;
+	error?: string | null;
 }
 
 export default function InventorySKUList({
 	clientData,
 	refreshInterval = 300000,
-	platform = "shopify"
+	platform = "shopify",
+	// Accept pre-fetched data to avoid duplicate API calls
+	skuData: preFetchedSkuData,
+	summaryStats: preFetchedSummaryStats,
+	loading: preFetchedLoading,
+	error: preFetchedError
 }: InventorySKUListProps) {
-	// Use the comprehensive inventory hook - single API call, optimized
-	const {
-		loading,
-		error,
-		skuData,
-		summaryStats,
-		pagination,
-		cached,
-		lastUpdated,
-		refresh
-	} = useInventoryData({
-		refreshInterval,
+	// Only use hook if no pre-fetched data is provided
+	const hookData = useInventoryData({
+		refreshInterval: preFetchedSkuData ? 0 : refreshInterval, // Disable if data is pre-fetched
 		fastMode: true,
 		platform
 	});
+
+	// Use pre-fetched data if available, otherwise use hook data
+	const loading = preFetchedLoading !== undefined ? preFetchedLoading : hookData.loading;
+	const error = preFetchedError !== undefined ? preFetchedError : hookData.error;
+	const skuData = preFetchedSkuData || hookData.skuData;
+	const summaryStats = preFetchedSummaryStats || hookData.summaryStats;
+	const pagination = hookData.pagination;
+	const cached = hookData.cached;
+	const lastUpdated = hookData.lastUpdated;
+	const refresh = hookData.refresh;
 
 	// Refresh handler for manual refresh
 	const handleRefresh = () => refresh(true);

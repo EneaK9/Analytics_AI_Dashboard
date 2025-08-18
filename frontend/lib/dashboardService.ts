@@ -85,17 +85,20 @@ class DashboardService {
 	}
 
 	/**
-	 * Get ONLY real dashboard metrics from database
+	 * COMMENTED OUT: Get ONLY real dashboard metrics from database
 	 * Returns empty array if no metrics exist
 	 */
 	async getDashboardMetrics(): Promise<DashboardMetric[]> {
-		try {
-			const response = await api.get("/dashboard/metrics");
-			return Array.isArray(response.data) ? response.data : [];
-		} catch (error) {
-			console.error("Failed to get dashboard metrics:", error);
-			return [];
-		}
+		// COMMENTED OUT: This method uses the dashboard/metrics endpoint
+		// try {
+		// 	const response = await api.get("/dashboard/metrics");
+		// 	return Array.isArray(response.data) ? response.data : [];
+		// } catch (error) {
+		// 	console.error("Failed to get dashboard metrics:", error);
+		// 	return [];
+		// }
+		console.log("🚫 Dashboard metrics service is disabled");
+		return [];
 	}
 
 	/**
