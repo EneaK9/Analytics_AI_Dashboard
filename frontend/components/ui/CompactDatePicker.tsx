@@ -171,6 +171,8 @@ export default function CompactDatePicker({
 												Start Date
 											</label>
 											<input
+												id="compact-date-start"
+												name="customStart"
 												type="date"
 												value={customStart}
 												onChange={(e) => setCustomStart(e.target.value)}
@@ -182,6 +184,8 @@ export default function CompactDatePicker({
 												End Date
 											</label>
 											<input
+												id="compact-date-end"
+												name="customEnd"
 												type="date"
 												value={customEnd}
 												onChange={(e) => setCustomEnd(e.target.value)}

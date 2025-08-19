@@ -45,13 +45,34 @@ export default function PlatformSKUList({
 	const currentStats =
 		selectedPlatform === "shopify" ? shopifyStats : amazonStats;
 
-	// Provide default stats if none available
-	const safeStats = currentStats || {
-		total_skus: currentData?.length || 0,
-		total_inventory_value: 0,
-		low_stock_count: 0,
-		out_of_stock_count: 0,
-	};
+	// 🔥 FIXED: Calculate real stats from data if API stats are missing
+	const safeStats =
+		currentStats ||
+		(currentData
+			? {
+					total_skus: currentData.length,
+					total_inventory_value: currentData.reduce(
+						(sum, sku) => sum + (sku.total_value || 0),
+						0
+					),
+					low_stock_count: currentData.filter(
+						(sku) =>
+							sku.current_availability > 0 && sku.current_availability <= 10
+					).length,
+					out_of_stock_count: currentData.filter(
+						(sku) => sku.current_availability <= 0
+					).length,
+					overstock_count: currentData.filter(
+						(sku) => sku.current_availability > 100
+					).length,
+			  }
+			: {
+					total_skus: 0,
+					total_inventory_value: 0,
+					low_stock_count: 0,
+					out_of_stock_count: 0,
+					overstock_count: 0,
+			  });
 
 	const currentLoading = loading;
 	const currentError = error;
@@ -302,7 +323,8 @@ export default function PlatformSKUList({
 				loading={currentLoading}
 				search={true}
 				export={true}
-				pagination={false}
+				pagination={true}
+				pageSize={25}
 				emptyMessage={`No inventory data available for ${
 					selectedPlatform === "shopify" ? "Shopify" : "Amazon"
 				}. Please upload CSV data or check data connections.`}

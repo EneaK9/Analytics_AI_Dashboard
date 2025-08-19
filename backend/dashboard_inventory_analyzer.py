@@ -92,6 +92,17 @@ class DashboardInventoryAnalyzer:
             
             logger.info(f"⚡ ALL calculations completed in parallel for {client_id} ({platform})")
             
+            # 🔥 CALCULATE REAL INVENTORY METRICS - NO MORE HARDCODED ZEROS!
+            total_inventory_value = self._calculate_total_inventory_value(shopify_data, amazon_data)
+            total_skus = len([p for p in shopify_data.get('products', []) if p.get('sku')]) + len([p for p in amazon_data.get('products', []) if p.get('sku')])
+            
+            # Get real counts from alerts calculation
+            low_stock_count = alerts_summary.get('summary_counts', {}).get('low_stock_alerts', 0)
+            overstock_count = alerts_summary.get('summary_counts', {}).get('overstock_alerts', 0)
+            out_of_stock_count = self._calculate_out_of_stock_count(shopify_data, amazon_data)
+            
+            logger.info(f"📊 REAL VALUES: SKUs: {total_skus}, Inventory Value: ${total_inventory_value}, Low Stock: {low_stock_count}, Out of Stock: {out_of_stock_count}")
+            
             analytics = {
                 "success": True,
                 "timestamp": datetime.now().isoformat(),
@@ -102,7 +113,7 @@ class DashboardInventoryAnalyzer:
                 "data_summary": {
                     "platform": platform,
                     "total_records": len(shopify_data.get('products', [])) + len(amazon_data.get('products', [])) + len(shopify_data.get('orders', [])) + len(amazon_data.get('orders', [])),
-                    "total_skus": len([p for p in shopify_data.get('products', []) if p.get('sku')]) + len([p for p in amazon_data.get('products', []) if p.get('sku')]),
+                    "total_skus": total_skus,
                     "analysis_period": "30_days", 
                     "data_completeness": 100,
                     "shopify_products": len(shopify_data.get('products', [])),
@@ -113,11 +124,11 @@ class DashboardInventoryAnalyzer:
                 "sku_inventory": {
                     "skus": [],  # Empty - use dedicated endpoint for SKU data
                     "summary_stats": {
-                        "total_skus": len([p for p in shopify_data.get('products', []) if p.get('sku')]) + len([p for p in amazon_data.get('products', []) if p.get('sku')]),
-                        "total_inventory_value": 0,  # Calculate separately if needed
-                        "low_stock_count": 0,        # Calculate separately if needed  
-                        "out_of_stock_count": 0,     # Calculate separately if needed
-                        "overstock_count": 0         # Calculate separately if needed
+                        "total_skus": total_skus,
+                        "total_inventory_value": total_inventory_value,
+                        "low_stock_count": low_stock_count,
+                        "out_of_stock_count": out_of_stock_count,
+                        "overstock_count": overstock_count
                     }
                 },
                 "recommendations": [
@@ -193,6 +204,15 @@ class DashboardInventoryAnalyzer:
             combined_trends = safe_result(combined_trends) 
             combined_alerts = safe_result(combined_alerts)
             
+            # 🔥 CALCULATE REAL INVENTORY METRICS FOR MULTI-PLATFORM - NO MORE HARDCODED ZEROS!
+            shopify_inventory_value = self._calculate_total_inventory_value(shopify_data, {"products": [], "orders": []})
+            amazon_inventory_value = self._calculate_total_inventory_value({"products": [], "orders": []}, amazon_data)
+            combined_inventory_value = self._calculate_total_inventory_value(shopify_data, amazon_data)
+            
+            shopify_total_skus = len([p for p in shopify_data.get('products', []) if p.get('sku')])
+            amazon_total_skus = len([p for p in amazon_data.get('products', []) if p.get('sku')])
+            combined_total_skus = shopify_total_skus + amazon_total_skus
+            
             logger.info(f"✅ Multi-platform analytics completed for {client_id}")
             
             return {
@@ -211,6 +231,15 @@ class DashboardInventoryAnalyzer:
                             "shopify_orders": len(shopify_data.get('orders', [])),
                             "amazon_products": 0,
                             "amazon_orders": 0
+                        },
+                        "sku_inventory": {
+                            "summary_stats": {
+                                "total_skus": shopify_total_skus,
+                                "total_inventory_value": shopify_inventory_value,
+                                "low_stock_count": shopify_alerts.get('summary_counts', {}).get('low_stock_alerts', 0),
+                                "out_of_stock_count": self._calculate_out_of_stock_count(shopify_data, {"products": [], "orders": []}),
+                                "overstock_count": shopify_alerts.get('summary_counts', {}).get('overstock_alerts', 0)
+                            }
                         }
                     },
                     "amazon": {
@@ -223,6 +252,15 @@ class DashboardInventoryAnalyzer:
                             "shopify_orders": 0,
                             "amazon_orders": len(amazon_data.get('orders', [])),
                             "amazon_products": len(amazon_data.get('products', [])),
+                        },
+                        "sku_inventory": {
+                            "summary_stats": {
+                                "total_skus": amazon_total_skus,
+                                "total_inventory_value": amazon_inventory_value,
+                                "low_stock_count": amazon_alerts.get('summary_counts', {}).get('low_stock_alerts', 0),
+                                "out_of_stock_count": self._calculate_out_of_stock_count({"products": [], "orders": []}, amazon_data),
+                                "overstock_count": amazon_alerts.get('summary_counts', {}).get('overstock_alerts', 0)
+                            }
                         }
                     },
                     "combined": {
@@ -236,6 +274,15 @@ class DashboardInventoryAnalyzer:
                             "amazon_orders": len(amazon_data.get('orders', [])),
                             "amazon_products": len(amazon_data.get('products', [])),
                             "total_records": len(shopify_data.get('products', [])) + len(amazon_data.get('products', [])) + len(shopify_data.get('orders', [])) + len(amazon_data.get('orders', []))
+                        },
+                        "sku_inventory": {
+                            "summary_stats": {
+                                "total_skus": combined_total_skus,
+                                "total_inventory_value": combined_inventory_value,
+                                "low_stock_count": combined_alerts.get('summary_counts', {}).get('low_stock_alerts', 0),
+                                "out_of_stock_count": self._calculate_out_of_stock_count(shopify_data, amazon_data),
+                                "overstock_count": combined_alerts.get('summary_counts', {}).get('overstock_alerts', 0)
+                            }
                         }
                     }
                 },
@@ -524,14 +571,19 @@ class DashboardInventoryAnalyzer:
             })
     
     def _calculate_outgoing_for_sku(self, sku: str, orders: List[Dict]) -> int:
-        """Calculate outgoing inventory for a specific SKU from unfulfilled orders"""
+        """🔥 FIXED: Calculate outgoing inventory ONLY for orders that actually contain the SKU"""
         if not sku:
             return 0
             
         outgoing = 0
         sku_normalized = str(sku).strip().lower()
+        recent_orders_checked = 0
+        max_orders_to_check = 20  # Limit to recent orders for performance
         
         for order in orders:
+            if recent_orders_checked >= max_orders_to_check:
+                break
+                
             try:
                 # Only count orders that are paid but not yet fulfilled
                 financial_status = (order.get('financial_status') or '').lower()
@@ -539,10 +591,10 @@ class DashboardInventoryAnalyzer:
                 
                 # Consider orders that are paid but not fully fulfilled
                 if financial_status in ['paid', 'authorized'] and fulfillment_status in ['', 'unfulfilled', 'partial']:
-                    # Parse actual line_items from raw_data for exact quantities
-                    line_items = []
+                    recent_orders_checked += 1
+                    found_sku_in_order = False
                     
-                    # Extract line_items from raw_data
+                    # Extract line_items from raw_data for exact SKU matching
                     raw_data = order.get('raw_data')
                     if raw_data:
                         try:
@@ -553,35 +605,35 @@ class DashboardInventoryAnalyzer:
                                 raw_order = raw_data
                             
                             line_items = raw_order.get('line_items', [])
+                            
+                            # ONLY count if we find the exact SKU in the order
+                            if isinstance(line_items, list) and line_items:
+                                for item in line_items:
+                                    if isinstance(item, dict):
+                                        item_sku = (item.get('sku') or '').strip().lower()
+                                        item_variant_id = str(item.get('variant_id', '')).strip()
+                                        
+                                        # Match by exact SKU or variant_id  
+                                        if (item_sku and item_sku == sku_normalized) or (item_variant_id and item_variant_id in str(sku)):
+                                            quantity = int(item.get('quantity', 1))
+                                            outgoing += quantity
+                                            found_sku_in_order = True
+                                            logger.debug(f"✅ Found SKU {sku} in order {order.get('order_number')}: +{quantity} units")
+                                            break  # Found the SKU, no need to check more items in this order
+                                            
                         except Exception as e:
                             logger.debug(f"Error parsing raw_data for order {order.get('order_number')}: {e}")
                     
-                    if isinstance(line_items, list) and line_items:
-                        # Parse line items to find matching SKU
-                        for item in line_items:
-                            if isinstance(item, dict):
-                                item_sku = (item.get('sku') or '').strip().lower()
-                                item_variant_id = str(item.get('variant_id', '')).strip()
-                                
-                                # Match by SKU or variant_id  
-                                if (item_sku and item_sku == sku_normalized) or (item_variant_id and item_variant_id in str(sku)):
-                                    quantity = int(item.get('quantity', 1))
-                                    outgoing += quantity
-                                    logger.debug(f"Found SKU {sku} in order {order.get('order_number')}: +{quantity} units")
-                    else:
-                        # Fallback: if no line_items data available, estimate based on line_items_count
-                        line_items_count = order.get('line_items_count', 1)
-                        if line_items_count > 0:
-                            # Conservative estimate: assume equal distribution across line items
-                            estimated_quantity = max(1, line_items_count // 2) if line_items_count > 1 else 1
-                            outgoing += estimated_quantity
-                            logger.debug(f"Estimated SKU {sku} quantity in order {order.get('order_number')}: +{estimated_quantity} units (fallback)")
+                    # 🚫 REMOVED THE BROKEN FALLBACK LOGIC THAT WAS ADDING INVENTORY TO ALL SKUS!
+                    # Previously this was adding outgoing inventory to EVERY SKU for EVERY unfulfilled order
+                    # Now we only count when we can actually confirm the SKU is in the order
                     
             except Exception as e:
                 logger.debug(f"Error processing order {order.get('order_number', 'unknown')} for outgoing calculation: {e}")
                 continue
         
-        return outgoing
+        # Cap at reasonable maximum to prevent any edge cases
+        return min(outgoing, 50)
     
     def _calculate_outgoing_for_asin(self, identifier: str, orders: List[Dict]) -> int:
         """Calculate outgoing inventory for Amazon ASIN/SKU from unfulfilled orders"""
@@ -1076,6 +1128,87 @@ class DashboardInventoryAnalyzer:
         except Exception as e:
             logger.error(f"Error generating alerts summary: {e}")
             return {"error": str(e)}
+
+    def _calculate_total_inventory_value(self, shopify_data: Dict, amazon_data: Dict) -> float:
+        """🔥 FIXED: Calculate the total value of all inventory across platforms with better price handling"""
+        total_value = 0.0
+        items_processed = 0
+        items_with_value = 0
+        
+        # Calculate Shopify inventory value
+        shopify_products = shopify_data.get('products', [])
+        for product in shopify_products:
+            quantity = product.get('inventory_quantity', 0) or 0
+            price_raw = product.get('price')
+            price = 0.0
+            
+            # Better price parsing - handle all formats
+            if price_raw is not None:
+                if isinstance(price_raw, (int, float)):
+                    price = float(price_raw)
+                elif isinstance(price_raw, str):
+                    try:
+                        # Remove common currency symbols and formatting
+                        clean_price = price_raw.strip().replace('$', '').replace(',', '').replace(' ', '')
+                        if clean_price:
+                            price = float(clean_price)
+                    except (ValueError, AttributeError):
+                        price = 0.0
+            
+            if quantity > 0 and price > 0:
+                item_value = quantity * price
+                total_value += item_value
+                items_with_value += 1
+                
+            items_processed += 1
+        
+        # Calculate Amazon inventory value  
+        amazon_products = amazon_data.get('products', [])
+        for product in amazon_products:
+            quantity = product.get('quantity', 0) or 0
+            price_raw = product.get('price')
+            price = 0.0
+            
+            # Better price parsing - handle all formats
+            if price_raw is not None:
+                if isinstance(price_raw, (int, float)):
+                    price = float(price_raw)
+                elif isinstance(price_raw, str):
+                    try:
+                        # Remove common currency symbols and formatting
+                        clean_price = price_raw.strip().replace('$', '').replace(',', '').replace(' ', '')
+                        if clean_price:
+                            price = float(clean_price)
+                    except (ValueError, AttributeError):
+                        price = 0.0
+            
+            if quantity > 0 and price > 0:
+                item_value = quantity * price
+                total_value += item_value
+                items_with_value += 1
+                
+            items_processed += 1
+        
+        logger.info(f"💰 INVENTORY VALUE: ${total_value:.2f} from {items_with_value}/{items_processed} items with valid price & quantity")
+        return round(total_value, 2)
+    
+    def _calculate_out_of_stock_count(self, shopify_data: Dict, amazon_data: Dict) -> int:
+        """Calculate the number of items that are completely out of stock"""
+        out_of_stock_count = 0
+        
+        # Count Shopify products that are out of stock
+        for product in shopify_data.get('products', []):
+            inventory = product.get('inventory_quantity', 0) or 0
+            if inventory == 0:
+                out_of_stock_count += 1
+        
+        # Count Amazon products that are out of stock
+        for product in amazon_data.get('products', []):
+            quantity = product.get('quantity', 0) or 0
+            if quantity == 0:
+                out_of_stock_count += 1
+        
+        return out_of_stock_count
 
 
 # Global instance

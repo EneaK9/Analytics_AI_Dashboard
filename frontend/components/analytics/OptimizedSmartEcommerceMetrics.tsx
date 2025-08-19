@@ -268,6 +268,8 @@ const OptimizedSmartEcommerceMetrics: React.FC<OptimizedSmartEcommerceMetricsPro
 									Platform:
 								</span>
 								<select
+									id="optimized-ecommerce-platform"
+									name="platform"
 									value={platform}
 									onChange={(e) =>
 										handlePlatformChange(
