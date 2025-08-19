@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { DollarSign, TrendingUp, Store, ShoppingBag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import CompactDatePicker, {
@@ -8,6 +8,7 @@ import CompactDatePicker, {
 	getDateRange,
 } from "../ui/CompactDatePicker";
 import { useGlobalDataStore } from "../../store/globalDataStore";
+import api from "../../lib/axios";
 
 interface TotalSalesKPIsProps {
 	clientData?: any[];
@@ -54,12 +55,198 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 		getDateRange("month")
 	);
 
+	// Component-specific data states for date-filtered data
+	const [shopifyCustomData, setShopifyCustomData] = useState<any>(null);
+	const [amazonCustomData, setAmazonCustomData] = useState<any>(null);
+	const [allCustomData, setAllCustomData] = useState<any>(null);
+	const [shopifyCustomLoading, setShopifyCustomLoading] = useState<boolean>(false);
+	const [amazonCustomLoading, setAmazonCustomLoading] = useState<boolean>(false);
+	const [allCustomLoading, setAllCustomLoading] = useState<boolean>(false);
+
+	// Track which components are using custom date filtering
+	const [shopifyUseCustomDate, setShopifyUseCustomDate] = useState<boolean>(false);
+	const [amazonUseCustomDate, setAmazonUseCustomDate] = useState<boolean>(false);
+	const [allUseCustomDate, setAllUseCustomDate] = useState<boolean>(false);
+
+	// Format date for API
+	const formatDateForAPI = (date: Date): string => {
+		return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+	};
+
+	// Fetch functions for date-filtered data
+	const fetchShopifySalesData = useCallback(async (dateRange: DateRange) => {
+		setShopifyCustomLoading(true);
+		try {
+			const params = {
+				component_type: "total_sales",
+				platform: "shopify",
+				start_date: formatDateForAPI(dateRange.start),
+				end_date: formatDateForAPI(dateRange.end)
+			};
+			
+			const response = await api.get('/dashboard/component-data', { params });
+			setShopifyCustomData(response.data.data);
+			console.log('✅ Shopify sales data fetched for date range');
+		} catch (error) {
+			console.error('❌ Failed to fetch Shopify sales data:', error);
+		} finally {
+			setShopifyCustomLoading(false);
+		}
+	}, []);
+
+	const fetchAmazonSalesData = useCallback(async (dateRange: DateRange) => {
+		setAmazonCustomLoading(true);
+		try {
+			const params = {
+				component_type: "total_sales",
+				platform: "amazon",
+				start_date: formatDateForAPI(dateRange.start),
+				end_date: formatDateForAPI(dateRange.end)
+			};
+			
+			const response = await api.get('/dashboard/component-data', { params });
+			setAmazonCustomData(response.data.data);
+			console.log('✅ Amazon sales data fetched for date range');
+		} catch (error) {
+			console.error('❌ Failed to fetch Amazon sales data:', error);
+		} finally {
+			setAmazonCustomLoading(false);
+		}
+	}, []);
+
+	const fetchAllSalesData = useCallback(async (dateRange: DateRange) => {
+		setAllCustomLoading(true);
+		try {
+			const params = {
+				component_type: "total_sales",
+				platform: "combined",
+				start_date: formatDateForAPI(dateRange.start),
+				end_date: formatDateForAPI(dateRange.end)
+			};
+			
+			const response = await api.get('/dashboard/component-data', { params });
+			setAllCustomData(response.data.data);
+			console.log('✅ Combined sales data fetched for date range');
+		} catch (error) {
+			console.error('❌ Failed to fetch combined sales data:', error);
+		} finally {
+			setAllCustomLoading(false);
+		}
+	}, []);
+
+	// Handle date range changes
+	const handleShopifyDateChange = useCallback(async (newDateRange: DateRange) => {
+		console.log('🗓️ Shopify sales date changed to:', newDateRange.label);
+		setShopifyDateRange(newDateRange);
+		setShopifyUseCustomDate(true);
+		await fetchShopifySalesData(newDateRange);
+	}, [fetchShopifySalesData]);
+
+	const handleAmazonDateChange = useCallback(async (newDateRange: DateRange) => {
+		console.log('🗓️ Amazon sales date changed to:', newDateRange.label);
+		setAmazonDateRange(newDateRange);
+		setAmazonUseCustomDate(true);
+		await fetchAmazonSalesData(newDateRange);
+	}, [fetchAmazonSalesData]);
+
+	const handleAllDateChange = useCallback(async (newDateRange: DateRange) => {
+		console.log('🗓️ All platforms sales date changed to:', newDateRange.label);
+		setAllDateRange(newDateRange);
+		setAllUseCustomDate(true);
+		await fetchAllSalesData(newDateRange);
+	}, [fetchAllSalesData]);
+
 	// Calculate sales data for each platform
 	const calculateSalesData = (
 		data: any,
 		dateRange: DateRange,
-		platform: Platform
+		platform: Platform,
+		usingCustomDate: boolean = false
 	): SalesData => {
+		if (!data) {
+			return {
+				value: 0,
+				trend: {
+					value: "0%",
+					isPositive: true,
+					label: "vs previous period",
+				},
+				subtitle: "No data available",
+			};
+		}
+
+		// Handle custom date API response format
+		if (usingCustomDate) {
+			// For combined platform, use the combined data
+			if (platform === "all" && data.combined) {
+				const currentRevenue = data.combined.total_revenue || 0;
+				const currentOrders = data.combined.total_orders || 0;
+				
+				// Calculate within-period trend from combined sales comparison data if available
+				const trendData = data.combined.sales_comparison;
+				const trendValue = trendData && trendData.first_half_avg_revenue > 0 ? 
+					((trendData.second_half_avg_revenue - trendData.first_half_avg_revenue) / trendData.first_half_avg_revenue) * 100 : 0;
+
+				const isPositive = trendValue >= 0;
+				const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
+				
+				return {
+					value: currentRevenue,
+					trend: {
+						value: trendFormatted,
+						isPositive,
+						label: `trend within period`,
+					},
+					subtitle: `Combined total sales (${currentOrders} orders)`,
+				};
+			}
+			
+			// For specific platforms (shopify/amazon)
+			const platformKey = platform === "all" ? "shopify" : platform;
+			const platformData = data[platformKey] || data;
+			
+			if (!platformData) {
+				return {
+					value: 0,
+					trend: {
+						value: "0%",
+						isPositive: true,
+						label: "vs previous period",
+					},
+					subtitle: "No data available",
+				};
+			}
+
+			// Get revenue from the component data structure
+			const currentRevenue = platformData.total_sales_30_days?.revenue || 0;
+			const currentOrders = platformData.total_sales_30_days?.orders || 0;
+			
+			// Calculate trend if available (within-period growth) - handle both naming conventions
+			const trendData = platformData.sales_comparison;
+			const firstHalf = trendData?.first_half_avg_revenue || trendData?.current_period_avg_revenue || 0;
+			const secondHalf = trendData?.second_half_avg_revenue || trendData?.historical_avg_revenue || 0;
+			const trendValue = firstHalf > 0 ? 
+				((secondHalf - firstHalf) / firstHalf) * 100 : 0;
+
+			const isPositive = trendValue >= 0;
+			const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
+
+			return {
+				value: currentRevenue,
+				trend: {
+					value: trendFormatted,
+					isPositive,
+					label: `trend within period`,
+				},
+				subtitle: `${
+					platform === "all"
+						? "Combined"
+						: platform.charAt(0).toUpperCase() + platform.slice(1)
+				} total sales (${currentOrders} orders)`,
+			};
+		}
+
+		// Handle default inventory analytics data format
 		if (!data?.sales_kpis?.total_sales_30_days) {
 			return {
 				value: 0,
@@ -75,50 +262,68 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 		// Get 30-day sales data (default to 30 days as requested)
 		const salesData = data.sales_kpis.total_sales_30_days;
 		const currentRevenue = salesData.revenue || 0;
+		const currentOrders = salesData.orders || 0;
 		
-		// Get trend data from trend_analysis if available
-		const trendData = data.trend_analysis?.sales_comparison;
-		const currentPeriodRevenue = trendData?.current_period_avg_revenue || 0;
-		const historicalRevenue = trendData?.historical_avg_revenue || 0;
+		// Get trend data from multiple possible sources (handle both naming conventions)
+		const trendData = data.trend_analysis?.sales_comparison || data.sales_comparison;
+		
+		// Handle different field naming conventions
+		const firstHalfRevenue = trendData?.first_half_avg_revenue || 
+								trendData?.current_period_avg_revenue || 0;
+		const secondHalfRevenue = trendData?.second_half_avg_revenue || 
+								 trendData?.historical_avg_revenue || 0;
 
-		// Calculate trend percentage
+		// Calculate trend percentage (within-period growth)
 		const trendValue =
-			historicalRevenue > 0
-				? ((currentPeriodRevenue - historicalRevenue) / historicalRevenue) * 100
+			firstHalfRevenue > 0
+				? ((secondHalfRevenue - firstHalfRevenue) / firstHalfRevenue) * 100
 				: 0;
 
 		const isPositive = trendValue >= 0;
 		const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
 
 		return {
-			value: currentRevenue, // Use 30-day total revenue
+			value: currentRevenue, // Use total revenue for selected period
 			trend: {
 				value: trendFormatted,
 				isPositive,
-				label: `vs ${dateRange.label.toLowerCase()}`,
+				label: `trend within ${dateRange.label.toLowerCase()}`,
 			},
 			subtitle: `${
 				platform === "all"
 					? "Combined"
 					: platform.charAt(0).toUpperCase() + platform.slice(1)
-			} total sales (30 days)`,
+			} total sales (${currentOrders || 'N/A'} orders)`,
 		};
 	};
 
-	// Memoized sales data for each platform using global state
+	// Memoized sales data for each platform - uses either default or custom date data
 	const shopifySales = useMemo(() => {
+		// Use custom data if date picker was used, otherwise use default inventory data
+		if (shopifyUseCustomDate && shopifyCustomData) {
+			return calculateSalesData(shopifyCustomData, shopifyDateRange, "shopify", true);
+		}
 		// Extract Shopify data from the correct nested path
 		const shopifyData = inventoryData?.inventory_analytics?.platforms?.shopify;
-		return calculateSalesData(shopifyData, shopifyDateRange, "shopify");
-	}, [inventoryData, shopifyDateRange]);
+		return calculateSalesData(shopifyData, shopifyDateRange, "shopify", false);
+	}, [inventoryData, shopifyDateRange, shopifyUseCustomDate, shopifyCustomData]);
 
 	const amazonSales = useMemo(() => {
+		// Use custom data if date picker was used, otherwise use default inventory data
+		if (amazonUseCustomDate && amazonCustomData) {
+			return calculateSalesData(amazonCustomData, amazonDateRange, "amazon", true);
+		}
 		// Extract Amazon data from the correct nested path
 		const amazonData = inventoryData?.inventory_analytics?.platforms?.amazon;
-		return calculateSalesData(amazonData, amazonDateRange, "amazon");
-	}, [inventoryData, amazonDateRange]);
+		return calculateSalesData(amazonData, amazonDateRange, "amazon", false);
+	}, [inventoryData, amazonDateRange, amazonUseCustomDate, amazonCustomData]);
 
 	const allSales = useMemo(() => {
+		// Use custom data if date picker was used, otherwise use default inventory data
+		if (allUseCustomDate && allCustomData) {
+			return calculateSalesData(allCustomData, allDateRange, "all", true);
+		}
+
 		if (!inventoryData?.inventory_analytics?.platforms) {
 			return {
 				value: 0,
@@ -133,8 +338,8 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 
 		// Use the combined platform data which already aggregates both platforms
 		const combinedData = inventoryData.inventory_analytics.platforms.combined;
-		return calculateSalesData(combinedData, allDateRange, "all");
-	}, [inventoryData, allDateRange]);
+		return calculateSalesData(combinedData, allDateRange, "all", false);
+	}, [inventoryData, allDateRange, allUseCustomDate, allCustomData]);
 
 	// Format currency
 	const formatCurrency = (value: number) => {
@@ -291,8 +496,8 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 					title="Shopify Sales"
 					data={shopifySales}
 					dateRange={shopifyDateRange}
-					onDateRangeChange={setShopifyDateRange}
-					loading={loading}
+					onDateRangeChange={handleShopifyDateChange}
+					loading={shopifyUseCustomDate ? shopifyCustomLoading : loading}
 					error={error}
 					icon={<Store className="h-4 w-4" style={{ color: "#059669" }} />}
 					iconColor="#059669"
@@ -304,8 +509,8 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 					title="Amazon Sales"
 					data={amazonSales}
 					dateRange={amazonDateRange}
-					onDateRangeChange={setAmazonDateRange}
-					loading={loading}
+					onDateRangeChange={handleAmazonDateChange}
+					loading={amazonUseCustomDate ? amazonCustomLoading : loading}
 					error={error}
 					icon={
 						<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />
@@ -319,8 +524,8 @@ const TotalSalesKPIs = React.memo(function TotalSalesKPIs({
 					title="All Platforms"
 					data={allSales}
 					dateRange={allDateRange}
-					onDateRangeChange={setAllDateRange}
-					loading={loading}
+					onDateRangeChange={handleAllDateChange}
+					loading={allUseCustomDate ? allCustomLoading : loading}
 					error={error}
 					icon={<DollarSign className="h-4 w-4" style={{ color: "#3b82f6" }} />}
 					iconColor="#3b82f6"

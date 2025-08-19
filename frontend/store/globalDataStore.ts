@@ -118,6 +118,19 @@ interface GlobalDataState {
     search: string;
   };
   
+  // Component-specific data cache
+  componentData: {
+    [componentId: string]: {
+      data: any;
+      lastFetched: number;
+      platform: string;
+      dateRange: { start_date?: string; end_date?: string };
+    }
+  };
+  
+  // Component loading states
+  componentLoading: Set<string>;
+  
   // Actions
   setFilters: (filters: Partial<GlobalDataState['filters']>) => void;
   setRawDataFilters: (filters: Partial<GlobalDataState['rawDataFilters']>) => void;
@@ -125,6 +138,7 @@ interface GlobalDataState {
   fetchInventoryData: (forceRefresh?: boolean) => Promise<void>;
   fetchSKUData: (page?: number, forceRefresh?: boolean) => Promise<void>;
   fetchDashboardAnalytics: (forceRefresh?: boolean) => Promise<void>;
+  fetchComponentData: (componentType: string, platform: string, startDate?: string, endDate?: string, forceRefresh?: boolean) => Promise<any>;
   fetchAvailableTables: (clientId: string, forceRefresh?: boolean) => Promise<void>;
   fetchRawDataTables: (clientId: string, forceRefresh?: boolean) => Promise<void>;
   fetchAllData: (forceRefresh?: boolean) => Promise<void>;
@@ -178,6 +192,12 @@ export const useGlobalDataStore = create<GlobalDataState>()((set, get) => ({
       pageSize: 50,
       search: '',
     },
+    
+    // Component-specific data cache
+    componentData: {},
+    
+    // Component loading states
+    componentLoading: new Set(),
     
     // Actions
     setFilters: (newFilters) => {
@@ -533,6 +553,72 @@ export const useGlobalDataStore = create<GlobalDataState>()((set, get) => ({
       }
     },
     
+    fetchComponentData: async (componentType: string, platform: string, startDate?: string, endDate?: string, forceRefresh = false) => {
+      const componentId = `${componentType}_${platform}_${startDate || 'no_start'}_${endDate || 'no_end'}`;
+      const requestKey = `component_${componentId}`;
+      
+      // Check if we're already fetching this component data
+      if (get().componentLoading.has(componentId) && !forceRefresh) {
+        console.log(`⏳ Component data already being fetched for ${componentId}`);
+        return get().componentData[componentId]?.data || null;
+      }
+      
+      // Check cache first (5 minute TTL unless force refresh)
+      const cached = get().componentData[componentId];
+      if (cached && !forceRefresh && (Date.now() - cached.lastFetched) < 300000) {
+        console.log(`🗄️ Using cached component data for ${componentId}`);
+        return cached.data;
+      }
+      
+      // Mark as loading
+      set((state) => ({
+        componentLoading: new Set([...state.componentLoading, componentId])
+      }));
+      
+      try {
+        console.log(`🎯 Fetching component data: ${componentType} (platform: ${platform}, dates: ${startDate} to ${endDate})`);
+        
+        const params: any = {
+          component_type: componentType,
+          platform: platform,
+        };
+        
+        if (startDate) params.start_date = startDate;
+        if (endDate) params.end_date = endDate;
+        
+        const response = await api.get('/dashboard/component-data', { params });
+        
+        const componentData = response.data;
+        
+        // Cache the result
+        set((state) => ({
+          componentData: {
+            ...state.componentData,
+            [componentId]: {
+              data: componentData,
+              lastFetched: Date.now(),
+              platform: platform,
+              dateRange: { start_date: startDate, end_date: endDate }
+            }
+          }
+        }));
+        
+        console.log(`✅ Component data fetched successfully for ${componentId}`);
+        return componentData;
+        
+      } catch (error: any) {
+        console.error(`❌ Failed to fetch component data for ${componentId}:`, error);
+        throw error;
+      } finally {
+        // Remove from loading set
+        set((state) => {
+          const newLoading = new Set(state.componentLoading);
+          newLoading.delete(componentId);
+          return { componentLoading: newLoading };
+        });
+      }
+    },
+
     fetchAllData: async (forceRefresh = false) => {
       // Fetch all data concurrently - SIMPLE AND SAFE
       const promises = [
@@ -625,4 +711,25 @@ export const useGlobalLoading = () => {
 	);
 
 	return { isLoading, loadingStates };
+};
+
+export const useComponentData = (componentType: string, platform: string = 'combined', startDate?: string, endDate?: string) => {
+  const componentId = `${componentType}_${platform}_${startDate || 'no_start'}_${endDate || 'no_end'}`;
+  const componentData = useGlobalDataStore((state) => state.componentData[componentId]);
+  const isLoading = useGlobalDataStore((state) => state.componentLoading.has(componentId));
+  const fetchComponentData = useGlobalDataStore((state) => state.fetchComponentData);
+
+  const fetchData = React.useCallback((forceRefresh?: boolean) => {
+    return fetchComponentData(componentType, platform, startDate, endDate, forceRefresh);
+  }, [fetchComponentData, componentType, platform, startDate, endDate]);
+
+  const data = componentData?.data || null;
+  const lastFetched = componentData?.lastFetched || null;
+
+  return {
+    data,
+    loading: isLoading,
+    lastFetched,
+    fetch: fetchData
+  };
 };

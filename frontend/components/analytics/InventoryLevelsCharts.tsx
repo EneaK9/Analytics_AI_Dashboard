@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
 	TrendingUp,
 	Store,
@@ -15,6 +15,7 @@ import CompactDatePicker, {
 } from "../ui/CompactDatePicker";
 import SimpleLineChart from "../charts/SimpleLineChart";
 import useMultiPlatformData from "../../hooks/useMultiPlatformData";
+import api from "../../lib/axios";
 
 interface InventoryLevelsChartsProps {
 	clientData?: any[];
@@ -48,24 +49,140 @@ export default function InventoryLevelsCharts({
 		fastMode: true,
 	});
 
+	// Component-specific data states for date-filtered data
+	const [shopifyCustomData, setShopifyCustomData] = useState<any>(null);
+	const [amazonCustomData, setAmazonCustomData] = useState<any>(null);
+	const [allCustomData, setAllCustomData] = useState<any>(null);
+	const [shopifyCustomLoading, setShopifyCustomLoading] = useState<boolean>(false);
+	const [amazonCustomLoading, setAmazonCustomLoading] = useState<boolean>(false);
+	const [allCustomLoading, setAllCustomLoading] = useState<boolean>(false);
+
+	// Track which components are using custom date filtering
+	const [shopifyUseCustomDate, setShopifyUseCustomDate] = useState<boolean>(false);
+	const [amazonUseCustomDate, setAmazonUseCustomDate] = useState<boolean>(false);
+	const [allUseCustomDate, setAllUseCustomDate] = useState<boolean>(false);
+
 	// Extract trend analysis from platform data - MEMOIZED
 	const shopifyData = useMemo(
-		() => shopifyPlatformData?.trend_analysis || null,
-		[shopifyPlatformData]
+		() => shopifyUseCustomDate ? shopifyCustomData : shopifyPlatformData?.trend_analysis,
+		[shopifyPlatformData, shopifyCustomData, shopifyUseCustomDate]
 	);
 	const amazonData = useMemo(
-		() => amazonPlatformData?.trend_analysis || null,
-		[amazonPlatformData]
+		() => amazonUseCustomDate ? amazonCustomData : amazonPlatformData?.trend_analysis,
+		[amazonPlatformData, amazonCustomData, amazonUseCustomDate]
 	);
 
+	// Format date for API
+	const formatDateForAPI = (date: Date): string => {
+		return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+	};
+
+	// Fetch functions for date-filtered data
+	const fetchShopifyInventoryData = useCallback(async (dateRange: DateRange) => {
+		setShopifyCustomLoading(true);
+		try {
+			const params = {
+				component_type: "inventory_levels",
+				platform: "shopify",
+				start_date: formatDateForAPI(dateRange.start),
+				end_date: formatDateForAPI(dateRange.end)
+			};
+			
+			const response = await api.get('/dashboard/component-data', { params });
+			setShopifyCustomData(response.data.data);
+			console.log('✅ Shopify inventory data fetched for date range');
+		} catch (error) {
+			console.error('❌ Failed to fetch Shopify inventory data:', error);
+		} finally {
+			setShopifyCustomLoading(false);
+		}
+	}, []);
+
+	const fetchAmazonInventoryData = useCallback(async (dateRange: DateRange) => {
+		setAmazonCustomLoading(true);
+		try {
+			const params = {
+				component_type: "inventory_levels",
+				platform: "amazon",
+				start_date: formatDateForAPI(dateRange.start),
+				end_date: formatDateForAPI(dateRange.end)
+			};
+			
+			const response = await api.get('/dashboard/component-data', { params });
+			setAmazonCustomData(response.data.data);
+			console.log('✅ Amazon inventory data fetched for date range');
+		} catch (error) {
+			console.error('❌ Failed to fetch Amazon inventory data:', error);
+		} finally {
+			setAmazonCustomLoading(false);
+		}
+	}, []);
+
+	const fetchAllInventoryData = useCallback(async (dateRange: DateRange) => {
+		setAllCustomLoading(true);
+		try {
+			const params = {
+				component_type: "inventory_levels",
+				platform: "combined",
+				start_date: formatDateForAPI(dateRange.start),
+				end_date: formatDateForAPI(dateRange.end)
+			};
+			
+			const response = await api.get('/dashboard/component-data', { params });
+			setAllCustomData(response.data.data);
+			console.log('✅ Combined inventory data fetched for date range');
+		} catch (error) {
+			console.error('❌ Failed to fetch combined inventory data:', error);
+		} finally {
+			setAllCustomLoading(false);
+		}
+	}, []);
+
+	// Handle date range changes
+	const handleShopifyDateChange = useCallback(async (newDateRange: DateRange) => {
+		console.log('🗓️ Shopify inventory date changed to:', newDateRange.label);
+		setShopifyDateRange(newDateRange);
+		setShopifyUseCustomDate(true);
+		await fetchShopifyInventoryData(newDateRange);
+	}, [fetchShopifyInventoryData]);
+
+	const handleAmazonDateChange = useCallback(async (newDateRange: DateRange) => {
+		console.log('🗓️ Amazon inventory date changed to:', newDateRange.label);
+		setAmazonDateRange(newDateRange);
+		setAmazonUseCustomDate(true);
+		await fetchAmazonInventoryData(newDateRange);
+	}, [fetchAmazonInventoryData]);
+
+	const handleAllDateChange = useCallback(async (newDateRange: DateRange) => {
+		console.log('🗓️ All platforms inventory date changed to:', newDateRange.label);
+		setAllDateRange(newDateRange);
+		setAllUseCustomDate(true);
+		await fetchAllInventoryData(newDateRange);
+	}, [fetchAllInventoryData]);
+
 	// Derived loading/error states
-	const shopifyLoading = multiLoading;
-	const amazonLoading = multiLoading;
+	const shopifyLoading = shopifyUseCustomDate ? shopifyCustomLoading : multiLoading;
+	const amazonLoading = amazonUseCustomDate ? amazonCustomLoading : multiLoading;
+	const allLoading = allUseCustomDate ? allCustomLoading : (multiLoading || shopifyLoading || amazonLoading);
 	const shopifyError = multiError;
 	const amazonError = multiError;
 
 	// Process inventory levels data for a specific platform and date range
-	const processInventoryLevelsData = (data: any, days: number) => {
+	const processInventoryLevelsData = (data: any, days: number, platform: string = '') => {
+		// Handle new component-data API format
+		if (data?.inventory_levels_chart) {
+			// New format from component-data endpoint
+			return data.inventory_levels_chart.map((item: { date: string; inventory_level: number }) => ({
+				date: new Date(item.date).toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+				}),
+				inventory: item.inventory_level,
+				value: item.inventory_level,
+			}));
+		}
+
+		// Handle old format from trend_analysis
 		if (!data?.inventory_levels_chart) return [];
 
 		const now = new Date();
@@ -108,6 +225,12 @@ export default function InventoryLevelsCharts({
 	}, [amazonData, amazonDateRange]);
 
 	const allChartData = useMemo(() => {
+		// If using custom date data, use that directly (it's already combined)
+		if (allUseCustomDate && allCustomData) {
+			return processInventoryLevelsData(allCustomData, 0, 'combined');
+		}
+
+		// Otherwise combine shopify and amazon data
 		if (
 			!shopifyData?.inventory_levels_chart ||
 			!amazonData?.inventory_levels_chart
@@ -177,7 +300,7 @@ export default function InventoryLevelsCharts({
 				(a: any, b: any) =>
 					new Date(a.date).getTime() - new Date(b.date).getTime()
 			);
-	}, [shopifyData, amazonData, allDateRange]);
+	}, [shopifyData, amazonData, allDateRange, allUseCustomDate, allCustomData]);
 
 	// Individual Chart Component
 	const InventoryLevelChart = ({
@@ -291,7 +414,7 @@ export default function InventoryLevelsCharts({
 					title="Shopify Inventory Levels"
 					data={shopifyChartData}
 					dateRange={shopifyDateRange}
-					onDateRangeChange={setShopifyDateRange}
+					onDateRangeChange={handleShopifyDateChange}
 					loading={shopifyLoading}
 					error={shopifyError}
 					icon={<Store className="h-4 w-4" style={{ color: "#059669" }} />}
@@ -304,7 +427,7 @@ export default function InventoryLevelsCharts({
 					title="Amazon Inventory Levels"
 					data={amazonChartData}
 					dateRange={amazonDateRange}
-					onDateRangeChange={setAmazonDateRange}
+					onDateRangeChange={handleAmazonDateChange}
 					loading={amazonLoading}
 					error={amazonError}
 					icon={
@@ -319,8 +442,8 @@ export default function InventoryLevelsCharts({
 					title="All Platforms Combined"
 					data={allChartData}
 					dateRange={allDateRange}
-					onDateRangeChange={setAllDateRange}
-					loading={shopifyLoading || amazonLoading}
+					onDateRangeChange={handleAllDateChange}
+					loading={allLoading}
 					error={shopifyError || amazonError}
 					icon={<TrendingUp className="h-4 w-4" style={{ color: "#3b82f6" }} />}
 					iconColor="#3b82f6"

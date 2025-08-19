@@ -2815,6 +2815,208 @@ async def get_dashboard_config(token: str = Depends(security)):
         logger.error(f"❌ Failed to get dashboard config: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get dashboard config: {str(e)}")
 
+@app.get("/api/dashboard/component-data")
+async def get_component_filtered_data(
+    component_type: str,
+    platform: str = "combined",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    token: str = Depends(security)
+):
+    """Get filtered data for specific dashboard components based on date range and platform"""
+    try:
+        # Verify client token
+        token_data = verify_token(token.credentials)
+        client_id = str(token_data.client_id)
+        
+        logger.info(f"🎯 Component data request: {component_type} for client {client_id} (platform: {platform}, dates: {start_date} to {end_date})")
+        
+        # Validate component type
+        valid_components = [
+            "total_sales", "inventory_turnover", "days_of_stock", 
+            "inventory_levels", "units_sold", "historical_comparison",
+            "low_stock_alerts", "overstock_alerts", "sales_performance"
+        ]
+        
+        if component_type not in valid_components:
+            raise HTTPException(status_code=400, detail=f"Invalid component type. Must be one of: {', '.join(valid_components)}")
+        
+        # Validate platform
+        valid_platforms = ["shopify", "amazon", "combined"]
+        if platform not in valid_platforms:
+            raise HTTPException(status_code=400, detail=f"Invalid platform. Must be one of: {', '.join(valid_platforms)}")
+        
+        # Import component data manager
+        from component_data_functions import component_data_manager
+        
+        # 🗄️ CHECK FOR CACHED DATA ONLY IF NO DATE FILTERING
+        if not start_date and not end_date:
+            logger.info(f"🔍 No date filtering - checking for cached inventory-analytics data for client {client_id}")
+            
+            # Try to get cached response from the main inventory-analytics endpoint
+            main_endpoint_url = "/api/dashboard/inventory-analytics"
+            main_cache_params = {
+                "fast_mode": True,
+                "platform": platform if platform != "combined" else "shopify"
+            }
+            
+            cached_main_response = await get_cached_response(client_id, main_endpoint_url, main_cache_params)
+            
+            if cached_main_response:
+                logger.info(f"🗄️ Using cached inventory-analytics data (no date filtering needed)")
+                
+                # Extract component data from cached inventory analytics
+                inventory_analytics = cached_main_response.get('inventory_analytics', {})
+                platforms_data = inventory_analytics.get('platforms', {})
+                
+                if component_type == "total_sales":
+                    if platform == "combined":
+                        shopify_sales = platforms_data.get('shopify', {}).get('sales_kpis', {})
+                        amazon_sales = platforms_data.get('amazon', {}).get('sales_kpis', {})
+                        component_data = {
+                            "shopify": shopify_sales,
+                            "amazon": amazon_sales,
+                            "combined": {
+                                "total_revenue": (shopify_sales.get('total_sales_30_days', {}).get('revenue', 0) + 
+                                                amazon_sales.get('total_sales_30_days', {}).get('revenue', 0)),
+                                "total_orders": (shopify_sales.get('total_sales_30_days', {}).get('orders', 0) + 
+                                               amazon_sales.get('total_sales_30_days', {}).get('orders', 0))
+                            }
+                        }
+                    else:
+                        component_data = platforms_data.get(platform, {}).get('sales_kpis', {})
+                else:
+                    # For other component types, extract accordingly
+                    platform_data = platforms_data.get(platform if platform != "combined" else 'shopify', {})
+                    component_data = platform_data
+                
+                response_data = {
+                    "success": True,
+                    "client_id": client_id,
+                    "component_type": component_type,
+                    "platform": platform,
+                    "date_range": {
+                        "start_date": start_date,
+                        "end_date": end_date
+                    },
+                    "data": component_data,
+                    "timestamp": datetime.now().isoformat(),
+                    "cached": True,
+                    "cache_source": "inventory_analytics"
+                }
+                
+                logger.info(f"✅ Component data from cached inventory-analytics for {component_type} - {platform}")
+                return response_data
+        
+        # 🎯 DATE FILTERING OR NO CACHE: Use component-specific database queries
+        logger.info(f"🎯 Date filtering requested OR no cache - using component-specific database queries")
+        
+        component_data = {}
+        
+        if component_type == "total_sales":
+            component_data = await component_data_manager.get_total_sales_data(client_id, platform, start_date, end_date)
+                
+        elif component_type == "inventory_turnover":
+            component_data = await component_data_manager.get_inventory_turnover_data(client_id, platform, start_date, end_date)
+            
+        elif component_type == "days_of_stock":
+            component_data = await component_data_manager.get_days_of_stock_data(client_id, platform, start_date, end_date)
+            
+        elif component_type == "inventory_levels":
+            component_data = await component_data_manager.get_inventory_levels_data(client_id, platform, start_date, end_date)
+            
+        elif component_type == "units_sold":
+            # For units sold, we can derive from total sales data
+            sales_data = await component_data_manager.get_total_sales_data(client_id, platform, start_date, end_date)
+            if platform == "combined":
+                total_units = (
+                    sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('units', 0) +
+                    sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('units', 0)
+                )
+            else:
+                total_units = sales_data.get(platform, {}).get('total_sales_30_days', {}).get('units', 0)
+            
+            component_data = {
+                "total_units_sold": total_units,
+                "sales_data": sales_data,
+                "period_info": {
+                    "start_date": start_date,
+                    "end_date": end_date
+                }
+            }
+            
+        elif component_type == "historical_comparison":
+            # Historical comparison uses sales data with trend analysis
+            sales_data = await component_data_manager.get_total_sales_data(client_id, platform, start_date, end_date)
+            component_data = {
+                "sales_data": sales_data,
+                "trend_analysis": {
+                    "sales_comparison": sales_data.get(platform, {}).get('sales_comparison', {}) if platform != "combined" else {}
+                }
+            }
+            
+        elif component_type in ["low_stock_alerts", "overstock_alerts", "sales_performance"]:
+            # For alerts, use days of stock data to determine alert conditions
+            stock_data = await component_data_manager.get_days_of_stock_data(client_id, platform, start_date, end_date)
+            
+            alerts = []
+            if component_type == "low_stock_alerts" and stock_data.get('low_stock_count', 0) > 0:
+                alerts.append({
+                    "type": "low_stock",
+                    "severity": "warning",
+                    "message": f"Low stock detected - {stock_data.get('avg_days_of_stock', 0)} days remaining",
+                    "affected_items": stock_data.get('low_stock_count', 0)
+                })
+            elif component_type == "overstock_alerts" and stock_data.get('overstock_count', 0) > 0:
+                alerts.append({
+                    "type": "overstock",
+                    "severity": "info", 
+                    "message": f"Overstock detected - {stock_data.get('avg_days_of_stock', 0)} days of inventory",
+                    "affected_items": stock_data.get('overstock_count', 0)
+                })
+            elif component_type == "sales_performance":
+                # Get sales data for performance alerts
+                sales_data = await component_data_manager.get_total_sales_data(client_id, platform, start_date, end_date)
+                if platform != "combined":
+                    growth_rate = sales_data.get(platform, {}).get('sales_comparison', {}).get('growth_rate', 0)
+                    if growth_rate < -10:  # Declining sales
+                        alerts.append({
+                            "type": "sales_performance",
+                            "severity": "warning",
+                            "message": f"Sales declining by {abs(growth_rate):.1f}%",
+                            "growth_rate": growth_rate
+                        })
+            
+            component_data = {"alerts": alerts}
+        
+        # Check for errors in component data
+        if isinstance(component_data, dict) and component_data.get('error'):
+            raise HTTPException(status_code=500, detail=f"Component query failed: {component_data['error']}")
+        
+        response_data = {
+            "success": True,
+            "client_id": client_id,
+            "component_type": component_type,
+            "platform": platform,
+            "date_range": {
+                "start_date": start_date,
+                "end_date": end_date
+            },
+            "data": component_data,
+            "timestamp": datetime.now().isoformat(),
+            "cached": False,
+            "cache_source": "component_specific_database_query"
+        }
+        
+        logger.info(f"✅ Component data retrieved with component-specific database queries for {component_type} - {platform} (date filtering: {start_date} to {end_date})")
+        return response_data
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error in component data endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get component data: {str(e)}")
+
 # Helper function for date filtering client data
 async def get_cached_analysis_by_data_snapshot(client_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None, dashboard_type: str = "metrics") -> Optional[Dict[str, Any]]:
     """Get cached LLM analysis based on data snapshot timeline"""

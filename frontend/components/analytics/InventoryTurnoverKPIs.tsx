@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { RefreshCw, TrendingUp, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import CompactDatePicker, {
@@ -8,6 +8,7 @@ import CompactDatePicker, {
 	getDateRange,
 } from "../ui/CompactDatePicker";
 import { useGlobalDataStore } from "../../store/globalDataStore";
+import api from "../../lib/axios";
 
 interface InventoryTurnoverKPIsProps {
 	clientData?: any[];
@@ -54,12 +55,150 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 		getDateRange("month")
 	);
 
+	// Custom data states for component-specific API calls
+	const [shopifyCustomData, setShopifyCustomData] = useState<any>(null);
+	const [amazonCustomData, setAmazonCustomData] = useState<any>(null);
+	const [allCustomData, setAllCustomData] = useState<any>(null);
+
+	// Custom loading states
+	const [shopifyCustomLoading, setShopifyCustomLoading] = useState(false);
+	const [amazonCustomLoading, setAmazonCustomLoading] = useState(false);
+	const [allCustomLoading, setAllCustomLoading] = useState(false);
+
+	// Flags to indicate if custom date data should be used
+	const [shopifyUseCustomDate, setShopifyUseCustomDate] = useState(false);
+	const [amazonUseCustomDate, setAmazonUseCustomDate] = useState(false);
+	const [allUseCustomDate, setAllUseCustomDate] = useState(false);
+
+	// Format date for API
+	const formatDateForAPI = (date: Date): string => {
+		return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+	};
+
+	// API fetch functions for component-specific data
+	const fetchShopifyTurnoverData = useCallback(async (dateRange: DateRange) => {
+		setShopifyCustomLoading(true);
+		try {
+			const response = await api.get('/dashboard/component-data', {
+				params: {
+					component_type: 'inventory_turnover',
+					platform: 'shopify',
+					start_date: formatDateForAPI(dateRange.start),
+					end_date: formatDateForAPI(dateRange.end),
+				},
+			});
+			setShopifyCustomData(response.data);
+		} catch (error) {
+			console.error('Error fetching Shopify turnover data:', error);
+		} finally {
+			setShopifyCustomLoading(false);
+		}
+	}, []);
+
+	const fetchAmazonTurnoverData = useCallback(async (dateRange: DateRange) => {
+		setAmazonCustomLoading(true);
+		try {
+			const response = await api.get('/dashboard/component-data', {
+				params: {
+					component_type: 'inventory_turnover',
+					platform: 'amazon',
+					start_date: formatDateForAPI(dateRange.start),
+					end_date: formatDateForAPI(dateRange.end),
+				},
+			});
+			setAmazonCustomData(response.data);
+		} catch (error) {
+			console.error('Error fetching Amazon turnover data:', error);
+		} finally {
+			setAmazonCustomLoading(false);
+		}
+	}, []);
+
+	const fetchAllTurnoverData = useCallback(async (dateRange: DateRange) => {
+		setAllCustomLoading(true);
+		try {
+			const response = await api.get('/dashboard/component-data', {
+				params: {
+					component_type: 'inventory_turnover',
+					platform: 'combined',
+					start_date: formatDateForAPI(dateRange.start),
+					end_date: formatDateForAPI(dateRange.end),
+				},
+			});
+			setAllCustomData(response.data);
+		} catch (error) {
+			console.error('Error fetching combined turnover data:', error);
+		} finally {
+			setAllCustomLoading(false);
+		}
+	}, []);
+
+	// Date change handlers that trigger API calls
+	const handleShopifyDateChange = useCallback((range: DateRange) => {
+		setShopifyDateRange(range);
+		setShopifyUseCustomDate(true);
+		fetchShopifyTurnoverData(range);
+	}, [fetchShopifyTurnoverData]);
+
+	const handleAmazonDateChange = useCallback((range: DateRange) => {
+		setAmazonDateRange(range);
+		setAmazonUseCustomDate(true);
+		fetchAmazonTurnoverData(range);
+	}, [fetchAmazonTurnoverData]);
+
+	const handleAllDateChange = useCallback((range: DateRange) => {
+		setAllDateRange(range);
+		setAllUseCustomDate(true);
+		fetchAllTurnoverData(range);
+	}, [fetchAllTurnoverData]);
+
 	// Calculate inventory turnover data for each platform
 	const calculateTurnoverData = (
 		data: any,
 		dateRange: DateRange,
 		platform: Platform
 	): TurnoverData => {
+		// Handle component-specific data format (from /dashboard/component-data endpoint)
+		if (data?.data && data.data.inventory_turnover_ratio !== undefined) {
+			const turnoverData = data.data;
+			const turnoverRate = turnoverData.inventory_turnover_ratio || 0;
+			
+			// Calculate trend from within-period comparison if available
+			const comparisonData = turnoverData.turnover_comparison;
+			const trendValue = comparisonData && comparisonData.first_half_turnover_rate > 0 ? 
+				((comparisonData.second_half_turnover_rate - comparisonData.first_half_turnover_rate) / comparisonData.first_half_turnover_rate) * 100 : 0;
+
+			const isPositive = trendValue >= 0;
+			const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
+
+			// Determine health status based on turnover rate
+			let subtitle = `${
+				platform === "all"
+					? "Combined"
+					: platform.charAt(0).toUpperCase() + platform.slice(1)
+			} turnover rate`;
+			if (turnoverRate > 12) {
+				subtitle += " • Excellent";
+			} else if (turnoverRate > 6) {
+				subtitle += " • Good";
+			} else if (turnoverRate > 3) {
+				subtitle += " • Fair";
+			} else {
+				subtitle += " • Needs attention";
+			}
+
+			return {
+				value: turnoverRate,
+				trend: {
+					value: trendFormatted,
+					isPositive,
+					label: `trend within period`,
+				},
+				subtitle,
+			};
+		}
+
+		// Handle default inventory analytics data format
 		if (!data?.sales_kpis?.inventory_turnover_rate && data?.sales_kpis?.inventory_turnover_rate !== 0) {
 			return {
 				value: 0,
@@ -74,13 +213,18 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 
 		const turnoverRate = data.sales_kpis.inventory_turnover_rate;
 
-		// Calculate trend based on historical comparison if available
-		// For demo purposes, we'll generate a reasonable trend based on the turnover rate
-		const historicalRate = turnoverRate * (0.85 + Math.random() * 0.3); // Simulate historical data
-		const trendValue =
-			historicalRate > 0
-				? ((turnoverRate - historicalRate) / historicalRate) * 100
-				: 0;
+		// Get trend data from multiple possible sources (handle both naming conventions)
+		const trendData = data.trend_analysis?.turnover_comparison || data.turnover_comparison;
+		
+		// Handle different field naming conventions for turnover data
+		const firstHalfTurnover = trendData?.first_half_turnover_rate || 
+								 trendData?.current_period_turnover_rate || 0;
+		const secondHalfTurnover = trendData?.second_half_turnover_rate || 
+								  trendData?.historical_turnover_rate || 0;
+		
+		// Calculate real trend if data available, otherwise fallback to 0
+		const trendValue = firstHalfTurnover > 0 ? 
+			((secondHalfTurnover - firstHalfTurnover) / firstHalfTurnover) * 100 : 0;
 
 		const isPositive = trendValue >= 0;
 		const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
@@ -106,24 +250,34 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 			trend: {
 				value: trendFormatted,
 				isPositive,
-				label: `vs ${dateRange.label.toLowerCase()}`,
+				label: trendValue !== 0 ? `trend within period` : `vs ${dateRange.label.toLowerCase()}`,
 			},
 			subtitle,
 		};
 	};
 
-	// Memoized turnover data for each platform using global state
+	// Memoized turnover data for each platform - uses either default or custom date data
 	const shopifyTurnover = useMemo(() => {
+		if (shopifyUseCustomDate && shopifyCustomData) {
+			return calculateTurnoverData(shopifyCustomData, shopifyDateRange, "shopify");
+		}
 		const shopifyData = inventoryData?.inventory_analytics?.platforms?.shopify;
 		return calculateTurnoverData(shopifyData, shopifyDateRange, "shopify");
-	}, [inventoryData, shopifyDateRange]);
+	}, [inventoryData, shopifyDateRange, shopifyUseCustomDate, shopifyCustomData]);
 
 	const amazonTurnover = useMemo(() => {
+		if (amazonUseCustomDate && amazonCustomData) {
+			return calculateTurnoverData(amazonCustomData, amazonDateRange, "amazon");
+		}
 		const amazonData = inventoryData?.inventory_analytics?.platforms?.amazon;
 		return calculateTurnoverData(amazonData, amazonDateRange, "amazon");
-	}, [inventoryData, amazonDateRange]);
+	}, [inventoryData, amazonDateRange, amazonUseCustomDate, amazonCustomData]);
 
 	const allTurnover = useMemo(() => {
+		if (allUseCustomDate && allCustomData) {
+			return calculateTurnoverData(allCustomData, allDateRange, "all");
+		}
+		
 		if (!inventoryData?.inventory_analytics?.platforms) {
 			return {
 				value: 0,
@@ -139,7 +293,7 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 		// Use the combined platform data which already aggregates both platforms
 		const combinedData = inventoryData.inventory_analytics.platforms.combined;
 		return calculateTurnoverData(combinedData, allDateRange, "all");
-	}, [inventoryData, allDateRange]);
+	}, [inventoryData, allDateRange, allUseCustomDate, allCustomData]);
 
 	// Format turnover rate with proper precision
 	const formatTurnover = (value: number) => {
@@ -300,8 +454,8 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 					title="Shopify Turnover"
 					data={shopifyTurnover}
 					dateRange={shopifyDateRange}
-					onDateRangeChange={setShopifyDateRange}
-					loading={loading}
+					onDateRangeChange={handleShopifyDateChange}
+					loading={shopifyUseCustomDate ? shopifyCustomLoading : loading}
 					error={error}
 					icon={<RotateCcw className="h-4 w-4" style={{ color: "#059669" }} />}
 					iconColor="#059669"
@@ -313,8 +467,8 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 					title="Amazon Turnover"
 					data={amazonTurnover}
 					dateRange={amazonDateRange}
-					onDateRangeChange={setAmazonDateRange}
-					loading={loading}
+					onDateRangeChange={handleAmazonDateChange}
+					loading={amazonUseCustomDate ? amazonCustomLoading : loading}
 					error={error}
 					icon={<RefreshCw className="h-4 w-4" style={{ color: "#f59e0b" }} />}
 					iconColor="#f59e0b"
@@ -326,8 +480,8 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 					title="All Platforms"
 					data={allTurnover}
 					dateRange={allDateRange}
-					onDateRangeChange={setAllDateRange}
-					loading={loading}
+					onDateRangeChange={handleAllDateChange}
+					loading={allUseCustomDate ? allCustomLoading : loading}
 					error={error}
 					icon={<RefreshCw className="h-4 w-4" style={{ color: "#8b5cf6" }} />}
 					iconColor="#8b5cf6"
