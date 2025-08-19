@@ -66,7 +66,7 @@ export default function LowStockAlerts({
 		return alerts.map((alert: any, index: number) => ({
 			id: `low-stock-${
 				alert.sku_code || alert.sku || "unknown"
-			}-${index}-${Date.now()}`,
+			}-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
 			sku: alert.sku_code || alert.sku || `Unknown-${index}`,
 			message:
 				alert.message ||

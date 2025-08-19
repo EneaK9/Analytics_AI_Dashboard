@@ -1,8 +1,8 @@
 import "../styles/globals.css";
 import type { AppProps } from "next/app";
 import Head from "next/head";
-import { QueryProvider } from '../providers/QueryProvider';
-import { GlobalDataProvider } from '../providers/GlobalDataProvider';
+import { QueryProvider } from "../providers/QueryProvider";
+import { GlobalDataProvider } from "../providers/GlobalDataProvider";
 
 export default function App({ Component, pageProps }: AppProps) {
 	return (

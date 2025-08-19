@@ -66,7 +66,7 @@ export default function OverstockAlerts({
 		return alerts.map((alert: any, index: number) => ({
 			id: `overstock-${
 				alert.sku_code || alert.sku || "unknown"
-			}-${index}-${Date.now()}`,
+			}-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
 			sku: alert.sku_code || alert.sku || `Unknown-${index}`,
 			message:
 				alert.message || `Excess inventory: ${alert.excess_units || 0} units`,

@@ -274,10 +274,41 @@ const AIDashboardPage: React.FC = () => {
 
 			if (e.dataTransfer.files && e.dataTransfer.files[0]) {
 				const file = e.dataTransfer.files[0];
-				const fakeEvent = {
-					target: { files: [file] },
-				} as React.ChangeEvent<HTMLInputElement>;
-				handleFileUpload(fakeEvent);
+				// Create file input and trigger the file upload handler
+				const fileInput = document.createElement("input");
+				fileInput.type = "file";
+
+				// Create a proper file list
+				const dataTransfer = new DataTransfer();
+				dataTransfer.items.add(file);
+				fileInput.files = dataTransfer.files;
+
+				// Use the actual handler directly with the file
+				const fileReader = new FileReader();
+				fileReader.onload = (e) => {
+					try {
+						let data: unknown[];
+
+						if (file.type === "application/json") {
+							data = JSON.parse(e.target?.result as string);
+						} else if (file.type === "text/csv" || file.name.endsWith(".csv")) {
+							data = parseCsvData(e.target?.result as string);
+						} else {
+							throw new Error(
+								"Unsupported file type. Please upload CSV or JSON files."
+							);
+						}
+
+						handleDataUpload(data);
+					} catch (error: unknown) {
+						setState((prev) => ({
+							...prev,
+							error: (error as Error).message || "Failed to parse file",
+							loading: false,
+						}));
+					}
+				};
+				fileReader.readAsText(file);
 			}
 		},
 		[handleFileUpload]
@@ -391,9 +422,9 @@ const AIDashboardPage: React.FC = () => {
 						</h3>
 						<div className="flex items-center gap-2">
 							<p className="text-2xl font-bold text-gray-800 dark:text-white/90">
-								{state.analysis?.data_quality.score || 0}%
+								{state.analysis?.data_quality?.score || 0}%
 							</p>
-							{(state.analysis?.data_quality.score || 0) >= 80 ? (
+							{(state.analysis?.data_quality?.score || 0) >= 80 ? (
 								<ArrowUpIcon className="w-4 h-4 text-green-500" />
 							) : (
 								<ArrowDownIcon className="w-4 h-4 text-red-500" />
@@ -496,7 +527,10 @@ const AIDashboardPage: React.FC = () => {
 								Trends Detected
 							</h4>
 							<p className="text-gray-600 dark:text-gray-400">
-								{Object.keys(state.analysis.trends).length} trends identified
+								{state.analysis?.trends
+									? Object.keys(state.analysis.trends).length
+									: 0}{" "}
+								trends identified
 							</p>
 						</div>
 						<div>
@@ -504,8 +538,10 @@ const AIDashboardPage: React.FC = () => {
 								Anomalies Found
 							</h4>
 							<p className="text-gray-600 dark:text-gray-400">
-								{Object.keys(state.analysis.anomalies).length} anomalies
-								detected
+								{state.analysis?.anomalies
+									? Object.keys(state.analysis.anomalies).length
+									: 0}{" "}
+								anomalies detected
 							</p>
 						</div>
 						<div>
@@ -513,7 +549,7 @@ const AIDashboardPage: React.FC = () => {
 								Correlations
 							</h4>
 							<p className="text-gray-600 dark:text-gray-400">
-								{state.analysis.correlations.strong_correlations?.length || 0}{" "}
+								{state.analysis?.correlations?.strong_correlations?.length || 0}{" "}
 								strong correlations
 							</p>
 						</div>
@@ -526,10 +562,8 @@ const AIDashboardPage: React.FC = () => {
 	const renderDashboardTab = () => (
 		<div>
 			<DynamicDashboard
-				dashboardConfig={state.dashboard || undefined}
-				onConfigChange={(config: DashboardConfig) =>
-					setState((prev) => ({ ...prev, dashboard: config }))
-				}
+				clientId={state.dashboard?.client_id || "demo"}
+				refreshInterval={60000}
 			/>
 		</div>
 	);

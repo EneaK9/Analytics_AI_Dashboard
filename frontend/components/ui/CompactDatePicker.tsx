@@ -115,11 +115,11 @@ export default function CompactDatePicker({
 				</span>
 				<div className="flex items-center gap-1">
 					{value && (
-						<button
+						<span
 							onClick={handleClear}
-							className="p-0.5 hover:bg-gray-100 rounded">
+							className="p-0.5 hover:bg-gray-100 rounded cursor-pointer inline-flex items-center justify-center">
 							<X className="h-3 w-3 text-gray-400" />
-						</button>
+						</span>
 					)}
 					<ChevronDown
 						className={`h-3.5 w-3.5 text-gray-400 transition-transform duration-150 ${

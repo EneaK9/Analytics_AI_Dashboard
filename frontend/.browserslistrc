@@ -1,0 +1,9 @@
+last 2 versions
+> 1%
+not dead
+not ie 11
+ios >= 12
+safari >= 12
+chrome >= 80
+firefox >= 78
+edge >= 80

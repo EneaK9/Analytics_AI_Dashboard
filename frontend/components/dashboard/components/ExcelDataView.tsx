@@ -25,9 +25,9 @@ import {
 	Tooltip,
 	Tabs,
 	Tab,
-	Grid,
 	Alert,
 } from "@mui/material";
+
 import {
 	Search as SearchIcon,
 	Download as DownloadIcon,
@@ -146,12 +146,13 @@ interface StructuredBusinessData {
 }
 
 export default function ExcelDataView({ user }: ExcelDataViewProps) {
-	const [structuredData, setStructuredData] = useState<StructuredBusinessData | null>(null);
+	const [structuredData, setStructuredData] =
+		useState<StructuredBusinessData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [uploading, setUploading] = useState(false);
 	const [currentTab, setCurrentTab] = useState(0);
 	const [searchTerm, setSearchTerm] = useState("");
-	
+
 	// Legacy states for fallback mode
 	const [legacyData, setLegacyData] = useState<Record<string, unknown>[]>([]);
 	const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
@@ -161,6 +162,25 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 	const [availableColumns, setAvailableColumns] = useState<string[]>([]);
 	const [isStructuredData, setIsStructuredData] = useState(false);
 
+	// Process data for display - defined before any conditional returns to avoid React Hook rules violation
+	const processedData = useMemo(() => {
+		if (!legacyData || legacyData.length === 0) return [];
+
+		let result = [...legacyData];
+		if (searchTerm && selectedColumns.length > 0) {
+			result = result.filter((row) =>
+				selectedColumns.some((col) => {
+					const value = row[col];
+					return (
+						value &&
+						value.toString().toLowerCase().includes(searchTerm.toLowerCase())
+					);
+				})
+			);
+		}
+		return result;
+	}, [legacyData, searchTerm, selectedColumns]);
+
 	// Load client data
 	const loadData = async () => {
 		setLoading(true);
@@ -169,15 +189,28 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 			const response = await clientDataService.fetchClientData();
 
 			if (response.rawData && response.rawData.length > 0) {
-				console.log("✅ Data loaded for Excel view:", response.rawData.length, "records");
+				console.log(
+					"✅ Data loaded for Excel view:",
+					response.rawData.length,
+					"records"
+				);
 				console.log("🔍 Complete response:", response);
 
 				const firstRecord = response.rawData[0];
 				console.log("🔍 First record structure:", firstRecord);
 
 				// Check if this is structured business data (has the expected sections)
-				const expectedSections = ['business_info', 'customer_data', 'monthly_summary', 'product_inventory', 'sales_transactions', 'performance_metrics'];
-				const hasAllSections = expectedSections.every(section => section in firstRecord);
+				const expectedSections = [
+					"business_info",
+					"customer_data",
+					"monthly_summary",
+					"product_inventory",
+					"sales_transactions",
+					"performance_metrics",
+				];
+				const hasAllSections = expectedSections.every(
+					(section) => section in firstRecord
+				);
 
 				if (hasAllSections) {
 					console.log("✅ Detected structured business data format");
@@ -187,30 +220,37 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 				} else {
 					console.log("⚠️ Using legacy flat data format");
 					setIsStructuredData(false);
-					
+
 					// Fall back to legacy flattening for unstructured data
 					const flattenedData = response.rawData.map((record: any) => {
 						const flattened: Record<string, unknown> = {};
-						
+
 						Object.entries(record).forEach(([key, value]) => {
 							if (value === null || value === undefined) {
-								flattened[key] = '';
-							} else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+								flattened[key] = "";
+							} else if (
+								typeof value === "string" ||
+								typeof value === "number" ||
+								typeof value === "boolean"
+							) {
 								flattened[key] = value;
 							} else {
 								try {
 									if (Array.isArray(value)) {
-										flattened[key] = value.join(', ');
+										flattened[key] = value.join(", ");
 									} else {
 										const str = JSON.stringify(value);
-										flattened[key] = str.length < 100 ? str.replace(/[{}"]/g, '').replace(/,/g, ', ') : '[Complex Data]';
+										flattened[key] =
+											str.length < 100
+												? str.replace(/[{}"]/g, "").replace(/,/g, ", ")
+												: "[Complex Data]";
 									}
 								} catch (e) {
-									flattened[key] = '[Data Object]';
+									flattened[key] = "[Data Object]";
 								}
 							}
 						});
-						
+
 						return flattened;
 					});
 
@@ -254,8 +294,7 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 				hidden={value !== index}
 				id={`business-tabpanel-${index}`}
 				aria-labelledby={`business-tab-${index}`}
-				{...other}
-			>
+				{...other}>
 				{value === index && <Box sx={{ p: 3 }}>{children}</Box>}
 			</div>
 		);
@@ -263,42 +302,54 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 
 	// Helper function to render business info cards
 	const renderBusinessInfo = (businessInfo: BusinessInfo) => (
-		<Grid container spacing={3}>
-			<Grid item xs={12}>
+		<Box
+			sx={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 3 }}>
+			<Box sx={{ gridColumn: "span 12" }}>
 				<Typography variant="h5" gutterBottom>
 					{businessInfo.company_name}
 				</Typography>
-			</Grid>
-			<Grid item xs={12} md={6}>
+			</Box>
+			<Box sx={{ gridColumn: { xs: "span 12", md: "span 6" } }}>
 				<Card>
 					<CardContent>
 						<Typography variant="h6" color="primary" gutterBottom>
 							Company Overview
 						</Typography>
-						<Typography><strong>Industry:</strong> {businessInfo.industry}</Typography>
-						<Typography><strong>Employees:</strong> {businessInfo.employees}</Typography>
-						<Typography><strong>Headquarters:</strong> {businessInfo.headquarters}</Typography>
+						<Typography>
+							<strong>Industry:</strong> {businessInfo.industry}
+						</Typography>
+						<Typography>
+							<strong>Employees:</strong> {businessInfo.employees}
+						</Typography>
+						<Typography>
+							<strong>Headquarters:</strong> {businessInfo.headquarters}
+						</Typography>
 					</CardContent>
 				</Card>
-			</Grid>
-			<Grid item xs={12} md={6}>
+			</Box>
+			<Box sx={{ gridColumn: { xs: "span 12", md: "span 6" } }}>
 				<Card>
 					<CardContent>
 						<Typography variant="h6" color="primary" gutterBottom>
 							Data Information
 						</Typography>
-						<Typography><strong>Data Period:</strong> {businessInfo.data_period}</Typography>
-						<Typography><strong>Upload Date:</strong> {businessInfo.upload_date}</Typography>
+						<Typography>
+							<strong>Data Period:</strong> {businessInfo.data_period}
+						</Typography>
+						<Typography>
+							<strong>Upload Date:</strong> {businessInfo.upload_date}
+						</Typography>
 					</CardContent>
 				</Card>
-			</Grid>
-		</Grid>
+			</Box>
+		</Box>
 	);
 
 	// Helper function to render performance metrics
-	/* const renderPerformanceMetrics = (metrics: PerformanceMetrics) => (
-		<Grid container spacing={3}>
-			<Grid item xs={12} sm={6} md={3}>
+	/* Commented out to avoid linter errors
+	const renderPerformanceMetrics = (metrics: PerformanceMetrics) => (
+		<Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3 }}>
+			<Box sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 3' } }}>
 				<Card>
 					<CardContent>
 						<Typography color="textSecondary" gutterBottom>Total Revenue YTD</Typography>
@@ -307,8 +358,8 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 						</Typography>
 					</CardContent>
 				</Card>
-			</Grid>
-			<Grid item xs={12} sm={6} md={3}>
+			</Box>
+			<Box sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 3' } }}>
 				<Card>
 					<CardContent>
 						<Typography color="textSecondary" gutterBottom>Total Orders YTD</Typography>
@@ -317,8 +368,8 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 						</Typography>
 					</CardContent>
 				</Card>
-			</Grid>
-			<Grid item xs={12} sm={6} md={3}>
+			</Box>
+			<Box sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 3' } }}>
 				<Card>
 					<CardContent>
 						<Typography color="textSecondary" gutterBottom>Conversion Rate</Typography>
@@ -327,8 +378,8 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 						</Typography>
 					</CardContent>
 				</Card>
-			</Grid>
-			<Grid item xs={12} sm={6} md={3}>
+			</Box>
+			<Box sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 3' } }}>
 				<Card>
 					<CardContent>
 						<Typography color="textSecondary" gutterBottom>Customer Satisfaction</Typography>
@@ -337,8 +388,8 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 						</Typography>
 					</CardContent>
 				</Card>
-			</Grid>
-			<Grid item xs={12} sm={6} md={4}>
+			</Box>
+			<Box sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
 				<Card>
 					<CardContent>
 						<Typography color="textSecondary" gutterBottom>Customer Lifetime Value</Typography>
@@ -347,8 +398,8 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 						</Typography>
 					</CardContent>
 				</Card>
-			</Grid>
-			<Grid item xs={12} sm={6} md={4}>
+			</Box>
+			<Box sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
 				<Card>
 					<CardContent>
 						<Typography color="textSecondary" gutterBottom>Return Rate</Typography>
@@ -357,8 +408,8 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 						</Typography>
 					</CardContent>
 				</Card>
-			</Grid>
-			<Grid item xs={12} sm={6} md={4}>
+			</Box>
+			<Box sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
 				<Card>
 					<CardContent>
 						<Typography color="textSecondary" gutterBottom>Avg Shipping Time</Typography>
@@ -367,26 +418,26 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 						</Typography>
 					</CardContent>
 				</Card>
-			</Grid>
-		</Grid>
+			</Box>
+		</Box>
 	); */
 
 	// Helper function to render generic data table
 	const renderDataTable = <T extends Record<string, any>>(
 		data: T[],
 		title: string,
-		getColumns: (item: T) => Array<{ key: keyof T; label: string; format?: (value: any) => string }>
+		getColumns: (
+			item: T
+		) => Array<{ key: keyof T; label: string; format?: (value: any) => string }>
 	) => {
 		if (!data || data.length === 0) {
 			return (
-				<Alert severity="info">
-					No {title.toLowerCase()} data available
-				</Alert>
+				<Alert severity="info">No {title.toLowerCase()} data available</Alert>
 			);
 		}
 
 		const columns = getColumns(data[0]);
-		
+
 		return (
 			<Card>
 				<CardHeader title={title} />
@@ -395,14 +446,13 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 						<Table>
 							<TableHead>
 								<TableRow>
-									<TableCell sx={{ bgcolor: 'grey.100', fontWeight: 'bold' }}>
+									<TableCell sx={{ bgcolor: "grey.100", fontWeight: "bold" }}>
 										#
 									</TableCell>
 									{columns.map((col) => (
-										<TableCell 
-											key={String(col.key)} 
-											sx={{ bgcolor: 'grey.100', fontWeight: 'bold' }}
-										>
+										<TableCell
+											key={String(col.key)}
+											sx={{ bgcolor: "grey.100", fontWeight: "bold" }}>
 											{col.label}
 										</TableCell>
 									))}
@@ -411,15 +461,15 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 							<TableBody>
 								{data.map((row, index) => (
 									<TableRow key={index}>
-										<TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+										<TableCell
+											sx={{ fontWeight: "bold", color: "primary.main" }}>
 											{index + 1}
 										</TableCell>
 										{columns.map((col) => (
 											<TableCell key={String(col.key)}>
-												{col.format 
+												{col.format
 													? col.format(row[col.key])
-													: String(row[col.key] ?? '')
-												}
+													: String(row[col.key] ?? "")}
 											</TableCell>
 										))}
 									</TableRow>
@@ -434,53 +484,86 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 
 	// Column definitions for each data type
 	const customerColumns = (item: CustomerData) => [
-		{ key: 'customer_id' as keyof CustomerData, label: 'Customer ID' },
-		{ key: 'name' as keyof CustomerData, label: 'Name' },
-		{ key: 'email' as keyof CustomerData, label: 'Email' },
-		{ key: 'location' as keyof CustomerData, label: 'Location' },
-		{ key: 'customer_segment' as keyof CustomerData, label: 'Segment' },
-		{ key: 'total_spent' as keyof CustomerData, label: 'Total Spent', format: (val: number) => `$${val.toLocaleString()}` },
-		{ key: 'total_orders' as keyof CustomerData, label: 'Orders' },
-		{ key: 'status' as keyof CustomerData, label: 'Status' },
+		{ key: "customer_id" as keyof CustomerData, label: "Customer ID" },
+		{ key: "name" as keyof CustomerData, label: "Name" },
+		{ key: "email" as keyof CustomerData, label: "Email" },
+		{ key: "location" as keyof CustomerData, label: "Location" },
+		{ key: "customer_segment" as keyof CustomerData, label: "Segment" },
+		{
+			key: "total_spent" as keyof CustomerData,
+			label: "Total Spent",
+			format: (val: number) => `$${val.toLocaleString()}`,
+		},
+		{ key: "total_orders" as keyof CustomerData, label: "Orders" },
+		{ key: "status" as keyof CustomerData, label: "Status" },
 	];
 
 	const monthlyColumns = (item: MonthlySummary) => [
-		{ key: 'month' as keyof MonthlySummary, label: 'Month' },
-		{ key: 'total_revenue' as keyof MonthlySummary, label: 'Revenue', format: (val: number) => `$${val.toLocaleString()}` },
-		{ key: 'total_orders' as keyof MonthlySummary, label: 'Orders' },
-		{ key: 'new_customers' as keyof MonthlySummary, label: 'New Customers' },
-		{ key: 'returning_customers' as keyof MonthlySummary, label: 'Returning' },
-		{ key: 'average_order_value' as keyof MonthlySummary, label: 'AOV', format: (val: number) => `$${val.toLocaleString()}` },
-		{ key: 'top_category' as keyof MonthlySummary, label: 'Top Category' },
-		{ key: 'top_platform' as keyof MonthlySummary, label: 'Top Platform' },
+		{ key: "month" as keyof MonthlySummary, label: "Month" },
+		{
+			key: "total_revenue" as keyof MonthlySummary,
+			label: "Revenue",
+			format: (val: number) => `$${val.toLocaleString()}`,
+		},
+		{ key: "total_orders" as keyof MonthlySummary, label: "Orders" },
+		{ key: "new_customers" as keyof MonthlySummary, label: "New Customers" },
+		{ key: "returning_customers" as keyof MonthlySummary, label: "Returning" },
+		{
+			key: "average_order_value" as keyof MonthlySummary,
+			label: "AOV",
+			format: (val: number) => `$${val.toLocaleString()}`,
+		},
+		{ key: "top_category" as keyof MonthlySummary, label: "Top Category" },
+		{ key: "top_platform" as keyof MonthlySummary, label: "Top Platform" },
 	];
 
 	const productColumns = (item: ProductInventory) => [
-		{ key: 'product_id' as keyof ProductInventory, label: 'Product ID' },
-		{ key: 'name' as keyof ProductInventory, label: 'Product Name' },
-		{ key: 'brand' as keyof ProductInventory, label: 'Brand' },
-		{ key: 'category' as keyof ProductInventory, label: 'Category' },
-		{ key: 'stock_quantity' as keyof ProductInventory, label: 'Stock' },
-		{ key: 'selling_price' as keyof ProductInventory, label: 'Price', format: (val: number) => `$${val.toLocaleString()}` },
-		{ key: 'units_sold' as keyof ProductInventory, label: 'Sold' },
-		{ key: 'revenue_generated' as keyof ProductInventory, label: 'Revenue', format: (val: number) => `$${val.toLocaleString()}` },
-		{ key: 'status' as keyof ProductInventory, label: 'Status' },
+		{ key: "product_id" as keyof ProductInventory, label: "Product ID" },
+		{ key: "name" as keyof ProductInventory, label: "Product Name" },
+		{ key: "brand" as keyof ProductInventory, label: "Brand" },
+		{ key: "category" as keyof ProductInventory, label: "Category" },
+		{ key: "stock_quantity" as keyof ProductInventory, label: "Stock" },
+		{
+			key: "selling_price" as keyof ProductInventory,
+			label: "Price",
+			format: (val: number) => `$${val.toLocaleString()}`,
+		},
+		{ key: "units_sold" as keyof ProductInventory, label: "Sold" },
+		{
+			key: "revenue_generated" as keyof ProductInventory,
+			label: "Revenue",
+			format: (val: number) => `$${val.toLocaleString()}`,
+		},
+		{ key: "status" as keyof ProductInventory, label: "Status" },
 	];
 
 	const transactionColumns = (item: SalesTransaction) => [
-		{ key: 'transaction_id' as keyof SalesTransaction, label: 'Transaction ID' },
-		{ key: 'date' as keyof SalesTransaction, label: 'Date' },
-		{ key: 'customer_id' as keyof SalesTransaction, label: 'Customer' },
-		{ key: 'product_name' as keyof SalesTransaction, label: 'Product' },
-		{ key: 'quantity' as keyof SalesTransaction, label: 'Qty' },
-		{ key: 'unit_price' as keyof SalesTransaction, label: 'Unit Price', format: (val: number) => `$${val.toLocaleString()}` },
-		{ key: 'final_amount' as keyof SalesTransaction, label: 'Final Amount', format: (val: number) => `$${val.toLocaleString()}` },
-		{ key: 'platform' as keyof SalesTransaction, label: 'Platform' },
-		{ key: 'status' as keyof SalesTransaction, label: 'Status' },
+		{
+			key: "transaction_id" as keyof SalesTransaction,
+			label: "Transaction ID",
+		},
+		{ key: "date" as keyof SalesTransaction, label: "Date" },
+		{ key: "customer_id" as keyof SalesTransaction, label: "Customer" },
+		{ key: "product_name" as keyof SalesTransaction, label: "Product" },
+		{ key: "quantity" as keyof SalesTransaction, label: "Qty" },
+		{
+			key: "unit_price" as keyof SalesTransaction,
+			label: "Unit Price",
+			format: (val: number) => `$${val.toLocaleString()}`,
+		},
+		{
+			key: "final_amount" as keyof SalesTransaction,
+			label: "Final Amount",
+			format: (val: number) => `$${val.toLocaleString()}`,
+		},
+		{ key: "platform" as keyof SalesTransaction, label: "Platform" },
+		{ key: "status" as keyof SalesTransaction, label: "Status" },
 	];
 
 	// Handle file upload
-	const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+	const handleFileUpload = async (
+		event: React.ChangeEvent<HTMLInputElement>
+	) => {
 		const file = event.target.files?.[0];
 		if (!file || !user?.client_id) return;
 
@@ -489,15 +572,18 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 			console.log("📤 Uploading file:", file.name);
 
 			const formData = new FormData();
-			formData.append('file', file);
-			formData.append('data_format', 'csv');
-			formData.append('description', `Business data uploaded from ${user.company_name}`);
+			formData.append("file", file);
+			formData.append("data_format", "csv");
+			formData.append(
+				"description",
+				`Business data uploaded from ${user.company_name}`
+			);
 
-			const token = localStorage.getItem('access_token');
-			const response = await fetch('/api/data/upload-enhanced', {
-				method: 'POST',
+			const token = localStorage.getItem("access_token");
+			const response = await fetch("/api/data/upload-enhanced", {
+				method: "POST",
 				headers: {
-					'Authorization': `Bearer ${token}`,
+					Authorization: `Bearer ${token}`,
 				},
 				body: formData,
 			});
@@ -506,11 +592,13 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 				console.log("✅ File uploaded successfully");
 				// Reload data to show the new records
 				await loadData();
-				alert(`✅ Successfully uploaded ${file.name}! Your business data is now visible in the table.`);
+				alert(
+					`✅ Successfully uploaded ${file.name}! Your business data is now visible in the table.`
+				);
 			} else {
 				const errorData = await response.json();
 				console.error("❌ Upload failed:", errorData);
-				alert(`❌ Upload failed: ${errorData.detail || 'Please try again'}`);
+				alert(`❌ Upload failed: ${errorData.detail || "Please try again"}`);
 			}
 		} catch (error) {
 			console.error("❌ Upload error:", error);
@@ -518,7 +606,7 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 		} finally {
 			setUploading(false);
 			// Clear the input
-			event.target.value = '';
+			event.target.value = "";
 		}
 	};
 
@@ -531,7 +619,7 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 	};
 
 	const formatCellValue = (value: unknown, column: string): string => {
-		if (value === null || value === undefined || value === '') return "";
+		if (value === null || value === undefined || value === "") return "";
 
 		// Since we're doing aggressive flattening upfront, we should rarely see objects here
 		// But just in case, handle any remaining objects
@@ -539,7 +627,7 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 			if (Array.isArray(value)) {
 				return value.join(", ");
 			}
-			
+
 			// This shouldn't happen much with our new flattening, but just in case
 			try {
 				return JSON.stringify(value);
@@ -552,9 +640,12 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 		const stringValue = String(value);
 
 		// Format numbers (but only if they're actually numeric)
-		if (typeof value === "number" || (!isNaN(Number(stringValue)) && stringValue.trim() !== '')) {
+		if (
+			typeof value === "number" ||
+			(!isNaN(Number(stringValue)) && stringValue.trim() !== "")
+		) {
 			const numValue = typeof value === "number" ? value : Number(stringValue);
-			
+
 			if (
 				column.toLowerCase().includes("price") ||
 				column.toLowerCase().includes("revenue") ||
@@ -567,19 +658,19 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 					minimumFractionDigits: 2,
 				})}`;
 			}
-			
+
 			// Don't format small integers (like IDs) or percentages
 			if (numValue % 1 === 0 && numValue < 10000) {
 				return stringValue;
 			}
-			
+
 			return numValue.toLocaleString();
 		}
 
 		// Format dates
 		if (
 			(column.toLowerCase().includes("date") ||
-			column.toLowerCase().includes("time")) &&
+				column.toLowerCase().includes("time")) &&
 			stringValue.length > 8
 		) {
 			try {
@@ -636,9 +727,17 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 
 	if (loading) {
 		return (
-			<Card sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+			<Card
+				sx={{
+					height: "100%",
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "center",
+				}}>
 				<Typography>
-					{uploading ? "Uploading your business data..." : "Loading your data..."}
+					{uploading
+						? "Uploading your business data..."
+						: "Loading your data..."}
 				</Typography>
 			</Card>
 		);
@@ -652,35 +751,43 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 					subheader="All your data is gathered here in tabular format"
 					action={
 						<Tooltip title="Upload CSV File">
-							<IconButton 
-								component="label" 
+							<IconButton
+								component="label"
 								disabled={uploading}
-								sx={{ 
-									bgcolor: uploading ? 'action.disabled' : 'primary.main',
-									color: 'white',
-
-								}}
-							>
+								sx={{
+									bgcolor: uploading ? "action.disabled" : "primary.main",
+									color: "white",
+								}}>
 								<UploadIcon />
 								<input
 									type="file"
 									accept=".csv,.xlsx,.xls"
 									onChange={handleFileUpload}
-									style={{ display: 'none' }}
+									style={{ display: "none" }}
 								/>
 							</IconButton>
 						</Tooltip>
 					}
 				/>
-				<CardContent sx={{ flexGrow: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+				<CardContent
+					sx={{
+						flexGrow: 1,
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+					}}>
 					<Box sx={{ textAlign: "center" }}>
 						<Typography variant="h6" color="text.secondary" gutterBottom>
 							No business data available
 						</Typography>
 						<Typography color="text.secondary" sx={{ mb: 2 }}>
-							Click the upload button (📤) above to upload your CSV file with business data
+							Click the upload button (📤) above to upload your CSV file with
+							business data
 						</Typography>
-						<Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+						<Typography
+							variant="body2"
+							color="text.secondary"
+							sx={{ fontStyle: "italic" }}>
 							Supported formats: .csv, .xlsx, .xls
 						</Typography>
 					</Box>
@@ -710,22 +817,21 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 					action={
 						<Box sx={{ display: "flex", gap: 1 }}>
 							<Tooltip title="Upload New Data">
-								<IconButton 
-									component="label" 
-									disabled={uploading}
-									size="small"
-								>
+								<IconButton component="label" disabled={uploading} size="small">
 									<UploadIcon />
 									<input
 										type="file"
 										accept=".csv,.xlsx,.xls"
 										onChange={handleFileUpload}
-										style={{ display: 'none' }}
+										style={{ display: "none" }}
 									/>
 								</IconButton>
 							</Tooltip>
 							<Tooltip title="Refresh Data">
-								<IconButton onClick={loadData} disabled={loading || uploading} size="small">
+								<IconButton
+									onClick={loadData}
+									disabled={loading || uploading}
+									size="small">
 									<RefreshIcon />
 								</IconButton>
 							</Tooltip>
@@ -733,46 +839,73 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 					}
 				/>
 
-				<Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-					<Tabs 
-						value={currentTab} 
+				<Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+					<Tabs
+						value={currentTab}
 						onChange={(_, newValue) => setCurrentTab(newValue)}
 						sx={{
-							'& .MuiTab-root': {
-								'&:hover': {
-									backgroundColor: 'transparent',
-								}
-							}
-						}}
-					>
+							"& .MuiTab-root": {
+								"&:hover": {
+									backgroundColor: "transparent",
+								},
+							},
+						}}>
 						<Tab icon={<BusinessIcon />} label="Overview" />
-						<Tab icon={<PeopleIcon />} label={`Customers (${structuredData.customer_data.length})`} />
-						<Tab icon={<TrendingUpIcon />} label={`Monthly (${structuredData.monthly_summary.length})`} />
-						<Tab icon={<InventoryIcon />} label={`Products (${structuredData.product_inventory.length})`} />
-						<Tab icon={<PaymentIcon />} label={`Transactions (${structuredData.sales_transactions.length})`} />
+						<Tab
+							icon={<PeopleIcon />}
+							label={`Customers (${structuredData.customer_data.length})`}
+						/>
+						<Tab
+							icon={<TrendingUpIcon />}
+							label={`Monthly (${structuredData.monthly_summary.length})`}
+						/>
+						<Tab
+							icon={<InventoryIcon />}
+							label={`Products (${structuredData.product_inventory.length})`}
+						/>
+						<Tab
+							icon={<PaymentIcon />}
+							label={`Transactions (${structuredData.sales_transactions.length})`}
+						/>
 						{/* <Tab icon={<AssessmentIcon />} label="Performance" /> */}
 					</Tabs>
 				</Box>
 
-				<Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+				<Box sx={{ flexGrow: 1, overflow: "auto" }}>
 					<TabPanel value={currentTab} index={0}>
 						{renderBusinessInfo(structuredData.business_info)}
 					</TabPanel>
 
 					<TabPanel value={currentTab} index={1}>
-						{renderDataTable(structuredData.customer_data, 'Customer Data', customerColumns)}
+						{renderDataTable(
+							structuredData.customer_data,
+							"Customer Data",
+							customerColumns
+						)}
 					</TabPanel>
 
 					<TabPanel value={currentTab} index={2}>
-						{renderDataTable(structuredData.monthly_summary, 'Monthly Summary', monthlyColumns)}
+						{renderDataTable(
+							structuredData.monthly_summary,
+							"Monthly Summary",
+							monthlyColumns
+						)}
 					</TabPanel>
 
 					<TabPanel value={currentTab} index={3}>
-						{renderDataTable(structuredData.product_inventory, 'Product Inventory', productColumns)}
+						{renderDataTable(
+							structuredData.product_inventory,
+							"Product Inventory",
+							productColumns
+						)}
 					</TabPanel>
 
 					<TabPanel value={currentTab} index={4}>
-						{renderDataTable(structuredData.sales_transactions, 'Sales Transactions', transactionColumns)}
+						{renderDataTable(
+							structuredData.sales_transactions,
+							"Sales Transactions",
+							transactionColumns
+						)}
 					</TabPanel>
 
 					{/* <TabPanel value={currentTab} index={5}>
@@ -783,23 +916,12 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 		);
 	}
 
-	// Legacy Data View (fallback for unstructured data)
-	const processedData = useMemo(() => {
-		if (!legacyData || legacyData.length === 0) return [];
-		
-		let result = [...legacyData];
-		if (searchTerm && selectedColumns.length > 0) {
-			result = result.filter((row) =>
-				selectedColumns.some((col) => {
-					const value = row[col];
-					return value && value.toString().toLowerCase().includes(searchTerm.toLowerCase());
-				})
-			);
-		}
-		return result;
-	}, [legacyData, searchTerm, selectedColumns]);
+	// Process data for display - defined before any conditional returns to avoid React Hook rules violation
 
-	const paginatedData = processedData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+	const paginatedData = processedData.slice(
+		page * rowsPerPage,
+		page * rowsPerPage + rowsPerPage
+	);
 
 	return (
 		<Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -815,7 +937,7 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 									type="file"
 									accept=".csv,.xlsx,.xls"
 									onChange={handleFileUpload}
-									style={{ display: 'none' }}
+									style={{ display: "none" }}
 								/>
 							</IconButton>
 						</Tooltip>
@@ -827,7 +949,7 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 					</Box>
 				}
 			/>
-			<CardContent sx={{ flexGrow: 1, overflow: 'auto' }}>
+			<CardContent sx={{ flexGrow: 1, overflow: "auto" }}>
 				<TableContainer>
 					<Table>
 						<TableHead>
@@ -856,4 +978,3 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 		</Card>
 	);
 }
-

@@ -2,15 +2,15 @@
 const nextConfig = {
 	reactStrictMode: true,
 
-	// Enable Turbopack (now stable)
-	turbopack: {
-		rules: {
-			"*.svg": {
-				loaders: ["@svgr/webpack"],
-				as: "*.js",
-			},
-		},
-	},
+	// Temporarily disable Turbopack to fix unload event issues
+	// turbopack: {
+	// 	rules: {
+	// 		"*.svg": {
+	// 			loaders: ["@svgr/webpack"],
+	// 			as: "*.js",
+	// 		},
+	// 	},
+	// },
 
 	// Transpile Material UI packages to handle CSS imports
 	transpilePackages: [
@@ -25,6 +25,9 @@ const nextConfig = {
 	experimental: {
 		// Enable optimized package imports
 		optimizePackageImports: ["lucide-react", "recharts"],
+		// Disable features that use deprecated unload events
+		appDocumentPreloading: false,
+		optimisticClientCache: false,
 	},
 
 	// API rewrites for backend integration
