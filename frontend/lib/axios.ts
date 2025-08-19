@@ -14,15 +14,15 @@ const api = axios.create({
 // Debug function to test timeout configuration
 export const testTimeoutConfig = async () => {
 	console.log("🧪 Testing timeout configuration...");
-	
+
 	// Test 1: Check default timeout
 	const defaultConfig = api.defaults;
 	console.log("🔧 Default timeout:", defaultConfig.timeout);
-	
+
 	// Test 2: Check request interceptor (simplified)
-	const testConfig = { url: '/dashboard/metrics', timeout: 150000000 };
+	const testConfig = { url: "/dashboard/metrics", timeout: 120000 };
 	console.log("🔧 Test config timeout:", testConfig.timeout);
-	
+
 	return testConfig;
 };
 
@@ -36,36 +36,48 @@ api.interceptors.request.use(
 		}
 
 		// Set longer timeout for LLM-powered endpoints
-		if (config.url?.includes('/dashboard/metrics') || 
-		    config.url?.includes('/dashboard/business-insights') || 
-		    config.url?.includes('/dashboard/performance') ||
-		    config.url?.includes('/dashboard/generate-template') ||
-		    config.url?.includes('/dashboard/generate')) {
-			
+		if (
+			config.url?.includes("/dashboard/metrics") ||
+			config.url?.includes("/dashboard/business-insights") ||
+			config.url?.includes("/dashboard/performance") ||
+			config.url?.includes("/dashboard/generate-template") ||
+			config.url?.includes("/dashboard/generate")
+		) {
 			// Check if force_llm=true for even longer timeout
-			if (config.url?.includes('force_llm=true')) {
+			if (config.url?.includes("force_llm=true")) {
 				config.timeout = 60000000; // 16.67 hours for forced LLM analysis (100x increase)
-				console.log("🔧 Setting 16.67hr timeout for forced LLM endpoint:", config.url);
+				console.log(
+					"🔧 Setting 16.67hr timeout for forced LLM endpoint:",
+					config.url
+				);
 			} else {
 				config.timeout = 30000000; // 8.33 hours for regular LLM endpoints (100x increase)
 				console.log("🔧 Setting 8.33hr timeout for LLM endpoint:", config.url);
 			}
 		}
-		
-		// Set longer timeout for inventory analytics endpoints
-		if (config.url?.includes('/dashboard/sku-inventory') || 
-		    config.url?.includes('/dashboard/inventory-analytics')) {
-			config.timeout = 600000000; // 166.67 hours (~7 days) for inventory processing (100x increase)
-			console.log("🔧 Setting 166.67hr timeout for inventory endpoint:", config.url);
+
+		// Set reasonable timeout for inventory analytics endpoints
+		if (
+			config.url?.includes("/dashboard/sku-inventory") ||
+			config.url?.includes("/dashboard/inventory-analytics")
+		) {
+			config.timeout = 600000; // 1 minute for inventory processing
 		}
-		
-		// Set longer timeout for client creation with file uploads (especially BAK files)
-		if (config.url?.includes('/superadmin/clients') && config.method?.toLowerCase() === 'post') {
-			config.timeout = 3000000000; // ~833 hours (~35 days) for processing very large BAK files (100x increase)
-			console.log("🔧 Setting 833hr timeout for large BAK file processing:", config.url);
+
+		// Set reasonable timeout for file uploads
+		if (
+			config.url?.includes("/superadmin/clients") &&
+			config.method?.toLowerCase() === "post"
+		) {
+			config.timeout = 300000; // 5 minutes for file processing
 		}
-		
-		console.log("🔧 Request config timeout:", config.timeout, "for URL:", config.url);
+
+		console.log(
+			"🔧 Request config timeout:",
+			config.timeout,
+			"for URL:",
+			config.url
+		);
 
 		return config;
 	},
@@ -98,7 +110,7 @@ api.interceptors.response.use(
 			console.warn("Timeout details:", {
 				url: error.config?.url,
 				timeout: error.config?.timeout,
-				message: error.message
+				message: error.message,
 			});
 		} else if (error.code === "ERR_NETWORK") {
 			console.warn("Network error - server may be down, real data unavailable");

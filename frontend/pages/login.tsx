@@ -60,7 +60,9 @@ const Login: React.FC = () => {
 							<Building className="w-8 h-8 text-primary" />
 						</div>
 					</div>
-					<h2 className="text-3xl font-bold text-black">AI Analytics Dashboard</h2>
+					<h2 className="text-3xl font-bold text-black">
+						AI Analytics Dashboard
+					</h2>
 					<p className="mt-2 text-sm text-body">
 						Sign in to your analytics dashboard
 					</p>
@@ -90,6 +92,7 @@ const Login: React.FC = () => {
 									id="email"
 									name="email"
 									type="email"
+									autoComplete="email"
 									required
 									value={formData.email}
 									onChange={handleChange}
@@ -114,6 +117,7 @@ const Login: React.FC = () => {
 									id="password"
 									name="password"
 									type={showPassword ? "text" : "password"}
+									autoComplete="current-password"
 									required
 									value={formData.password}
 									onChange={handleChange}
@@ -152,8 +156,6 @@ const Login: React.FC = () => {
 							)}
 						</button>
 					</form>
-
-
 				</div>
 
 				{/* Footer */}
