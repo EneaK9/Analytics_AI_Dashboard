@@ -2946,14 +2946,8 @@ async def get_component_filtered_data(
             }
             
         elif component_type == "historical_comparison":
-            # Historical comparison uses sales data with trend analysis
-            sales_data = await component_data_manager.get_total_sales_data(client_id, platform, start_date, end_date)
-            component_data = {
-                "sales_data": sales_data,
-                "trend_analysis": {
-                    "sales_comparison": sales_data.get(platform, {}).get('sales_comparison', {}) if platform != "combined" else {}
-                }
-            }
+            # Historical comparison with real period-over-period analysis
+            component_data = await component_data_manager.get_historical_comparison_data(client_id, platform, start_date, end_date)
             
         elif component_type in ["low_stock_alerts", "overstock_alerts", "sales_performance"]:
             # For alerts, use days of stock data to determine alert conditions

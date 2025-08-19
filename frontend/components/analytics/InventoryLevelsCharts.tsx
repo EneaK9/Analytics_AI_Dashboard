@@ -72,6 +72,16 @@ export default function InventoryLevelsCharts({
 		[amazonPlatformData, amazonCustomData, amazonUseCustomDate]
 	);
 
+	// ✅ CROSS-CONTAMINATION FIX: Original data that's NOT affected by individual platform date changes
+	const originalShopifyData = useMemo(
+		() => shopifyPlatformData?.trend_analysis,
+		[shopifyPlatformData]
+	);
+	const originalAmazonData = useMemo(
+		() => amazonPlatformData?.trend_analysis,
+		[amazonPlatformData]
+	);
+
 	// Format date for API
 	const formatDateForAPI = (date: Date): string => {
 		return date.toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -230,10 +240,10 @@ export default function InventoryLevelsCharts({
 			return processInventoryLevelsData(allCustomData, 0, 'combined');
 		}
 
-		// Otherwise combine shopify and amazon data
+		// ✅ CROSS-CONTAMINATION FIX: Use original data, NOT individual platform data
 		if (
-			!shopifyData?.inventory_levels_chart ||
-			!amazonData?.inventory_levels_chart
+			!originalShopifyData?.inventory_levels_chart ||
+			!originalAmazonData?.inventory_levels_chart
 		) {
 			return [];
 		}
@@ -247,14 +257,14 @@ export default function InventoryLevelsCharts({
 		const now = new Date();
 		const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
-		const shopifyFiltered = shopifyData.inventory_levels_chart.filter(
+		const shopifyFiltered = originalShopifyData.inventory_levels_chart.filter(
 			(item: { date: string }) => {
 				const itemDate = new Date(item.date);
 				return itemDate >= startDate && itemDate <= now;
 			}
 		);
 
-		const amazonFiltered = amazonData.inventory_levels_chart.filter(
+		const amazonFiltered = originalAmazonData.inventory_levels_chart.filter(
 			(item: { date: string }) => {
 				const itemDate = new Date(item.date);
 				return itemDate >= startDate && itemDate <= now;
@@ -300,7 +310,7 @@ export default function InventoryLevelsCharts({
 				(a: any, b: any) =>
 					new Date(a.date).getTime() - new Date(b.date).getTime()
 			);
-	}, [shopifyData, amazonData, allDateRange, allUseCustomDate, allCustomData]);
+	}, [originalShopifyData, originalAmazonData, allDateRange, allUseCustomDate, allCustomData]);
 
 	// Individual Chart Component
 	const InventoryLevelChart = ({
@@ -460,3 +470,217 @@ export default function InventoryLevelsCharts({
 		</div>
 	);
 }
+
+							<div className="text-center">
+
+
+								<BarChart3 className="h-4 w-4 mx-auto mb-2 text-gray-400" />
+
+
+								<p className="text-sm">No inventory data available</p>
+
+
+								<p className="text-xs text-gray-400">
+
+
+									Try selecting a different date range
+
+
+								</p>
+
+
+							</div>
+
+
+						</div>
+
+
+					)}
+
+
+				</CardContent>
+
+
+			</Card>
+
+
+		);
+
+	};
+
+
+
+	return (
+
+
+		<div className={`space-y-6 ${className}`}>
+
+
+			<div className="flex items-center justify-between">
+
+
+				<h2 className="text-xl font-semibold text-gray-900">
+
+
+					Inventory Levels
+
+
+				</h2>
+
+
+				<p className="text-sm text-gray-600">
+
+
+					Time series analysis of inventory levels across platforms
+
+
+				</p>
+
+
+			</div>
+
+
+
+			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+
+				{/* Shopify Inventory Levels */}
+
+
+				<InventoryLevelChart
+
+
+					title="Shopify Inventory Levels"
+
+
+					data={shopifyChartData}
+
+
+					dateRange={shopifyDateRange}
+
+
+					onDateRangeChange={handleShopifyDateChange}
+					loading={shopifyLoading}
+
+
+					error={shopifyError}
+
+
+					icon={<Store className="h-4 w-4" style={{ color: "#059669" }} />}
+
+
+					iconColor="#059669"
+
+
+					iconBgColor="#ecfdf5"
+
+
+				/>
+
+
+
+				{/* Amazon Inventory Levels */}
+
+
+				<InventoryLevelChart
+
+
+					title="Amazon Inventory Levels"
+
+
+					data={amazonChartData}
+
+
+					dateRange={amazonDateRange}
+
+
+					onDateRangeChange={handleAmazonDateChange}
+					loading={amazonLoading}
+
+
+					error={amazonError}
+
+
+					icon={
+
+
+						<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />
+
+
+					}
+
+
+					iconColor="#f59e0b"
+
+
+					iconBgColor="#fffbeb"
+
+
+				/>
+
+
+
+				{/* All Platforms Combined */}
+
+
+				<InventoryLevelChart
+
+
+					title="All Platforms Combined"
+
+
+					data={allChartData}
+
+
+					dateRange={allDateRange}
+
+
+					onDateRangeChange={handleAllDateChange}
+					loading={allLoading}
+					error={shopifyError || amazonError}
+
+
+					icon={<TrendingUp className="h-4 w-4" style={{ color: "#3b82f6" }} />}
+
+
+					iconColor="#3b82f6"
+
+
+					iconBgColor="#eff6ff"
+
+
+				/>
+
+
+			</div>
+
+
+
+			{/* Data Info */}
+
+
+			<div className="text-center text-sm text-gray-500">
+
+
+				<Calendar className="inline h-4 w-4 mr-1" />
+
+
+				Showing inventory data for selected date ranges • Data updates every 5
+
+
+				minutes
+
+
+			</div>
+
+
+		</div>
+
+
+	);
+
+
+}
+
+
+
