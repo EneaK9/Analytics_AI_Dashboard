@@ -18,54 +18,54 @@ const isDataStale = (lastFetched: number | null): boolean => {
 
 // Types for available tables
 interface AvailableTable {
-  data_type: string;
-  table_name: string;
-  display_name: string;
-  count: number;
+	data_type: string;
+	table_name: string;
+	display_name: string;
+	count: number;
 }
 
 interface AvailableTablesResponse {
-  client_id: string;
-  available_tables: {
-    shopify: AvailableTable[];
-    amazon: AvailableTable[];
-  };
-  total_platforms: number;
-  total_tables: number;
-  message: string;
+	client_id: string;
+	available_tables: {
+		shopify: AvailableTable[];
+		amazon: AvailableTable[];
+	};
+	total_platforms: number;
+	total_tables: number;
+	message: string;
 }
 
 // Types for raw data tables (updated for pagination)
 interface RawDataResponse {
-  client_id: string;
-  table_key: string;
-  display_name: string;
-  table_name: string;
-  platform: 'shopify' | 'amazon';
-  data_type: 'products' | 'orders';
-  columns: string[];
-  data: any[];
-  pagination: {
-    current_page: number;
-    page_size: number;
-    total_records: number;
-    total_pages: number;
-    has_next: boolean;
-    has_prev: boolean;
-  };
-  search?: string;
-  search_fallback?: boolean;
-  message: string;
+	client_id: string;
+	table_key: string;
+	display_name: string;
+	table_name: string;
+	platform: "shopify" | "amazon";
+	data_type: "products" | "orders";
+	columns: string[];
+	data: any[];
+	pagination: {
+		current_page: number;
+		page_size: number;
+		total_records: number;
+		total_pages: number;
+		has_next: boolean;
+		has_prev: boolean;
+	};
+	search?: string;
+	search_fallback?: boolean;
+	message: string;
 }
 
 interface GlobalDataState {
-  // Main data from the two endpoints we actually use
-  inventoryData: any | null;
-  skuData: any[]; // Always an array, never null
-  dashboardAnalytics: any | null;
-  
-  // Available tables for building dynamic tabs
-  availableTables: AvailableTablesResponse | null;
+	// Main data from the two endpoints we actually use
+	inventoryData: any | null;
+	skuData: any[]; // Always an array, never null
+	dashboardAnalytics: any | null;
+
+	// Available tables for building dynamic tabs
+	availableTables: AvailableTablesResponse | null;
 
   // Raw data tables for DataTables component
   rawDataTables: RawDataResponse | null;
@@ -311,59 +311,63 @@ export const useGlobalDataStore = create<GlobalDataState>()((set, get) => ({
     },
     
     fetchSKUData: async (page = 1, forceRefresh = false) => {
-      const state = get();
-      const requestKey = `skuData-${page}`;
-      
-      if (state.activeRequests.has(requestKey)) return;
-      if (!forceRefresh && !isDataStale(state.lastFetched.skuData)) return;
-      
-      set((state) => ({
-        activeRequests: new Set(state.activeRequests).add(requestKey),
-        loading: { ...state.loading, skuData: true },
-        errors: { ...state.errors, skuData: null },
-      }));
-      
-      try {
-        const { platform } = state.filters;
-        const params = {
-          platform: platform === 'combined' ? undefined : platform,
-          page,
-          page_size: 20,
-          use_cache: !forceRefresh,
-          force_refresh: forceRefresh,
-        };
-        
-        const response = await api.get('/dashboard/sku-inventory', { params });
-        
-        // Extract SKU array from response - handle different response structures
-        let skuArray = [];
-        if (response.data?.success) {
-          skuArray = response.data.skus || response.data.sku_inventory?.skus || [];
-        } else if (Array.isArray(response.data)) {
-          skuArray = response.data;
-        } else if (response.data?.data && Array.isArray(response.data.data)) {
-          skuArray = response.data.data;
-        }
-        
-        set((state) => ({
-          skuData: skuArray, // Ensure it's always an array
-          lastFetched: { ...state.lastFetched, skuData: Date.now() },
-          loading: { ...state.loading, skuData: false },
-        }));
-      } catch (error: any) {
-        set((state) => ({
-          errors: { ...state.errors, skuData: error.message || 'Failed to fetch SKU data' },
-          loading: { ...state.loading, skuData: false },
-          skuData: [], // Reset to empty array on error
-        }));
-      } finally {
-        set((state) => {
-          const newActiveRequests = new Set(state.activeRequests);
-          newActiveRequests.delete(requestKey);
-          return { activeRequests: newActiveRequests };
-        });
-      }
-    },
+		const state = get();
+		const requestKey = `skuData-${page}`;
+
+		if (state.activeRequests.has(requestKey)) return;
+		if (!forceRefresh && !isDataStale(state.lastFetched.skuData)) return;
+
+		set((state) => ({
+			activeRequests: new Set(state.activeRequests).add(requestKey),
+			loading: { ...state.loading, skuData: true },
+			errors: { ...state.errors, skuData: null },
+		}));
+
+		try {
+			const { platform } = state.filters;
+			const params = {
+				platform: platform === "combined" ? undefined : platform,
+				page,
+				page_size: 2000, // 🔥 FIXED: Request ALL data, not just 20 items!
+				use_cache: !forceRefresh,
+				force_refresh: forceRefresh,
+			};
+
+			const response = await api.get("/dashboard/sku-inventory", { params });
+
+			// Extract SKU array from response - handle different response structures
+			let skuArray = [];
+			if (response.data?.success) {
+				skuArray =
+					response.data.skus || response.data.sku_inventory?.skus || [];
+			} else if (Array.isArray(response.data)) {
+				skuArray = response.data;
+			} else if (response.data?.data && Array.isArray(response.data.data)) {
+				skuArray = response.data.data;
+			}
+
+			set((state) => ({
+				skuData: skuArray, // Ensure it's always an array
+				lastFetched: { ...state.lastFetched, skuData: Date.now() },
+				loading: { ...state.loading, skuData: false },
+			}));
+		} catch (error: any) {
+			set((state) => ({
+				errors: {
+					...state.errors,
+					skuData: error.message || "Failed to fetch SKU data",
+				},
+				loading: { ...state.loading, skuData: false },
+				skuData: [], // Reset to empty array on error
+			}));
+		} finally {
+			set((state) => {
+				const newActiveRequests = new Set(state.activeRequests);
+				newActiveRequests.delete(requestKey);
+				return { activeRequests: newActiveRequests };
+			});
+		}
+	},
     
     fetchDashboardAnalytics: async (forceRefresh = false) => {
       const state = get();
@@ -670,12 +674,12 @@ export const useDashboardAnalytics = () => {
 };
 
 export const useAvailableTables = () => {
-  const data = useGlobalDataStore((state) => state.availableTables);
-  const loading = useGlobalDataStore((state) => state.loading.availableTables);
-  const error = useGlobalDataStore((state) => state.errors.availableTables);
-  const fetch = useGlobalDataStore((state) => state.fetchAvailableTables);
-  
-  return { data, loading, error, fetch };
+	const data = useGlobalDataStore((state) => state.availableTables);
+	const loading = useGlobalDataStore((state) => state.loading.availableTables);
+	const error = useGlobalDataStore((state) => state.errors.availableTables);
+	const fetch = useGlobalDataStore((state) => state.fetchAvailableTables);
+
+	return { data, loading, error, fetch };
 };
 
 export const useFilters = () => {
@@ -686,20 +690,22 @@ export const useFilters = () => {
 };
 
 export const useRawDataTables = () => {
-  const data = useGlobalDataStore((state) => state.rawDataTables);
-  const loading = useGlobalDataStore((state) => state.loading.rawDataTables);
-  const paginationLoading = useGlobalDataStore((state) => state.loading.rawDataTablesPagination);
-  const error = useGlobalDataStore((state) => state.errors.rawDataTables);
-  const fetch = useGlobalDataStore((state) => state.fetchRawDataTables);
-  
-  return { data, loading, paginationLoading, error, fetch };
+	const data = useGlobalDataStore((state) => state.rawDataTables);
+	const loading = useGlobalDataStore((state) => state.loading.rawDataTables);
+	const paginationLoading = useGlobalDataStore(
+		(state) => state.loading.rawDataTablesPagination
+	);
+	const error = useGlobalDataStore((state) => state.errors.rawDataTables);
+	const fetch = useGlobalDataStore((state) => state.fetchRawDataTables);
+
+	return { data, loading, paginationLoading, error, fetch };
 };
 
 export const useRawDataFilters = () => {
-  const filters = useGlobalDataStore((state) => state.rawDataFilters);
-  const setFilters = useGlobalDataStore((state) => state.setRawDataFilters);
-  
-  return { filters, setFilters };
+	const filters = useGlobalDataStore((state) => state.rawDataFilters);
+	const setFilters = useGlobalDataStore((state) => state.setRawDataFilters);
+
+	return { filters, setFilters };
 };
 
 export const useGlobalLoading = () => {

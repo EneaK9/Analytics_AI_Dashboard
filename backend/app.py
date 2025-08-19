@@ -3288,11 +3288,15 @@ async def get_paginated_sku_inventory(
         
         logger.info(f"📦 Generating fresh SKU list for {client_id} (platform={platform})")
         
-        # Validate pagination parameters
+        # 🔥 FIXED: Allow large page sizes to show ALL data as requested
         if page < 1:
             page = 1
-        if page_size < 1 or page_size > 100:
-            page_size = min(100, max(1, page_size))
+        if page_size < 1:
+            page_size = 50  # Default fallback
+        elif page_size > 5000:  # Reasonable maximum to prevent memory issues
+            page_size = 5000
+        
+        logger.info(f"📊 SKU Request: page={page}, page_size={page_size}, platform={platform}")
         
         # Use dashboard inventory analyzer with caching
         from dashboard_inventory_analyzer import dashboard_inventory_analyzer
@@ -3354,6 +3358,24 @@ async def get_paginated_sku_inventory(
                     if legacy_skus:
                         logger.info(f"✅ Found {len(legacy_skus)} SKUs from legacy data")
                         
+                        # 🔥 FIXED: Calculate real summary stats from legacy SKU data too!
+                        legacy_summary_stats = None
+                        if page == 1:
+                            total_inventory_value = sum(sku.get('total_value', 0) for sku in legacy_skus)
+                            low_stock_count = sum(1 for sku in legacy_skus if 0 < sku.get('current_availability', 0) <= 10)
+                            out_of_stock_count = sum(1 for sku in legacy_skus if sku.get('current_availability', 0) <= 0)
+                            overstock_count = sum(1 for sku in legacy_skus if sku.get('current_availability', 0) > 100)
+                            
+                            legacy_summary_stats = {
+                                "total_skus": len(legacy_skus),
+                                "total_inventory_value": round(total_inventory_value, 2),
+                                "low_stock_count": low_stock_count,
+                                "out_of_stock_count": out_of_stock_count,
+                                "overstock_count": overstock_count
+                            }
+                            
+                            logger.info(f"💰 LEGACY SUMMARY STATS: SKUs: {len(legacy_skus)}, Value: ${total_inventory_value:.2f}, Low Stock: {low_stock_count}, Out of Stock: {out_of_stock_count}")
+                        
                         # Paginate the legacy SKUs
                         start_idx = (page - 1) * page_size
                         end_idx = start_idx + page_size
@@ -3364,7 +3386,7 @@ async def get_paginated_sku_inventory(
                             "success": True,
                             "sku_inventory": {
                                 "skus": paginated_skus,
-                                "summary_stats": legacy_analytics.get("summary_stats", {})
+                                "summary_stats": legacy_summary_stats
                             },
                             "pagination": {
                                 "current_page": page,
@@ -3397,14 +3419,26 @@ async def get_paginated_sku_inventory(
         if not sku_result.get("success"):
             raise HTTPException(status_code=500, detail=sku_result.get("error", "Failed to get SKU data"))
         
-        # Get summary stats if this is the first page
+        # 🔥 FIXED: Calculate summary stats from actual data, not empty cache!
         summary_stats = None
-        if page == 1:
-            from sku_cache_manager import get_sku_cache_manager
-            cache_manager = get_sku_cache_manager(db_client)
-            stats_result = await cache_manager.get_sku_summary_stats(client_id)
-            if stats_result.get("success"):
-                summary_stats = stats_result["summary_stats"]
+        if page == 1 and sku_result.get("skus"):
+            # Calculate real summary stats from the actual SKU data
+            skus = sku_result["skus"]
+            
+            total_inventory_value = sum(sku.get('total_value', 0) for sku in skus)
+            low_stock_count = sum(1 for sku in skus if 0 < sku.get('current_availability', 0) <= 10)
+            out_of_stock_count = sum(1 for sku in skus if sku.get('current_availability', 0) <= 0)
+            overstock_count = sum(1 for sku in skus if sku.get('current_availability', 0) > 100)
+            
+            summary_stats = {
+                "total_skus": len(skus),
+                "total_inventory_value": round(total_inventory_value, 2),
+                "low_stock_count": low_stock_count,
+                "out_of_stock_count": out_of_stock_count,
+                "overstock_count": overstock_count
+            }
+            
+            logger.info(f"💰 CALCULATED SUMMARY STATS: SKUs: {len(skus)}, Value: ${total_inventory_value:.2f}, Low Stock: {low_stock_count}, Out of Stock: {out_of_stock_count}")
         
         return {
             "client_id": client_id,

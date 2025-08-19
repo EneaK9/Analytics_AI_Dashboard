@@ -269,7 +269,7 @@ export const useAlertsData = (filters: DashboardFilters) => {
 export const useSKUData = (
 	filters: DashboardFilters,
 	page: number = 1,
-	pageSize: number = 50
+	pageSize: number = 2000 // 🔥 FIXED: Show ALL data by default, not just 50!
 ) => {
 	const queryKey = createQueryKey("sku", filters.platform, filters.dateRange, {
 		page,

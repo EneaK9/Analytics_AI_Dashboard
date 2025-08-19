@@ -194,6 +194,8 @@ export default function DateRangePicker({
 													Start Date
 												</label>
 												<input
+													id="date-range-start"
+													name="customStart"
 													type="date"
 													value={customStart}
 													onChange={(e) => setCustomStart(e.target.value)}
@@ -205,6 +207,8 @@ export default function DateRangePicker({
 													End Date
 												</label>
 												<input
+													id="date-range-end"
+													name="customEnd"
 													type="date"
 													value={customEnd}
 													onChange={(e) => setCustomEnd(e.target.value)}

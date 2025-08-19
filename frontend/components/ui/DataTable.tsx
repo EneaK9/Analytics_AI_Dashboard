@@ -252,6 +252,8 @@ export default function DataTable({
 						<div className="relative">
 							<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
 							<input
+								id="data-table-search-term"
+								name="searchTerm"
 								type="text"
 								placeholder="Search..."
 								value={searchTerm}
@@ -294,9 +296,7 @@ export default function DataTable({
 								</tr>
 							) : (
 								paginatedData.map((row, index) => (
-									<tr
-										key={index}
-										className="border-b border-gray-100">
+									<tr key={index} className="border-b border-gray-100">
 										{columns.map((column) => (
 											<td
 												key={column.key}

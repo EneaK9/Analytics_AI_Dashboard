@@ -456,11 +456,7 @@ export default function TemplateDashboard({
 							</p>
 						</div>
 						<div className="h-[300px]">
-							<Charts.LineChartOne
-								data={trendData}
-								title="Inventory Trends"
-								height={300}
-							/>
+							<Charts.LineChartOne data={trendData} title="Inventory Trends" />
 						</div>
 					</div>
 				);
@@ -483,7 +479,6 @@ export default function TemplateDashboard({
 							<Charts.BarChartOne
 								data={salesData.slice(0, 10)}
 								title="Sales Performance"
-								height={300}
 							/>
 						</div>
 					</div>
@@ -525,6 +520,8 @@ export default function TemplateDashboard({
 						/>
 						{onTemplateChange && (
 							<select
+								id="template-selector"
+								name="templateType"
 								value={templateType}
 								onChange={(e) =>
 									onTemplateChange(e.target.value as DashboardTemplateType)
