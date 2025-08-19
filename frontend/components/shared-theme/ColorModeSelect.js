@@ -10,6 +10,8 @@ export default function ColorModeSelect(props) {
   }
   return (
     <Select
+      id="color-mode-select-js"
+      name="colorMode"
       value={mode}
       onChange={(event) => setMode(event.target.value)}
       SelectDisplayProps={{

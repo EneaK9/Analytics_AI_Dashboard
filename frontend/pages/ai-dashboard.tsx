@@ -12,18 +12,39 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Head from "next/head";
-import {
-	dashboardService,
-	DataAnalysis,
-	DashboardConfig,
-	InsightsSummary,
-	DataOverview,
-} from "../lib/dashboardService";
+import { dashboardService, DashboardConfig } from "../lib/dashboardService";
+
+// Define missing types
+interface DataAnalysis {
+	summary: string;
+	recommendations: string[];
+	charts: any[];
+	data_quality?: { score: number };
+	trends?: Record<string, any>;
+	anomalies?: Record<string, any>;
+	correlations?: { strong_correlations?: any[] };
+}
+
+interface InsightsSummary {
+	key_findings: string[];
+	recommendations: string[];
+	opportunities?: string[];
+	risk_alerts?: string[];
+	action_items?: string[];
+}
+
+interface DataOverview {
+	total_records: number;
+	timestamp: string;
+	analysis_type: string;
+	total_columns?: number;
+	missing_values?: number;
+}
 import DynamicDashboard from "../components/analytics/DynamicDashboard";
 import { ArrowUpIcon, ArrowDownIcon, PlusIcon } from "../components/icons";
 
 interface AIPageState {
-	data: any[] | null;
+	data: unknown[] | null;
 	analysis: DataAnalysis | null;
 	insights: InsightsSummary | null;
 	overview: DataOverview | null;
@@ -54,15 +75,10 @@ const AIDashboardPage: React.FC = () => {
 
 	const checkAPIHealth = async () => {
 		try {
-			const isHealthy = await dashboardService.checkHealth();
-			if (!isHealthy) {
-				setState((prev) => ({
-					...prev,
-					error:
-						"Backend API is not responding. Please ensure the Flask server is running on http://localhost:5000",
-				}));
-			}
-		} catch (error) {
+			// Check if we can get dashboard config as a health check
+			await dashboardService.getDashboardConfig();
+			console.log("✅ Backend API is responding");
+		} catch (error: unknown) {
 			setState((prev) => ({
 				...prev,
 				error:
@@ -71,7 +87,7 @@ const AIDashboardPage: React.FC = () => {
 		}
 	};
 
-	const handleDataUpload = useCallback(async (uploadedData: any[]) => {
+	const handleDataUpload = useCallback(async (uploadedData: unknown[]) => {
 		setState((prev) => ({ ...prev, loading: true, error: null }));
 
 		try {
@@ -86,22 +102,24 @@ const AIDashboardPage: React.FC = () => {
 			// Get orchestrated dashboard data instead of AI analysis
 			const [orchestratedMetrics, dashboardConfig] = await Promise.all([
 				dashboardService.getDashboardMetrics(),
-				dashboardService.getDashboardConfig()
+				dashboardService.getDashboardConfig(),
 			]);
 
 			// Process orchestrated data
-			const insightMetrics = orchestratedMetrics.filter(m => 
-				m.metric_type === 'insight' || m.metric_type === 'recommendation'
+			const insightMetrics = orchestratedMetrics.filter(
+				(m) => m.metric_type === "insight" || m.metric_type === "recommendation"
 			);
 
 			const analysis = {
 				summary: "Dashboard loaded from pre-generated analytics",
-				recommendations: insightMetrics.map(m => m.metric_value || m.metric_name) || [
+				recommendations: insightMetrics.map(
+					(m) => m.metric_value || m.metric_name
+				) || [
 					"📊 Data uploaded and processed successfully",
 					"💰 Analytics dashboard ready",
-					"⚡ Real-time monitoring active"
+					"⚡ Real-time monitoring active",
 				],
-				charts: dashboardConfig?.chart_widgets || []
+				charts: dashboardConfig?.chart_widgets || [],
 			};
 
 			setState((prev) => ({
@@ -120,10 +138,10 @@ const AIDashboardPage: React.FC = () => {
 				activeTab: "analysis",
 				loading: false,
 			}));
-		} catch (error: any) {
+		} catch (error: unknown) {
 			setState((prev) => ({
 				...prev,
-				error: error.message || "Failed to analyze data",
+				error: (error as Error).message || "Failed to analyze data",
 				loading: false,
 			}));
 		}
@@ -135,17 +153,18 @@ const AIDashboardPage: React.FC = () => {
 		setState((prev) => ({ ...prev, loading: true, error: null }));
 
 		try {
-			const dashboard = await dashboardService.generateDashboard(state.data);
+			// Get existing dashboard config instead of generating
+			const dashboard = await dashboardService.getDashboardConfig();
 			setState((prev) => ({
 				...prev,
 				dashboard,
 				activeTab: "dashboard",
 				loading: false,
 			}));
-		} catch (error: any) {
+		} catch (error: unknown) {
 			setState((prev) => ({
 				...prev,
-				error: error.message || "Failed to generate dashboard",
+				error: (error as Error).message || "Failed to generate dashboard",
 				loading: false,
 			}));
 		}
@@ -155,16 +174,52 @@ const AIDashboardPage: React.FC = () => {
 		setState((prev) => ({ ...prev, loading: true, error: null }));
 
 		try {
-			const sampleData = await dashboardService.getSampleData();
-			await handleDataUpload(sampleData);
-		} catch (error: any) {
+			// Load real client data instead of sample data
+			const sampleData = await dashboardService.getClientData();
+			if (sampleData.length === 0) {
+				// Fallback sample data if no client data
+				const fallbackData = [
+					{ id: 1, revenue: 1000, date: "2024-01-01", category: "Sales" },
+					{ id: 2, revenue: 1500, date: "2024-01-02", category: "Marketing" },
+					{ id: 3, revenue: 2000, date: "2024-01-03", category: "Sales" },
+				];
+				await handleDataUpload(fallbackData);
+			} else {
+				await handleDataUpload(sampleData);
+			}
+		} catch (error: unknown) {
 			setState((prev) => ({
 				...prev,
-				error: error.message || "Failed to load sample data",
+				error: (error as Error).message || "Failed to load sample data",
 				loading: false,
 			}));
 		}
 	}, [handleDataUpload]);
+
+	// Simple CSV parser
+	const parseCsvData = (csvString: string): unknown[] => {
+		const lines = csvString.split("\n").filter((line) => line.trim());
+		if (lines.length === 0) return [];
+
+		const headers = lines[0].split(",").map((header) => header.trim());
+		const data: unknown[] = [];
+
+		for (let i = 1; i < lines.length; i++) {
+			const values = lines[i].split(",");
+			if (values.length === headers.length) {
+				const obj: Record<string, any> = {};
+				headers.forEach((header, index) => {
+					const value = values[index]?.trim();
+					// Try to convert to number if possible
+					const numValue = Number(value);
+					obj[header] = !isNaN(numValue) && value !== "" ? numValue : value;
+				});
+				data.push(obj);
+			}
+		}
+
+		return data;
+	};
 
 	const handleFileUpload = useCallback(
 		(event: React.ChangeEvent<HTMLInputElement>) => {
@@ -174,12 +229,12 @@ const AIDashboardPage: React.FC = () => {
 			const reader = new FileReader();
 			reader.onload = (e) => {
 				try {
-					let data: any[];
+					let data: unknown[];
 
 					if (file.type === "application/json") {
 						data = JSON.parse(e.target?.result as string);
 					} else if (file.type === "text/csv" || file.name.endsWith(".csv")) {
-						data = dashboardService.parseCsvData(e.target?.result as string);
+						data = parseCsvData(e.target?.result as string);
 					} else {
 						throw new Error(
 							"Unsupported file type. Please upload CSV or JSON files."
@@ -187,10 +242,10 @@ const AIDashboardPage: React.FC = () => {
 					}
 
 					handleDataUpload(data);
-				} catch (error: any) {
+				} catch (error: unknown) {
 					setState((prev) => ({
 						...prev,
-						error: error.message || "Failed to parse file",
+						error: (error as Error).message || "Failed to parse file",
 						loading: false,
 					}));
 				}
@@ -285,7 +340,7 @@ const AIDashboardPage: React.FC = () => {
 			{/* Sample Data Option */}
 			<div className="text-center">
 				<p className="text-gray-600 dark:text-gray-400 mb-4">
-					Don't have data? Try our sample e-commerce dataset
+					Don&apos;t have data? Try our sample e-commerce dataset
 				</p>
 				<button
 					onClick={loadSampleData}
@@ -350,7 +405,7 @@ const AIDashboardPage: React.FC = () => {
 							Missing Values
 						</h3>
 						<p className="text-2xl font-bold text-gray-800 dark:text-white/90">
-							{state.overview.missing_values.toLocaleString()}
+							{state.overview.missing_values?.toLocaleString() || 0}
 						</p>
 					</div>
 				</div>
@@ -364,13 +419,15 @@ const AIDashboardPage: React.FC = () => {
 							🎯 Key Findings
 						</h3>
 						<ul className="space-y-2">
-							{state.insights.key_findings.slice(0, 5).map((finding, index) => (
-								<li
-									key={index}
-									className="text-sm text-gray-600 dark:text-gray-400">
-									• {finding}
-								</li>
-							))}
+							{state.insights.key_findings
+								.slice(0, 5)
+								.map((finding: string, index: number) => (
+									<li
+										key={index}
+										className="text-sm text-gray-600 dark:text-gray-400">
+										• {finding}
+									</li>
+								))}
 						</ul>
 					</div>
 
@@ -380,8 +437,8 @@ const AIDashboardPage: React.FC = () => {
 						</h3>
 						<ul className="space-y-2">
 							{state.insights.opportunities
-								.slice(0, 5)
-								.map((opportunity, index) => (
+								?.slice(0, 5)
+								.map((opportunity: string, index: number) => (
 									<li
 										key={index}
 										className="text-sm text-green-600 dark:text-green-400">
@@ -396,13 +453,15 @@ const AIDashboardPage: React.FC = () => {
 							⚠️ Risk Alerts
 						</h3>
 						<ul className="space-y-2">
-							{state.insights.risk_alerts.slice(0, 5).map((alert, index) => (
-								<li
-									key={index}
-									className="text-sm text-red-600 dark:text-red-400">
-									• {alert}
-								</li>
-							))}
+							{state.insights.risk_alerts
+								?.slice(0, 5)
+								.map((alert: string, index: number) => (
+									<li
+										key={index}
+										className="text-sm text-red-600 dark:text-red-400">
+										• {alert}
+									</li>
+								))}
 						</ul>
 					</div>
 
@@ -411,13 +470,15 @@ const AIDashboardPage: React.FC = () => {
 							📋 Action Items
 						</h3>
 						<ul className="space-y-2">
-							{state.insights.action_items.slice(0, 5).map((action, index) => (
-								<li
-									key={index}
-									className="text-sm text-blue-600 dark:text-blue-400">
-									• {action}
-								</li>
-							))}
+							{state.insights.action_items
+								?.slice(0, 5)
+								.map((action: string, index: number) => (
+									<li
+										key={index}
+										className="text-sm text-blue-600 dark:text-blue-400">
+										• {action}
+									</li>
+								))}
 						</ul>
 					</div>
 				</div>
@@ -465,9 +526,8 @@ const AIDashboardPage: React.FC = () => {
 	const renderDashboardTab = () => (
 		<div>
 			<DynamicDashboard
-				data={state.data || undefined}
 				dashboardConfig={state.dashboard || undefined}
-				onConfigChange={(config) =>
+				onConfigChange={(config: DashboardConfig) =>
 					setState((prev) => ({ ...prev, dashboard: config }))
 				}
 			/>
@@ -489,13 +549,18 @@ const AIDashboardPage: React.FC = () => {
 			<div className="min-h-screen bg-gray-50 dark:bg-gray-900">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 					{/* Header */}
-                    <div className="mb-8">
-                        <div className="flex items-center gap-3">
-                            <img src="/favicon.svg" alt="App icon" className="w-8 h-8 rounded-full" />
-                            <h1 className="text-3xl font-bold text-gray-800 dark:text-white/90">
-                                AI Analytics Dashboard
-                            </h1>
-                        </div>
+					<div className="mb-8">
+						<div className="flex items-center gap-3">
+							{/* eslint-disable-next-line @next/next/no-img-element */}
+							<img
+								src="/favicon.svg"
+								alt="App icon"
+								className="w-8 h-8 rounded-full"
+							/>
+							<h1 className="text-3xl font-bold text-gray-800 dark:text-white/90">
+								AI Analytics Dashboard
+							</h1>
+						</div>
 						<p className="text-gray-600 dark:text-gray-400 mt-2">
 							Powered by artificial intelligence • Automated insights •
 							Beautiful visualizations
@@ -541,7 +606,10 @@ const AIDashboardPage: React.FC = () => {
 									key={tab.id}
 									onClick={() =>
 										!tab.disabled &&
-										setState((prev) => ({ ...prev, activeTab: tab.id as any }))
+										setState((prev) => ({
+											...prev,
+											activeTab: tab.id as "upload" | "analysis" | "dashboard",
+										}))
 									}
 									disabled={tab.disabled}
 									className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
