@@ -64,11 +64,11 @@ export default function InventoryLevelsCharts({
 
 	// Extract trend analysis from platform data - MEMOIZED
 	const shopifyData = useMemo(
-		() => shopifyUseCustomDate ? shopifyCustomData : shopifyPlatformData?.trend_analysis,
+		() => shopifyUseCustomDate ? shopifyCustomData?.shopify : shopifyPlatformData?.trend_analysis,
 		[shopifyPlatformData, shopifyCustomData, shopifyUseCustomDate]
 	);
 	const amazonData = useMemo(
-		() => amazonUseCustomDate ? amazonCustomData : amazonPlatformData?.trend_analysis,
+		() => amazonUseCustomDate ? amazonCustomData?.amazon : amazonPlatformData?.trend_analysis,
 		[amazonPlatformData, amazonCustomData, amazonUseCustomDate]
 	);
 
@@ -223,7 +223,7 @@ export default function InventoryLevelsCharts({
 			(shopifyDateRange.end.getTime() - shopifyDateRange.start.getTime()) /
 				(1000 * 60 * 60 * 24)
 		);
-		return processInventoryLevelsData(shopifyData, days);
+		return processInventoryLevelsData(shopifyData, days, 'shopify');
 	}, [shopifyData, shopifyDateRange]);
 
 	const amazonChartData = useMemo(() => {
@@ -237,7 +237,7 @@ export default function InventoryLevelsCharts({
 	const allChartData = useMemo(() => {
 		// If using custom date data, use that directly (it's already combined)
 		if (allUseCustomDate && allCustomData) {
-			return processInventoryLevelsData(allCustomData, 0, 'combined');
+			return processInventoryLevelsData(allCustomData?.combined, 0, 'combined');
 		}
 
 		// ✅ CROSS-CONTAMINATION FIX: Use original data, NOT individual platform data
@@ -470,217 +470,3 @@ export default function InventoryLevelsCharts({
 		</div>
 	);
 }
-
-							<div className="text-center">
-
-
-								<BarChart3 className="h-4 w-4 mx-auto mb-2 text-gray-400" />
-
-
-								<p className="text-sm">No inventory data available</p>
-
-
-								<p className="text-xs text-gray-400">
-
-
-									Try selecting a different date range
-
-
-								</p>
-
-
-							</div>
-
-
-						</div>
-
-
-					)}
-
-
-				</CardContent>
-
-
-			</Card>
-
-
-		);
-
-	};
-
-
-
-	return (
-
-
-		<div className={`space-y-6 ${className}`}>
-
-
-			<div className="flex items-center justify-between">
-
-
-				<h2 className="text-xl font-semibold text-gray-900">
-
-
-					Inventory Levels
-
-
-				</h2>
-
-
-				<p className="text-sm text-gray-600">
-
-
-					Time series analysis of inventory levels across platforms
-
-
-				</p>
-
-
-			</div>
-
-
-
-			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-
-				{/* Shopify Inventory Levels */}
-
-
-				<InventoryLevelChart
-
-
-					title="Shopify Inventory Levels"
-
-
-					data={shopifyChartData}
-
-
-					dateRange={shopifyDateRange}
-
-
-					onDateRangeChange={handleShopifyDateChange}
-					loading={shopifyLoading}
-
-
-					error={shopifyError}
-
-
-					icon={<Store className="h-4 w-4" style={{ color: "#059669" }} />}
-
-
-					iconColor="#059669"
-
-
-					iconBgColor="#ecfdf5"
-
-
-				/>
-
-
-
-				{/* Amazon Inventory Levels */}
-
-
-				<InventoryLevelChart
-
-
-					title="Amazon Inventory Levels"
-
-
-					data={amazonChartData}
-
-
-					dateRange={amazonDateRange}
-
-
-					onDateRangeChange={handleAmazonDateChange}
-					loading={amazonLoading}
-
-
-					error={amazonError}
-
-
-					icon={
-
-
-						<ShoppingBag className="h-4 w-4" style={{ color: "#f59e0b" }} />
-
-
-					}
-
-
-					iconColor="#f59e0b"
-
-
-					iconBgColor="#fffbeb"
-
-
-				/>
-
-
-
-				{/* All Platforms Combined */}
-
-
-				<InventoryLevelChart
-
-
-					title="All Platforms Combined"
-
-
-					data={allChartData}
-
-
-					dateRange={allDateRange}
-
-
-					onDateRangeChange={handleAllDateChange}
-					loading={allLoading}
-					error={shopifyError || amazonError}
-
-
-					icon={<TrendingUp className="h-4 w-4" style={{ color: "#3b82f6" }} />}
-
-
-					iconColor="#3b82f6"
-
-
-					iconBgColor="#eff6ff"
-
-
-				/>
-
-
-			</div>
-
-
-
-			{/* Data Info */}
-
-
-			<div className="text-center text-sm text-gray-500">
-
-
-				<Calendar className="inline h-4 w-4 mr-1" />
-
-
-				Showing inventory data for selected date ranges • Data updates every 5
-
-
-				minutes
-
-
-			</div>
-
-
-		</div>
-
-
-	);
-
-
-}
-
-
-

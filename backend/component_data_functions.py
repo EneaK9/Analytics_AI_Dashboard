@@ -7,8 +7,9 @@ component type and returns appropriately formatted data.
 """
 
 import logging
+import json
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from database import get_admin_client
 
 logger = logging.getLogger(__name__)
@@ -31,14 +32,21 @@ class ComponentDataManager:
         }
     
     def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
-        """Parse date string to datetime object"""
+        """Parse date string to datetime object (always returns timezone-aware datetime in UTC)"""
         if not date_str:
             return None
         try:
-            return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            # Try ISO format first (handles timezone-aware strings)
+            dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            # If it's timezone-naive, assume UTC
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
         except ValueError:
             try:
-                return datetime.strptime(date_str, '%Y-%m-%d')
+                # Parse YYYY-MM-DD format and assume UTC
+                dt = datetime.strptime(date_str, '%Y-%m-%d')
+                return dt.replace(tzinfo=timezone.utc)
             except ValueError:
                 logger.warning(f"Could not parse date: {date_str}")
                 return None
@@ -388,11 +396,11 @@ class ComponentDataManager:
             return {"error": str(e)}
     
     async def _get_platform_inventory_levels(self, table_name: str, platform: str, start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
-        """Get REAL inventory levels using current inventory and sales data to reconstruct historical levels"""
+        """Calculate inventory levels: inventory_at_start_date - cumulative units sold since start date"""
         try:
             db_client = get_admin_client()
             
-            # Get current products and orders
+            # Get current products
             products_response = db_client.table(table_name).select("*").execute()
             products = products_response.data or []
             
@@ -405,203 +413,278 @@ class ComponentDataManager:
                 logger.error(f"❌ Unknown platform: {platform}")
                 return {'inventory_levels_chart': [], 'current_total_inventory': 0, 'error': 'Unknown platform'}
             
-            # Get orders for the date range (with database-level filtering)
+            # Parse dates first
+            if not start_date or not end_date:
+                return {
+                    'inventory_levels_chart': [],
+                    'current_total_inventory': 0,
+                    'error': 'Start date and end date are required'
+                }
+            
+            start_dt = self._parse_date(start_date)
+            end_dt = self._parse_date(end_date)
+            
+            if not start_dt or not end_dt:
+                return {
+                    'inventory_levels_chart': [],
+                    'current_total_inventory': 0,
+                    'error': 'Invalid date format'
+                }
+            
+            # Get ALL orders from start_date to NOW (to calculate inventory at start_date)
+            now = datetime.now(timezone.utc)
+            
             orders_query = db_client.table(orders_table).select("*")
-            if start_date:
-                start_dt = self._parse_date(start_date)
-                if start_dt:
-                    orders_query = orders_query.gte("created_at", start_dt.isoformat())
-            if end_date:
-                end_dt = self._parse_date(end_date)
-                if end_dt:
-                    orders_query = orders_query.lte("created_at", end_dt.isoformat())
+            orders_query = orders_query.gte("created_at", start_dt.isoformat())
+            orders_query = orders_query.lte("created_at", now.isoformat())
             
             orders_response = orders_query.execute()
-            orders = orders_response.data or []
+            all_orders_since_start = orders_response.data or []
             
-            logger.info(f"🔍 INVENTORY LEVELS DEBUG:")
-            logger.info(f"   📊 Products table: {table_name} -> {len(products)} products")
-            logger.info(f"   📊 Orders table: {orders_table} -> {len(orders)} orders in date range")
-            logger.info(f"   📊 Platform: {platform}")
-            logger.info(f"   📊 Date range: {start_date} to {end_date}")
+            logger.info(f"🔍 INVENTORY CALCULATION (NEW LOGIC):")
+            logger.info(f"   📊 Products: {len(products)}, Orders since start: {len(all_orders_since_start)}")
+            logger.info(f"   📊 Platform: {platform}, Date range: {start_date} to {end_date}")
+            logger.info(f"   📊 Orders table: {orders_table}, Query: {start_date} to NOW")
             
-            # Debug sample products
-            if products:
-                logger.info(f"📦 SAMPLE PRODUCTS:")
-                for i, product in enumerate(products[:3]):
-                    product_name = product.get('title', 'Unknown')
-                    if platform == "shopify":
-                        inventory = product.get('inventory_quantity', 0)
-                    else:
-                        inventory = product.get('quantity', 0)
-                    logger.info(f"   Product {i+1}: {product_name} -> {inventory} units")
+            # Debug: Show sample orders if any exist
+            if all_orders_since_start:
+                logger.info(f"📋 Sample order data (first 3):")
+                for i, order in enumerate(all_orders_since_start[:3]):
+                    logger.info(f"   Order {i+1}: created_at={order.get('created_at')}")
+                    logger.info(f"   Order {i+1}: available columns: {list(order.keys())}")
+                    logger.info(f"   Order {i+1}: line_items_count={order.get('line_items_count')}")
+                    logger.info(f"   Order {i+1}: lines_of_item={order.get('lines_of_item')}")
+                    logger.info(f"   Order {i+1}: quantity={order.get('quantity')}")
+                    logger.info(f"   Order {i+1}: raw_data_exists={bool(order.get('raw_data'))}")
+                    
+                    if order.get('raw_data'):
+                        try:
+                            raw_data = json.loads(order['raw_data']) if isinstance(order['raw_data'], str) else order['raw_data']
+                            line_items = raw_data.get('line_items', [])
+                            logger.info(f"   Order {i+1}: raw_data line_items_count={len(line_items)}")
+                            if line_items and len(line_items) > 0:
+                                first_item = line_items[0] if isinstance(line_items[0], dict) else {}
+                                logger.info(f"   Order {i+1}: first_item_qty={first_item.get('quantity', 'N/A')}")
+                        except Exception as e:
+                            logger.info(f"   Order {i+1}: raw_data parse error: {e}")
+                    logger.info("   " + "-" * 50)
             else:
-                logger.warning(f"⚠️ NO PRODUCTS FOUND in {table_name}!")
-            
-            # Debug sample orders
-            if orders:
-                logger.info(f"🛒 SAMPLE ORDERS:")
-                for i, order in enumerate(orders[:3]):
-                    order_num = order.get('order_number', 'Unknown')
-                    created_at = order.get('created_at', 'Unknown')
-                    total_price = order.get('total_price', 0)
-                    logger.info(f"   Order {i+1}: #{order_num} on {created_at} -> ${total_price}")
-            else:
-                logger.warning(f"⚠️ NO ORDERS FOUND in {orders_table} for date range {start_date} to {end_date}!")
-            
-            timeline_data = []
-            
-            if start_date and end_date:
-                start_dt = self._parse_date(start_date)
-                end_dt = self._parse_date(end_date)
+                logger.warning(f"⚠️ NO ORDERS FOUND since {start_date}")
+                logger.info(f"   Debug: Query was for table '{orders_table}' from {start_date} to NOW")
                 
-                if start_dt and end_dt:
-                    # Calculate current total inventory with improved handling
-                    current_total_inventory = 0
-                    inventory_details = []
-                    valid_products_count = 0
-                    
-                    for product in products:
-                        if platform == "shopify":
-                            # ✅ IMPROVED SHOPIFY INVENTORY_QUANTITY HANDLING
-                            raw_inventory = product.get('inventory_quantity')
-                            product_title = product.get('title', 'Unknown')
-                            sku = product.get('sku', 'No SKU')
-                            
-                            # Handle different data types and null values
-                            if raw_inventory is None:
-                                inventory = 0
-                                logger.debug(f"   📦 {product_title} ({sku}): inventory_quantity is None -> 0")
-                            elif isinstance(raw_inventory, str):
-                                try:
-                                    inventory = int(float(raw_inventory)) if raw_inventory.strip() else 0
-                                    logger.debug(f"   📦 {product_title} ({sku}): string '{raw_inventory}' -> {inventory}")
-                                except (ValueError, AttributeError):
-                                    inventory = 0
-                                    logger.debug(f"   📦 {product_title} ({sku}): invalid string '{raw_inventory}' -> 0")
-                            else:
-                                try:
-                                    inventory = int(float(raw_inventory))
-                                    logger.debug(f"   📦 {product_title} ({sku}): {raw_inventory} -> {inventory}")
-                                except (ValueError, TypeError):
-                                    inventory = 0
-                                    logger.debug(f"   📦 {product_title} ({sku}): invalid value {raw_inventory} -> 0")
-                            
-                            # Ensure non-negative inventory
-                            inventory = max(0, inventory)
-                            inventory_details.append(f"{product_title} ({sku}): {inventory}")
-                            
-                        elif platform == "amazon":
-                            # Amazon quantity field handling 
-                            raw_quantity = product.get('quantity')
-                            product_title = product.get('title', 'Unknown')
-                            
-                            if raw_quantity is None:
-                                inventory = 0
-                            elif isinstance(raw_quantity, str):
-                                try:
-                                    inventory = int(float(raw_quantity)) if raw_quantity.strip() else 0
-                                except (ValueError, AttributeError):
-                                    inventory = 0
-                            else:
-                                try:
-                                    inventory = int(float(raw_quantity))
-                                except (ValueError, TypeError):
-                                    inventory = 0
-                            
-                            inventory = max(0, inventory)
-                            inventory_details.append(f"{product_title}: {inventory}")
-                        
-                        current_total_inventory += inventory
-                        if inventory > 0:
-                            valid_products_count += 1
-                    
-                    logger.info(f"📦 CURRENT INVENTORY CALCULATION:")
-                    logger.info(f"   📊 Total products processed: {len(products)}")
-                    logger.info(f"   📊 Products with inventory > 0: {valid_products_count}")
-                    logger.info(f"   📊 Total current inventory: {current_total_inventory}")
-                    logger.info(f"   📊 Sample products: {inventory_details[:5]}")
-                    
-                    # ✅ VALIDATION: Check if we have valid inventory data
-                    if current_total_inventory == 0:
-                        logger.warning(f"⚠️ ZERO TOTAL INVENTORY detected!")
-                        logger.warning(f"   📊 This could mean:")
-                        logger.warning(f"   - All inventory_quantity values are 0/null")
-                        logger.warning(f"   - No products in the table")
-                        logger.warning(f"   - Data formatting issues")
-                        if products:
-                            logger.warning(f"   📊 Raw sample data: {[{k: v for k, v in products[0].items() if k in ['title', 'sku', 'inventory_quantity', 'quantity']} for _ in range(min(3, len(products)))]}")
-                    
-                    if len(products) == 0:
-                        logger.error(f"❌ NO PRODUCTS FOUND in table {table_name}!")
-                        logger.error(f"   📊 This will cause 'no data' in frontend")
-                        return {
-                            'inventory_levels_chart': [],
-                            'current_total_inventory': 0,
-                            'error': 'No products found in database',
-                            'period_info': {
-                                'start_date': start_date,
-                                'end_date': end_date,
-                                'data_points': 0,
-                                'calculation_method': 'no_products_available'
-                            }
-                        }
-                    
-                    # Calculate daily sales from orders
-                    logger.info(f"🛒 CALCULATING DAILY SALES FROM ORDERS...")
-                    daily_sales = await self._calculate_daily_sales_from_orders(orders, platform, start_dt, end_dt)
-                    
-                    total_orders_sales = sum(daily_sales.values())
-                    logger.info(f"📊 DAILY SALES SUMMARY:")
-                    logger.info(f"   📊 Total units sold in period: {total_orders_sales}")
-                    logger.info(f"   📊 Daily breakdown (first 3): {dict(list(daily_sales.items())[:3])}")
-                    
-                    # Work backwards from today to calculate historical inventory
-                    logger.info(f"🔄 RECONSTRUCTING INVENTORY TIMELINE...")
-                    timeline_data = await self._reconstruct_inventory_timeline(
-                        current_total_inventory, daily_sales, start_dt, end_dt
-                    )
-                    
-                    logger.info(f"📈 TIMELINE RECONSTRUCTION COMPLETE:")
-                    logger.info(f"   📊 Generated {len(timeline_data)} data points")
-                    if timeline_data:
-                        logger.info(f"   📊 First point: {timeline_data[0]}")
-                        logger.info(f"   📊 Last point: {timeline_data[-1]}")
-                        # Show a few more points for debugging
-                        if len(timeline_data) > 5:
-                            logger.info(f"   📊 Sample points: {timeline_data[:3]} ... {timeline_data[-2:]}")
+                # Debug: Check what orders actually exist in the database
+                try:
+                    all_orders_response = db_client.table(orders_table).select("*").limit(5).execute()
+                    all_orders = all_orders_response.data or []
+                    if all_orders:
+                        logger.info(f"   📅 Sample order data from database:")
+                        for i, order in enumerate(all_orders[:2]):
+                            logger.info(f"   Order {i+1}: created_at={order.get('created_at', 'N/A')[:10]}")
+                            logger.info(f"   Order {i+1}: columns: {list(order.keys())}")
                     else:
-                        logger.error(f"❌ NO TIMELINE DATA GENERATED!")
-                        logger.error(f"   📊 Current inventory: {current_total_inventory}")
-                        logger.error(f"   📊 Total sales: {total_orders_sales}")
-                        logger.error(f"   📊 Date range: {start_dt} to {end_dt}")
-                        logger.error(f"   📊 This will result in 'no data' on frontend!")
+                        logger.warning(f"   ❌ NO ORDERS found in table '{orders_table}' at all!")
+                except Exception as e:
+                    logger.error(f"   ❌ Error checking order dates: {e}")
             
-            # ✅ SAFETY CHECK: Ensure we always return some data
-            if not timeline_data and start_date and end_date:
-                logger.warning(f"⚠️ No timeline data generated, creating fallback data")
-                start_dt = self._parse_date(start_date)
-                end_dt = self._parse_date(end_date)
-                if start_dt and end_dt:
-                    # Create simple timeline with current inventory repeated
-                    current_date = start_dt
-                    while current_date <= end_dt:
-                        timeline_data.append({
-                            'date': current_date.strftime('%Y-%m-%d'),
-                            'inventory_level': current_total_inventory,
-                            'value': current_total_inventory
+            # Step 1: Calculate current total inventory
+            current_total_inventory = 0
+            for product in products:
+                if platform == "shopify":
+                    raw_inventory = product.get('inventory_quantity')
+                    if raw_inventory is None:
+                        inventory = 0
+                    elif isinstance(raw_inventory, str):
+                        try:
+                            inventory = int(float(raw_inventory)) if raw_inventory.strip() else 0
+                        except (ValueError, AttributeError):
+                            inventory = 0
+                    else:
+                        try:
+                            inventory = int(float(raw_inventory))
+                        except (ValueError, TypeError):
+                            inventory = 0
+                    inventory = max(0, inventory)
+                elif platform == "amazon":
+                    raw_quantity = product.get('quantity')
+                    if raw_quantity is None:
+                        inventory = 0
+                    elif isinstance(raw_quantity, str):
+                        try:
+                            inventory = int(float(raw_quantity)) if raw_quantity.strip() else 0
+                        except (ValueError, AttributeError):
+                            inventory = 0
+                    else:
+                        try:
+                            inventory = int(float(raw_quantity))
+                        except (ValueError, TypeError):
+                            inventory = 0
+                    inventory = max(0, inventory)
+                
+                current_total_inventory += inventory
+            
+            logger.info(f"📦 Current total inventory: {current_total_inventory}")
+            
+            # Step 2: Calculate total units sold from start_date to NOW
+            def extract_units_from_order(order):
+                units_in_order = 0
+                
+                # Priority 1: Try lines_of_item column first (user suggestion)
+                if order.get('lines_of_item') is not None:
+                    try:
+                        units_in_order = int(order.get('lines_of_item', 0))
+                        if units_in_order > 0:
+                            return units_in_order
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Priority 2: Try line_items_count column
+                if order.get('line_items_count') is not None:
+                    try:
+                        units_in_order = int(order.get('line_items_count', 0))
+                        if units_in_order > 0:
+                            return units_in_order
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Priority 3: For Amazon, try quantity column
+                if platform == "amazon" and order.get('quantity') is not None:
+                    try:
+                        units_in_order = int(order.get('quantity', 0))
+                        if units_in_order > 0:
+                            return units_in_order
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Priority 4: Parse raw_data for Shopify
+                if platform == "shopify":
+                    raw_data = order.get('raw_data')
+                    if raw_data:
+                        try:
+                            if isinstance(raw_data, str):
+                                raw_order = json.loads(raw_data)
+                            else:
+                                raw_order = raw_data
+                            
+                            line_items = raw_order.get('line_items', [])
+                            if isinstance(line_items, list):
+                                for item in line_items:
+                                    if isinstance(item, dict):
+                                        quantity = int(item.get('quantity', 0) or 0)
+                                        units_in_order += quantity
+                                        
+                            if units_in_order > 0:
+                                return units_in_order
+                        except Exception as e:
+                            logger.debug(f"Error parsing raw_data: {e}")
+                
+                # Fallback: Default to 1 unit per order if nothing else works
+                return 1
+            
+            # Calculate total units sold from start_date to NOW
+            total_units_sold_since_start = 0
+            units_extraction_debug = []
+            
+            for i, order in enumerate(all_orders_since_start):
+                order_date = self._parse_date(order.get('created_at', ''))
+                if order_date and order_date >= start_dt:
+                    units = extract_units_from_order(order)
+                    total_units_sold_since_start += units
+                    
+                    # Debug first 3 extractions
+                    if i < 3:
+                        units_extraction_debug.append({
+                            'order_id': order.get('id', f'order_{i}'),
+                            'date': order_date.strftime('%Y-%m-%d'),
+                            'lines_of_item': order.get('lines_of_item'),
+                            'line_items_count': order.get('line_items_count'),
+                            'quantity': order.get('quantity'),
+                            'extracted_units': units
                         })
-                        current_date += timedelta(days=1)
-                    logger.info(f"✅ Created {len(timeline_data)} fallback data points")
+            
+            # Log extraction debugging
+            if units_extraction_debug:
+                logger.info(f"🔍 UNITS EXTRACTION DEBUG:")
+                for debug_info in units_extraction_debug:
+                    logger.info(f"   Order {debug_info['order_id']} ({debug_info['date']}):")
+                    logger.info(f"     lines_of_item: {debug_info['lines_of_item']}")
+                    logger.info(f"     line_items_count: {debug_info['line_items_count']}")
+                    logger.info(f"     quantity: {debug_info['quantity']}")
+                    logger.info(f"     ✅ EXTRACTED UNITS: {debug_info['extracted_units']}")
+                    logger.info("     " + "-" * 30)
+            
+            # Step 3: Calculate inventory at start_date
+            inventory_at_start_date = current_total_inventory + total_units_sold_since_start
+            
+            logger.info(f"🧮 CALCULATION BREAKDOWN:")
+            logger.info(f"   📊 Current inventory: {current_total_inventory}")
+            logger.info(f"   🛒 Units sold since {start_date}: {total_units_sold_since_start}")
+            logger.info(f"   📦 Inventory at {start_date}: {inventory_at_start_date}")
+            
+            # Step 4: Calculate daily sales within the selected period
+            daily_sales_in_period = {}
+            period_orders_processed = 0
+            
+            for order in all_orders_since_start:
+                order_date = self._parse_date(order.get('created_at', ''))
+                if order_date and start_dt <= order_date <= end_dt:
+                    date_key = order_date.strftime('%Y-%m-%d')
+                    units = extract_units_from_order(order)
+                    daily_sales_in_period[date_key] = daily_sales_in_period.get(date_key, 0) + units
+                    period_orders_processed += 1
+            
+            logger.info(f"📊 PERIOD SALES SUMMARY:")
+            logger.info(f"   - Orders in selected period: {period_orders_processed}")
+            logger.info(f"   - Days with sales: {len(daily_sales_in_period)}")
+            logger.info(f"   - Total period sales: {sum(daily_sales_in_period.values())}")
+            if daily_sales_in_period:
+                logger.info(f"   - Sample daily sales: {dict(list(daily_sales_in_period.items())[:3])}")
+            else:
+                logger.warning(f"   ⚠️ NO SALES found in period {start_date} to {end_date}")
+            
+            # Step 5: Create timeline with correct cumulative calculation
+            timeline_data = []
+            current_date = start_dt
+            cumulative_units_sold_from_start = 0
+            
+            while current_date <= end_dt:
+                date_key = current_date.strftime('%Y-%m-%d')
+                units_sold_today = daily_sales_in_period.get(date_key, 0)
+                
+                # Add today's sales to cumulative total from start_date
+                cumulative_units_sold_from_start += units_sold_today
+                
+                # Calculate inventory: inventory_at_start_date - cumulative_units_sold_from_start_date
+                inventory_level_today = max(0, inventory_at_start_date - cumulative_units_sold_from_start)
+                
+                timeline_data.append({
+                    'date': date_key,
+                    'inventory_level': inventory_level_today,
+                    'value': inventory_level_today
+                })
+                current_date += timedelta(days=1)
+            
+            logger.info(f"📊 Sample timeline calculations:")
+            cumulative_debug = 0
+            for i in range(min(5, len(timeline_data))):
+                item = timeline_data[i]
+                date = item['date']
+                units_today = daily_sales_in_period.get(date, 0)
+                cumulative_debug += units_today
+                inventory = item['inventory_level']
+                logger.info(f"   {date}: {inventory_at_start_date} - {cumulative_debug} = {inventory} (sold today: {units_today})")
             
             return {
                 'inventory_levels_chart': timeline_data,
-                'current_total_inventory': timeline_data[-1]['inventory_level'] if timeline_data else current_total_inventory,
+                'current_total_inventory': current_total_inventory,
+                'inventory_at_start_date': inventory_at_start_date,
                 'period_info': {
                     'start_date': start_date,
                     'end_date': end_date,
                     'data_points': len(timeline_data),
-                    'calculation_method': 'sales_based_reconstruction' if any('sales' in item.get('calculation_note', '') for item in timeline_data) else 'fallback_current_inventory'
+                    'calculation_method': 'start_date_inventory_minus_cumulative_sales_from_start',
+                    'total_units_sold_in_period': sum(daily_sales_in_period.values()),
+                    'total_units_sold_since_start': total_units_sold_since_start,
+                    'daily_sales_calculated': len(daily_sales_in_period)
                 }
             }
             
@@ -613,123 +696,7 @@ class ComponentDataManager:
                 'error': str(e)
             }
 
-    async def _reconstruct_inventory_timeline(self, current_inventory: int, daily_sales: Dict[str, int], start_dt: datetime, end_dt: datetime) -> List[Dict]:
-        """Reconstruct historical inventory levels by working backwards from current inventory"""
-        logger.info(f"🔧 STARTING INVENTORY TIMELINE RECONSTRUCTION:")
-        logger.info(f"   📊 Input current_inventory: {current_inventory}")
-        logger.info(f"   📊 Input daily_sales: {len(daily_sales)} days")
-        logger.info(f"   📊 Date range: {start_dt} to {end_dt}")
-        logger.info(f"   📊 Sample daily_sales: {dict(list(daily_sales.items())[:5])}")
-        
-        timeline_data = []
-        
-        # Convert daily_sales to list of dates in reverse order (newest first)
-        date_list = []
-        current_date = start_dt
-        while current_date <= end_dt:
-            date_list.append(current_date)
-            current_date += timedelta(days=1)
-        
-        logger.info(f"   📊 Generated {len(date_list)} dates for timeline")
-        
-        # Work backwards from the most recent date
-        running_inventory = current_inventory
-        
-        # ✅ IMPROVED INVENTORY FORMULA: ending_inventory = beginning_inventory + restock - sales
-        # Working backwards: beginning_inventory = ending_inventory + sales (assuming no restock)
-        
-        # Process dates in reverse order (end_dt to start_dt)  
-        for i, date in enumerate(reversed(date_list)):
-            date_str = date.strftime('%Y-%m-%d')
-            units_sold_today = daily_sales.get(date_str, 0)
-            
-            # For the LAST day (most recent), this is our current inventory
-            # For previous days, add back the units sold to estimate opening inventory
-            if i == 0:  # First iteration = most recent date
-                inventory_level = running_inventory
-                calculation_note = f'Current inventory: {running_inventory}'
-            else:
-                # Add back units sold to get opening inventory for this day
-                running_inventory += units_sold_today
-                inventory_level = running_inventory
-                calculation_note = f'Reconstructed: {running_inventory} + {units_sold_today} sold = {running_inventory + units_sold_today} next day'
-            
-            # Ensure non-negative inventory (business rule)
-            final_inventory = max(0, inventory_level)
-            
-            # Record the inventory level for this date
-            timeline_data.insert(0, {  # Insert at beginning to maintain chronological order
-                'date': date_str,
-                'inventory_level': final_inventory,
-                'value': final_inventory
-            })
-            
-            # Debug first few calculations
-            if i < 5:
-                logger.debug(f"   📊 Date {date_str}: inventory={final_inventory}, sold={units_sold_today}, running={running_inventory}")
-        
-        # Validate the reconstruction
-        total_sales = sum(daily_sales.values())
-        estimated_starting_inventory = timeline_data[0]['inventory_level'] if timeline_data else current_inventory
-        
-        logger.info(f"📈 Inventory reconstruction complete:")
-        logger.info(f"   📊 Current inventory: {current_inventory}")
-        logger.info(f"   📊 Total sales in period: {total_sales}")
-        logger.info(f"   📊 Estimated starting inventory: {estimated_starting_inventory}")
-        logger.info(f"   📊 Data points generated: {len(timeline_data)}")
-        
-        # Debug the first few and last few data points
-        if timeline_data:
-            logger.info(f"   📊 First 3 points: {timeline_data[:3]}")
-            logger.info(f"   📊 Last 3 points: {timeline_data[-3:]}")
-        else:
-            logger.error(f"   ❌ NO DATA POINTS GENERATED! This is the root cause of 'no data'")
-        
-        # ✅ ENHANCED BUSINESS LOGIC: Handle zero sales scenario
-        if total_sales == 0:
-            logger.warning(f"⚠️ No sales found in period - analyzing the situation...")
-            
-            if current_inventory > 0:
-                logger.info(f"   📊 Current inventory exists ({current_inventory}) but no sales in period")
-                logger.info(f"   📊 Creating stable inventory timeline (realistic for low-activity periods)")
-                
-                # For zero sales periods, inventory should remain stable
-                for data_point in timeline_data:
-                    data_point['inventory_level'] = current_inventory
-                    data_point['value'] = current_inventory
-                    data_point['calculation_note'] = 'Stable - no sales in period'
-            else:
-                logger.warning(f"   📊 Zero inventory AND zero sales - possible data issue")
-                # Create minimal synthetic data for visualization
-                for i, data_point in enumerate(timeline_data):
-                    # Very small decreasing pattern for visualization
-                    estimated_inventory = max(0, 10 - i)  # Start at 10, decrease by 1 per day
-                    data_point['inventory_level'] = estimated_inventory
-                    data_point['value'] = estimated_inventory
-                    data_point['calculation_note'] = 'Synthetic - for visualization only'
-            
-            logger.info(f"✅ Applied appropriate handling for zero-sales period")
-        elif total_sales > current_inventory * 1.5:
-            logger.info(f"📦 High sales volume detected - applying restocking logic")
-            # Adjust for likely restocking
-            timeline_data = self._adjust_for_restocking(timeline_data, current_inventory, total_sales)
-        
-        return timeline_data
 
-    def _adjust_for_restocking(self, timeline_data: List[Dict], current_inventory: int, total_sales: int) -> List[Dict]:
-        """Adjust inventory calculations when restocking likely occurred"""
-        logger.info(f"🔄 Adjusting for likely restocking events")
-        
-        # Strategy: If total sales greatly exceed current inventory, 
-        # assume restocking happened and use a more conservative approach
-        for i, data_point in enumerate(timeline_data):
-            # Apply more realistic inventory levels considering restocking
-            base_inventory = current_inventory * 0.8  # Use 80% of current as baseline
-            data_point['inventory_level'] = max(base_inventory, data_point['inventory_level'])
-            data_point['value'] = data_point['inventory_level']
-            data_point['calculation_note'] += ' | Adjusted for restocking'
-        
-        return timeline_data
     
     async def _combine_inventory_timelines(self, shopify_data: Dict, amazon_data: Dict) -> Dict[str, Any]:
         """Combine inventory timelines from both platforms"""
@@ -1028,7 +995,7 @@ class ComponentDataManager:
                         raw_data = order.get('raw_data')
                         if raw_data:
                             try:
-                                import json
+    
                                 if isinstance(raw_data, str):
                                     parsed = json.loads(raw_data)
                                 else:
@@ -1152,7 +1119,7 @@ class ComponentDataManager:
                     raw_data = order.get('raw_data')
                     if raw_data:
                         try:
-                            import json
+
                             if isinstance(raw_data, str):
                                 raw_order = json.loads(raw_data)
                             else:
