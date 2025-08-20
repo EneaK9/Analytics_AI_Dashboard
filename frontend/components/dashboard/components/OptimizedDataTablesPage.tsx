@@ -61,9 +61,7 @@ export default function OptimizedDataTablesPage({
 
 	// Local state for search input (debounced) - MUST be called before any early returns
 	const [searchInput, setSearchInput] = React.useState(filters.search);
-	const [selectedPlatform, setSelectedPlatform] = React.useState<
-		"shopify" | "amazon"
-	>("shopify");
+	const [activeTabIndex, setActiveTabIndex] = React.useState(0);
 
 	// All hooks must be called before any early returns to follow Rules of Hooks
 	// Sync search input with global state when filters change externally
@@ -71,10 +69,39 @@ export default function OptimizedDataTablesPage({
 		setSearchInput(filters.search);
 	}, [filters.search]);
 
-	// Sync selected platform with filters
-	React.useEffect(() => {
-		setSelectedPlatform(filters.platform);
-	}, [filters.platform]);
+	// Create flattened list of all available table combinations
+	const allTableCombinations = React.useMemo(() => {
+		if (!availableTables?.available_tables) return [];
+		
+		const combinations: Array<{
+			platform: "shopify" | "amazon";
+			dataType: "products" | "orders";
+			count: number;
+			displayName: string;
+		}> = [];
+		
+		Object.entries(availableTables.available_tables).forEach(([platform, tables]) => {
+			(tables as any[]).forEach((table) => {
+				const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
+				const dataTypeName = table.data_type.charAt(0).toUpperCase() + table.data_type.slice(1);
+				
+				combinations.push({
+					platform: platform as "shopify" | "amazon",
+					dataType: table.data_type as "products" | "orders",
+					count: table.count,
+					displayName: `${platformName} ${dataTypeName}`
+				});
+			});
+		});
+		
+		// Sort combinations: Amazon first, then Shopify, orders before products
+		return combinations.sort((a, b) => {
+			if (a.platform !== b.platform) {
+				return a.platform === "amazon" ? -1 : 1;
+			}
+			return a.dataType === "orders" ? -1 : 1;
+		});
+	}, [availableTables]);
 
 	// Debug logging
 	React.useEffect(() => {
@@ -82,7 +109,8 @@ export default function OptimizedDataTablesPage({
 		console.log("🔑 Client ID:", user?.client_id);
 		console.log("🎛️ Current filters:", filters);
 		console.log("📋 Available tables:", availableTables);
-	}, [user, filters, availableTables]);
+		console.log("🔗 All table combinations:", allTableCombinations);
+	}, [user, filters, availableTables, allTableCombinations]);
 
 	// Fetch available tables on mount
 	React.useEffect(() => {
@@ -102,6 +130,35 @@ export default function OptimizedDataTablesPage({
 		}, 500);
 		return () => clearTimeout(timer);
 	}, [searchInput, setFilters, filters.search]);
+
+	// Synchronize active tab with current filters
+	React.useEffect(() => {
+		const currentIndex = allTableCombinations.findIndex(
+			(combination) =>
+				combination.platform === filters.platform &&
+				combination.dataType === filters.dataType
+		);
+		if (currentIndex !== -1 && currentIndex !== activeTabIndex) {
+			setActiveTabIndex(currentIndex);
+		}
+	}, [filters.platform, filters.dataType, allTableCombinations, activeTabIndex]);
+
+	// Set initial tab when table combinations are loaded
+	React.useEffect(() => {
+		if (allTableCombinations.length > 0 && activeTabIndex === 0) {
+			const firstCombination = allTableCombinations[0];
+			if (
+				filters.platform !== firstCombination.platform ||
+				filters.dataType !== firstCombination.dataType
+			) {
+				setFilters({
+					platform: firstCombination.platform,
+					dataType: firstCombination.dataType,
+					page: 1,
+				});
+			}
+		}
+	}, [allTableCombinations, setFilters, filters.platform, filters.dataType, activeTabIndex]);
 
 	// Fetch data when filters change or on mount
 	React.useEffect(() => {
@@ -163,59 +220,19 @@ export default function OptimizedDataTablesPage({
 		);
 	}
 
-	// Handle platform change
-	const handlePlatformChange = (
-		_: React.SyntheticEvent,
-		platform: "shopify" | "amazon"
-	) => {
-		if (!platform) return; // Handle case where tab is deselected
+	// Handle tab change
+	const handleTabChange = (_: React.SyntheticEvent, newTabIndex: number) => {
+		if (newTabIndex < 0 || newTabIndex >= allTableCombinations.length) return;
 
-		console.log("🏪 Platform changed to:", platform, "from:", selectedPlatform);
-		console.log(
-			"🏪 Available tables for platform:",
-			availableTables?.available_tables[platform]
-		);
+		const selectedCombination = allTableCombinations[newTabIndex];
+		console.log("🔄 Tab changed to:", selectedCombination);
 
-		setSelectedPlatform(platform);
-
-		// Find the first available data type for this platform
-		const availableDataTypes =
-			availableTables?.available_tables[platform] || [];
-		if (availableDataTypes.length > 0) {
-			const defaultDataType =
-				availableDataTypes.find((t) => t.data_type === "products") ||
-				availableDataTypes[0];
-			console.log(
-				"🏪 Setting default data type to:",
-				defaultDataType.data_type
-			);
-
-			setFilters({
-				platform,
-				dataType: defaultDataType.data_type as "products" | "orders",
-				page: 1,
-				search: "", // Clear search when switching platforms
-			});
-
-			// Clear search input UI as well
-			setSearchInput("");
-		}
-	};
-
-	// Handle data type change
-	const handleDataTypeChange = (_: React.SyntheticEvent, dataType: string) => {
-		if (!dataType) return; // Handle case where tab is deselected
-
-		console.log(
-			"📦 Data type changed to:",
-			dataType,
-			"Current platform:",
-			selectedPlatform
-		);
+		setActiveTabIndex(newTabIndex);
 		setFilters({
-			dataType: dataType as "products" | "orders",
+			platform: selectedCombination.platform,
+			dataType: selectedCombination.dataType,
 			page: 1,
-			search: "", // Clear search when switching data types
+			search: "", // Clear search when switching tabs
 		});
 
 		// Clear search input UI as well
@@ -325,13 +342,8 @@ export default function OptimizedDataTablesPage({
 		);
 	}
 
-	// Get available platforms and data types
-	const availablePlatforms = Object.keys(availableTables.available_tables) as (
-		| "shopify"
-		| "amazon"
-	)[];
-	const currentPlatformTables =
-		availableTables.available_tables[selectedPlatform] || [];
+	// Get current active combination
+	const currentCombination = allTableCombinations[activeTabIndex];
 
 	// Loading state for data
 	if (loading) {
@@ -411,91 +423,34 @@ export default function OptimizedDataTablesPage({
 				All your data is here organized in tabular format
 			</Typography>
 
-			{/* Platform and Data Type Tabs */}
-			<Stack direction="row" spacing={2} sx={{ mb: 3 }} flexWrap="wrap">
-				{/* Platform Tabs */}
-				<Tabs
-					value={selectedPlatform}
-					onChange={handlePlatformChange}
-					variant="standard"
-					sx={{
-						minHeight: 40,
-						"& .MuiTab-root": {
-							minHeight: 40,
-							fontSize: "0.85rem",
-							textTransform: "none",
-							fontWeight: 500,
-						},
-					}}>
-					{availablePlatforms.map((platform) => (
-						<Tab
-							key={platform}
-							value={platform}
-							label={
-								<Stack direction="row" spacing={0.5} alignItems="center">
-									<span>{platform === "shopify" ? "🛍️" : "📦"}</span>
-									<span>
-										{platform.charAt(0).toUpperCase() + platform.slice(1)}
-									</span>
-									<Chip
-										label={availableTables.available_tables[platform].length}
-										size="small"
-										color="primary"
-										sx={{
-											height: 18,
-											fontSize: "0.65rem",
-											"& .MuiChip-label": { px: 0.5 },
-										}}
-									/>
-								</Stack>
-							}
-						/>
-					))}
-				</Tabs>
-
-				{/* Data Type Tabs */}
-				{currentPlatformTables.length > 0 && (
+			{/* Data Tables Tabs */}
+			{allTableCombinations.length > 0 && (
+				<Box sx={{ mb: 3 }}>
 					<Tabs
-						value={filters.dataType}
-						onChange={handleDataTypeChange}
-						variant="standard"
+						value={activeTabIndex}
+						onChange={handleTabChange}
+						variant="scrollable"
+						scrollButtons="auto"
 						sx={{
 							minHeight: 40,
 							"& .MuiTab-root": {
 								minHeight: 40,
-								fontSize: "0.85rem",
+								fontSize: "0.9rem",
 								textTransform: "none",
 								fontWeight: 500,
+								px: 3,
 							},
 						}}>
-						{currentPlatformTables.map((table) => (
+						{allTableCombinations.map((combination, index) => (
 							<Tab
-								key={table.data_type}
-								value={table.data_type}
-								label={
-									<Stack direction="row" spacing={0.5} alignItems="center">
-										<span>{table.data_type === "products" ? "📦" : "🛒"}</span>
-										<span>
-											{table.data_type.charAt(0).toUpperCase() +
-												table.data_type.slice(1)}
-										</span>
-										<Chip
-											label={table.count.toLocaleString()}
-											size="small"
-											color="secondary"
-											sx={{
-												height: 18,
-												fontSize: "0.65rem",
-												"& .MuiChip-label": { px: 0.5 },
-											}}
-										/>
-									</Stack>
-								}
+								key={`${combination.platform}-${combination.dataType}`}
+								value={index}
+								label={combination.displayName}
 							/>
 						))}
 					</Tabs>
-				)}
-			</Stack>
+				</Box>
+			)}
 
 			{/* Search Fallback Alert */}
 			{rawData?.search_fallback && rawData?.search && (
@@ -507,25 +462,32 @@ export default function OptimizedDataTablesPage({
 				</Alert>
 			)}
 
-			{/* Current Table Summary */}
-			{rawData && (
+			{/* Current Table Summary - Only for Selected Tab */}
+			{currentCombination && (
 				<Box sx={{ mb: 3 }}>
 					<Stack
 						direction={{ xs: "column", sm: "row" }}
 						spacing={2}
 						justifyContent="space-between"
 						alignItems={{ sm: "center" }}>
-						<Stack direction="row" spacing={1} flexWrap="wrap">
+						<Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
+							<Typography variant="body1" color="text.secondary">
+								{currentCombination.displayName}:
+							</Typography>
 							<Chip
-								label={`${rawData.pagination.total_records.toLocaleString()} Total Records`}
+								label={`${currentCombination.count.toLocaleString()} Total Records`}
 								color="primary"
 								variant="outlined"
+								size="small"
 							/>
-							<Chip
-								label={`Page ${rawData.pagination.current_page}/${rawData.pagination.total_pages}`}
-								color="secondary"
-								variant="outlined"
-							/>
+							{rawData && (
+								<Chip
+									label={`${rawData.pagination.current_page}/${rawData.pagination.total_pages}`}
+									color="secondary"
+									variant="outlined"
+									size="small"
+								/>
+							)}
 						</Stack>
 						<Button
 							variant="outlined"
