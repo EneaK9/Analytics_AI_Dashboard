@@ -1,6 +1,6 @@
 /**
- * Optimized Data Tables Page
- * Uses global state and raw data service with pagination for efficient data management
+ * Optimized Data Tables Page - Simple Tab Version  
+ * Uses single-level tabs with inventory analytics as another tab
  */
 
 import * as React from "react";
@@ -16,6 +16,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import IconButton from "@mui/material/IconButton";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import ClearIcon from "@mui/icons-material/Clear";
+
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
@@ -31,7 +32,9 @@ import {
 	useRawDataTables,
 	useRawDataFilters,
 	useAvailableTables,
+	useGlobalDataStore,
 } from "../../../store/globalDataStore";
+import InventoryAnalyticsDataTable from "../../analytics/InventoryAnalyticsDataTable";
 
 interface OptimizedDataTablesPageProps {
 	user?: {
@@ -62,6 +65,13 @@ export default function OptimizedDataTablesPage({
 	// Local state for search input (debounced) - MUST be called before any early returns
 	const [searchInput, setSearchInput] = React.useState(filters.search);
 	const [activeTabIndex, setActiveTabIndex] = React.useState(0);
+	// Global inventory data store for analytics tab
+	const { 
+		inventoryData, 
+		loading: inventoryLoading, 
+		errors: inventoryErrors, 
+		fetchInventoryData 
+	} = useGlobalDataStore();
 
 	// All hooks must be called before any early returns to follow Rules of Hooks
 	// Sync search input with global state when filters change externally
@@ -69,38 +79,59 @@ export default function OptimizedDataTablesPage({
 		setSearchInput(filters.search);
 	}, [filters.search]);
 
-	// Create flattened list of all available table combinations
+	// Create flattened list of all available table combinations + inventory analytics
 	const allTableCombinations = React.useMemo(() => {
-		if (!availableTables?.available_tables) return [];
-		
 		const combinations: Array<{
-			platform: "shopify" | "amazon";
-			dataType: "products" | "orders";
-			count: number;
+			id: string;
+			platform?: "shopify" | "amazon";
+			dataType?: "products" | "orders";
+			count?: number;
 			displayName: string;
+			type: 'data' | 'analytics';
 		}> = [];
 		
-		Object.entries(availableTables.available_tables).forEach(([platform, tables]) => {
-			(tables as any[]).forEach((table) => {
-				const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
-				const dataTypeName = table.data_type.charAt(0).toUpperCase() + table.data_type.slice(1);
-				
-				combinations.push({
-					platform: platform as "shopify" | "amazon",
-					dataType: table.data_type as "products" | "orders",
-					count: table.count,
-					displayName: `${platformName} ${dataTypeName}`
-				});
-			});
+		// Add inventory analytics as first tab
+		combinations.push({
+			id: 'inventory-analytics',
+			displayName: 'Inventory Analytics',
+			type: 'analytics'
 		});
 		
-		// Sort combinations: Amazon first, then Shopify, orders before products
-		return combinations.sort((a, b) => {
-			if (a.platform !== b.platform) {
-				return a.platform === "amazon" ? -1 : 1;
-			}
-			return a.dataType === "orders" ? -1 : 1;
-		});
+		// Add data table combinations
+		if (availableTables?.available_tables) {
+			Object.entries(availableTables.available_tables).forEach(([platform, tables]) => {
+				(tables as any[]).forEach((table) => {
+					const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
+					const dataTypeName = table.data_type.charAt(0).toUpperCase() + table.data_type.slice(1);
+					
+					combinations.push({
+						id: `${platform}-${table.data_type}`,
+						platform: platform as "shopify" | "amazon",
+						dataType: table.data_type as "products" | "orders",
+						count: table.count,
+						displayName: `${platformName} ${dataTypeName}`,
+						type: 'data'
+					});
+				});
+			});
+			
+			// Sort data combinations: Amazon first, then Shopify, orders before products
+			const dataCombinations = combinations.filter(c => c.type === 'data');
+			dataCombinations.sort((a, b) => {
+				if (a.platform !== b.platform) {
+					return a.platform === "amazon" ? -1 : 1;
+				}
+				return a.dataType === "orders" ? -1 : 1;
+			});
+			
+			// Rebuild with analytics first, then sorted data combinations
+			return [
+				combinations.find(c => c.type === 'analytics')!,
+				...dataCombinations
+			];
+		}
+		
+		return combinations;
 	}, [availableTables]);
 
 	// Debug logging
@@ -112,6 +143,43 @@ export default function OptimizedDataTablesPage({
 		console.log("🔗 All table combinations:", allTableCombinations);
 	}, [user, filters, availableTables, allTableCombinations]);
 
+	// Synchronize active tab with current filters
+	React.useEffect(() => {
+		const currentIndex = allTableCombinations.findIndex(
+			(combination) =>
+				combination.type === 'data' &&
+				combination.platform === filters.platform &&
+				combination.dataType === filters.dataType
+		);
+		if (currentIndex !== -1 && currentIndex !== activeTabIndex) {
+			setActiveTabIndex(currentIndex);
+		}
+	}, [filters.platform, filters.dataType, allTableCombinations, activeTabIndex]);
+
+	// Set initial tab when table combinations are loaded
+	React.useEffect(() => {
+		if (allTableCombinations.length > 0 && activeTabIndex === 0) {
+			// Start with analytics tab by default
+			const analyticsTab = allTableCombinations.find(c => c.type === 'analytics');
+			if (analyticsTab) {
+				setActiveTabIndex(0);
+			} else {
+				// Fallback to first data table
+				const firstDataTab = allTableCombinations.find(c => c.type === 'data');
+				if (firstDataTab && (
+					filters.platform !== firstDataTab.platform ||
+					filters.dataType !== firstDataTab.dataType
+				)) {
+					setFilters({
+						platform: firstDataTab.platform!,
+						dataType: firstDataTab.dataType!,
+						page: 1,
+					});
+				}
+			}
+		}
+	}, [allTableCombinations, setFilters, filters.platform, filters.dataType, activeTabIndex]);
+
 	// Fetch available tables on mount
 	React.useEffect(() => {
 		if (user?.client_id) {
@@ -119,6 +187,14 @@ export default function OptimizedDataTablesPage({
 			fetchAvailableTables(user.client_id);
 		}
 	}, [user?.client_id, fetchAvailableTables]);
+
+	// Fetch inventory data immediately when component mounts (pre-load for fast access)
+	React.useEffect(() => {
+		if (user?.client_id) {
+			console.log("📊 Pre-loading inventory analytics for client:", user.client_id);
+			fetchInventoryData();
+		}
+	}, [user?.client_id, fetchInventoryData]);
 
 	// Debounced search
 	React.useEffect(() => {
@@ -131,38 +207,10 @@ export default function OptimizedDataTablesPage({
 		return () => clearTimeout(timer);
 	}, [searchInput, setFilters, filters.search]);
 
-	// Synchronize active tab with current filters
+	// Fetch data when filters change or on mount (only for data tables)
 	React.useEffect(() => {
-		const currentIndex = allTableCombinations.findIndex(
-			(combination) =>
-				combination.platform === filters.platform &&
-				combination.dataType === filters.dataType
-		);
-		if (currentIndex !== -1 && currentIndex !== activeTabIndex) {
-			setActiveTabIndex(currentIndex);
-		}
-	}, [filters.platform, filters.dataType, allTableCombinations, activeTabIndex]);
-
-	// Set initial tab when table combinations are loaded
-	React.useEffect(() => {
-		if (allTableCombinations.length > 0 && activeTabIndex === 0) {
-			const firstCombination = allTableCombinations[0];
-			if (
-				filters.platform !== firstCombination.platform ||
-				filters.dataType !== firstCombination.dataType
-			) {
-				setFilters({
-					platform: firstCombination.platform,
-					dataType: firstCombination.dataType,
-					page: 1,
-				});
-			}
-		}
-	}, [allTableCombinations, setFilters, filters.platform, filters.dataType, activeTabIndex]);
-
-	// Fetch data when filters change or on mount
-	React.useEffect(() => {
-		if (user?.client_id) {
+		const currentTab = allTableCombinations[activeTabIndex];
+		if (user?.client_id && currentTab?.type === 'data') {
 			console.log("🔄 Filters changed, fetching data:", filters);
 			fetchRawData(user.client_id);
 		}
@@ -173,6 +221,8 @@ export default function OptimizedDataTablesPage({
 		filters.search,
 		user?.client_id,
 		fetchRawData,
+		activeTabIndex,
+		allTableCombinations,
 	]);
 
 	// Helper function to highlight search matches - must be called before early returns
@@ -228,15 +278,20 @@ export default function OptimizedDataTablesPage({
 		console.log("🔄 Tab changed to:", selectedCombination);
 
 		setActiveTabIndex(newTabIndex);
-		setFilters({
-			platform: selectedCombination.platform,
-			dataType: selectedCombination.dataType,
-			page: 1,
-			search: "", // Clear search when switching tabs
-		});
 
-		// Clear search input UI as well
-		setSearchInput("");
+		if (selectedCombination.type === 'data') {
+			// Update filters for data tables
+			setFilters({
+				platform: selectedCombination.platform!,
+				dataType: selectedCombination.dataType!,
+				page: 1,
+				search: "", // Clear search when switching tabs
+			});
+
+			// Clear search input UI as well
+			setSearchInput("");
+		}
+		// For analytics tab, no filter changes needed
 	};
 
 	// Handle page change
@@ -251,7 +306,12 @@ export default function OptimizedDataTablesPage({
 	// Handle refresh
 	const handleRefresh = () => {
 		if (user?.client_id) {
-			fetchRawData(user.client_id, true); // Force refresh
+			const currentTab = allTableCombinations[activeTabIndex];
+			if (currentTab?.type === 'data') {
+				fetchRawData(user.client_id, true); // Force refresh
+			} else {
+				fetchInventoryData(true); // Force refresh inventory data
+			}
 		}
 	};
 
@@ -346,7 +406,7 @@ export default function OptimizedDataTablesPage({
 	const currentCombination = allTableCombinations[activeTabIndex];
 
 	// Loading state for data
-	if (loading) {
+	if (loading && currentCombination?.type === 'data') {
 		return (
 			<Box
 				sx={{
@@ -366,7 +426,7 @@ export default function OptimizedDataTablesPage({
 	}
 
 	// Error state
-	if (error) {
+	if (error && currentCombination?.type === 'data') {
 		return (
 			<Box sx={{ p: 3 }}>
 				<Alert severity="error" sx={{ mb: 2 }}>
@@ -383,7 +443,7 @@ export default function OptimizedDataTablesPage({
 	}
 
 	// No data state
-	if (!rawData || rawData.data.length === 0) {
+	if (currentCombination?.type === 'data' && (!rawData || rawData.data.length === 0)) {
 		return (
 			<Box sx={{ p: 3 }}>
 				<Card
@@ -415,253 +475,362 @@ export default function OptimizedDataTablesPage({
 	}
 
 	return (
-		<Box sx={{ p: 3 }}>
-			<Typography variant="h4" sx={{ mb: 3, fontWeight: "bold" }}>
+		<Box sx={{ p: 2 }}>
+			<Typography variant="h4" sx={{ mb: 2, fontWeight: "bold" }}>
 				Data Tables
 			</Typography>
-			<Typography variant="subtitle1" color="text.secondary" sx={{ mb: 2 }}>
+			<Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
 				All your data is here organized in tabular format
 			</Typography>
 
-			{/* Data Tables Tabs */}
+			{/* All Tables Tabs */}
 			{allTableCombinations.length > 0 && (
-				<Box sx={{ mb: 3 }}>
+				<Box sx={{ mb: 2 }}>
 					<Tabs
 						value={activeTabIndex}
 						onChange={handleTabChange}
 						variant="scrollable"
 						scrollButtons="auto"
 						sx={{
-							minHeight: 40,
+							minHeight: 32,
 							"& .MuiTab-root": {
-								minHeight: 40,
-								fontSize: "0.9rem",
+								minHeight: 32,
+								fontSize: "0.8rem",
 								textTransform: "none",
 								fontWeight: 500,
-								px: 3,
+								px: 2,
+								py: 1,
+								minWidth: "auto",
+								transition: "none",
+								"&:hover": {
+									backgroundColor: "transparent",
+									border: "none",
+									outline: "none",
+								},
+								"&:focus": {
+									backgroundColor: "transparent",
+									border: "none",
+									outline: "none",
+								},
+								"&:focus-visible": {
+									backgroundColor: "transparent",
+									border: "none",
+									outline: "none",
+								},
+							},
+							"& .MuiTabs-flexContainer": {
+								gap: 0.5,
 							},
 						}}>
 						{allTableCombinations.map((combination, index) => (
 							<Tab
-								key={`${combination.platform}-${combination.dataType}`}
+								key={combination.id}
 								value={index}
 								label={combination.displayName}
+								disableRipple
 							/>
 						))}
 					</Tabs>
 				</Box>
 			)}
 
-			{/* Search Fallback Alert */}
-			{rawData?.search_fallback && rawData?.search && (
-				<Alert severity="info" sx={{ mb: 3 }}>
-					<Typography variant="body2">
-						🔍 No results found for "<strong>{rawData.search}</strong>". Showing
-						all data instead.
-					</Typography>
-				</Alert>
-			)}
-
-			{/* Current Table Summary - Only for Selected Tab */}
-			{currentCombination && (
-				<Box sx={{ mb: 3 }}>
-					<Stack
-						direction={{ xs: "column", sm: "row" }}
-						spacing={2}
-						justifyContent="space-between"
-						alignItems={{ sm: "center" }}>
-						<Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
-							<Typography variant="body1" color="text.secondary">
-								{currentCombination.displayName}:
-							</Typography>
-							<Chip
-								label={`${currentCombination.count.toLocaleString()} Total Records`}
-								color="primary"
-								variant="outlined"
-								size="small"
-							/>
-							{rawData && (
-								<Chip
-									label={`${rawData.pagination.current_page}/${rawData.pagination.total_pages}`}
-									color="secondary"
-									variant="outlined"
-									size="small"
-								/>
-							)}
-						</Stack>
-						<Button
-							variant="outlined"
-							onClick={handleRefresh}
-							startIcon={<RefreshIcon />}
-							size="small">
-							Refresh
-						</Button>
-					</Stack>
-				</Box>
-			)}
-
-			{/* Data Table */}
-			<Card sx={{ height: "100%" }}>
-				<CardHeader
-					title={rawData.display_name}
-					subheader={rawData.message}
-					action={
-						<Stack direction="row" spacing={2} alignItems="center">
-							{/* Search Box */}
-							<OutlinedInput
-								id="optimized-data-table-search"
-								name="searchInput"
-								size="small"
-								value={searchInput}
-								onChange={(e) => setSearchInput(e.target.value)}
-								placeholder={
-									rawData.search_fallback
-										? "Search (showing all data)"
-										: "Search all data..."
-								}
-								endAdornment={
-									<InputAdornment position="end">
-										{searchInput && (
-											<IconButton
-												size="small"
-												onClick={() => setSearchInput("")}>
-												<ClearIcon fontSize="small" />
-											</IconButton>
-										)}
-										<SearchRoundedIcon
-											fontSize="small"
-											sx={{ color: "text.secondary", ml: 0.5 }}
-										/>
-									</InputAdornment>
-								}
-								sx={{
-									width: { xs: "100%", md: 320 },
-									"& .MuiOutlinedInput-root": {
-										borderColor: rawData.search_fallback
-											? "info.main"
-											: undefined,
-									},
-								}}
-							/>
-						</Stack>
-					}
-				/>
-				<CardContent sx={{ p: 0 }}>
-					{/* Pagination Loading Indicator */}
-					{paginationLoading && (
-						<LinearProgress
-							sx={{
-								position: "absolute",
-								top: 0,
-								left: 0,
-								right: 0,
-								zIndex: 2,
-							}}
+			{/* Tab Content */}
+			{currentCombination?.type === 'analytics' ? (
+				<>
+					{/* Inventory Analytics Content */}
+					{inventoryErrors.inventoryData ? (
+						<Alert severity="error" sx={{ mb: 2 }}>
+							Failed to load inventory analytics: {inventoryErrors.inventoryData}
+						</Alert>
+					) : inventoryData ? (
+						<InventoryAnalyticsDataTable 
+							analyticsData={inventoryData}
+							title="Inventory Analytics Dashboard"
+							subtitle="Comprehensive analytics data across all platforms"
 						/>
+					) : inventoryLoading ? (
+						<Box
+							sx={{
+								display: "flex",
+								justifyContent: "center",
+								alignItems: "center",
+								minHeight: "400px",
+								flexDirection: "column",
+								gap: 2,
+							}}>
+							<CircularProgress size={60} />
+							<Typography variant="h6" color="text.secondary">
+								Loading Inventory Analytics...
+							</Typography>
+						</Box>
+					) : (
+						<Alert severity="info" sx={{ mb: 2 }}>
+							No inventory analytics data available. Please check your data source.
+						</Alert>
+					)}
+				</>
+			) : (
+				<>
+					{/* Raw Data Tables Content */}
+					{/* Search Fallback Alert */}
+					{rawData?.search_fallback && rawData?.search && (
+						<Alert severity="info" sx={{ mb: 3 }}>
+							<Typography variant="body2">
+								🔍 No results found for "<strong>{rawData.search}</strong>". Showing
+								all data instead.
+							</Typography>
+						</Alert>
+					)}
+
+					{/* Current Table Summary - Only for Selected Tab */}
+					{currentCombination && rawData && (
+						<Box sx={{ mb: 2 }}>
+							<Stack
+								direction={{ xs: "column", sm: "row" }}
+								spacing={2}
+								justifyContent="space-between"
+								alignItems={{ sm: "center" }}>
+								<Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
+									<Typography variant="body1" color="text.secondary">
+										{currentCombination.displayName}:
+									</Typography>
+									<Chip
+										label={`${currentCombination.count?.toLocaleString()} Total Records`}
+										color="primary"
+										variant="outlined"
+										size="small"
+										sx={{ height: 20, fontSize: "0.7rem" }}
+									/>
+									<Chip
+										label={`${rawData.pagination.current_page}/${rawData.pagination.total_pages}`}
+										color="secondary"
+										variant="outlined"
+										size="small"
+										sx={{ height: 20, fontSize: "0.7rem" }}
+									/>
+								</Stack>
+								<Button
+									variant="outlined"
+									onClick={handleRefresh}
+									startIcon={<RefreshIcon />}
+									size="small">
+									Refresh
+								</Button>
+							</Stack>
+						</Box>
 					)}
 
 					{/* Data Table */}
-					<Box
-						sx={{
-							width: "100%",
-							height: { xs: "50vh", md: "60vh" },
-							overflow: "auto",
-							position: "relative",
-							opacity: paginationLoading ? 0.7 : 1,
-							transition: "opacity 0.2s ease-in-out",
-						}}>
-						{paginationLoading ? (
-							<SkeletonTable />
-						) : (
-							<table
-								style={{
-									width: "100%",
-									borderCollapse: "collapse",
-									tableLayout: "auto",
-								}}>
-								<thead>
-									<tr style={{ backgroundColor: "#f5f5f5" }}>
-										{rawData.columns.map((column, colIndex) => (
-											<th
-												key={colIndex}
-												style={{
-													position: "sticky",
-													top: 0,
-													zIndex: 1,
-													padding: "12px",
-													textAlign: "left",
-													borderBottom: "1px solid #ddd",
-													fontWeight: "bold",
-													background: "#f5f5f5",
-												}}>
-												{column}
-											</th>
-										))}
-									</tr>
-								</thead>
-								<tbody>
-									{rawData.data.map((row, rowIndex) => (
-										<tr key={rowIndex}>
-											{rawData.columns.map((column, cellIndex) => {
-												const cellValue = row[column];
-												const text = String(cellValue ?? "-");
-												const searchTerm = filters.search.trim();
-
-												return (
-													<td
-														key={cellIndex}
-														style={{
-															padding: "12px",
-															borderBottom: "1px solid #eee",
-															whiteSpace: "nowrap",
-															maxWidth: "200px",
-															overflow: "hidden",
-															textOverflow: "ellipsis",
-														}}
-														title={text} // Show full text on hover
-													>
-														{searchTerm &&
-														text
-															.toLowerCase()
-															.includes(searchTerm.toLowerCase()) &&
-														!rawData.search_fallback
-															? highlightSearchText(text, searchTerm)
-															: text}
-													</td>
-												);
-											})}
-										</tr>
-									))}
-								</tbody>
-							</table>
-						)}
-					</Box>
-
-					{/* Pagination */}
-					{rawData.pagination.total_pages > 1 && (
-						<Box sx={{ p: 2, display: "flex", justifyContent: "center" }}>
-							<Pagination
-								count={rawData.pagination.total_pages}
-								page={rawData.pagination.current_page}
-								onChange={handlePageChange}
-								color="primary"
-								size="large"
-								showFirstButton
-								showLastButton
-								disabled={paginationLoading}
-								sx={{
-									"& .MuiPaginationItem-root": {
-										transition: "all 0.2s ease-in-out",
-									},
-									"& .MuiPaginationItem-root.Mui-disabled": {
-										opacity: 0.6,
-									},
+					{rawData && (
+						<Card 
+							variant="outlined" 
+							sx={{ 
+								height: "100%",
+								boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+								borderRadius: 2,
+								border: "1px solid #e0e0e0"
+							}}>
+							<Box 
+								sx={{ 
+									p: 2, 
+									backgroundColor: "#ffffff",
+									borderBottom: "1px solid #e0e0e0",
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "space-between",
+									gap: 2,
+									flexWrap: "wrap"
 								}}
-							/>
-						</Box>
+							>
+								<Box sx={{ display: "flex", flexDirection: "column", minWidth: "auto" }}>
+									<Typography variant="h6" sx={{ fontSize: "1.25rem", fontWeight: 600, color: "#212121", mb: 0 }}>
+										{rawData.display_name}
+									</Typography>
+									<Typography variant="body2" sx={{ fontSize: "0.875rem", color: "#757575" }}>
+										{rawData.message}
+									</Typography>
+								</Box>
+								<OutlinedInput
+									id="optimized-data-table-search"
+									name="searchInput"
+									size="small"
+									value={searchInput}
+									onChange={(e) => setSearchInput(e.target.value)}
+									placeholder={
+										rawData.search_fallback
+											? "Search (showing all data)"
+											: "Search all data..."
+									}
+									endAdornment={
+										<InputAdornment position="end">
+											{searchInput && (
+												<IconButton
+													size="small"
+													onClick={() => setSearchInput("")}>
+													<ClearIcon fontSize="small" />
+												</IconButton>
+											)}
+											<SearchRoundedIcon
+												fontSize="small"
+												sx={{ color: "text.secondary", ml: 0.5 }}
+											/>
+										</InputAdornment>
+									}
+									sx={{
+										width: { xs: "100%", md: 320 },
+										"& .MuiOutlinedInput-root": {
+											borderColor: rawData.search_fallback
+												? "info.main"
+												: undefined,
+										},
+									}}
+								/>
+							</Box>
+							<CardContent sx={{ p: 0 }}>
+								{/* Pagination Loading Indicator */}
+								{paginationLoading && (
+									<LinearProgress
+										sx={{
+											position: "absolute",
+											top: 0,
+											left: 0,
+											right: 0,
+											zIndex: 2,
+										}}
+									/>
+								)}
+
+								{/* Data Table */}
+								<Box
+									sx={{
+										width: "100%",
+										height: { xs: "60vh", md: "75vh" },
+										overflow: "auto",
+										position: "relative",
+										opacity: paginationLoading ? 0.7 : 1,
+										transition: "opacity 0.2s ease-in-out",
+										backgroundColor: "#ffffff",
+										borderRadius: "0 0 8px 8px",
+									}}>
+									{paginationLoading ? (
+										<SkeletonTable />
+									) : (
+																			<table
+										style={{
+											width: "100%",
+											borderCollapse: "collapse",
+											tableLayout: "auto",
+										}}>
+																					<thead>
+												<tr style={{ backgroundColor: "#ffffff", borderBottom: "2px solid #e0e0e0" }}>
+												{rawData.columns.map((column, colIndex) => (
+													<th
+														key={colIndex}
+														style={{
+															position: "sticky",
+															top: 0,
+															zIndex: 1,
+															padding: "16px 12px",
+															textAlign: "left",
+															fontWeight: "600",
+															fontSize: "0.875rem",
+															color: "#424242",
+															background: "#ffffff",
+															borderRight: colIndex < rawData.columns.length - 1 ? "1px solid #f0f0f0" : "none",
+														}}>
+														{column}
+													</th>
+												))}
+											</tr>
+										</thead>
+										<tbody>
+											{rawData.data.map((row, rowIndex) => (
+												<tr 
+													key={rowIndex}
+													style={{
+														backgroundColor: rowIndex % 2 === 0 ? "#ffffff" : "#fafafa",
+														transition: "background-color 0.2s ease",
+													}}
+													onMouseEnter={(e) => {
+														e.currentTarget.style.backgroundColor = "#f5f5f5";
+													}}
+													onMouseLeave={(e) => {
+														e.currentTarget.style.backgroundColor = rowIndex % 2 === 0 ? "#ffffff" : "#fafafa";
+													}}
+												>
+													{rawData.columns.map((column, cellIndex) => {
+														const cellValue = row[column];
+														const text = String(cellValue ?? "-");
+														const searchTerm = filters.search.trim();
+
+														return (
+															<td
+																key={cellIndex}
+																style={{
+																	padding: "12px",
+																	borderBottom: "1px solid #f0f0f0",
+																	borderRight: cellIndex < rawData.columns.length - 1 ? "1px solid #f0f0f0" : "none",
+																	whiteSpace: "nowrap",
+																	maxWidth: "200px",
+																	overflow: "hidden",
+																	textOverflow: "ellipsis",
+																	fontSize: "0.875rem",
+																	color: "#424242",
+																}}
+																title={text} // Show full text on hover
+															>
+																{searchTerm &&
+																text
+																	.toLowerCase()
+																	.includes(searchTerm.toLowerCase()) &&
+																!rawData.search_fallback
+																	? highlightSearchText(text, searchTerm)
+																	: text}
+															</td>
+														);
+													})}
+												</tr>
+											))}
+										</tbody>
+									</table>
+									)}
+								</Box>
+
+								{/* Pagination */}
+								{rawData.pagination.total_pages > 1 && (
+									<Box sx={{ 
+										p: 3, 
+										display: "flex", 
+										justifyContent: "center",
+										borderTop: "1px solid #e0e0e0",
+										backgroundColor: "#fafafa"
+									}}>
+										<Pagination
+											count={rawData.pagination.total_pages}
+											page={rawData.pagination.current_page}
+											onChange={handlePageChange}
+											color="primary"
+											size="medium"
+											showFirstButton
+											showLastButton
+											disabled={paginationLoading}
+											sx={{
+												"& .MuiPaginationItem-root": {
+													transition: "all 0.2s ease-in-out",
+													fontWeight: 500,
+												},
+												"& .MuiPaginationItem-root.Mui-disabled": {
+													opacity: 0.6,
+												},
+											}}
+										/>
+									</Box>
+								)}
+							</CardContent>
+						</Card>
 					)}
-				</CardContent>
-			</Card>
+				</>
+			)}
 		</Box>
 	);
 }
