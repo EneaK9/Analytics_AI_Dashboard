@@ -1,6 +1,6 @@
 /**
  * Optimized Data Tables Page - Simple Tab Version  
- * Uses single-level tabs with inventory analytics as another tab
+ * Uses single-level tabs for data tables
  */
 
 import * as React from "react";
@@ -32,9 +32,7 @@ import {
 	useRawDataTables,
 	useRawDataFilters,
 	useAvailableTables,
-	useGlobalDataStore,
 } from "../../../store/globalDataStore";
-import InventoryAnalyticsDataTable from "../../analytics/InventoryAnalyticsDataTable";
 
 interface OptimizedDataTablesPageProps {
 	user?: {
@@ -65,13 +63,7 @@ export default function OptimizedDataTablesPage({
 	// Local state for search input (debounced) - MUST be called before any early returns
 	const [searchInput, setSearchInput] = React.useState(filters.search);
 	const [activeTabIndex, setActiveTabIndex] = React.useState(0);
-	// Global inventory data store for analytics tab
-	const { 
-		inventoryData, 
-		loading: inventoryLoading, 
-		errors: inventoryErrors, 
-		fetchInventoryData 
-	} = useGlobalDataStore();
+
 
 	// All hooks must be called before any early returns to follow Rules of Hooks
 	// Sync search input with global state when filters change externally
@@ -79,7 +71,7 @@ export default function OptimizedDataTablesPage({
 		setSearchInput(filters.search);
 	}, [filters.search]);
 
-	// Create flattened list of all available table combinations + inventory analytics
+	// Create flattened list of all available table combinations
 	const allTableCombinations = React.useMemo(() => {
 		const combinations: Array<{
 			id: string;
@@ -87,15 +79,9 @@ export default function OptimizedDataTablesPage({
 			dataType?: "products" | "orders";
 			count?: number;
 			displayName: string;
-			type: 'data' | 'analytics';
+			type: 'data';
 		}> = [];
 		
-		// Add inventory analytics as first tab
-		combinations.push({
-			id: 'inventory-analytics',
-			displayName: 'Inventory Analytics',
-			type: 'analytics'
-		});
 		
 		// Add data table combinations
 		if (availableTables?.available_tables) {
@@ -124,11 +110,8 @@ export default function OptimizedDataTablesPage({
 				return a.dataType === "orders" ? -1 : 1;
 			});
 			
-			// Rebuild with analytics first, then sorted data combinations
-			return [
-				combinations.find(c => c.type === 'analytics')!,
-				...dataCombinations
-			];
+			// Return sorted data combinations only
+			return dataCombinations;
 		}
 		
 		return combinations;
@@ -159,23 +142,17 @@ export default function OptimizedDataTablesPage({
 	// Set initial tab when table combinations are loaded
 	React.useEffect(() => {
 		if (allTableCombinations.length > 0 && activeTabIndex === 0) {
-			// Start with analytics tab by default
-			const analyticsTab = allTableCombinations.find(c => c.type === 'analytics');
-			if (analyticsTab) {
-				setActiveTabIndex(0);
-			} else {
-				// Fallback to first data table
-				const firstDataTab = allTableCombinations.find(c => c.type === 'data');
-				if (firstDataTab && (
-					filters.platform !== firstDataTab.platform ||
-					filters.dataType !== firstDataTab.dataType
-				)) {
-					setFilters({
-						platform: firstDataTab.platform!,
-						dataType: firstDataTab.dataType!,
-						page: 1,
-					});
-				}
+			// Start with first data table
+			const firstDataTab = allTableCombinations.find(c => c.type === 'data');
+			if (firstDataTab && (
+				filters.platform !== firstDataTab.platform ||
+				filters.dataType !== firstDataTab.dataType
+			)) {
+				setFilters({
+					platform: firstDataTab.platform!,
+					dataType: firstDataTab.dataType!,
+					page: 1,
+				});
 			}
 		}
 	}, [allTableCombinations, setFilters, filters.platform, filters.dataType, activeTabIndex]);
@@ -188,13 +165,7 @@ export default function OptimizedDataTablesPage({
 		}
 	}, [user?.client_id, fetchAvailableTables]);
 
-	// Fetch inventory data immediately when component mounts (pre-load for fast access)
-	React.useEffect(() => {
-		if (user?.client_id) {
-			console.log("📊 Pre-loading inventory analytics for client:", user.client_id);
-			fetchInventoryData();
-		}
-	}, [user?.client_id, fetchInventoryData]);
+
 
 	// Debounced search
 	React.useEffect(() => {
@@ -291,7 +262,7 @@ export default function OptimizedDataTablesPage({
 			// Clear search input UI as well
 			setSearchInput("");
 		}
-		// For analytics tab, no filter changes needed
+
 	};
 
 	// Handle page change
@@ -309,8 +280,6 @@ export default function OptimizedDataTablesPage({
 			const currentTab = allTableCombinations[activeTabIndex];
 			if (currentTab?.type === 'data') {
 				fetchRawData(user.client_id, true); // Force refresh
-			} else {
-				fetchInventoryData(true); // Force refresh inventory data
 			}
 		}
 	};
@@ -535,42 +504,6 @@ export default function OptimizedDataTablesPage({
 			)}
 
 			{/* Tab Content */}
-			{currentCombination?.type === 'analytics' ? (
-				<>
-					{/* Inventory Analytics Content */}
-					{inventoryErrors.inventoryData ? (
-						<Alert severity="error" sx={{ mb: 2 }}>
-							Failed to load inventory analytics: {inventoryErrors.inventoryData}
-						</Alert>
-					) : inventoryData ? (
-						<InventoryAnalyticsDataTable 
-							analyticsData={inventoryData}
-							title="Inventory Analytics Dashboard"
-							subtitle="Comprehensive analytics data across all platforms"
-						/>
-					) : inventoryLoading ? (
-						<Box
-							sx={{
-								display: "flex",
-								justifyContent: "center",
-								alignItems: "center",
-								minHeight: "400px",
-								flexDirection: "column",
-								gap: 2,
-							}}>
-							<CircularProgress size={60} />
-							<Typography variant="h6" color="text.secondary">
-								Loading Inventory Analytics...
-							</Typography>
-						</Box>
-					) : (
-						<Alert severity="info" sx={{ mb: 2 }}>
-							No inventory analytics data available. Please check your data source.
-						</Alert>
-					)}
-				</>
-			) : (
-				<>
 					{/* Raw Data Tables Content */}
 					{/* Search Fallback Alert */}
 					{rawData?.search_fallback && rawData?.search && (
@@ -723,6 +656,22 @@ export default function OptimizedDataTablesPage({
 										}}>
 																					<thead>
 												<tr style={{ backgroundColor: "#ffffff", borderBottom: "2px solid #e0e0e0" }}>
+													<th
+														style={{
+															position: "sticky",
+															top: 0,
+															zIndex: 1,
+															padding: "16px 12px",
+															textAlign: "left",
+															fontWeight: "600",
+															fontSize: "0.875rem",
+															color: "#424242",
+															background: "#ffffff",
+															borderRight: "1px solid #f0f0f0",
+															width: "60px",
+														}}>
+														#
+													</th>
 												{rawData.columns.map((column, colIndex) => (
 													<th
 														key={colIndex}
@@ -758,6 +707,20 @@ export default function OptimizedDataTablesPage({
 														e.currentTarget.style.backgroundColor = rowIndex % 2 === 0 ? "#ffffff" : "#fafafa";
 													}}
 												>
+													<td
+														style={{
+															padding: "12px",
+															borderBottom: "1px solid #f0f0f0",
+															borderRight: "1px solid #f0f0f0",
+															whiteSpace: "nowrap",
+															fontSize: "0.875rem",
+															color: "#6b7280",
+															fontWeight: "500",
+															width: "60px",
+														}}
+													>
+														{(filters.page - 1) * 50 + rowIndex + 1}
+													</td>
 													{rawData.columns.map((column, cellIndex) => {
 														const cellValue = row[column];
 														const text = String(cellValue ?? "-");
@@ -829,8 +792,7 @@ export default function OptimizedDataTablesPage({
 							</CardContent>
 						</Card>
 					)}
-				</>
-			)}
+
 		</Box>
 	);
 }

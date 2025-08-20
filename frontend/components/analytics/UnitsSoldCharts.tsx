@@ -354,12 +354,7 @@ export default function UnitsSoldCharts({
 				/>
 			</div>
 
-			{/* Data Info */}
-			<div className="text-center text-sm text-gray-500">
-				<Calendar className="inline h-4 w-4 mr-1" />
-				Showing units sold for selected date ranges • Data updates every 5
-				minutes
-			</div>
+
 		</div>
 	);
 }

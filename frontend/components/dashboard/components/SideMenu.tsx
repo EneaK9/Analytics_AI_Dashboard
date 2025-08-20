@@ -88,7 +88,7 @@ export default function SideMenu({
 					<Typography
 						variant="body2"
 						sx={{ fontWeight: 500, lineHeight: "16px" }}>
-						Shfa AI LLC
+						Shfa AI
 					</Typography>
 				</Box>
 				{/* Options menu removed; logout is now available from header user menu */}

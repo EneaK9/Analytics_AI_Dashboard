@@ -269,6 +269,9 @@ export default function DataTable({
 					<table className="w-full">
 						<thead>
 							<tr className="border-b border-gray-200">
+								<th className={`text-left py-3 px-4 font-semibold text-gray-900 ${compact ? "py-2 text-sm" : ""}`} style={{ width: "60px" }}>
+									#
+								</th>
 								{columns.map((column) => (
 									<th
 										key={column.key}
@@ -289,7 +292,7 @@ export default function DataTable({
 							{paginatedData.length === 0 ? (
 								<tr>
 									<td
-										colSpan={columns.length}
+										colSpan={columns.length + 1}
 										className="text-center py-8 text-gray-500">
 										{emptyMessage}
 									</td>
@@ -297,6 +300,9 @@ export default function DataTable({
 							) : (
 								paginatedData.map((row, index) => (
 									<tr key={index} className="border-b border-gray-100">
+										<td className={`py-3 px-4 font-medium text-gray-600 ${compact ? "py-2 text-sm" : ""}`}>
+											{(currentPage - 1) * pageSize + index + 1}
+										</td>
 										{columns.map((column) => (
 											<td
 												key={column.key}

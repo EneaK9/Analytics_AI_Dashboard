@@ -461,12 +461,7 @@ export default function InventoryLevelsCharts({
 				/>
 			</div>
 
-			{/* Data Info */}
-			<div className="text-center text-sm text-gray-500">
-				<Calendar className="inline h-4 w-4 mr-1" />
-				Showing inventory data for selected date ranges • Data updates every 5
-				minutes
-			</div>
+
 		</div>
 	);
 }

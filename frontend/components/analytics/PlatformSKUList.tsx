@@ -203,10 +203,7 @@ export default function PlatformSKUList({
 
 	// Platform Toggle Component
 	const PlatformTabs = () => (
-		<div className="flex items-center justify-between mb-6">
-			<h2 className="text-xl font-semibold text-gray-900">
-				SKU Inventory Management
-			</h2>
+		<div className="flex items-center justify-end mb-6">
 			<div className="flex rounded-lg border border-gray-300 bg-gray-50">
 				<button
 					onClick={() => setSelectedPlatform("shopify")}
@@ -237,7 +234,7 @@ export default function PlatformSKUList({
 			{/* Platform Tabs */}
 			<PlatformTabs />
 
-			{/* Summary Cards */}
+			{/* Summary Cards
 			{safeStats && (
 				<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
 					<Card>
@@ -308,7 +305,7 @@ export default function PlatformSKUList({
 						</CardContent>
 					</Card>
 				</div>
-			)}
+			)} */}
 
 			{/* SKU Data Table */}
 			<DataTable
@@ -332,13 +329,7 @@ export default function PlatformSKUList({
 			/>
 
 			{/* Footer with last updated info */}
-			{currentLastUpdated && (
-				<div className="text-center text-sm text-gray-500">
-					Last updated: {currentLastUpdated.toLocaleTimeString()} •
-					{selectedPlatform === "shopify" ? " Shopify" : " Amazon"} platform
-					data
-				</div>
-			)}
+	
 		</div>
 	);
 }
