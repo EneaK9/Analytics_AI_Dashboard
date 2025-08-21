@@ -181,6 +181,13 @@ class ComponentDataManager:
                 table_name, platform, start_date, end_date, period_days
             )
             
+            # Calculate daily averages for consistent comparison
+            first_half_days = max(period_days // 2, 1)
+            second_half_days = max(period_days - first_half_days, 1)
+            
+            first_half_avg_revenue = first_half_revenue / first_half_days
+            second_half_avg_revenue = second_half_revenue / second_half_days
+            
             return {
                 'total_sales_30_days': {
                     'revenue': total_revenue,
@@ -188,9 +195,9 @@ class ComponentDataManager:
                     'units': total_units
                 },
                 'sales_comparison': {
-                    'first_half_avg_revenue': first_half_revenue / max(period_days // 2, 1),
-                    'second_half_avg_revenue': second_half_revenue / max(period_days // 2, 1),
-                    'growth_rate': ((second_half_revenue - first_half_revenue) / first_half_revenue) * 100 if first_half_revenue > 0 else 0
+                    'first_half_avg_revenue': first_half_avg_revenue,
+                    'second_half_avg_revenue': second_half_avg_revenue,
+                    'growth_rate': ((second_half_avg_revenue - first_half_avg_revenue) / first_half_avg_revenue) * 100 if first_half_avg_revenue > 0 else 0
                 },
                 'period_info': {
                     'start_date': start_date,
@@ -725,9 +732,14 @@ class ComponentDataManager:
                 for date, level in sorted(combined_timeline.items())
             ]
             
+            # Calculate combined current inventory properly
+            shopify_current = shopify_data.get('current_total_inventory', 0)
+            amazon_current = amazon_data.get('current_total_inventory', 0)
+            combined_current_inventory = shopify_current + amazon_current
+            
             return {
                 'inventory_levels_chart': timeline_data,
-                'current_total_inventory': timeline_data[-1]['inventory_level'] if timeline_data else 0,
+                'current_total_inventory': combined_current_inventory,
                 'combined': True
             }
             
@@ -868,15 +880,16 @@ class ComponentDataManager:
                 start_dt = self._parse_date(start_date)
                 end_dt = self._parse_date(end_date)
                 if start_dt and end_dt:
-                    period_days = max((end_dt - start_dt).days, 1)
+                    period_days = max((end_dt - start_dt).days + 1, 1)  # Include both start and end dates
             
             daily_sales_velocity = total_units_sold / period_days if period_days > 0 else 0
             days_of_stock = total_inventory / max(daily_sales_velocity, 1) if daily_sales_velocity > 0 else 999
             
-            # Categorize stock levels
-            low_stock_count = 1 if days_of_stock < 7 else 0
-            out_of_stock_count = 1 if total_inventory == 0 else 0
-            overstock_count = 1 if days_of_stock > 90 else 0
+            # Categorize stock levels - Note: This is simplified for aggregate view
+            # In a real implementation, you'd want to calculate this per SKU
+            low_stock_count = 1 if days_of_stock < 7 else 0  # TODO: Implement per-SKU calculation
+            out_of_stock_count = 1 if total_inventory == 0 else 0  # TODO: Implement per-SKU calculation
+            overstock_count = 1 if days_of_stock > 90 else 0  # TODO: Implement per-SKU calculation
             
             result = {
                 'avg_days_of_stock': round(days_of_stock, 1),

@@ -2926,24 +2926,8 @@ async def get_component_filtered_data(
             component_data = await component_data_manager.get_inventory_levels_data(client_id, platform, start_date, end_date)
             
         elif component_type == "units_sold":
-            # For units sold, we can derive from total sales data
-            sales_data = await component_data_manager.get_total_sales_data(client_id, platform, start_date, end_date)
-            if platform == "combined":
-                total_units = (
-                    sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('units', 0) +
-                    sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('units', 0)
-                )
-            else:
-                total_units = sales_data.get(platform, {}).get('total_sales_30_days', {}).get('units', 0)
-            
-            component_data = {
-                "total_units_sold": total_units,
-                "sales_data": sales_data,
-                "period_info": {
-                    "start_date": start_date,
-                    "end_date": end_date
-                }
-            }
+            # Get actual units sold data with chart data
+            component_data = await component_data_manager.get_units_sold_data(client_id, platform, start_date, end_date)
             
         elif component_type == "historical_comparison":
             # Historical comparison with real period-over-period analysis
