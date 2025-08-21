@@ -12,6 +12,7 @@ export default function App({ Component, pageProps }: AppProps) {
 					<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 					<title>AI Analytics Dashboard</title>
 				</Head>
+
 				<Component {...pageProps} />
 			</GlobalDataProvider>
 		</QueryProvider>

@@ -117,3 +117,5 @@ temp/
 *.njsproj
 *.sln
 *.sw? 
+# Sentry Config File
+.sentryclirc

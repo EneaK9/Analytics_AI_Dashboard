@@ -2621,9 +2621,9 @@ async def get_raw_data_tables(
                 page = 1
                 # Re-run count query without search filter
                 try:
-                    fallback_query = db_client.table(table_name).select("*", count='exact')
-                    count_response = fallback_query.execute()
-                    total_records = count_response.count if count_response.count is not None else 0
+                fallback_query = db_client.table(table_name).select("*", count='exact')
+                count_response = fallback_query.execute()
+                total_records = count_response.count if count_response.count is not None else 0
                 except Exception as fallback_error:
                     logger.error(f"❌ Fallback count query failed: {fallback_error}")
                     total_records = 0
