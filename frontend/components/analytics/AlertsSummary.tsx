@@ -314,17 +314,7 @@ export default function AlertsSummary({
 					</div>
 				)}
 
-				{/* Footer */}
-				{lastUpdated && (
-					<div className="mt-6 pt-4 border-t border-gray-200 text-center">
-						<p className="text-xs text-gray-500">
-							<RefreshCw className="inline h-3 w-3 mr-1" />
-							Last updated: {lastUpdated.toLocaleTimeString()} • Real-time alert
-							monitoring active for{" "}
-							{platform === "shopify" ? "Shopify" : "Amazon"}
-						</p>
-					</div>
-				)}
+
 			</CardContent>
 		</Card>
 	);

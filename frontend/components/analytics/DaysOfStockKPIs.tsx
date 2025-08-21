@@ -1,12 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import { Calendar, TrendingUp, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import CompactDatePicker, {
-	DateRange,
-	getDateRange,
-} from "../ui/CompactDatePicker";
 import { useGlobalDataStore } from "../../store/globalDataStore";
 
 interface DaysOfStockKPIsProps {
@@ -43,21 +39,11 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 		}
 	}, [inventoryData, loading, fetchInventoryData]);
 
-	// Date range states for each platform
-	const [shopifyDateRange, setShopifyDateRange] = useState<DateRange>(
-		getDateRange("month")
-	);
-	const [amazonDateRange, setAmazonDateRange] = useState<DateRange>(
-		getDateRange("month")
-	);
-	const [allDateRange, setAllDateRange] = useState<DateRange>(
-		getDateRange("month")
-	);
+
 
 	// Calculate days of stock data for each platform
 	const calculateStockDaysData = (
 		data: any,
-		dateRange: DateRange,
 		platform: Platform
 	): StockDaysData => {
 		if (!data?.sales_kpis?.days_stock_remaining) {
@@ -110,7 +96,7 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 			trend: {
 				value: trendFormatted,
 				isPositive,
-				label: `vs ${dateRange.label.toLowerCase()}`,
+				label: "vs previous period",
 			},
 			subtitle,
 		};
@@ -119,13 +105,13 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 	// Memoized stock days data for each platform using global state
 	const shopifyStockDays = useMemo(() => {
 		const shopifyData = inventoryData?.inventory_analytics?.platforms?.shopify;
-		return calculateStockDaysData(shopifyData, shopifyDateRange, "shopify");
-	}, [inventoryData, shopifyDateRange]);
+		return calculateStockDaysData(shopifyData, "shopify");
+	}, [inventoryData]);
 
 	const amazonStockDays = useMemo(() => {
 		const amazonData = inventoryData?.inventory_analytics?.platforms?.amazon;
-		return calculateStockDaysData(amazonData, amazonDateRange, "amazon");
-	}, [inventoryData, amazonDateRange]);
+		return calculateStockDaysData(amazonData, "amazon");
+	}, [inventoryData]);
 
 	const allStockDays = useMemo(() => {
 		if (!inventoryData?.inventory_analytics?.platforms) {
@@ -142,8 +128,8 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 
 		// Use the combined platform data which already aggregates both platforms
 		const combinedData = inventoryData.inventory_analytics.platforms.combined;
-		return calculateStockDaysData(combinedData, allDateRange, "all");
-	}, [inventoryData, allDateRange]);
+		return calculateStockDaysData(combinedData, "all");
+	}, [inventoryData]);
 
 	// Format stock days
 	const formatStockDays = (value: number) => {
@@ -155,8 +141,6 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 		({
 			title,
 			data,
-			dateRange,
-			onDateRangeChange,
 			loading,
 			error,
 			icon,
@@ -165,8 +149,6 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 		}: {
 			title: string;
 			data: StockDaysData;
-			dateRange: DateRange;
-			onDateRangeChange: (range: DateRange) => void;
 			loading: boolean;
 			error: string | null;
 			icon: React.ReactNode;
@@ -177,12 +159,9 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 				return (
 					<Card className="bg-gray-100 border-gray-300 hover:shadow-md transition-all duration-300">
 						<CardHeader className="pb-3">
-							<div className="flex items-center justify-between">
-								<CardTitle className="text-sm font-medium text-gray-600">
-									{title}
-								</CardTitle>
-								<div className="w-24 h-6 bg-gray-200 rounded animate-pulse"></div>
-							</div>
+							<CardTitle className="text-sm font-medium text-gray-600">
+								{title}
+							</CardTitle>
 						</CardHeader>
 						<CardContent>
 							<div className="animate-pulse">
@@ -204,15 +183,9 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 				return (
 					<Card className="bg-gray-100 border-red-200 hover:shadow-md transition-all duration-300">
 						<CardHeader className="pb-3">
-							<div className="flex items-center justify-between">
-								<CardTitle className="text-sm font-medium text-gray-600">
-									{title}
-								</CardTitle>
-								<CompactDatePicker
-									value={dateRange}
-									onChange={onDateRangeChange}
-								/>
-							</div>
+							<CardTitle className="text-sm font-medium text-gray-600">
+								{title}
+							</CardTitle>
 						</CardHeader>
 						<CardContent>
 							<div className="flex items-center justify-center h-20 text-red-600">
@@ -226,15 +199,9 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 			return (
 				<Card className="bg-gray-100 border-gray-300 hover:shadow-md hover:bg-gray-200 transition-all duration-300">
 					<CardHeader className="pb-3">
-						<div className="flex items-center justify-between">
-							<CardTitle className="text-sm font-medium text-gray-600">
-								{title}
-							</CardTitle>
-							<CompactDatePicker
-								value={dateRange}
-								onChange={onDateRangeChange}
-							/>
-						</div>
+						<CardTitle className="text-sm font-medium text-gray-600">
+							{title}
+						</CardTitle>
 					</CardHeader>
 					<CardContent>
 						{/* Header with Trend */}
@@ -296,8 +263,6 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 				<StockDaysKPICard
 					title="Shopify Stock"
 					data={shopifyStockDays}
-					dateRange={shopifyDateRange}
-					onDateRangeChange={setShopifyDateRange}
 					loading={loading}
 					error={error}
 					icon={<Calendar className="h-4 w-4" style={{ color: "#059669" }} />}
@@ -309,8 +274,6 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 				<StockDaysKPICard
 					title="Amazon Stock"
 					data={amazonStockDays}
-					dateRange={amazonDateRange}
-					onDateRangeChange={setAmazonDateRange}
 					loading={loading}
 					error={error}
 					icon={<Calendar className="h-4 w-4" style={{ color: "#f59e0b" }} />}
@@ -322,8 +285,6 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 				<StockDaysKPICard
 					title="All Platforms"
 					data={allStockDays}
-					dateRange={allDateRange}
-					onDateRangeChange={setAllDateRange}
 					loading={loading}
 					error={error}
 					icon={<Clock className="h-4 w-4" style={{ color: "#dc2626" }} />}

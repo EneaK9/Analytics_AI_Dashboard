@@ -64,12 +64,22 @@ export default function InventoryLevelsCharts({
 
 	// Extract trend analysis from platform data - MEMOIZED
 	const shopifyData = useMemo(
-		() => shopifyUseCustomDate ? shopifyCustomData : shopifyPlatformData?.trend_analysis,
+		() => shopifyUseCustomDate ? shopifyCustomData?.shopify : shopifyPlatformData?.trend_analysis,
 		[shopifyPlatformData, shopifyCustomData, shopifyUseCustomDate]
 	);
 	const amazonData = useMemo(
-		() => amazonUseCustomDate ? amazonCustomData : amazonPlatformData?.trend_analysis,
+		() => amazonUseCustomDate ? amazonCustomData?.amazon : amazonPlatformData?.trend_analysis,
 		[amazonPlatformData, amazonCustomData, amazonUseCustomDate]
+	);
+
+	// ✅ CROSS-CONTAMINATION FIX: Original data that's NOT affected by individual platform date changes
+	const originalShopifyData = useMemo(
+		() => shopifyPlatformData?.trend_analysis,
+		[shopifyPlatformData]
+	);
+	const originalAmazonData = useMemo(
+		() => amazonPlatformData?.trend_analysis,
+		[amazonPlatformData]
 	);
 
 	// Format date for API
@@ -213,7 +223,7 @@ export default function InventoryLevelsCharts({
 			(shopifyDateRange.end.getTime() - shopifyDateRange.start.getTime()) /
 				(1000 * 60 * 60 * 24)
 		);
-		return processInventoryLevelsData(shopifyData, days);
+		return processInventoryLevelsData(shopifyData, days, 'shopify');
 	}, [shopifyData, shopifyDateRange]);
 
 	const amazonChartData = useMemo(() => {
@@ -227,13 +237,13 @@ export default function InventoryLevelsCharts({
 	const allChartData = useMemo(() => {
 		// If using custom date data, use that directly (it's already combined)
 		if (allUseCustomDate && allCustomData) {
-			return processInventoryLevelsData(allCustomData, 0, 'combined');
+			return processInventoryLevelsData(allCustomData?.combined, 0, 'combined');
 		}
 
-		// Otherwise combine shopify and amazon data
+		// ✅ CROSS-CONTAMINATION FIX: Use original data, NOT individual platform data
 		if (
-			!shopifyData?.inventory_levels_chart ||
-			!amazonData?.inventory_levels_chart
+			!originalShopifyData?.inventory_levels_chart ||
+			!originalAmazonData?.inventory_levels_chart
 		) {
 			return [];
 		}
@@ -247,14 +257,14 @@ export default function InventoryLevelsCharts({
 		const now = new Date();
 		const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
-		const shopifyFiltered = shopifyData.inventory_levels_chart.filter(
+		const shopifyFiltered = originalShopifyData.inventory_levels_chart.filter(
 			(item: { date: string }) => {
 				const itemDate = new Date(item.date);
 				return itemDate >= startDate && itemDate <= now;
 			}
 		);
 
-		const amazonFiltered = amazonData.inventory_levels_chart.filter(
+		const amazonFiltered = originalAmazonData.inventory_levels_chart.filter(
 			(item: { date: string }) => {
 				const itemDate = new Date(item.date);
 				return itemDate >= startDate && itemDate <= now;
@@ -300,7 +310,7 @@ export default function InventoryLevelsCharts({
 				(a: any, b: any) =>
 					new Date(a.date).getTime() - new Date(b.date).getTime()
 			);
-	}, [shopifyData, amazonData, allDateRange, allUseCustomDate, allCustomData]);
+	}, [originalShopifyData, originalAmazonData, allDateRange, allUseCustomDate, allCustomData]);
 
 	// Individual Chart Component
 	const InventoryLevelChart = ({
@@ -451,12 +461,7 @@ export default function InventoryLevelsCharts({
 				/>
 			</div>
 
-			{/* Data Info */}
-			<div className="text-center text-sm text-gray-500">
-				<Calendar className="inline h-4 w-4 mr-1" />
-				Showing inventory data for selected date ranges • Data updates every 5
-				minutes
-			</div>
+
 		</div>
 	);
 }

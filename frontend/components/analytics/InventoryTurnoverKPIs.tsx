@@ -222,9 +222,44 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 		const secondHalfTurnover = trendData?.second_half_turnover_rate || 
 								  trendData?.historical_turnover_rate || 0;
 		
-		// Calculate real trend if data available, otherwise fallback to 0
-		const trendValue = firstHalfTurnover > 0 ? 
-			((secondHalfTurnover - firstHalfTurnover) / firstHalfTurnover) * 100 : 0;
+		// Calculate trend from turnover comparison if available
+		let trendValue = 0;
+		let trendLabel = "vs previous period";
+		
+		if (firstHalfTurnover > 0) {
+			// Use direct turnover comparison
+			trendValue = ((secondHalfTurnover - firstHalfTurnover) / firstHalfTurnover) * 100;
+			trendLabel = "trend within period";
+		} else if (data.trend_analysis?.sales_comparison) {
+			// Fallback: Use sales trends as approximate proxy for turnover trend
+			const salesComparison = data.trend_analysis.sales_comparison;
+			
+			// Units sold change is a better proxy for turnover than revenue change
+			// because turnover is fundamentally about inventory movement (units), not value
+			if (salesComparison.units_change_percent !== undefined) {
+				trendValue = salesComparison.units_change_percent;
+				trendLabel = "sales velocity trend";
+			} else if (salesComparison.revenue_change_percent !== undefined) {
+				// Revenue change as secondary fallback (assumes stable inventory levels)
+				trendValue = salesComparison.revenue_change_percent;
+				trendLabel = "revenue trend (approx)";
+			}
+		} else if (data.kpi_charts?.inventory_turnover_rate && 
+				   data.trend_analysis?.sales_comparison?.current_period_avg_revenue && 
+				   data.trend_analysis?.sales_comparison?.historical_avg_revenue) {
+			// Calculate a more accurate turnover trend if we have the necessary data
+			const salesComparison = data.trend_analysis.sales_comparison;
+			const currentTurnover = data.kpi_charts.inventory_turnover_rate;
+			
+			// Estimate previous turnover using revenue ratio (assuming inventory stayed relatively stable)
+			const revenueRatio = salesComparison.historical_avg_revenue / salesComparison.current_period_avg_revenue;
+			const estimatedPreviousTurnover = currentTurnover * revenueRatio;
+			
+			if (estimatedPreviousTurnover > 0) {
+				trendValue = ((currentTurnover - estimatedPreviousTurnover) / estimatedPreviousTurnover) * 100;
+				trendLabel = "estimated turnover trend";
+			}
+		}
 
 		const isPositive = trendValue >= 0;
 		const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
@@ -250,7 +285,7 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 			trend: {
 				value: trendFormatted,
 				isPositive,
-				label: trendValue !== 0 ? `trend within period` : `vs ${dateRange.label.toLowerCase()}`,
+				label: trendValue !== 0 ? trendLabel : `vs ${dateRange.label.toLowerCase()}`,
 			},
 			subtitle,
 		};

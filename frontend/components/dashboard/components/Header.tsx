@@ -4,19 +4,13 @@ import IconButton from "@mui/material/IconButton";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import AccountCircleRoundedIcon from "@mui/icons-material/AccountCircleRounded";
-import CustomDatePicker, { DateRange, DateSelection } from "./CustomDatePicker";
 import NavbarBreadcrumbs from "./NavbarBreadcrumbs";
 import ColorModeIconDropdown from "../../shared-theme/ColorModeIconDropdown";
 import { logout } from "../../../lib/auth";
 
-import Search from "./Search";
+interface HeaderProps {}
 
-interface HeaderProps {
-    onDateRangeChange?: (dateRange: DateRange) => void;
-    onSearch?: (query: string) => void;
-}
-
-export default function Header({ onDateRangeChange, onSearch }: HeaderProps) {
+export default function Header({}: HeaderProps) {
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
     const handleUserMenuClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -41,8 +35,6 @@ export default function Header({ onDateRangeChange, onSearch }: HeaderProps) {
 			spacing={2}>
 			<NavbarBreadcrumbs />
             <Stack direction="row" sx={{ gap: 1 }}>
-                <Search onSearch={onSearch} />
-                <CustomDatePicker onDateRangeChange={onDateRangeChange} />
 				{/* Theme toggle now takes the place of notifications */}
 				<ColorModeIconDropdown />
 				{/* User menu added in the former theme button position */}

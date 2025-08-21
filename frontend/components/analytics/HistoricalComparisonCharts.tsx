@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, memo } from "react";
+import React, { useState, useMemo, memo, useCallback } from "react";
 import {
 	Store,
 	ShoppingBag,
@@ -15,6 +15,7 @@ import CompactDatePicker, {
 } from "../ui/CompactDatePicker";
 import SimpleBarChart from "../charts/SimpleBarChart";
 import useMultiPlatformData from "../../hooks/useMultiPlatformData";
+import api from "../../lib/axios";
 
 interface HistoricalComparisonChartsProps {
 	clientData?: any[];
@@ -50,24 +51,147 @@ const HistoricalComparisonCharts = memo(function HistoricalComparisonCharts({
 		fastMode: true,
 	});
 
+	// Component-specific data states for date-filtered data
+	const [shopifyCustomData, setShopifyCustomData] = useState<any>(null);
+	const [amazonCustomData, setAmazonCustomData] = useState<any>(null);
+	const [allCustomData, setAllCustomData] = useState<any>(null);
+	const [shopifyCustomLoading, setShopifyCustomLoading] = useState<boolean>(false);
+	const [amazonCustomLoading, setAmazonCustomLoading] = useState<boolean>(false);
+	const [allCustomLoading, setAllCustomLoading] = useState<boolean>(false);
+
+	// Track which components are using custom date filtering
+	const [shopifyUseCustomDate, setShopifyUseCustomDate] = useState<boolean>(false);
+	const [amazonUseCustomDate, setAmazonUseCustomDate] = useState<boolean>(false);
+	const [allUseCustomDate, setAllUseCustomDate] = useState<boolean>(false);
+
 	// Extract trend analysis from platform data - MEMOIZED
 	const shopifyData = useMemo(
-		() => shopifyPlatformData?.trend_analysis || null,
-		[shopifyPlatformData]
+		() => shopifyUseCustomDate ? shopifyCustomData?.shopify : shopifyPlatformData?.trend_analysis,
+		[shopifyPlatformData, shopifyCustomData, shopifyUseCustomDate]
 	);
 	const amazonData = useMemo(
-		() => amazonPlatformData?.trend_analysis || null,
-		[amazonPlatformData]
+		() => amazonUseCustomDate ? amazonCustomData?.amazon : amazonPlatformData?.trend_analysis,
+		[amazonPlatformData, amazonCustomData, amazonUseCustomDate]
 	);
 
+	// Format date for API
+	const formatDateForAPI = (date: Date): string => {
+		return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+	};
+
+	// Fetch functions for date-filtered data
+	const fetchShopifyHistoricalData = useCallback(async (dateRange: DateRange) => {
+		setShopifyCustomLoading(true);
+		try {
+			const params = {
+				component_type: "historical_comparison",
+				platform: "shopify",
+				start_date: formatDateForAPI(dateRange.start),
+				end_date: formatDateForAPI(dateRange.end)
+			};
+			
+			const response = await api.get('/dashboard/component-data', { params });
+			setShopifyCustomData(response.data.data);
+			console.log('✅ Shopify historical data fetched for date range');
+		} catch (error) {
+			console.error('❌ Failed to fetch Shopify historical data:', error);
+		} finally {
+			setShopifyCustomLoading(false);
+		}
+	}, []);
+
+	const fetchAmazonHistoricalData = useCallback(async (dateRange: DateRange) => {
+		setAmazonCustomLoading(true);
+		try {
+			const params = {
+				component_type: "historical_comparison",
+				platform: "amazon",
+				start_date: formatDateForAPI(dateRange.start),
+				end_date: formatDateForAPI(dateRange.end)
+			};
+			
+			const response = await api.get('/dashboard/component-data', { params });
+			setAmazonCustomData(response.data.data);
+			console.log('✅ Amazon historical data fetched for date range');
+		} catch (error) {
+			console.error('❌ Failed to fetch Amazon historical data:', error);
+		} finally {
+			setAmazonCustomLoading(false);
+		}
+	}, []);
+
+	const fetchAllHistoricalData = useCallback(async (dateRange: DateRange) => {
+		setAllCustomLoading(true);
+		try {
+			const params = {
+				component_type: "historical_comparison",
+				platform: "combined",
+				start_date: formatDateForAPI(dateRange.start),
+				end_date: formatDateForAPI(dateRange.end)
+			};
+			
+			const response = await api.get('/dashboard/component-data', { params });
+			setAllCustomData(response.data.data);
+			console.log('✅ Combined historical data fetched for date range');
+		} catch (error) {
+			console.error('❌ Failed to fetch combined historical data:', error);
+		} finally {
+			setAllCustomLoading(false);
+		}
+	}, []);
+
+	// Handle date range changes
+	const handleShopifyDateChange = useCallback(async (newDateRange: DateRange) => {
+		console.log('🗓️ Shopify historical date changed to:', newDateRange.label);
+		setShopifyDateRange(newDateRange);
+		setShopifyUseCustomDate(true);
+		await fetchShopifyHistoricalData(newDateRange);
+	}, [fetchShopifyHistoricalData]);
+
+	const handleAmazonDateChange = useCallback(async (newDateRange: DateRange) => {
+		console.log('🗓️ Amazon historical date changed to:', newDateRange.label);
+		setAmazonDateRange(newDateRange);
+		setAmazonUseCustomDate(true);
+		await fetchAmazonHistoricalData(newDateRange);
+	}, [fetchAmazonHistoricalData]);
+
+	const handleAllDateChange = useCallback(async (newDateRange: DateRange) => {
+		console.log('🗓️ All platforms historical date changed to:', newDateRange.label);
+		setAllDateRange(newDateRange);
+		setAllUseCustomDate(true);
+		await fetchAllHistoricalData(newDateRange);
+	}, [fetchAllHistoricalData]);
+
 	// Derived loading/error states
-	const shopifyLoading = multiLoading;
-	const amazonLoading = multiLoading;
+	const shopifyLoading = shopifyUseCustomDate ? shopifyCustomLoading : multiLoading;
+	const amazonLoading = amazonUseCustomDate ? amazonCustomLoading : multiLoading;
+	const allLoading = allUseCustomDate ? allCustomLoading : (multiLoading || shopifyLoading || amazonLoading);
 	const shopifyError = multiError;
 	const amazonError = multiError;
 
 	// Process historical comparison data for a specific platform
 	const processComparisonData = (data: any, dateRange: DateRange) => {
+		// Handle new API response format with totals at root level
+		if (data?.total_current_period !== undefined && data?.total_previous_period !== undefined) {
+			return [
+				{
+					name: "Previous Period",
+					value: data.total_previous_period || 0,
+					revenue: data.total_previous_period || 0,
+					units: 0, // Units data not available in this format
+					period: `Previous ${dateRange.label.toLowerCase()}`,
+				},
+				{
+					name: "Current Period",
+					value: data.total_current_period || 0,
+					revenue: data.total_current_period || 0,
+					units: 0, // Units data not available in this format
+					period: `Current ${dateRange.label.toLowerCase()}`,
+				},
+			];
+		}
+
+		// Fallback to old format for backward compatibility
 		if (!data?.sales_comparison) {
 			return [];
 		}
@@ -102,6 +226,40 @@ const HistoricalComparisonCharts = memo(function HistoricalComparisonCharts({
 	}, [amazonData, amazonDateRange]);
 
 	const allChartData = useMemo(() => {
+		// If using custom date filtering, use the combined data directly
+		if (allUseCustomDate && allCustomData?.combined) {
+			return processComparisonData(allCustomData.combined, allDateRange);
+		}
+
+		// Handle new API response format
+		if (shopifyData?.total_current_period !== undefined && amazonData?.total_current_period !== undefined) {
+			const combinedHistoricalRevenue =
+				(shopifyData.total_previous_period || 0) +
+				(amazonData.total_previous_period || 0);
+
+			const combinedCurrentRevenue =
+				(shopifyData.total_current_period || 0) +
+				(amazonData.total_current_period || 0);
+
+			return [
+				{
+					name: "Previous Period",
+					value: combinedHistoricalRevenue,
+					revenue: combinedHistoricalRevenue,
+					units: 0, // Units data not available in this format
+					period: `Previous ${allDateRange.label.toLowerCase()}`,
+				},
+				{
+					name: "Current Period",
+					value: combinedCurrentRevenue,
+					revenue: combinedCurrentRevenue,
+					units: 0, // Units data not available in this format
+					period: `Current ${allDateRange.label.toLowerCase()}`,
+				},
+			];
+		}
+
+		// Fallback to combining individual platform data (old format)
 		if (!shopifyData?.sales_comparison || !amazonData?.sales_comparison) {
 			return [];
 		}
@@ -142,7 +300,7 @@ const HistoricalComparisonCharts = memo(function HistoricalComparisonCharts({
 				period: `Current ${allDateRange.label.toLowerCase()}`,
 			},
 		];
-	}, [shopifyData, amazonData, allDateRange]);
+	}, [shopifyData, amazonData, allDateRange, allUseCustomDate, allCustomData]);
 
 	// Calculate comparison stats
 	const calculateComparisonStats = (data: any[]) => {
@@ -312,7 +470,7 @@ const HistoricalComparisonCharts = memo(function HistoricalComparisonCharts({
 					title="Shopify Performance"
 					data={shopifyChartData}
 					dateRange={shopifyDateRange}
-					onDateRangeChange={setShopifyDateRange}
+					onDateRangeChange={handleShopifyDateChange}
 					loading={shopifyLoading}
 					error={shopifyError}
 					icon={<Store className="h-4 w-4" style={{ color: "#059669" }} />}
@@ -325,7 +483,7 @@ const HistoricalComparisonCharts = memo(function HistoricalComparisonCharts({
 					title="Amazon Performance"
 					data={amazonChartData}
 					dateRange={amazonDateRange}
-					onDateRangeChange={setAmazonDateRange}
+					onDateRangeChange={handleAmazonDateChange}
 					loading={amazonLoading}
 					error={amazonError}
 					icon={
@@ -340,8 +498,8 @@ const HistoricalComparisonCharts = memo(function HistoricalComparisonCharts({
 					title="Combined Performance"
 					data={allChartData}
 					dateRange={allDateRange}
-					onDateRangeChange={setAllDateRange}
-					loading={shopifyLoading || amazonLoading}
+					onDateRangeChange={handleAllDateChange}
+					loading={allLoading}
 					error={shopifyError || amazonError}
 					icon={<GitCompare className="h-4 w-4" style={{ color: "#3b82f6" }} />}
 					iconColor="#3b82f6"
@@ -349,12 +507,7 @@ const HistoricalComparisonCharts = memo(function HistoricalComparisonCharts({
 				/>
 			</div>
 
-			{/* Data Info */}
-			<div className="text-center text-sm text-gray-500">
-				<Calendar className="inline h-4 w-4 mr-1" />
-				Comparing selected periods with previous equivalent periods • Data
-				updates every 5 minutes
-			</div>
+			
 		</div>
 	);
 });

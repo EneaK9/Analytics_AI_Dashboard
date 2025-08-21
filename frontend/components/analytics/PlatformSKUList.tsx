@@ -8,6 +8,7 @@ import {
 	TrendingDown,
 	Store,
 	ShoppingBag,
+	ChevronDown,
 } from "lucide-react";
 import DataTable from "../ui/DataTable";
 import { Card, CardContent } from "../ui/card";
@@ -201,43 +202,81 @@ export default function PlatformSKUList({
 		},
 	];
 
-	// Platform Toggle Component
-	const PlatformTabs = () => (
-		<div className="flex items-center justify-between mb-6">
-			<h2 className="text-xl font-semibold text-gray-900">
-				SKU Inventory Management
-			</h2>
-			<div className="flex rounded-lg border border-gray-300 bg-gray-50">
-				<button
-					onClick={() => setSelectedPlatform("shopify")}
-					className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-						selectedPlatform === "shopify"
-							? "bg-green-500 text-white rounded-l-md"
-							: "text-gray-600 hover:text-gray-900"
-					}`}>
-					<Store className="h-4 w-4" />
-					Shopify
-				</button>
-				<button
-					onClick={() => setSelectedPlatform("amazon")}
-					className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-						selectedPlatform === "amazon"
-							? "bg-orange-500 text-white rounded-r-md"
-							: "text-gray-600 hover:text-gray-900"
-					}`}>
-					<ShoppingBag className="h-4 w-4" />
-					Amazon
-				</button>
-			</div>
+	// Platform Dropdown Component
+	const [dropdownOpen, setDropdownOpen] = useState(false);
+
+	// Close dropdown when clicking outside
+	React.useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			const target = event.target as Element;
+			if (dropdownOpen && !target.closest('.platform-dropdown')) {
+				setDropdownOpen(false);
+			}
+		};
+
+		document.addEventListener('mousedown', handleClickOutside);
+		return () => {
+			document.removeEventListener('mousedown', handleClickOutside);
+		};
+	}, [dropdownOpen]);
+
+	// Compact Platform Dropdown for table header
+	const PlatformDropdownControl = () => (
+		<div className="relative platform-dropdown">
+			<button
+				onClick={() => setDropdownOpen(!dropdownOpen)}
+				className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+			>
+				{selectedPlatform === "shopify" ? (
+					<>
+						<Store className="h-4 w-4 text-green-600" />
+						<span>Shopify</span>
+					</>
+				) : (
+					<>
+						<ShoppingBag className="h-4 w-4 text-orange-600" />
+						<span>Amazon</span>
+					</>
+				)}
+				<ChevronDown className="h-4 w-4 text-gray-400" />
+			</button>
+			
+			{dropdownOpen && (
+				<div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+					<div className="py-1">
+						<button
+							onClick={() => {
+								setSelectedPlatform("shopify");
+								setDropdownOpen(false);
+							}}
+							className={`flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-gray-50 ${
+								selectedPlatform === "shopify" ? "bg-green-50 text-green-700" : "text-gray-700"
+							}`}
+						>
+							<Store className="h-4 w-4" />
+							Shopify
+						</button>
+						<button
+							onClick={() => {
+								setSelectedPlatform("amazon");
+								setDropdownOpen(false);
+							}}
+							className={`flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-gray-50 ${
+								selectedPlatform === "amazon" ? "bg-orange-50 text-orange-700" : "text-gray-700"
+							}`}
+						>
+							<ShoppingBag className="h-4 w-4" />
+							Amazon
+						</button>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 
 	return (
 		<div className={`space-y-6 ${className}`}>
-			{/* Platform Tabs */}
-			<PlatformTabs />
-
-			{/* Summary Cards */}
+			{/* Summary Cards
 			{safeStats && (
 				<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
 					<Card>
@@ -308,7 +347,7 @@ export default function PlatformSKUList({
 						</CardContent>
 					</Card>
 				</div>
-			)}
+			)} */}
 
 			{/* SKU Data Table */}
 			<DataTable
@@ -329,16 +368,11 @@ export default function PlatformSKUList({
 					selectedPlatform === "shopify" ? "Shopify" : "Amazon"
 				}. Please upload CSV data or check data connections.`}
 				className="bg-white shadow-sm"
+				additionalControls={<PlatformDropdownControl />}
 			/>
 
 			{/* Footer with last updated info */}
-			{currentLastUpdated && (
-				<div className="text-center text-sm text-gray-500">
-					Last updated: {currentLastUpdated.toLocaleTimeString()} •
-					{selectedPlatform === "shopify" ? " Shopify" : " Amazon"} platform
-					data
-				</div>
-			)}
+	
 		</div>
 	);
 }
