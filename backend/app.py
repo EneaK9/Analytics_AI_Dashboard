@@ -2509,16 +2509,22 @@ async def get_raw_data_tables(
             if search:
                 logger.info(f"🔍 Applying search filter for: '{search}'")
                 
-                # Define search fields based on table type
+                # Define actual searchable fields based on table schemas
                 search_fields = []
-                if 'products' in table_key:
-                    # Product tables: search in title, handle, sku, vendor, variant_title, option1, option2, option3
-                    search_fields = ['title', 'handle', 'sku', 'vendor', 'variant_title', 'option1', 'option2', 'option3']
-                elif 'orders' in table_key:
-                    # Order tables: search in order_number, customer_email, financial_status, order_status, source_name, tags
-                    search_fields = ['order_number', 'customer_email', 'financial_status', 'order_status', 'source_name', 'tags', 'sales_channel', 'marketplace_id']
+                if 'shopify_products' in table_key:
+                    search_fields = ['title', 'handle', 'vendor', 'status', 'tags']
+                elif 'shopify_orders' in table_key:
+                    search_fields = ['order_number', 'customer_email', 'financial_status', 'fulfillment_status', 'source_name', 'tags']
+                elif 'amazon_products' in table_key:
+                    search_fields = ['asin', 'sku', 'title', 'brand', 'category', 'status', 'marketplace_id']
+                elif 'amazon_orders' in table_key:
+                    search_fields = ['order_id', 'order_number', 'order_status', 'sales_channel', 'marketplace_id', 'payment_method', 'fulfillment_channel']
+                elif 'shopify_variants' in table_key:
+                    search_fields = ['sku', 'title', 'option1', 'option2', 'option3', 'barcode']
+                elif 'amazon_variants' in table_key:
+                    search_fields = ['asin', 'sku', 'title', 'marketplace_id', 'status']
                 
-                # Build an OR condition for text search - use proper PostgREST syntax
+                # Build search conditions for valid fields
                 search_conditions = []
                 for field in search_fields:
                     search_conditions.append(f"{field}.ilike.*{search}*")
@@ -2528,6 +2534,8 @@ async def get_raw_data_tables(
                     search_filter = ",".join(search_conditions)
                     logger.info(f"🔍 Search filter: {search_filter}")
                     query = query.or_(search_filter)
+                else:
+                    logger.warning(f"⚠️ No searchable fields defined for table type: {table_key}")
             
             # Get total count first (for pagination)
             count_response = query.execute()
@@ -2541,9 +2549,13 @@ async def get_raw_data_tables(
                 # Reset to page 1 when falling back to all data
                 page = 1
                 # Re-run count query without search filter
-                fallback_query = db_client.table(table_name).select("*", count='exact')
-                count_response = fallback_query.execute()
-                total_records = count_response.count if count_response.count is not None else 0
+                try:
+                    fallback_query = db_client.table(table_name).select("*", count='exact')
+                    count_response = fallback_query.execute()
+                    total_records = count_response.count if count_response.count is not None else 0
+                except Exception as fallback_error:
+                    logger.error(f"❌ Fallback count query failed: {fallback_error}")
+                    total_records = 0
             
             # Calculate pagination
             offset = (page - 1) * page_size
@@ -2554,18 +2566,35 @@ async def get_raw_data_tables(
             
             # Apply search filter again for data query (only if not falling back)
             if search and not search_fallback:
-                search_conditions = []
-                if 'products' in table_key:
-                    search_fields = ['title', 'handle', 'sku', 'vendor', 'variant_title', 'option1', 'option2', 'option3']
-                elif 'orders' in table_key:
-                    search_fields = ['order_number', 'customer_email', 'financial_status', 'order_status', 'source_name', 'tags', 'sales_channel', 'marketplace_id']
+                logger.info(f"🔍 Applying main search filter for: '{search}'")
                 
+                # Define actual searchable fields based on table schemas
+                search_fields = []
+                if 'shopify_products' in table_key:
+                    search_fields = ['title', 'handle', 'vendor', 'status', 'tags']
+                elif 'shopify_orders' in table_key:
+                    search_fields = ['order_number', 'customer_email', 'financial_status', 'fulfillment_status', 'source_name', 'tags']
+                elif 'amazon_products' in table_key:
+                    search_fields = ['asin', 'sku', 'title', 'brand', 'category', 'status', 'marketplace_id']
+                elif 'amazon_orders' in table_key:
+                    search_fields = ['order_id', 'order_number', 'order_status', 'sales_channel', 'marketplace_id', 'payment_method', 'fulfillment_channel']
+                elif 'shopify_variants' in table_key:
+                    search_fields = ['sku', 'title', 'option1', 'option2', 'option3', 'barcode']
+                elif 'amazon_variants' in table_key:
+                    search_fields = ['asin', 'sku', 'title', 'marketplace_id', 'status']
+                
+                # Build search conditions for valid fields
+                search_conditions = []
                 for field in search_fields:
                     search_conditions.append(f"{field}.ilike.*{search}*")
                 
                 if search_conditions:
                     search_filter = ",".join(search_conditions)
+                    logger.info(f"🔍 Main search filter: {search_filter}")
                     main_query = main_query.or_(search_filter)
+                else:
+                    logger.warning(f"⚠️ No searchable fields defined for table type: {table_key}")
+                    search_fallback = True
             
             # Apply pagination and ordering
             main_query = main_query.order('processed_at', desc=True).range(offset, offset + page_size - 1)
@@ -2926,8 +2955,24 @@ async def get_component_filtered_data(
             component_data = await component_data_manager.get_inventory_levels_data(client_id, platform, start_date, end_date)
             
         elif component_type == "units_sold":
-            # Get actual units sold data with chart data
-            component_data = await component_data_manager.get_units_sold_data(client_id, platform, start_date, end_date)
+            # For units sold, we can derive from total sales data
+            sales_data = await component_data_manager.get_total_sales_data(client_id, platform, start_date, end_date)
+            if platform == "combined":
+                total_units = (
+                    sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('units', 0) +
+                    sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('units', 0)
+                )
+            else:
+                total_units = sales_data.get(platform, {}).get('total_sales_30_days', {}).get('units', 0)
+            
+            component_data = {
+                "total_units_sold": total_units,
+                "sales_data": sales_data,
+                "period_info": {
+                    "start_date": start_date,
+                    "end_date": end_date
+                }
+            }
             
         elif component_type == "historical_comparison":
             # Historical comparison with real period-over-period analysis

@@ -16,11 +16,12 @@ import InputAdornment from "@mui/material/InputAdornment";
 import IconButton from "@mui/material/IconButton";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import ClearIcon from "@mui/icons-material/Clear";
+import DownloadIcon from "@mui/icons-material/Download";
 
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
-import RefreshIcon from "@mui/icons-material/Refresh";
+
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import Badge from "@mui/material/Badge";
@@ -63,6 +64,33 @@ export default function OptimizedDataTablesPage({
 	// Local state for search input (debounced) - MUST be called before any early returns
 	const [searchInput, setSearchInput] = React.useState(filters.search);
 	const [activeTabIndex, setActiveTabIndex] = React.useState(0);
+
+	// Export functionality
+	const handleExport = () => {
+		if (!rawData || rawData.data.length === 0) return;
+
+		const csvContent = [
+			["#", ...rawData.columns].join(","),
+			...rawData.data.map((row, index) =>
+				[
+					(filters.page - 1) * 50 + index + 1,
+					...rawData.columns.map((column) => {
+						const value = row[column];
+						const formatted = String(value ?? "");
+						return `"${formatted.replace(/"/g, '""')}"`;
+					})
+				].join(",")
+			),
+		].join("\n");
+
+		const blob = new Blob([csvContent], { type: "text/csv" });
+		const url = window.URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = `${rawData.display_name || "data"}.csv`;
+		a.click();
+		window.URL.revokeObjectURL(url);
+	};
 
 
 	// All hooks must be called before any early returns to follow Rules of Hooks
@@ -274,15 +302,7 @@ export default function OptimizedDataTablesPage({
 		window.scrollTo({ top: 0, behavior: "smooth" });
 	};
 
-	// Handle refresh
-	const handleRefresh = () => {
-		if (user?.client_id) {
-			const currentTab = allTableCombinations[activeTabIndex];
-			if (currentTab?.type === 'data') {
-				fetchRawData(user.client_id, true); // Force refresh
-			}
-		}
-	};
+
 
 	// Skeleton Table Component for loading states
 	const SkeletonTable = () => (
@@ -328,8 +348,7 @@ export default function OptimizedDataTablesPage({
 				<Stack direction="row" spacing={2} justifyContent="center">
 					<Button
 						variant="contained"
-						onClick={() => fetchAvailableTables(user.client_id, true)}
-						startIcon={<RefreshIcon />}>
+						onClick={() => fetchAvailableTables(user.client_id, true)}>
 						Retry
 					</Button>
 				</Stack>
@@ -361,8 +380,7 @@ export default function OptimizedDataTablesPage({
 					<Stack direction="row" spacing={2} justifyContent="center">
 						<Button
 							variant="contained"
-							onClick={() => fetchAvailableTables(user.client_id, true)}
-							startIcon={<RefreshIcon />}>
+							onClick={() => fetchAvailableTables(user.client_id, true)}>
 							Refresh
 						</Button>
 					</Stack>
@@ -401,12 +419,7 @@ export default function OptimizedDataTablesPage({
 				<Alert severity="error" sx={{ mb: 2 }}>
 					{error}
 				</Alert>
-				<Button
-					variant="contained"
-					onClick={handleRefresh}
-					startIcon={<RefreshIcon />}>
-					Try Again
-				</Button>
+
 			</Box>
 		);
 	}
@@ -430,14 +443,7 @@ export default function OptimizedDataTablesPage({
 							? "No data found for the selected filters."
 							: "No data matches the current search criteria."}
 					</Typography>
-					<Stack direction="row" spacing={2} justifyContent="center">
-						<Button
-							variant="contained"
-							onClick={handleRefresh}
-							startIcon={<RefreshIcon />}>
-							Refresh Data
-						</Button>
-					</Stack>
+
 				</Card>
 			</Box>
 		);
@@ -536,19 +542,18 @@ export default function OptimizedDataTablesPage({
 									/>
 									<Chip
 										label={`${rawData.pagination.current_page}/${rawData.pagination.total_pages}`}
-										color="secondary"
 										variant="outlined"
 										size="small"
-										sx={{ height: 20, fontSize: "0.7rem" }}
+										sx={{ 
+											height: 20, 
+											fontSize: "0.7rem",
+											backgroundColor: "#ffffff",
+											color: "#000000",
+											borderColor: "#000000",
+										}}
 									/>
 								</Stack>
-								<Button
-									variant="outlined"
-									onClick={handleRefresh}
-									startIcon={<RefreshIcon />}
-									size="small">
-									Refresh
-								</Button>
+
 							</Stack>
 						</Box>
 					)}
@@ -583,7 +588,8 @@ export default function OptimizedDataTablesPage({
 										{rawData.message}
 									</Typography>
 								</Box>
-								<OutlinedInput
+								<Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+									<OutlinedInput
 									id="optimized-data-table-search"
 									name="searchInput"
 									size="small"
@@ -618,6 +624,16 @@ export default function OptimizedDataTablesPage({
 										},
 									}}
 								/>
+									<Button
+										variant="outlined"
+										onClick={handleExport}
+										startIcon={<DownloadIcon />}
+										size="small"
+										sx={{ whiteSpace: "nowrap" }}
+									>
+										Export
+									</Button>
+								</Box>
 							</Box>
 							<CardContent sx={{ p: 0 }}>
 								{/* Pagination Loading Indicator */}
@@ -772,7 +788,6 @@ export default function OptimizedDataTablesPage({
 											count={rawData.pagination.total_pages}
 											page={rawData.pagination.current_page}
 											onChange={handlePageChange}
-											color="primary"
 											size="medium"
 											showFirstButton
 											showLastButton
@@ -784,6 +799,13 @@ export default function OptimizedDataTablesPage({
 												},
 												"& .MuiPaginationItem-root.Mui-disabled": {
 													opacity: 0.6,
+												},
+												"& .MuiPaginationItem-root.Mui-selected": {
+													backgroundColor: "#000000",
+													color: "#ffffff",
+													"&:hover": {
+														backgroundColor: "#333333",
+													},
 												},
 											}}
 										/>
