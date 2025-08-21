@@ -43,6 +43,46 @@ from models import (
 # Load environment variables
 load_dotenv()
 
+# Configure Sentry for error tracking and performance monitoring
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
+
+# Sentry configuration
+sentry_logging = LoggingIntegration(
+    level=logging.INFO,        # Capture info and above as breadcrumbs
+    event_level=logging.ERROR  # Send errors as events
+)
+
+sentry_sdk.init(
+    dsn=os.getenv("SENTRY_DSN"),
+    integrations=[
+        FastApiIntegration(),
+        StarletteIntegration(),
+        sentry_logging,
+    ],
+    # Set traces_sample_rate to 1.0 to capture 100%
+    # of transactions for performance monitoring.
+    # We recommend adjusting this value in production.
+    traces_sample_rate=1.0 if os.getenv("ENVIRONMENT") == "development" else 0.1,
+    
+    # Set profiles_sample_rate to 1.0 to profile 100%
+    # of sampled transactions.
+    # We recommend adjusting this value in production.
+    profiles_sample_rate=0.1,
+    
+    # Additional configuration
+    environment=os.getenv("ENVIRONMENT", "development"),
+    release=os.getenv("APP_VERSION", "1.0.0"),
+    
+    # Filter out health check endpoints and static files from performance monitoring
+    before_send_transaction=lambda event, hint: None if event.get("transaction", "").startswith(("/health", "/static")) else event,
+    
+    # Add tags for easier filtering
+    before_send=lambda event, hint: event if event.get("level") == "error" or os.getenv("ENVIRONMENT") == "production" else event,
+)
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -516,6 +556,37 @@ async def api_health_check():
             "/api/debug/auth"
         ]
     }
+
+@app.get("/api/sentry-test")
+async def sentry_test():
+    """Test endpoint to verify Sentry integration"""
+    logger.info("Sentry test endpoint called - this should appear in Sentry as a breadcrumb")
+    sentry_sdk.add_breadcrumb(
+        message="Sentry test endpoint accessed",
+        category="api",
+        level="info"
+    )
+    return {
+        "message": "Sentry test endpoint called successfully",
+        "status": "working",
+        "timestamp": datetime.utcnow().isoformat(),
+        "note": "Check your Sentry dashboard for this event and breadcrumb"
+    }
+
+@app.get("/api/sentry-error-test") 
+async def sentry_error_test():
+    """Test endpoint to trigger a Sentry error for testing error tracking"""
+    logger.error("Testing Sentry error tracking - this is intentional")
+    sentry_sdk.add_breadcrumb(
+        message="About to trigger test error",
+        category="test",
+        level="warning"
+    )
+    # Trigger a test error
+    raise HTTPException(
+        status_code=500, 
+        detail="This is a test error for Sentry integration - error tracking is working!"
+    )
 
 @app.get("/api/superadmin/diagnostics")
 async def superadmin_diagnostics(token: str = Depends(security)):

@@ -1,18 +1,10 @@
+import { withSentryConfig } from "@sentry/nextjs";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
 	reactStrictMode: true,
 
-	// Temporarily disable Turbopack to fix unload event issues
-	// turbopack: {
-	// 	rules: {
-	// 		"*.svg": {
-	// 			loaders: ["@svgr/webpack"],
-	// 			as: "*.js",
-	// 		},
-	// 	},
-	// },
-
-	// Transpile Material UI packages to handle CSS imports
+	// Keep it simple - minimal config
 	transpilePackages: [
 		"@mui/x-data-grid",
 		"@mui/x-data-grid-pro",
@@ -21,18 +13,13 @@ const nextConfig = {
 		"@mui/x-tree-view",
 	],
 
-	// Enable experimental features from Next.js 15.3
+	// Minimal experimental features
 	experimental: {
-		// Enable optimized package imports
-		optimizePackageImports: ["lucide-react", "recharts"],
-		// Disable features that use deprecated unload events
-		appDocumentPreloading: false,
-		optimisticClientCache: false,
+		optimizePackageImports: ["lucide-react"],
 	},
 
 	// API rewrites for backend integration
 	async rewrites() {
-		// Only use rewrites in development
 		if (process.env.NODE_ENV === "development") {
 			return [
 				{
@@ -44,19 +31,17 @@ const nextConfig = {
 		return [];
 	},
 
-	// Performance optimizations
+	// Basic optimizations only
 	poweredByHeader: false,
 	compress: true,
 
 	// TypeScript configuration
 	typescript: {
-		// Ignore TypeScript errors during production builds
 		ignoreBuildErrors: true,
 	},
 
 	// ESLint configuration
 	eslint: {
-		// Ignore ESLint errors during production builds for faster deployment
 		ignoreDuringBuilds: true,
 	},
 
@@ -67,4 +52,34 @@ const nextConfig = {
 	},
 };
 
-module.exports = nextConfig;
+// Sentry configuration options
+const sentryWebpackPluginOptions = {
+	// Additional config options for the Sentry webpack plugin. Keep in mind that
+	// the following options are set automatically, and overriding them is not
+	// recommended:
+	//   release, url, configFile, stripPrefix, urlPrefix, include, ignore
+
+	org: process.env.SENTRY_ORG,
+	project: process.env.SENTRY_PROJECT,
+
+	// Only print logs for uploading source maps in CI
+	silent: !process.env.CI,
+
+	// For all available options, see:
+	// https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
+
+	// Upload a larger set of source maps for prettier stack traces (increases build time)
+	widenClientFileUpload: true,
+
+	// Automatically tree-shake Sentry logger statements to reduce bundle size
+	disableLogger: true,
+
+	// Hides source maps from generated client bundles
+	hideSourceMaps: true,
+
+	// Automatically tree-shake Sentry logger statements to reduce bundle size
+	disableLogger: true,
+};
+
+// Make sure adding Sentry options is the last code to run before exporting
+export default withSentryConfig(nextConfig, sentryWebpackPluginOptions);

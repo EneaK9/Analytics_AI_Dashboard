@@ -51,6 +51,7 @@ pytz==2023.3
 
 # Logging and monitoring
 python-json-logger==2.0.7
+sentry-sdk[fastapi]==2.35.0
 
 # API Integration packages - STABLE COMPATIBLE
 aiohttp==3.9.1

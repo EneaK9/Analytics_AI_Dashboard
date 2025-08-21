@@ -1,0 +1,20 @@
+/* Fix for Material-UI -ms-high-contrast deprecation warnings */
+/* Override any Microsoft-specific CSS properties with modern equivalents */
+
+@media (prefers-contrast: high) {
+  /* Replace deprecated -ms-high-contrast with modern prefers-contrast */
+  .MuiPaper-root,
+  .MuiCard-root,
+  .MuiAccordion-root {
+    border: 1px solid currentColor !important;
+    background-color: Canvas !important;
+    color: CanvasText !important;
+  }
+}
+
+/* Disable any remaining Microsoft-specific properties */
+* {
+  -ms-high-contrast: none !important;
+  -ms-filter: none !important;
+  -ms-text-size-adjust: none !important;
+}

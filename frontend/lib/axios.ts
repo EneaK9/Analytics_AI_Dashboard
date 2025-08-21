@@ -5,7 +5,7 @@ const api = axios.create({
 	baseURL: process.env.NEXT_PUBLIC_API_URL
 		? `${process.env.NEXT_PUBLIC_API_URL}/api`
 		: "http://localhost:8000/api",
-	timeout: 18000000, // 5 hours - increased 100x for heavy processing
+	timeout: 1800000, // 5 hours - increased 100x for heavy processing
 	headers: {
 		"Content-Type": "application/json",
 	},
@@ -44,16 +44,7 @@ api.interceptors.request.use(
 			config.url?.includes("/dashboard/generate")
 		) {
 			// Check if force_llm=true for even longer timeout
-			if (config.url?.includes("force_llm=true")) {
-				config.timeout = 60000000; // 16.67 hours for forced LLM analysis (100x increase)
-				console.log(
-					"🔧 Setting 16.67hr timeout for forced LLM endpoint:",
-					config.url
-				);
-			} else {
-				config.timeout = 30000000; // 8.33 hours for regular LLM endpoints (100x increase)
-				console.log("🔧 Setting 8.33hr timeout for LLM endpoint:", config.url);
-			}
+			config.timeout = 300000; // 30 seconds for LLM endpoints
 		}
 
 		// Set reasonable timeout for inventory analytics endpoints
@@ -61,7 +52,7 @@ api.interceptors.request.use(
 			config.url?.includes("/dashboard/sku-inventory") ||
 			config.url?.includes("/dashboard/inventory-analytics")
 		) {
-			config.timeout = 600000; // 1 minute for inventory processing
+			config.timeout = 150000; // 15 seconds for inventory processing
 		}
 
 		// Set reasonable timeout for file uploads

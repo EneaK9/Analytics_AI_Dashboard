@@ -4,6 +4,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Microsoft compatibility fixes */
+@import '../components/shared-theme/msCompat.css';
+
 @layer base {
   body {
     @apply bg-gray-2 text-body font-normal;
