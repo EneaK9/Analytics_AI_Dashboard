@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
 	BarChart3,
 	Store,
@@ -15,6 +15,12 @@ import CompactDatePicker, {
 } from "../ui/CompactDatePicker";
 import SimpleBarChart from "../charts/SimpleBarChart";
 import useMultiPlatformData from "../../hooks/useMultiPlatformData";
+import api from "../../lib/axios";
+
+// Helper function to format dates for API
+const formatDateForAPI = (date: Date): string => {
+	return date.toISOString().split('T')[0];
+};
 
 interface UnitsSoldChartsProps {
 	clientData?: any[];
@@ -48,19 +54,116 @@ export default function UnitsSoldCharts({
 		fastMode: true,
 	});
 
+	// Component-specific data states for date-filtered data
+	const [shopifyCustomData, setShopifyCustomData] = useState<any>(null);
+	const [amazonCustomData, setAmazonCustomData] = useState<any>(null);
+	const [allCustomData, setAllCustomData] = useState<any>(null);
+	const [shopifyCustomLoading, setShopifyCustomLoading] = useState<boolean>(false);
+	const [amazonCustomLoading, setAmazonCustomLoading] = useState<boolean>(false);
+	const [allCustomLoading, setAllCustomLoading] = useState<boolean>(false);
+
+	// Track which components are using custom date filtering
+	const [shopifyUseCustomDate, setShopifyUseCustomDate] = useState<boolean>(false);
+	const [amazonUseCustomDate, setAmazonUseCustomDate] = useState<boolean>(false);
+	const [allUseCustomDate, setAllUseCustomDate] = useState<boolean>(false);
+
+	// Fetch functions for custom date ranges
+	const fetchShopifyUnitsData = useCallback(async (dateRange: DateRange) => {
+		setShopifyCustomLoading(true);
+		try {
+			const params = {
+				component_type: "units_sold",
+				platform: "shopify",
+				start_date: formatDateForAPI(dateRange.start),
+				end_date: formatDateForAPI(dateRange.end)
+			};
+			
+			const response = await api.get('/dashboard/component-data', { params });
+			setShopifyCustomData(response.data.data);
+			console.log('✅ Shopify units sold data fetched for date range');
+		} catch (error) {
+			console.error('❌ Failed to fetch Shopify units sold data:', error);
+		} finally {
+			setShopifyCustomLoading(false);
+		}
+	}, []);
+
+	const fetchAmazonUnitsData = useCallback(async (dateRange: DateRange) => {
+		setAmazonCustomLoading(true);
+		try {
+			const params = {
+				component_type: "units_sold",
+				platform: "amazon",
+				start_date: formatDateForAPI(dateRange.start),
+				end_date: formatDateForAPI(dateRange.end)
+			};
+			
+			const response = await api.get('/dashboard/component-data', { params });
+			setAmazonCustomData(response.data.data);
+			console.log('✅ Amazon units sold data fetched for date range');
+		} catch (error) {
+			console.error('❌ Failed to fetch Amazon units sold data:', error);
+		} finally {
+			setAmazonCustomLoading(false);
+		}
+	}, []);
+
+	const fetchAllUnitsData = useCallback(async (dateRange: DateRange) => {
+		setAllCustomLoading(true);
+		try {
+			const params = {
+				component_type: "units_sold",
+				platform: "combined",
+				start_date: formatDateForAPI(dateRange.start),
+				end_date: formatDateForAPI(dateRange.end)
+			};
+			
+			const response = await api.get('/dashboard/component-data', { params });
+			setAllCustomData(response.data.data);
+			console.log('✅ Combined units sold data fetched for date range');
+		} catch (error) {
+			console.error('❌ Failed to fetch combined units sold data:', error);
+		} finally {
+			setAllCustomLoading(false);
+		}
+	}, []);
+
+	// Handle date range changes
+	const handleShopifyDateChange = useCallback(async (newDateRange: DateRange) => {
+		console.log('🗓️ Shopify units sold date changed to:', newDateRange.label);
+		setShopifyDateRange(newDateRange);
+		setShopifyUseCustomDate(true);
+		await fetchShopifyUnitsData(newDateRange);
+	}, [fetchShopifyUnitsData]);
+
+	const handleAmazonDateChange = useCallback(async (newDateRange: DateRange) => {
+		console.log('🗓️ Amazon units sold date changed to:', newDateRange.label);
+		setAmazonDateRange(newDateRange);
+		setAmazonUseCustomDate(true);
+		await fetchAmazonUnitsData(newDateRange);
+	}, [fetchAmazonUnitsData]);
+
+	const handleAllDateChange = useCallback(async (newDateRange: DateRange) => {
+		console.log('🗓️ All platforms units sold date changed to:', newDateRange.label);
+		setAllDateRange(newDateRange);
+		setAllUseCustomDate(true);
+		await fetchAllUnitsData(newDateRange);
+	}, [fetchAllUnitsData]);
+
 	// Extract trend analysis from platform data - MEMOIZED
 	const shopifyData = useMemo(
-		() => shopifyPlatformData?.trend_analysis || null,
-		[shopifyPlatformData]
+		() => shopifyUseCustomDate ? shopifyCustomData?.shopify : shopifyPlatformData?.trend_analysis,
+		[shopifyPlatformData, shopifyCustomData, shopifyUseCustomDate]
 	);
 	const amazonData = useMemo(
-		() => amazonPlatformData?.trend_analysis || null,
-		[amazonPlatformData]
+		() => amazonUseCustomDate ? amazonCustomData?.amazon : amazonPlatformData?.trend_analysis,
+		[amazonPlatformData, amazonCustomData, amazonUseCustomDate]
 	);
 
 	// Derived loading/error states
-	const shopifyLoading = multiLoading;
-	const amazonLoading = multiLoading;
+	const shopifyLoading = shopifyUseCustomDate ? shopifyCustomLoading : multiLoading;
+	const amazonLoading = amazonUseCustomDate ? amazonCustomLoading : multiLoading;
+	const allLoading = allUseCustomDate ? allCustomLoading : (multiLoading || shopifyLoading || amazonLoading);
 	const shopifyError = multiError;
 	const amazonError = multiError;
 
@@ -108,53 +211,109 @@ export default function UnitsSoldCharts({
 	}, [amazonData, amazonDateRange]);
 
 	const allChartData = useMemo(() => {
-		if (!shopifyData?.units_sold_chart || !amazonData?.units_sold_chart) {
-			return [];
+		// If using custom combined data (when "All" chart's own date was changed), use it directly
+		if (allUseCustomDate && allCustomData?.combined?.units_sold_chart) {
+			return allCustomData.combined.units_sold_chart.map((item: { date: string; units_sold: number }) => ({
+				date: new Date(item.date).toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+				}),
+				units: item.units_sold,
+				value: item.units_sold,
+			}));
 		}
 
+		// Determine which date range to use for the combined chart
+		let effectiveDateRange = allDateRange;
+		
+		// If individual platforms are using custom dates, sync the combined chart to their date range
+		if (shopifyUseCustomDate || amazonUseCustomDate) {
+			// Use the most restrictive (latest start, earliest end) date range
+			const shopifyRange = shopifyUseCustomDate ? shopifyDateRange : allDateRange;
+			const amazonRange = amazonUseCustomDate ? amazonDateRange : allDateRange;
+			
+			effectiveDateRange = {
+				start: new Date(Math.max(shopifyRange.start.getTime(), amazonRange.start.getTime())),
+				end: new Date(Math.min(shopifyRange.end.getTime(), amazonRange.end.getTime())),
+				label: "Synced range"
+			};
+		}
+
+		console.log('🔍 DEBUG COMBINATION:');
+		console.log('  Shopify date range:', shopifyDateRange);
+		console.log('  Amazon date range:', amazonDateRange);
+		console.log('  All date range:', allDateRange);
+		console.log('  Effective date range for combination:', effectiveDateRange);
+		console.log('  shopifyUseCustomDate:', shopifyUseCustomDate);
+		console.log('  amazonUseCustomDate:', amazonUseCustomDate);
+
+		// Get raw data for both platforms
+		const shopifyRawData = shopifyData?.units_sold_chart || [];
+		const amazonRawData = amazonData?.units_sold_chart || [];
+
+		console.log('  Raw Shopify data length:', shopifyRawData.length);
+		console.log('  Raw Amazon data length:', amazonRawData.length);
+
+		// Apply the same date filtering logic to both platforms using the effective date range
 		const days = Math.floor(
-			(allDateRange.end.getTime() - allDateRange.start.getTime()) /
+			(effectiveDateRange.end.getTime() - effectiveDateRange.start.getTime()) /
 				(1000 * 60 * 60 * 24)
-		);
+		) + 1; // Include both start and end dates
 
-		// Combine data from both platforms
 		const now = new Date();
-		const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+		const startDate = new Date(effectiveDateRange.start.getTime());
 
-		const shopifyFiltered = shopifyData.units_sold_chart.filter(
-			(item: { date: string }) => {
+		console.log('  Date filter: from', startDate, 'for', days, 'days');
+
+		// Filter and format Shopify data
+		const filteredShopifyData = shopifyRawData
+			.filter((item: { date: string; units_sold: number }) => {
 				const itemDate = new Date(item.date);
-				return itemDate >= startDate && itemDate <= now;
-			}
-		);
+				return itemDate >= startDate && itemDate <= effectiveDateRange.end;
+			})
+			.map((item: { date: string; units_sold: number }) => ({
+				date: new Date(item.date).toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+				}),
+				units: item.units_sold,
+			}));
 
-		const amazonFiltered = amazonData.units_sold_chart.filter(
-			(item: { date: string }) => {
+		// Filter and format Amazon data  
+		const filteredAmazonData = amazonRawData
+			.filter((item: { date: string; units_sold: number }) => {
 				const itemDate = new Date(item.date);
-				return itemDate >= startDate && itemDate <= now;
-			}
-		);
+				return itemDate >= startDate && itemDate <= effectiveDateRange.end;
+			})
+			.map((item: { date: string; units_sold: number }) => ({
+				date: new Date(item.date).toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+				}),
+				units: item.units_sold,
+			}));
 
-		// Create a map to combine data by date
+		console.log('  Filtered Shopify data:', filteredShopifyData);
+		console.log('  Filtered Amazon data:', filteredAmazonData);
+
+		// Combine the filtered data
 		const combinedMap = new Map();
 
-		shopifyFiltered.forEach((item: { date: string; units_sold: number }) => {
-			const date = new Date(item.date).toLocaleDateString("en-US", {
-				month: "short",
-				day: "numeric",
-			});
-			combinedMap.set(date, (combinedMap.get(date) || 0) + item.units_sold);
+		// Add shopify data
+		filteredShopifyData.forEach((item: { date: string; units: number }) => {
+			const currentUnits = combinedMap.get(item.date) || 0;
+			combinedMap.set(item.date, currentUnits + item.units);
+			console.log(`  Adding Shopify ${item.date}: ${item.units} (total now: ${currentUnits + item.units})`);
 		});
 
-		amazonFiltered.forEach((item: { date: string; units_sold: number }) => {
-			const date = new Date(item.date).toLocaleDateString("en-US", {
-				month: "short",
-				day: "numeric",
-			});
-			combinedMap.set(date, (combinedMap.get(date) || 0) + item.units_sold);
+		// Add amazon data
+		filteredAmazonData.forEach((item: { date: string; units: number }) => {
+			const currentUnits = combinedMap.get(item.date) || 0;
+			combinedMap.set(item.date, currentUnits + item.units);
+			console.log(`  Adding Amazon ${item.date}: ${item.units} (total now: ${currentUnits + item.units})`);
 		});
 
-		return Array.from(combinedMap.entries())
+		const result = Array.from(combinedMap.entries())
 			.map(([date, units]) => ({
 				date,
 				units,
@@ -162,9 +321,13 @@ export default function UnitsSoldCharts({
 			}))
 			.sort(
 				(a: any, b: any) =>
-					new Date(a.date).getTime() - new Date(b.date).getTime()
+					new Date(a.date + ", 2024").getTime() - new Date(b.date + ", 2024").getTime()
 			);
-	}, [shopifyData, amazonData, allDateRange]);
+
+		console.log('  Final combined result with synced date range:', result);
+
+		return result;
+	}, [allUseCustomDate, allCustomData, shopifyData, amazonData, shopifyUseCustomDate, amazonUseCustomDate, shopifyDateRange, amazonDateRange, allDateRange]);
 
 	// Calculate summary stats for each chart
 	const calculateStats = (data: any[]) => {
@@ -317,7 +480,7 @@ export default function UnitsSoldCharts({
 					title="Shopify Units Sold"
 					data={shopifyChartData}
 					dateRange={shopifyDateRange}
-					onDateRangeChange={setShopifyDateRange}
+					onDateRangeChange={handleShopifyDateChange}
 					loading={shopifyLoading}
 					error={shopifyError}
 					icon={<Store className="h-4 w-4" style={{ color: "#059669" }} />}
@@ -330,7 +493,7 @@ export default function UnitsSoldCharts({
 					title="Amazon Units Sold"
 					data={amazonChartData}
 					dateRange={amazonDateRange}
-					onDateRangeChange={setAmazonDateRange}
+					onDateRangeChange={handleAmazonDateChange}
 					loading={amazonLoading}
 					error={amazonError}
 					icon={
@@ -345,8 +508,8 @@ export default function UnitsSoldCharts({
 					title="All Platforms Combined"
 					data={allChartData}
 					dateRange={allDateRange}
-					onDateRangeChange={setAllDateRange}
-					loading={shopifyLoading || amazonLoading}
+					onDateRangeChange={handleAllDateChange}
+					loading={allLoading}
 					error={shopifyError || amazonError}
 					icon={<BarChart3 className="h-4 w-4" style={{ color: "#3b82f6" }} />}
 					iconColor="#3b82f6"
@@ -354,12 +517,7 @@ export default function UnitsSoldCharts({
 				/>
 			</div>
 
-			{/* Data Info */}
-			<div className="text-center text-sm text-gray-500">
-				<Calendar className="inline h-4 w-4 mr-1" />
-				Showing units sold for selected date ranges • Data updates every 5
-				minutes
-			</div>
+
 		</div>
 	);
 }

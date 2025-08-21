@@ -111,8 +111,14 @@ export default function SelectContent({
 	if (loading) {
 		return (
 			<Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-				<Avatar sx={{ width: 36, height: 36, bgcolor: "grey.300" }}>
-					<DashboardIcon />
+				<Avatar sx={{ 
+					width: 36, 
+					height: 36, 
+					bgcolor: "grey.300",
+					color: "white",
+					fontWeight: "bold"
+				}}>
+					{user?.company_name ? user.company_name.charAt(0).toUpperCase() : "?"}
 				</Avatar>
 				<ListItemText
 					primary="Loading..."
@@ -138,8 +144,14 @@ export default function SelectContent({
 			width: "100%",
 			minHeight: 64 
 		}}>
-			<Avatar sx={{ width: 36, height: 36, bgcolor: mainDashboard.color }}>
-				{mainDashboard.icon}
+			<Avatar sx={{ 
+				width: 36, 
+				height: 36, 
+				bgcolor: "grey.400",
+				color: "white",
+				fontWeight: "bold"
+			}}>
+				{user?.company_name ? user.company_name.charAt(0).toUpperCase() : "A"}
 			</Avatar>
 			<ListItemText 
 				primary={mainDashboard.title} 

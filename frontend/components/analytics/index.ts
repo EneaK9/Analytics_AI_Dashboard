@@ -14,6 +14,9 @@ export { default as SmartEcommerceMetrics } from "./SmartEcommerceMetrics";
 export { default as SmartMonthlySalesChart } from "./SmartMonthlySalesChart";
 export { default as DynamicDashboard } from "./DynamicDashboard";
 
+// Inventory Analytics Components
+export { default as InventoryAnalyticsDataTable } from "./InventoryAnalyticsDataTable";
+
 // UI Components
 export { default as Badge } from "../ui/badge/Badge";
 export { Dropdown } from "../ui/dropdown/Dropdown";

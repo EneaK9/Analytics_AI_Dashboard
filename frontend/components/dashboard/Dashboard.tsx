@@ -121,6 +121,8 @@ export default function Dashboard({
 					component="main"
 					sx={(theme) => ({
 						flexGrow: 1,
+						minHeight: "100vh",
+						height: "100vh",
 						backgroundColor: theme.vars
 							? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
 							: alpha(theme.palette.background.default, 1),
@@ -137,16 +139,16 @@ export default function Dashboard({
 											{selectedSection === "data-tables" ? (
 						<>
 							<Box sx={{ width: "100%", mb: 2 }}>
-								<Header onDateRangeChange={onDateRangeChange} />
+								<Header />
 							</Box>
 							{/* Optimized DataTablesPage using global state and raw data API */}
-							<Box sx={{ width: "100%", height: "calc(100vh - 200px)" }}>
+							<Box sx={{ width: "100%", height: "calc(100vh - 120px)" }}>
 								<OptimizedDataTablesPage user={user} />
 							</Box>
 						</>
 					) : (
 							<>
-                                <Header onDateRangeChange={onDateRangeChange} onSearch={handleSearch} />
+                                <Header />
 								<MainGrid
 									dashboardData={dashboardData}
 									user={user}

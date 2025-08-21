@@ -351,13 +351,7 @@ export default function SalesPerformanceAlerts({
 			</div>
 
 			{/* Footer */}
-			<div className="text-center text-sm text-gray-500">
-				<RefreshCw className="inline h-4 w-4 mr-1" />
-				Last updated:{" "}
-				{(shopifyLastUpdated || amazonLastUpdated)?.toLocaleTimeString() ||
-					"Unknown"}{" "}
-				• Real-time monitoring active
-			</div>
+
 		</div>
 	);
 }

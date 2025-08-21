@@ -223,10 +223,7 @@ const OptimizedMainGrid: React.FC<OptimizedMainGridProps> = memo(({
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid size={{ xs: 12 }}>
           <Card>
-            <CardHeader
-              title="SKU Inventory Management"
-              subheader="Comprehensive inventory tracking with platform switching"
-            />
+
             <CardContent sx={{ p: 0 }}>
               <InventorySKUList
                 clientData={[]} // This component manages its own data

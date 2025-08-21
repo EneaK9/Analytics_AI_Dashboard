@@ -10,7 +10,23 @@ import {
 	ArrowUpDown,
 	MoreHorizontal,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "./card";
+import { Card as ShadcnCard, CardContent as ShadcnCardContent, CardHeader, CardTitle } from "./card";
+import { 
+	Pagination, 
+	Box, 
+	Typography, 
+	OutlinedInput, 
+	InputAdornment, 
+	IconButton, 
+	Button,
+	LinearProgress,
+	Skeleton,
+	Card,
+	CardContent
+} from "@mui/material";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import ClearIcon from "@mui/icons-material/Clear";
+import DownloadIcon from "@mui/icons-material/Download";
 
 interface DataTableColumn {
 	key: string;
@@ -22,8 +38,8 @@ interface DataTableColumn {
 }
 
 interface DataTableProps {
-	data: any[];
-	columns: DataTableColumn[];
+	data?: any[];
+	columns?: DataTableColumn[];
 	title?: string;
 	subtitle?: string;
 	pagination?: boolean;
@@ -34,6 +50,7 @@ interface DataTableProps {
 	loading?: boolean;
 	emptyMessage?: string;
 	className?: string;
+	additionalControls?: React.ReactNode;
 }
 
 export default function DataTable({
@@ -49,6 +66,7 @@ export default function DataTable({
 	loading = false,
 	emptyMessage = "No data available",
 	className = "",
+	additionalControls,
 }: DataTableProps) {
 	const [currentPage, setCurrentPage] = useState(1);
 	const [searchTerm, setSearchTerm] = useState("");
@@ -110,14 +128,12 @@ export default function DataTable({
 		: processedData;
 
 	const handleSort = (columnKey: string) => {
-		const column = columns.find((col) => col.key === columnKey);
-		if (!column?.sortable) return;
-
 		setSortConfig((current) => {
 			if (current?.key === columnKey) {
-				return current.direction === "asc"
-					? { key: columnKey, direction: "desc" }
-					: null;
+				return {
+					key: columnKey,
+					direction: current.direction === "asc" ? "desc" : "asc",
+				};
 			}
 			return { key: columnKey, direction: "asc" };
 		});
@@ -189,95 +205,190 @@ export default function DataTable({
 
 	if (loading) {
 		return (
-			<Card className={className}>
-				{(title || subtitle) && (
-					<CardHeader className={compact ? "pb-3" : ""}>
+			<Box sx={{ p: 2 }}>
+				<Box sx={{ mb: 2 }}>
 						{title && (
-							<CardTitle className={compact ? "text-lg" : ""}>
+						<Typography variant="h6" sx={{ fontSize: "1.25rem", fontWeight: 600, color: "#212121", mb: 0 }}>
 								{title}
-							</CardTitle>
-						)}
-						{subtitle && <p className="text-sm text-gray-600">{subtitle}</p>}
-					</CardHeader>
-				)}
-				<CardContent>
-					<div className="space-y-4">
-						{/* Loading skeleton */}
-						{[...Array(5)].map((_, i) => (
-							<div key={i} className="flex space-x-4">
-								{columns.map((col, j) => (
-									<div
-										key={j}
-										className="bg-gray-200 animate-pulse h-4 rounded flex-1"></div>
-								))}
-							</div>
-						))}
-					</div>
-				</CardContent>
-			</Card>
+						</Typography>
+					)}
+					{subtitle && (
+						<Typography variant="body2" sx={{ fontSize: "0.875rem", color: "#757575" }}>
+							{subtitle}
+						</Typography>
+					)}
+				</Box>
+				<Box sx={{ p: 2 }}>
+					{Array.from({ length: 10 }).map((_, index) => (
+						<Skeleton
+							key={index}
+							variant="rectangular"
+							height={40}
+							sx={{ mb: 1 }}
+						/>
+					))}
+				</Box>
+			</Box>
 		);
 	}
 
 	return (
-		<Card className={className}>
-			{(title || subtitle) && (
-				<CardHeader className={compact ? "pb-3" : ""}>
-					<div className="flex items-start justify-between">
-						<div>
-							{title && (
-								<CardTitle className={compact ? "text-lg" : ""}>
-									{title}
-								</CardTitle>
-							)}
-							{subtitle && (
-								<p className="text-sm text-gray-600 mt-1">{subtitle}</p>
-							)}
-						</div>
-						{showExport && processedData.length > 0 && (
-							<button
-								onClick={handleExport}
-								className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 rounded-lg">
-								<Download className="w-4 h-4" />
-								Export
-							</button>
-						)}
-					</div>
-				</CardHeader>
-			)}
+		<Box>
+			{/* Data Table */}
+			<Card 
+				variant="outlined" 
+				sx={{ 
+					height: "100%",
+					boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+					borderRadius: 2,
+					border: "1px solid #e0e0e0"
+				}}>
 
-			<CardContent className={compact ? "pt-0" : ""}>
-				{/* Search and filters */}
-				{search && data.length > 0 && (
-					<div className="mb-4">
-						<div className="relative">
-							<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-							<input
-								id="data-table-search-term"
-								name="searchTerm"
-								type="text"
-								placeholder="Search..."
-								value={searchTerm}
-								onChange={(e) => setSearchTerm(e.target.value)}
-								className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-							/>
-						</div>
-					</div>
+				<Box 
+					sx={{ 
+						p: 2, 
+						backgroundColor: "#ffffff",
+						borderBottom: "1px solid #e0e0e0",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "space-between",
+						gap: 2,
+						flexWrap: "wrap"
+					}}
+				>
+					<Box sx={{ display: "flex", flexDirection: "column", minWidth: "auto" }}>
+						<Typography variant="h6" sx={{ fontSize: "1.25rem", fontWeight: 600, color: "#212121", mb: 0 }}>
+									{title}
+						</Typography>
+						<Typography variant="body2" sx={{ fontSize: "0.875rem", color: "#757575" }}>
+							Retrieved {processedData.length} records {pagination && totalPages > 1 ? `(page ${currentPage} of ${totalPages})` : ''}
+						</Typography>
+					</Box>
+					{(search && data.length > 0) || additionalControls ? (
+						<Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+							{search && data.length > 0 && (
+								<OutlinedInput
+									id="data-table-search"
+									name="searchInput"
+									size="small"
+									value={searchTerm}
+									onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+									placeholder="Search all data..."
+									endAdornment={
+										<InputAdornment position="end">
+											{searchTerm && (
+												<IconButton
+													size="small"
+													onClick={() => setSearchTerm("")}>
+													<ClearIcon fontSize="small" />
+												</IconButton>
+											)}
+											<SearchRoundedIcon
+												fontSize="small"
+												sx={{ color: "text.secondary", ml: 0.5 }}
+											/>
+										</InputAdornment>
+									}
+									sx={{
+										width: { xs: "100%", md: 320 },
+									}}
+								/>
+							)}
+						{showExport && processedData.length > 0 && (
+								<Button
+									variant="outlined"
+								onClick={handleExport}
+									startIcon={<DownloadIcon />}
+									size="small"
+									sx={{ whiteSpace: "nowrap" }}
+								>
+								Export
+								</Button>
+							)}
+							{additionalControls}
+						</Box>
+					) : null}
+				</Box>
+				<Box sx={{ p: 0 }}>
+				{/* Loading Indicator */}
+				{loading && (
+					<LinearProgress
+						sx={{
+							position: "absolute",
+							top: 0,
+							left: 0,
+							right: 0,
+							zIndex: 2,
+						}}
+					/>
 				)}
 
-				{/* Table */}
-				<div className="overflow-x-auto">
-					<table className="w-full">
+				{/* Data Table */}
+				<Box
+					sx={{
+						width: "100%",
+						height: { xs: "60vh", md: "75vh" },
+						overflow: "auto",
+						position: "relative",
+						opacity: loading ? 0.7 : 1,
+						transition: "opacity 0.2s ease-in-out",
+						backgroundColor: "#ffffff",
+						borderRadius: "0 0 8px 8px",
+					}}>
+					{paginatedData.length === 0 ? (
+						<Box sx={{ 
+							display: "flex", 
+							justifyContent: "center", 
+							alignItems: "center", 
+							height: "200px",
+							color: "text.secondary"
+						}}>
+							<Typography variant="body1">{emptyMessage}</Typography>
+						</Box>
+					) : (
+						<table
+							style={{
+								width: "100%",
+								borderCollapse: "collapse",
+								tableLayout: "auto",
+							}}>
 						<thead>
-							<tr className="border-b border-gray-200">
-								{columns.map((column) => (
+								<tr style={{ backgroundColor: "#ffffff", borderBottom: "2px solid #e0e0e0" }}>
+									<th
+										style={{
+											position: "sticky",
+											top: 0,
+											zIndex: 1,
+											padding: "16px 12px",
+											textAlign: "left",
+											fontWeight: "600",
+											fontSize: "0.875rem",
+											color: "#424242",
+											background: "#ffffff",
+											borderRight: "1px solid #f0f0f0",
+											width: "60px",
+										}}>
+									#
+								</th>
+									{columns.map((column, colIndex) => (
 									<th
 										key={column.key}
-										className={`text-left py-3 px-4 font-semibold text-gray-900 ${
-											column.sortable ? "cursor-pointer" : ""
-										} ${compact ? "py-2 text-sm" : ""}`}
-										style={{ width: column.width }}
-										onClick={() => handleSort(column.key)}>
-										<div className="flex items-center gap-2">
+											onClick={() => column.sortable && handleSort(column.key)}
+											style={{
+												position: "sticky",
+												top: 0,
+												zIndex: 1,
+												padding: "16px 12px",
+												textAlign: "left",
+												fontWeight: "600",
+												fontSize: "0.875rem",
+												color: "#424242",
+												background: "#ffffff",
+												borderRight: colIndex < columns.length - 1 ? "1px solid #f0f0f0" : "none",
+												cursor: column.sortable ? "pointer" : "default",
+												width: column.width,
+											}}>
+											<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
 											{column.title}
 											{column.sortable && getSortIcon(column.key)}
 										</div>
@@ -286,96 +397,103 @@ export default function DataTable({
 							</tr>
 						</thead>
 						<tbody>
-							{paginatedData.length === 0 ? (
-								<tr>
-									<td
-										colSpan={columns.length}
-										className="text-center py-8 text-gray-500">
-										{emptyMessage}
-									</td>
-								</tr>
-							) : (
-								paginatedData.map((row, index) => (
-									<tr key={index} className="border-b border-gray-100">
-										{columns.map((column) => (
+								{paginatedData.map((row, rowIndex) => (
+									<tr 
+										key={rowIndex}
+										style={{
+											backgroundColor: rowIndex % 2 === 0 ? "#ffffff" : "#fafafa",
+											transition: "background-color 0.2s ease",
+										}}
+										onMouseEnter={(e) => {
+											e.currentTarget.style.backgroundColor = "#f5f5f5";
+										}}
+										onMouseLeave={(e) => {
+											e.currentTarget.style.backgroundColor = rowIndex % 2 === 0 ? "#ffffff" : "#fafafa";
+										}}
+									>
+										<td
+											style={{
+												padding: "12px",
+												borderBottom: "1px solid #f0f0f0",
+												borderRight: "1px solid #f0f0f0",
+												whiteSpace: "nowrap",
+												fontSize: "0.875rem",
+												color: "#6b7280",
+												fontWeight: "500",
+												width: "60px",
+											}}
+										>
+											{(currentPage - 1) * pageSize + rowIndex + 1}
+										</td>
+										{columns.map((column, cellIndex) => {
+											const cellValue = row[column.key];
+											return (
 											<td
 												key={column.key}
-												className={`py-3 px-4 ${
-													compact ? "py-2 text-sm" : ""
-												}`}>
-												<div className="truncate">
-													{formatCellValue(row[column.key], column)}
-												</div>
+													style={{
+														padding: "12px",
+														borderBottom: "1px solid #f0f0f0",
+														borderRight: cellIndex < columns.length - 1 ? "1px solid #f0f0f0" : "none",
+														whiteSpace: "nowrap",
+														maxWidth: "200px",
+														overflow: "hidden",
+														textOverflow: "ellipsis",
+														fontSize: "0.875rem",
+														color: "#424242",
+													}}
+													title={String(cellValue ?? "")}
+												>
+													{formatCellValue(cellValue, column)}
 											</td>
-										))}
+											);
+										})}
 									</tr>
-								))
-							)}
+								))}
 						</tbody>
 					</table>
-				</div>
+					)}
+				</Box>
 
 				{/* Pagination */}
 				{pagination && totalPages > 1 && (
-					<div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
-						<div className="text-sm text-gray-600">
-							Showing {(currentPage - 1) * pageSize + 1} to{" "}
-							{Math.min(currentPage * pageSize, processedData.length)} of{" "}
-							{processedData.length} results
-						</div>
-						<div className="flex items-center gap-2">
-							<button
-								onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-								disabled={currentPage === 1}
-								className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed">
-								Previous
-							</button>
-
-							{/* Page numbers */}
-							{[...Array(totalPages)].map((_, i) => {
-								const page = i + 1;
-								if (
-									page === 1 ||
-									page === totalPages ||
-									(page >= currentPage - 1 && page <= currentPage + 1)
-								) {
-									return (
-										<button
-											key={page}
-											onClick={() => setCurrentPage(page)}
-											className={`px-3 py-1 border rounded ${
-												currentPage === page
-													? "bg-blue-500 text-white border-blue-500"
-													: "border-gray-300"
-											}`}>
-											{page}
-										</button>
-									);
-								} else if (
-									page === currentPage - 2 ||
-									page === currentPage + 2
-								) {
-									return (
-										<span key={page} className="px-2">
-											...
-										</span>
-									);
-								}
-								return null;
-							})}
-
-							<button
-								onClick={() =>
-									setCurrentPage((p) => Math.min(totalPages, p + 1))
-								}
-								disabled={currentPage === totalPages}
-								className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed">
-								Next
-							</button>
-						</div>
-					</div>
+					<Box 
+						sx={{ 
+							p: 3, 
+							display: "flex", 
+							justifyContent: "center",
+							borderTop: "1px solid #e0e0e0",
+							backgroundColor: "#fafafa"
+						}}
+					>
+						<Pagination
+							count={totalPages}
+							page={currentPage}
+							onChange={(_, page) => setCurrentPage(page)}
+							size="medium"
+							showFirstButton
+							showLastButton
+							disabled={loading}
+							sx={{
+								"& .MuiPaginationItem-root": {
+									transition: "all 0.2s ease-in-out",
+									fontWeight: 500,
+								},
+								"& .MuiPaginationItem-root.Mui-disabled": {
+									opacity: 0.6,
+								},
+								"& .MuiPaginationItem-root.Mui-selected": {
+									backgroundColor: "#000000",
+									color: "#ffffff",
+									"&:hover": {
+										backgroundColor: "#333333",
+									},
+								},
+							}}
+						/>
+					</Box>
 				)}
-			</CardContent>
+				</Box>
 		</Card>
+		</Box>
 	);
 }

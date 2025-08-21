@@ -941,11 +941,7 @@ export default function ExcelDataView({ user }: ExcelDataViewProps) {
 								/>
 							</IconButton>
 						</Tooltip>
-						<Tooltip title="Refresh Data">
-							<IconButton onClick={loadData} disabled={loading}>
-								<RefreshIcon />
-							</IconButton>
-						</Tooltip>
+
 					</Box>
 				}
 			/>
