@@ -99,6 +99,14 @@ logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 
+# 🏥 HEALTH CHECK CACHE - INSTANT RESPONSES ALWAYS!
+health_check_cache = {
+    "status": "healthy",
+    "timestamp": datetime.utcnow().isoformat(),
+    "service": "Analytics AI Dashboard API",
+    "response_time_ms": 0
+}
+health_check_last_update = time.time()
 
 # 🚀 ASYNC REQUEST HANDLING SYSTEM - NO MORE WAITING!
 
@@ -141,18 +149,21 @@ async def refresh_analytics_background(
 
         from dashboard_inventory_analyzer import dashboard_inventory_analyzer
 
-        # Run calculation in thread pool to avoid blocking
-
-        loop = asyncio.get_event_loop()
-
-        analytics = await loop.run_in_executor(
-            executor,
-            lambda: asyncio.run(
+        # Run calculation with timeout to prevent blocking health checks
+        # FIXED: Removed nested asyncio.run() that was causing deadlocks
+        try:
+            analytics = await asyncio.wait_for(
                 dashboard_inventory_analyzer.get_dashboard_inventory_analytics(
                     client_id, platform, start_date, end_date
-                )
-            ),
-        )
+                ),
+                timeout=30.0  # 30 second max to prevent blocking
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"⚠️ Analytics calculation timeout for {client_id} ({platform})")
+            analytics = {"error": "calculation_timeout", "message": "Analytics calculation timed out"}
+        except Exception as e:
+            logger.error(f"❌ Analytics calculation error for {client_id}: {e}")
+            analytics = {"error": "calculation_failed", "message": str(e)}
 
         # Cache the results using existing LLM cache infrastructure with date range
 
@@ -198,18 +209,21 @@ async def refresh_sku_background(
 
         from dashboard_inventory_analyzer import dashboard_inventory_analyzer
 
-        # Run calculation in thread pool to avoid blocking
-
-        loop = asyncio.get_event_loop()
-
-        sku_data = await loop.run_in_executor(
-            executor,
-            lambda: asyncio.run(
+        # Run calculation with timeout to prevent blocking
+        # FIXED: Removed nested asyncio.run() that was causing deadlocks
+        try:
+            sku_data = await asyncio.wait_for(
                 dashboard_inventory_analyzer.get_sku_list(
                     client_id, page, page_size, False, platform
-                )
-            ),
-        )
+                ),
+                timeout=30.0  # 30 second max to prevent blocking
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"⚠️ SKU calculation timeout for {client_id} ({platform})")
+            sku_data = {"error": "calculation_timeout", "message": "SKU calculation timed out"}
+        except Exception as e:
+            logger.error(f"❌ SKU calculation error for {client_id}: {e}")
+            sku_data = {"error": "calculation_failed", "message": str(e)}
 
         logger.info(f"✅ Background SKU refresh completed for {client_id} ({platform})")
 
@@ -859,29 +873,86 @@ async def root():
 
 
 @app.get("/health")
-async def health_check():
-    """Simple health check endpoint"""
-
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "service": "Analytics AI Dashboard API",
-    }
+def health_check():
+    """Ultra-fast synchronous health check endpoint - NEVER blocks!"""
+    global health_check_cache, health_check_last_update
+    
+    # Update cache every 30 seconds to keep timestamps fresh
+    current_time = time.time()
+    if current_time - health_check_last_update > 30:
+        health_check_cache["timestamp"] = datetime.utcnow().isoformat()
+        health_check_last_update = current_time
+    
+    # Return cached response instantly - NO computation, NO blocking!
+    return health_check_cache
 
 
 @app.get("/api/health")
-async def api_health_check():
-    """API health check endpoint"""
-
+def api_health_check():
+    """Ultra-fast API health check endpoint - NEVER blocks!"""
+    global health_check_last_update
+    
+    # Update timestamp if needed (every 30 seconds)
+    current_time = time.time()
+    if current_time - health_check_last_update > 30:
+        health_check_last_update = current_time
+    
+    # Return instant cached response - NO async operations!
     return {
         "status": "healthy",
         "api_version": "4.0-fast",
+        "uptime": "operational",
+        "timestamp": datetime.utcnow().isoformat(),
+        "response_time_ms": 0,
         "endpoints_available": [
             "/api/dashboard/config",
             "/api/dashboard/fast-generate",
             "/api/debug/auth",
         ],
     }
+
+
+@app.get("/health/detailed")
+async def detailed_health_check():
+    """Detailed health check with database connectivity (use for monitoring, not load balancer)"""
+    try:
+        start_time = time.time()
+        
+        # Quick database ping with timeout
+        db_status = "unknown"
+        try:
+            admin_client = get_admin_client()
+            if admin_client:
+                # Very quick query with timeout
+                result = await asyncio.wait_for(
+                    asyncio.create_task(admin_client.execute("SELECT 1")),
+                    timeout=2.0  # 2 second timeout
+                )
+                db_status = "connected" if result else "failed"
+        except asyncio.TimeoutError:
+            db_status = "timeout"
+        except Exception:
+            db_status = "error"
+        
+        response_time = round((time.time() - start_time) * 1000, 2)
+        
+        return {
+            "status": "healthy" if db_status == "connected" else "degraded",
+            "timestamp": datetime.utcnow().isoformat(),
+            "service": "Analytics AI Dashboard API",
+            "response_time_ms": response_time,
+            "database": db_status,
+            "version": "4.0-fast"
+        }
+        
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "service": "Analytics AI Dashboard API",
+            "error": str(e),
+            "response_time_ms": round((time.time() - start_time) * 1000, 2) if 'start_time' in locals() else 0
+        }
 
 
 @app.get("/api/superadmin/diagnostics")
