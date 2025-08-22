@@ -4330,7 +4330,7 @@ async def get_raw_data_tables(
                             "order_number",
                             "customer_email",
                             "financial_status",
-                            "order_status",
+                            "fulfillment_status",
                             "source_name",
                             "tags"
                         ]
@@ -4438,7 +4438,7 @@ async def get_raw_data_tables(
                             "order_number",
                             "customer_email",
                             "financial_status",
-                            "order_status",
+                            "fulfillment_status",
                             "source_name",
                             "tags"
                         ]
