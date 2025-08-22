@@ -411,6 +411,46 @@ class ComponentDataManager:
             products_response = db_client.table(table_name).select("*").execute()
             products = products_response.data or []
             
+            # 🚨 CRITICAL: If no products exist, return empty inventory levels immediately
+            if not products:
+                logger.info(f"📦 No products found in {table_name} for {platform} - returning empty inventory levels")
+                
+                # Generate empty timeline for the date range
+                start_dt = self._parse_date(start_date)
+                end_dt = self._parse_date(end_date)
+                
+                if not start_dt or not end_dt:
+                    return {
+                        'inventory_levels_chart': [],
+                        'current_total_inventory': 0,
+                        'error': 'Invalid date format'
+                    }
+                
+                timeline_data = []
+                current_date = start_dt
+                while current_date <= end_dt:
+                    timeline_data.append({
+                        'date': current_date.strftime('%Y-%m-%d'),
+                        'inventory_level': 0,
+                        'value': 0
+                    })
+                    current_date += timedelta(days=1)
+                
+                return {
+                    'inventory_levels_chart': timeline_data,
+                    'current_total_inventory': 0,
+                    'inventory_at_start_date': 0,
+                    'period_info': {
+                        'start_date': start_date,
+                        'end_date': end_date,
+                        'data_points': len(timeline_data),
+                        'calculation_method': 'no_products_empty_inventory',
+                        'total_units_sold_in_period': 0,
+                        'total_units_sold_since_start': 0,
+                        'daily_sales_calculated': 0
+                    }
+                }
+            
             # Get corresponding orders table
             if platform == "shopify":
                 orders_table = table_name.replace('_shopify_products', '_shopify_orders')
@@ -1180,8 +1220,34 @@ class ComponentDataManager:
                     if orders_processed <= 5:
                         logger.info(f"     🛍️ Amazon quantity: {units_sold}")
                 
-                # Ensure we always count at least 1 unit per order (if we couldn't extract quantity)
+                # LOG DETAILED DEBUG INFO if units_sold is still 0
                 if units_sold == 0:
+                    if orders_processed <= 5:
+                        logger.warning(f"⚠️ Order {orders_processed} has 0 units extracted:")
+                        logger.warning(f"   Order number: {order.get('order_number', 'N/A')}")
+                        logger.warning(f"   Total price: {order.get('total_price', 'N/A')}")
+                        logger.warning(f"   Line items count: {order.get('line_items_count', 'N/A')}")
+                        logger.warning(f"   Has raw_data: {bool(order.get('raw_data'))}")
+                        
+                        # Try to parse raw_data one more time with detailed logging
+                        raw_data = order.get('raw_data')
+                        if raw_data:
+                            try:
+                                if isinstance(raw_data, str):
+                                    parsed = json.loads(raw_data)
+                                else:
+                                    parsed = raw_data
+                                logger.warning(f"   Raw data keys: {list(parsed.keys()) if isinstance(parsed, dict) else 'Not a dict'}")
+                                if 'line_items' in parsed:
+                                    line_items = parsed['line_items']
+                                    logger.warning(f"   Line items type: {type(line_items)}")
+                                    logger.warning(f"   Line items length: {len(line_items) if isinstance(line_items, list) else 'Not a list'}")
+                                    if isinstance(line_items, list) and len(line_items) > 0:
+                                        logger.warning(f"   First line item: {line_items[0]}")
+                            except Exception as e:
+                                logger.warning(f"   Raw data parse error: {e}")
+                    
+                    # Final fallback: count as 1 unit per order
                     units_sold = 1
                     if orders_processed <= 5:
                         logger.info(f"     🛍️ Final fallback: counting as 1 unit")

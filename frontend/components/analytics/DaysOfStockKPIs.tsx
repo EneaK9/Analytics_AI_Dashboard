@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Calendar, TrendingUp, Clock } from "lucide-react";
+import { Calendar, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { useGlobalDataStore } from "../../store/globalDataStore";
 
@@ -14,11 +14,6 @@ type Platform = "shopify" | "amazon" | "all";
 
 interface StockDaysData {
 	value: number;
-	trend: {
-		value: string;
-		isPositive: boolean;
-		label: string;
-	};
 	subtitle: string;
 }
 
@@ -49,29 +44,11 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 		if (!data?.sales_kpis?.days_stock_remaining) {
 			return {
 				value: 0,
-				trend: {
-					value: "0%",
-					isPositive: true,
-					label: "vs previous period",
-				},
 				subtitle: "No stock data available",
 			};
 		}
 
 		const stockDays = data.sales_kpis.days_stock_remaining || 0;
-
-		// Calculate trend based on historical comparison if available
-		// For demo purposes, we'll generate a reasonable trend based on typical stock patterns
-		const historicalDays = stockDays * (0.9 + Math.random() * 0.2); // Simulate historical data
-		const trendValue =
-			historicalDays > 0
-				? ((stockDays - historicalDays) / historicalDays) * 100
-				: 0;
-
-		// For stock days, lower values might be concerning (trending toward stockout)
-		// Higher values might indicate overstocking
-		const isPositive = stockDays > 30 ? trendValue <= 0 : trendValue >= 0; // Optimal range is around 30-60 days
-		const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
 
 		// Determine health status based on stock days
 		let subtitle = `${
@@ -93,11 +70,6 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 
 		return {
 			value: stockDays,
-			trend: {
-				value: trendFormatted,
-				isPositive,
-				label: "vs previous period",
-			},
 			subtitle,
 		};
 	};
@@ -117,11 +89,6 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 		if (!inventoryData?.inventory_analytics?.platforms) {
 			return {
 				value: 0,
-				trend: {
-					value: "0%",
-					isPositive: true,
-					label: "vs previous period",
-				},
 				subtitle: "Combined stock data unavailable",
 			};
 		}
@@ -165,9 +132,8 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 						</CardHeader>
 						<CardContent>
 							<div className="animate-pulse">
-								<div className="flex items-center justify-between mb-3">
+								<div className="flex items-center mb-3">
 									<div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
-									<div className="w-12 h-5 bg-gray-200 rounded"></div>
 								</div>
 								<div className="space-y-2">
 									<div className="h-6 bg-gray-200 rounded"></div>
@@ -204,26 +170,12 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 						</CardTitle>
 					</CardHeader>
 					<CardContent>
-						{/* Header with Trend */}
-						<div className="flex items-center justify-between mb-3">
+						{/* Header with Icon */}
+						<div className="flex items-center mb-3">
 							<div
 								className="h-10 w-10 rounded-lg flex items-center justify-center"
 								style={{ backgroundColor: iconBgColor }}>
 								{icon}
-							</div>
-
-							<div
-								className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${
-									data.trend.isPositive
-										? "text-green-700 bg-green-100"
-										: "text-red-700 bg-red-100"
-								}`}>
-								<TrendingUp
-									className={`h-3 w-3 ${
-										data.trend.isPositive ? "" : "rotate-180"
-									}`}
-								/>
-								{data.trend.value}
 							</div>
 						</div>
 
@@ -233,11 +185,6 @@ const DaysOfStockKPIs = React.memo(function DaysOfStockKPIs({
 								{formatStockDays(data.value)}
 							</h3>
 							<p className="text-xs text-gray-500">{data.subtitle}</p>
-						</div>
-
-						{/* Trend Label */}
-						<div className="mt-2 pt-2 border-t border-gray-300">
-							<p className="text-xs text-gray-400">{data.trend.label}</p>
 						</div>
 					</CardContent>
 				</Card>
