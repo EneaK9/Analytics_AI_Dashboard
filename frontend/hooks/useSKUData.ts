@@ -66,7 +66,7 @@ export const useSKUData = (options: UseSKUDataOptions = {}): SKUDataState => {
 					params: {
 						platform: platform,
 						page: 1,
-						page_size: 1000, // Get all data, no pagination in UI
+						page_size: 50000, // Increased to get ALL data (max 2029 Shopify + 1056 Amazon)
 						use_cache: !forceRefresh,
 						force_refresh: forceRefresh,
 					},

@@ -561,7 +561,7 @@ class InventoryAnalyzer:
             summary_stats = self._calculate_sku_summary_stats(skus)
             
             return {
-                "skus": skus[:100],  # Limit to top 100 SKUs
+                "skus": skus,  # Return ALL SKUs - no limit
                 "summary_stats": summary_stats
             }
             

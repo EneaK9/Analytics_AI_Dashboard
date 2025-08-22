@@ -25,7 +25,8 @@ def main():
         # Import the FastAPI app
         from app import app
         
-        # Start the server
+        # Start the server (single worker for development with hot reload)
+        # Note: Multiple workers don't work with reload=True, so we use single worker for dev
         uvicorn.run(
             app, 
             host="0.0.0.0", 

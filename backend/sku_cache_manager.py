@@ -15,7 +15,7 @@ class SKUCacheManager:
     def __init__(self, admin_client: Client):
         self.admin_client = admin_client
         self.cache_table = "sku_cache"
-        self.cache_duration = timedelta(minutes=30)  # Cache for 30 minutes
+        self.cache_duration = timedelta(hours=8)  # Cache for 8 hours - refreshed by cron job
         
     async def get_cached_skus(self, client_id: str, page: int = 1, page_size: int = 50) -> Dict[str, Any]:
         """Get cached SKU data with pagination"""
@@ -43,10 +43,22 @@ class SKUCacheManager:
                     
                     logger.info(f"✅ Cache hit for client {client_id} - page {page}/{total_pages}")
                     
+                    # Calculate summary stats for frontend
+                    summary_stats = {
+                        "total_skus": total_count,
+                        "total_inventory_value": sum(sku.get('total_value', 0) for sku in cached_data),
+                        "low_stock_count": sum(1 for sku in cached_data if 0 < sku.get('current_availability', 0) <= 10),
+                        "out_of_stock_count": sum(1 for sku in cached_data if sku.get('current_availability', 0) <= 0),
+                        "overstock_count": sum(1 for sku in cached_data if sku.get('current_availability', 0) > 100)
+                    }
+                    
                     return {
+                        "client_id": client_id.split('_')[0],  # Remove platform suffix
                         "success": True,
-                        "cached": True,
-                        "skus": paginated_skus,
+                        "sku_inventory": {
+                            "skus": paginated_skus,
+                            "summary_stats": summary_stats
+                        },
                         "pagination": {
                             "current_page": page,
                             "page_size": page_size,
@@ -55,10 +67,13 @@ class SKUCacheManager:
                             "has_next": page < total_pages,
                             "has_previous": page > 1
                         },
-                        "cache_age_minutes": int((datetime.now().replace(tzinfo=created_at.tzinfo) - created_at).total_seconds() / 60)
+                        "cached": True,
+                        "timestamp": datetime.now().isoformat(),
+                        "processing_time": "cached",
+                        "data_source": "cron_cache"
                     }
             
-            return {"success": False, "cached": False, "message": "No valid cache found"}
+            return {"success": False, "cached": False, "message": "No valid cache found - analysis runs via cron job every 8 hours"}
             
         except Exception as e:
             logger.error(f"❌ Error retrieving cached SKUs: {e}")
@@ -124,6 +139,8 @@ class SKUCacheManager:
             logger.error(f"❌ Error calculating summary stats: {e}")
             return {"success": False, "error": str(e)}
     
+
+
     async def invalidate_cache(self, client_id: str):
         """Invalidate/clear cached SKU data for a client"""
         try:

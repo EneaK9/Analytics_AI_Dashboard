@@ -1,0 +1,8 @@
+# Docker/Render Cron Jobs for SKU Analysis
+# This file should be copied to /etc/cron.d/ in production containers
+
+# Run SKU analysis every 8 hours
+0 */8 * * * root cd /app && python3 sku_analysis_cron.py >> /app/logs/sku_analysis_cron.log 2>&1
+
+# Cleanup old logs weekly (keep last 30 days)
+0 2 * * 0 root find /app/logs -name "sku_analysis_cron.log.*" -mtime +30 -delete
