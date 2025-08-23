@@ -31,6 +31,181 @@ class APISyncCronJob:
         self.supported_platforms = ["shopify", "amazon", "woocommerce"]
         logger.info("API Sync Cron Job initialized - PERFECT VERSION")
     
+    def map_api_data_to_table_columns(self, records: List[Dict], platform_type: str, data_type: str, client_id: str) -> List[Dict]:
+        """Map API response data to actual table columns"""
+        mapped_records = []
+        
+        for record in records:
+            try:
+                mapped_record = {
+                    "client_id": client_id,
+                    "platform": platform_type,
+                    "processed_at": datetime.now().isoformat(),
+                    "raw_data": json.dumps(record)  # Store original data
+                }
+                
+                if platform_type == "shopify" and data_type == "orders":
+                    # Map Shopify order fields to table columns (API already has correct field names)
+                    order_id = record.get("order_id") or record.get("id")  # Try both fields
+                    if not order_id:
+                        continue  # Skip records without order ID
+                        
+                    mapped_record.update({
+                        "order_id": str(order_id),
+                        "order_number": str(record.get("order_number", "")),
+                        "created_at": record.get("created_at"),
+                        "updated_at": record.get("updated_at"),
+                        "financial_status": record.get("financial_status"),
+                        "fulfillment_status": record.get("fulfillment_status"),
+                        "total_price": record.get("total_price"),
+                        "subtotal_price": record.get("subtotal_price"),
+                        "total_tax": record.get("total_tax"),
+                        "currency": record.get("currency"),
+                        "customer_email": record.get("customer_email"),  # API has customer_email directly
+                        "customer_id": str(record.get("customer_id", "")),  # API has customer_id directly
+                        "billing_address": json.dumps(record.get("billing_address", {})),
+                        "shipping_address": json.dumps(record.get("shipping_address", {})),
+                        "line_items_count": record.get("line_items_count", 0),  # API has this directly
+                        "tags": record.get("tags", ""),
+                        "source_name": record.get("source_name"),
+                        "discount_codes": json.dumps(record.get("discount_codes", []))
+                    })
+                
+                elif platform_type == "shopify" and data_type == "products":
+                    # Map Shopify product fields to table columns (API already has correct field names)
+                    for variant in record.get("variants", []):  # Process each variant as a separate record
+                        product_id = record.get("product_id") or record.get("id")
+                        variant_id = variant.get("variant_id") or variant.get("id")
+                        
+                        if not product_id or not variant_id:
+                            continue  # Skip records without required IDs
+                            
+                        product_record = mapped_record.copy()
+                        product_record.update({
+                            "product_id": str(product_id),
+                            "title": record.get("title"),
+                            "handle": record.get("handle"),
+                            "vendor": record.get("vendor"),
+                            "tags": record.get("tags", ""),
+                            "status": record.get("status"),
+                            "variant_id": str(variant_id),
+                            "variant_title": variant.get("title"),
+                            "sku": variant.get("sku"),
+                            "barcode": variant.get("barcode"),
+                            "price": variant.get("price"),
+                            "compare_at_price": variant.get("compare_at_price"),
+                            "inventory_quantity": variant.get("inventory_quantity"),
+                            "inventory_management": variant.get("inventory_management"),
+                            "inventory_policy": variant.get("inventory_policy"),
+                            "fulfillment_service": variant.get("fulfillment_service"),
+                            "requires_shipping": variant.get("requires_shipping"),
+                            "weight": variant.get("weight"),
+                            "position": variant.get("position"),
+                            "option1": variant.get("option1"),
+                            "option2": variant.get("option2"),
+                            "option3": variant.get("option3"),
+                            "images": json.dumps([]),  # Images are at product level, keep empty for variants
+                            "options": json.dumps([]),  # Options are at product level, keep empty for variants
+                            "variants": json.dumps([])  # Don't duplicate variants array for each variant
+                        })
+                        mapped_records.append(product_record)
+                    continue  # Skip the regular append since we handled variants individually
+                
+                elif platform_type == "amazon" and data_type == "orders":
+                    # Map Amazon order fields to table columns  
+                    mapped_record.update({
+                        "order_id": str(record.get("AmazonOrderId")),
+                        "order_number": str(record.get("SellerOrderId", record.get("AmazonOrderId", ""))),
+                        "created_at": record.get("PurchaseDate"),
+                        "updated_at": record.get("LastUpdateDate"),
+                        "order_status": record.get("OrderStatus"),
+                        "fulfillment_channel": record.get("FulfillmentChannel"),
+                        "sales_channel": record.get("SalesChannel"),
+                        "total_price": record.get("OrderTotal", {}).get("Amount"),
+                        "currency": record.get("OrderTotal", {}).get("CurrencyCode"),
+                        "number_of_items_shipped": record.get("NumberOfItemsShipped"),
+                        "number_of_items_unshipped": record.get("NumberOfItemsUnshipped"),
+                        "payment_method": record.get("PaymentMethod"),
+                        "marketplace_id": record.get("MarketplaceId"),
+                        "is_business_order": record.get("IsBusinessOrder"),
+                        "is_premium_order": record.get("IsPremiumOrder")
+                    })
+                
+                # Only add if we successfully mapped the record
+                if mapped_record.get("order_id") or mapped_record.get("product_id"):
+                    mapped_records.append(mapped_record)
+                    
+            except Exception as e:
+                logger.warning(f"Failed to map record: {e}")
+                continue
+        
+        logger.info(f"Mapped {len(mapped_records)} records from {len(records)} API records")
+        return mapped_records
+    
+    async def insert_with_deduplication(self, table_name: str, mapped_records: List[Dict], platform_type: str, data_type: str) -> int:
+        """Insert records with proper deduplication"""
+        if not mapped_records:
+            return 0
+        
+        db_client = self._get_admin_client()
+        if not db_client:
+            logger.error("Could not get database connection")
+            return 0
+        
+        inserted_count = 0
+        duplicate_count = 0
+        
+        # Determine deduplication key based on platform and data type
+        dedup_key = self.get_dedup_key(platform_type, data_type)
+        
+        for record in mapped_records:
+            try:
+                # Check if record already exists
+                existing = None
+                dedup_value = record.get(dedup_key)
+                
+                # Skip records with invalid deduplication values
+                if not dedup_key or not dedup_value or str(dedup_value).lower() in ['none', 'null', '']:
+                    duplicate_count += 1
+                    logger.debug(f"Skipping record with invalid {dedup_key}: {dedup_value}")
+                    continue
+                
+                if dedup_key and dedup_value:
+                    existing_response = db_client.table(table_name).select("id").eq(dedup_key, str(dedup_value)).execute()
+                    existing = existing_response.data
+                
+                if existing:
+                    duplicate_count += 1
+                    logger.debug(f"Skipping duplicate record: {dedup_key}={record.get(dedup_key)}")
+                else:
+                    # Insert new record
+                    response = db_client.table(table_name).insert(record).execute()
+                    if response.data:
+                        inserted_count += 1
+                        
+            except Exception as e:
+                # Log error but continue with other records
+                logger.debug(f"Failed to insert record: {e}")
+                continue
+        
+        logger.info(f"Inserted {inserted_count} new records, skipped {duplicate_count} duplicates")
+        return inserted_count
+    
+    def get_dedup_key(self, platform_type: str, data_type: str) -> str:
+        """Get the deduplication key for a platform/data type combination"""
+        if platform_type == "shopify":
+            if data_type == "orders":
+                return "order_id"
+            elif data_type == "products":
+                return "variant_id"
+        elif platform_type == "amazon":
+            if data_type == "orders":
+                return "order_id"
+            elif data_type == "products":
+                return "product_id"
+        
+        return "order_id"  # Default fallback
+    
     def _get_admin_client(self):
         """Get Supabase admin client"""
         try:
@@ -109,7 +284,7 @@ class APISyncCronJob:
             total_records = 0
             data_summary = {}
             
-            # Process and store data
+            # Process and store data in dedicated platform tables
             for data_type, records in all_data.items():
                 if not records:
                     logger.info(f"  - {data_type}: 0 records")
@@ -118,36 +293,32 @@ class APISyncCronJob:
                 
                 logger.info(f"  - {data_type}: {len(records)} records fetched")
                 
-                # Prepare records for storage
-                processed_records = []
-                for record in records:
-                    processed_record = {
-                        "client_id": client_id,
-                        "data": json.dumps(record) if isinstance(record, dict) else str(record),
-                        "data_type": data_type,
-                        "platform": platform_type,
-                        "connection_name": connection_name,
-                        "table_name": f"client_{client_id.replace('-', '_')}_data",
-                        "created_at": datetime.now().isoformat()
-                    }
-                    processed_records.append(processed_record)
+                # Store in dedicated platform-specific table (match existing table names)
+                table_name = f"{client_id.replace('-', '_')}_{platform_type}_{data_type}"
+                logger.info(f"Storing {data_type} data in dedicated table: {table_name}")
                 
-                # Store data with deduplication (same table names as always)
-                if processed_records:
-                    from database import get_db_manager
-                    manager = get_db_manager()
+                try:
+                    # Map API data to table columns
+                    mapped_records = self.map_api_data_to_table_columns(records, platform_type, data_type, client_id)
                     
-                    inserted_count = await manager.dedup_and_batch_insert_client_data(
-                        f"client_{client_id.replace('-', '_')}_data",
-                        processed_records,
-                        client_id,
-                        dedup_scope="day"
+                    if not mapped_records:
+                        logger.warning(f"No valid records to insert after mapping for {data_type}")
+                        data_summary[data_type] = 0
+                        continue
+                    
+                    # Insert records with deduplication
+                    inserted_count = await self.insert_with_deduplication(
+                        table_name, mapped_records, platform_type, data_type
                     )
                     
                     total_records += inserted_count
                     data_summary[data_type] = inserted_count
-                    
-                    logger.info(f"Stored {inserted_count} new {data_type} records (after deduplication)")
+                    logger.info(f"Successfully stored {inserted_count} new {data_type} records in {table_name}")
+                
+                except Exception as e:
+                    logger.error(f"Failed to store {data_type} data in dedicated table {table_name}: {e}")
+                    data_summary[data_type] = 0
+                    # Continue with other data types even if one fails
             
             # Calculate next sync time
             next_sync = datetime.now() + timedelta(hours=sync_frequency_hours)
@@ -185,9 +356,9 @@ class APISyncCronJob:
             logger.info(f"Summary: {total_records} new records stored in {sync_duration:.2f}s")
             logger.info(f"Next sync scheduled for: {next_sync.isoformat()}")
             
-            # Trigger dashboard recalculations if new data was synced
+            # Trigger SKU calculations if new data was synced (NO AI/LLM)
             if total_records > 0:
-                logger.info(f"New data synced - triggering dashboard recalculations for client {client_id}")
+                logger.info(f"New data synced - triggering SKU calculations for client {client_id}")
                 try:
                     # Trigger SKU cache refresh for this client and platform
                     from sku_analysis_cron import SKUAnalysisCronJob
@@ -196,20 +367,17 @@ class APISyncCronJob:
                     # Refresh SKU cache for this specific client and platform
                     sku_result = await sku_job.refresh_client_sku_analysis(client_id, platform_type)
                     if sku_result.get("success"):
-                        logger.info(f"SKU analysis updated after sync: {sku_result.get('skus_cached', 0)} SKUs cached")
+                        logger.info(f"SKU calculations updated after sync: {sku_result.get('skus_cached', 0)} SKUs cached")
                     else:
-                        logger.warning(f"SKU analysis failed after sync: {sku_result.get('error')}")
+                        logger.warning(f"SKU calculations failed after sync: {sku_result.get('error')}")
                         
-                    # Clear LLM cache to force dashboard regeneration
-                    from llm_cache_manager import LLMCacheManager
-                    cache_manager = LLMCacheManager()
-                    await cache_manager.invalidate_cache(client_id)
-                    logger.info(f"LLM cache invalidated - dashboard will regenerate with new data")
+                    # NO LLM/AI triggering - only calculations
+                    logger.info(f"SKU calculations completed - AI analysis will run separately")
                     
                 except Exception as calc_error:
-                    logger.warning(f"Dashboard recalculation failed (but sync was successful): {calc_error}")
+                    logger.warning(f"SKU calculations failed (but sync was successful): {calc_error}")
             else:
-                logger.info(f"No new data synced - skipping dashboard recalculations")
+                logger.info(f"No new data synced - skipping SKU calculations")
             
             # Return success=True because data was stored successfully (logging errors don't matter)
             return {

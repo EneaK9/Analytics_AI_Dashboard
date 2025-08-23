@@ -81,14 +81,21 @@ async def test_single_client_sync(target_client_id: str = None):
                 for platform in missing_platforms:
                     print(f"MISSING: {platform} integration not found for this client")
                 print("")
-                print("To add missing integrations:")
-                print("   1. Go to your admin panel")
-                print("   2. Navigate to API Integrations")
-                print(f"   3. Add {', '.join(missing_platforms)} integration(s) for client {target_client_id}")
-                print("   4. Run this test again to sync both platforms")
+                print("SOLUTION - Use the new multi-platform API endpoint:")
+                print(f"   POST /api/superadmin/clients/add-integration")
+                print(f"   Body: client_id={target_client_id}")
+                print(f"         platform_type=amazon")
+                print(f"         connection_name=Main Amazon Store")
+                print(f"         amazon_seller_id=YOUR_SELLER_ID")
+                print(f"         amazon_access_key_id=YOUR_ACCESS_KEY")
+                print(f"         amazon_secret_access_key=YOUR_SECRET_KEY")
+                print(f"         amazon_refresh_token=YOUR_REFRESH_TOKEN")
+                print("")
+                print("Or ask your colleague to use the admin panel to add missing integrations.")
                 print("")
             else:
                 print("All expected platforms found!")
+                print("MULTI-PLATFORM CLIENT CONFIRMED!")
                 print("")
                 
         except Exception as e:
@@ -134,8 +141,17 @@ async def test_single_client_sync(target_client_id: str = None):
         
         print(f"Syncing {len(target_integrations)} integration(s) for client {target_client_id}")
         expected_platforms = ['shopify', 'amazon'] 
+        actual_platforms = [i['platform_type'] for i in target_integrations]
         print(f"Expected platforms: {', '.join(expected_platforms)}")
-        print(f"Actual platforms: {', '.join([i['platform_type'] for i in target_integrations])}")
+        print(f"Actual platforms: {', '.join(actual_platforms)}")
+        print("")
+        
+        # System status check
+        if len(actual_platforms) == 2 and 'shopify' in actual_platforms and 'amazon' in actual_platforms:
+            print("MULTI-PLATFORM STATUS: READY FOR BOTH SHOPIFY AND AMAZON SYNC")
+        elif len(actual_platforms) == 1:
+            print(f"SINGLE PLATFORM STATUS: Only {actual_platforms[0].upper()} sync available")
+            print("The system is now READY to handle multiple platforms when you add them!")
         print("")
         
         # Sync each integration for this client only
@@ -165,11 +181,11 @@ async def test_single_client_sync(target_client_id: str = None):
                         for data_type, count in result['data_summary'].items():
                             print(f"   - {data_type}: {count} new records")
                     
-                    # Check if dashboard was updated
+                    # Check if calculations were updated
                     if result.get('dashboard_updated'):
-                        print(f"   - Dashboard calculations triggered for new data")
+                        print(f"   - SKU calculations triggered for new data")
                     else:
-                        print(f"   - No dashboard update needed (no new data)")
+                        print(f"   - No calculations update needed (no new data)")
                 else:
                     failed_syncs += 1
                     platform_summary[platform] = {'status': 'FAILED', 'error': result.get('error', 'No records stored')}

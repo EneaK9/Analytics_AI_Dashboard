@@ -2682,6 +2682,237 @@ async def delete_client_superadmin(client_id: str, token: str = Depends(security
 # ==================== API INTEGRATIONS ====================
 
 
+@app.post("/api/superadmin/clients/add-integration")
+async def add_api_integration_to_existing_client(
+    token: str = Depends(security),
+    client_id: str = Form(...),
+    platform_type: str = Form(...),
+    connection_name: str = Form(...),
+    # Shopify fields
+    shop_domain: str = Form(default=""),
+    shopify_access_token: str = Form(default=""),
+    # Amazon fields
+    amazon_seller_id: str = Form(default=""),
+    amazon_marketplace_ids: str = Form(default=""),
+    amazon_access_key_id: str = Form(default=""),
+    amazon_secret_access_key: str = Form(default=""),
+    amazon_refresh_token: str = Form(default=""),
+    amazon_region: str = Form(default="us-east-1"),
+    # WooCommerce fields
+    woo_site_url: str = Form(default=""),
+    woo_consumer_key: str = Form(default=""),
+    woo_consumer_secret: str = Form(default=""),
+    woo_version: str = Form(default="wc/v3"),
+    sync_frequency_hours: int = Form(default=24),
+):
+    """Add additional API integration to existing client (multiple platforms per client)"""
+    try:
+        # Verify superadmin token
+        verify_superadmin_token(token.credentials)
+        
+        db_client = get_admin_client()
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        # Check if client exists
+        client_response = db_client.table("clients").select("client_id, company_name, email").eq("client_id", client_id).execute()
+        if not client_response.data:
+            raise HTTPException(status_code=404, detail="Client not found")
+        
+        client = client_response.data[0]
+        
+        # Check if this platform integration already exists for this client
+        existing_integration = db_client.table("client_api_credentials").select("credential_id").eq("client_id", client_id).eq("platform_type", platform_type).execute()
+        if existing_integration.data:
+            raise HTTPException(status_code=400, detail=f"Client already has {platform_type} integration")
+        
+        # Prepare API credentials based on platform type
+        credentials = {}
+        
+        if platform_type == "shopify":
+            if not shop_domain or not shopify_access_token:
+                raise HTTPException(status_code=400, detail="Shopify domain and access token are required")
+            credentials = {
+                "shop_domain": shop_domain,
+                "access_token": shopify_access_token
+            }
+        
+        elif platform_type == "amazon":
+            if not amazon_seller_id or not amazon_access_key_id or not amazon_secret_access_key:
+                raise HTTPException(status_code=400, detail="Amazon seller ID and API keys are required")
+            credentials = {
+                "seller_id": amazon_seller_id,
+                "marketplace_ids": amazon_marketplace_ids.split(",") if amazon_marketplace_ids else ["ATVPDKIKX0DER"],
+                "access_key_id": amazon_access_key_id,
+                "secret_access_key": amazon_secret_access_key,
+                "refresh_token": amazon_refresh_token,
+                "region": amazon_region
+            }
+        
+        elif platform_type == "woocommerce":
+            if not woo_site_url or not woo_consumer_key or not woo_consumer_secret:
+                raise HTTPException(status_code=400, detail="WooCommerce site URL and API keys are required")
+            credentials = {
+                "site_url": woo_site_url,
+                "consumer_key": woo_consumer_key,
+                "consumer_secret": woo_consumer_secret,
+                "version": woo_version
+            }
+        
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported platform type")
+        
+        # Store additional API credentials
+        creds_response = db_client.table("client_api_credentials").insert({
+            "client_id": client_id,
+            "platform_type": platform_type,
+            "connection_name": connection_name,
+            "credentials": credentials,
+            "sync_frequency_hours": sync_frequency_hours,
+            "status": "pending",
+        }).execute()
+        
+        if not creds_response.data:
+            raise HTTPException(status_code=400, detail="Failed to store API credentials")
+        
+        credential_id = creds_response.data[0]["credential_id"]
+        
+        # Test API connection and fetch initial data
+        try:
+            from api_connectors import api_data_fetcher
+            
+            # Test connection first
+            success, message = await api_data_fetcher.test_connection(platform_type, credentials)
+            if not success:
+                # Update status to error
+                db_client.table("client_api_credentials").update({
+                    "status": "error", 
+                    "error_message": message
+                }).eq("credential_id", credential_id).execute()
+                
+                return {
+                    "success": False,
+                    "message": f"Integration added but API connection failed: {message}",
+                    "client_id": client_id,
+                    "platform_type": platform_type,
+                    "credential_id": credential_id
+                }
+            
+            # Connection successful, fetch initial data
+            logger.info(f"🔗 {platform_type} API connection successful for existing client {client_id}")
+            
+            all_data = await api_data_fetcher.fetch_all_data(platform_type, credentials)
+            
+            # Process and store data
+            total_records = 0
+            for data_type, records in all_data.items():
+                if not records:
+                    continue
+                
+                # Store data with deduplication (same table names as always)
+                try:
+                    from database import get_db_manager
+                    manager = get_db_manager()
+                    
+                    inserted_count = await manager.dedup_and_batch_insert_client_data(
+                        f"client_{client_id.replace('-', '_')}_data",
+                        records,
+                        client_id,
+                        dedup_scope="day",
+                    )
+                    total_records += inserted_count
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ Data storage failed for {data_type}: {e}")
+                    # Continue anyway
+            
+            # Update API credentials status to connected
+            from datetime import datetime, timedelta
+            next_sync = datetime.now() + timedelta(hours=sync_frequency_hours)
+            
+            db_client.table("client_api_credentials").update({
+                "status": "connected",
+                "last_sync_at": datetime.now().isoformat(),
+                "next_sync_at": next_sync.isoformat(),
+            }).eq("credential_id", credential_id).execute()
+            
+            logger.info(f"✅ Additional {platform_type} integration added for client {client_id}: {total_records} initial records")
+            
+            return {
+                "success": True,
+                "message": f"Successfully added {platform_type} integration to existing client",
+                "client_id": client_id,
+                "platform_type": platform_type,
+                "credential_id": credential_id,
+                "total_initial_records": total_records,
+                "next_sync_at": next_sync.isoformat()
+            }
+            
+        except Exception as api_error:
+            logger.error(f"❌ API integration test failed: {api_error}")
+            
+            # Update status to error but don't delete the integration
+            db_client.table("client_api_credentials").update({
+                "status": "error", 
+                "error_message": str(api_error)
+            }).eq("credential_id", credential_id).execute()
+            
+            return {
+                "success": False,
+                "message": f"Integration added but initial sync failed: {str(api_error)}",
+                "client_id": client_id,
+                "platform_type": platform_type,
+                "credential_id": credential_id
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to add API integration: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to add integration: {str(e)}")
+
+
+@app.get("/api/superadmin/clients/{client_id}/integrations")
+async def get_client_integrations(client_id: str, token: str = Depends(security)):
+    """Get all API integrations for a specific client"""
+    try:
+        # Verify superadmin token
+        verify_superadmin_token(token.credentials)
+        
+        db_client = get_admin_client()
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not configured")
+        
+        # Get client info
+        client_response = db_client.table("clients").select("client_id, company_name, email").eq("client_id", client_id).execute()
+        if not client_response.data:
+            raise HTTPException(status_code=404, detail="Client not found")
+        
+        # Get all integrations
+        integrations_response = db_client.table("client_api_credentials").select(
+            "credential_id, platform_type, connection_name, status, last_sync_at, next_sync_at, sync_frequency_hours, created_at"
+        ).eq("client_id", client_id).order("platform_type").execute()
+        
+        client = client_response.data[0]
+        integrations = integrations_response.data or []
+        
+        return {
+            "client_id": client_id,
+            "company_name": client["company_name"],
+            "email": client["email"], 
+            "total_integrations": len(integrations),
+            "platforms": [i["platform_type"] for i in integrations],
+            "integrations": integrations,
+            "missing_platforms": [p for p in ["shopify", "amazon"] if p not in [i["platform_type"] for i in integrations]]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get client integrations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/superadmin/clients/api-integration", response_model=ClientResponse)
 async def create_client_with_api_integration(
     token: str = Depends(security),
@@ -4312,28 +4543,18 @@ async def get_raw_data_tables(
 
                 elif "orders" in table_key:
 
-                    # Order tables: use platform-specific search fields
-                    
-                    if "amazon" in table_key:
-                        # Amazon order tables
-                        search_fields = [
-                            "order_number",
-                            "order_status", 
-                            "sales_channel",
-                            "marketplace_id",
-                            "payment_method",
-                            "fulfillment_channel"
-                        ]
-                    else:
-                        # Shopify order tables
-                        search_fields = [
-                            "order_number",
-                            "customer_email",
-                            "financial_status",
-                            "fulfillment_status",
-                            "source_name",
-                            "tags"
-                        ]
+                    # Order tables: search in order_number, customer_email, financial_status, order_status, source_name, tags
+
+                    search_fields = [
+                        "order_number",
+                        "customer_email",
+                        "financial_status",
+                        "order_status",
+                        "source_name",
+                        "tags",
+                        "sales_channel",
+                        "marketplace_id",
+                    ]
 
                 # Build an OR condition for text search - use proper PostgREST syntax
 
@@ -4378,15 +4599,15 @@ async def get_raw_data_tables(
                 page = 1
 
                 # Re-run count query without search filter
-
-                fallback_query = db_client.table(table_name).select("*", count="exact")
-
-                count_response = fallback_query.execute()
-
-                total_records = (
-                    count_response.count if count_response.count is not None else 0
-                )
-
+                try:
+                    fallback_query = db_client.table(table_name).select("*", count="exact")
+                    count_response = fallback_query.execute()
+                    total_records = (
+                        count_response.count if count_response.count is not None else 0
+                    )
+                except Exception as fallback_error:
+                    logger.error(f"❌ Fallback count query failed: {fallback_error}")
+                    total_records = 0
             # Calculate pagination
 
             offset = (page - 1) * page_size
@@ -4420,28 +4641,16 @@ async def get_raw_data_tables(
 
                 elif "orders" in table_key:
 
-                    # Order tables: use platform-specific search fields
-                    
-                    if "amazon" in table_key:
-                        # Amazon order tables
-                        search_fields = [
-                            "order_number",
-                            "order_status", 
-                            "sales_channel",
-                            "marketplace_id",
-                            "payment_method",
-                            "fulfillment_channel"
-                        ]
-                    else:
-                        # Shopify order tables
-                        search_fields = [
-                            "order_number",
-                            "customer_email",
-                            "financial_status",
-                            "fulfillment_status",
-                            "source_name",
-                            "tags"
-                        ]
+                    search_fields = [
+                        "order_number",
+                        "customer_email",
+                        "financial_status",
+                        "order_status",
+                        "source_name",
+                        "tags",
+                        "sales_channel",
+                        "marketplace_id",
+                    ]
 
                 for field in search_fields:
 
@@ -5625,55 +5834,57 @@ async def get_paginated_sku_inventory(
         )
 
         # Try cache first for INSTANT response
-
         if use_cache and not force_refresh:
-
             try:
-
                 from sku_cache_manager import get_sku_cache_manager
-
                 cache_manager = get_sku_cache_manager(get_admin_client())
-
                 cache_key = f"{client_id}_{platform}"
-
+                
                 cached_result = await cache_manager.get_cached_skus(
                     cache_key, page, page_size
                 )
-
                 if cached_result.get("success"):
-
                     logger.info(
                         f"⚡ INSTANT RESPONSE: Using cached SKUs for {platform}"
                     )
-
                     # Start background refresh for next time
-
                     background_tasks.add_task(
                         refresh_sku_background, client_id, platform, page, page_size
                     )
-
                     return cached_result
-
+                    
             except Exception as e:
-
                 logger.warning(f"⚠️ SKU cache check failed: {e}")
+
+        # If no cache found and not forcing refresh, return message about cron job
+        if use_cache and not force_refresh:
+            logger.info(f"📦 No cache found for {client_id} (platform={platform}) - SKU analysis runs via cron job every 8 hours")
+            return {
+                "success": False,
+                "cached": False,
+                "message": "SKU analysis data not available. Analysis runs automatically every 8 hours via background job.",
+                "note": "To manually trigger analysis, contact administrator",
+                "next_scheduled_analysis": "Analysis runs every 8 hours",
+                "pagination": {
+                    "current_page": page,
+                    "page_size": page_size,
+                    "total_count": 0,
+                    "total_pages": 0,
+                    "has_next": False,
+                    "has_previous": False
+                }
+            }
 
         logger.info(
             f"📦 Generating fresh SKU list for {client_id} (platform={platform})"
         )
 
         # 🔥 FIXED: Allow large page sizes to show ALL data as requested
-
         if page < 1:
-
             page = 1
-
         if page_size < 1:
-
             page_size = 50  # Default fallback
-
         elif page_size > 5000:  # Reasonable maximum to prevent memory issues
-
             page_size = 5000
 
         logger.info(
@@ -5681,63 +5892,44 @@ async def get_paginated_sku_inventory(
         )
 
         # Use dashboard inventory analyzer with caching
-
         from dashboard_inventory_analyzer import dashboard_inventory_analyzer
 
         # Get data using organized tables
-
         db_client = get_admin_client()
-
         if not db_client:
-
             raise HTTPException(status_code=503, detail="Database not configured")
 
         # Get data efficiently based on platform
-
         if platform.lower() == "shopify":
-
             shopify_data = await dashboard_inventory_analyzer._get_shopify_data(
                 client_id
             )
-
             amazon_data = {"products": [], "orders": []}
-
         elif platform.lower() == "amazon":
-
             amazon_data = await dashboard_inventory_analyzer._get_amazon_data(client_id)
-
             shopify_data = {"products": [], "orders": []}
-
         else:
-
             # For backward compatibility, get both if platform is invalid
-
             shopify_data = await dashboard_inventory_analyzer._get_shopify_data(
                 client_id
             )
-
             amazon_data = await dashboard_inventory_analyzer._get_amazon_data(client_id)
 
         # Check if we have any organized data, if not, try legacy approach
-
         total_organized_records = len(shopify_data.get("products", [])) + len(
             amazon_data.get("products", [])
         )
 
         if total_organized_records == 0:
-
             logger.info(
                 f"📋 No organized data found for client {client_id}, trying legacy SKU extraction"
             )
 
             # Try to get SKU data from raw client_data (legacy approach)
-
             try:
-
                 from inventory_analyzer import inventory_analyzer
 
                 # Get raw client data
-
                 response = (
                     db_client.table("client_data")
                     .select("*")
@@ -5748,35 +5940,22 @@ async def get_paginated_sku_inventory(
                 )
 
                 if response.data:
-
                     client_data_for_legacy = {"client_id": client_id, "data": []}
 
                     for record in response.data:
-
                         if record.get("data"):
-
                             try:
-
                                 if isinstance(record["data"], dict):
-
                                     parsed_data = record["data"]
-
                                 elif isinstance(record["data"], str):
-
                                     parsed_data = json.loads(record["data"])
-
                                 else:
-
                                     continue
-
                                 client_data_for_legacy["data"].append(parsed_data)
-
                             except:
-
                                 continue
 
                     # Use legacy analyzer to get SKU data
-
                     legacy_analytics = inventory_analyzer.analyze_inventory_data(
                         client_data_for_legacy
                     )
@@ -5786,33 +5965,26 @@ async def get_paginated_sku_inventory(
                     )
 
                     if legacy_skus:
-
                         logger.info(
                             f"✅ Found {len(legacy_skus)} SKUs from legacy data"
                         )
 
                         # 🔥 FIXED: Calculate real summary stats from legacy SKU data too!
-
                         legacy_summary_stats = None
-
                         if page == 1:
-
                             total_inventory_value = sum(
                                 sku.get("total_value", 0) for sku in legacy_skus
                             )
-
                             low_stock_count = sum(
                                 1
                                 for sku in legacy_skus
                                 if 0 < sku.get("current_availability", 0) <= 10
                             )
-
                             out_of_stock_count = sum(
                                 1
                                 for sku in legacy_skus
                                 if sku.get("current_availability", 0) <= 0
                             )
-
                             overstock_count = sum(
                                 1
                                 for sku in legacy_skus
@@ -5834,11 +6006,8 @@ async def get_paginated_sku_inventory(
                             )
 
                         # Paginate the legacy SKUs
-
                         start_idx = (page - 1) * page_size
-
                         end_idx = start_idx + page_size
-
                         paginated_skus = legacy_skus[start_idx:end_idx]
 
                         return {
@@ -5863,52 +6032,37 @@ async def get_paginated_sku_inventory(
                         }
 
             except Exception as legacy_error:
-
                 logger.warning(f"⚠️ Legacy SKU extraction failed: {legacy_error}")
 
         # If force refresh, clear cache first
-
         if force_refresh:
-
             from sku_cache_manager import get_sku_cache_manager
-
             cache_manager = get_sku_cache_manager(db_client)
-
             await cache_manager.invalidate_cache(client_id)
 
         # Get paginated SKU data using organized approach
-
         sku_result = await dashboard_inventory_analyzer.get_sku_list(
             client_id, page, page_size, use_cache, platform
         )
 
         if not sku_result.get("success"):
-
             raise HTTPException(
                 status_code=500,
                 detail=sku_result.get("error", "Failed to get SKU data"),
             )
 
         # 🔥 FIXED: Calculate summary stats from actual data, not empty cache!
-
         summary_stats = None
-
         if page == 1 and sku_result.get("skus"):
-
             # Calculate real summary stats from the actual SKU data
-
             skus = sku_result["skus"]
-
             total_inventory_value = sum(sku.get("total_value", 0) for sku in skus)
-
             low_stock_count = sum(
                 1 for sku in skus if 0 < sku.get("current_availability", 0) <= 10
             )
-
             out_of_stock_count = sum(
                 1 for sku in skus if sku.get("current_availability", 0) <= 0
             )
-
             overstock_count = sum(
                 1 for sku in skus if sku.get("current_availability", 0) > 100
             )

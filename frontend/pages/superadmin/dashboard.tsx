@@ -157,6 +157,13 @@ const SuperAdminDashboard: React.FC = () => {
 	const [error, setError] = useState("");
 	const router = useRouter();
 
+	// Client integrations state
+	const [showIntegrationsModal, setShowIntegrationsModal] = useState(false);
+	const [selectedClientId, setSelectedClientId] = useState("");
+	const [clientIntegrations, setClientIntegrations] = useState<any[]>([]);
+	const [integrationLoading, setIntegrationLoading] = useState(false);
+	const [showAddIntegrationForm, setShowAddIntegrationForm] = useState(false);
+
 	// SFTP state
 	const [sftpConnectionTest, setSftpConnectionTest] = useState<{
 		success: boolean;
@@ -633,6 +640,94 @@ const SuperAdminDashboard: React.FC = () => {
 		}
 	};
 
+	// View and manage client integrations
+	const viewClientIntegrations = async (clientId: string) => {
+		setSelectedClientId(clientId);
+		setIntegrationLoading(true);
+		setShowIntegrationsModal(true);
+
+		try {
+			const response = await api.get(
+				`/superadmin/clients/${clientId}/integrations`
+			);
+			setClientIntegrations(response.data.integrations || []);
+		} catch (error) {
+			console.error("Failed to load client integrations:", error);
+			setClientIntegrations([]);
+		} finally {
+			setIntegrationLoading(false);
+		}
+	};
+
+	// Add additional integration to existing client
+	const handleAddIntegration = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setFormLoading(true);
+		setError("");
+
+		try {
+			const submitData = new FormData();
+			submitData.append("client_id", selectedClientId);
+			submitData.append("platform_type", formData.platform_type);
+			submitData.append("connection_name", formData.connection_name);
+			submitData.append(
+				"sync_frequency_hours",
+				formData.sync_frequency_hours.toString()
+			);
+
+			// Add platform-specific credentials
+			if (formData.platform_type === "shopify") {
+				submitData.append("shop_domain", formData.shop_domain);
+				submitData.append(
+					"shopify_access_token",
+					formData.shopify_access_token
+				);
+			} else if (formData.platform_type === "amazon") {
+				submitData.append("amazon_seller_id", formData.amazon_seller_id);
+				submitData.append(
+					"amazon_marketplace_ids",
+					formData.amazon_marketplace_ids
+				);
+				submitData.append(
+					"amazon_access_key_id",
+					formData.amazon_access_key_id
+				);
+				submitData.append(
+					"amazon_secret_access_key",
+					formData.amazon_secret_access_key
+				);
+				submitData.append(
+					"amazon_refresh_token",
+					formData.amazon_refresh_token
+				);
+				submitData.append("amazon_region", formData.amazon_region);
+			} else if (formData.platform_type === "woocommerce") {
+				submitData.append("woo_site_url", formData.woo_site_url);
+				submitData.append("woo_consumer_key", formData.woo_consumer_key);
+				submitData.append("woo_consumer_secret", formData.woo_consumer_secret);
+				submitData.append("woo_version", formData.woo_version);
+			}
+
+			const response = await api.post(
+				"/superadmin/clients/add-integration",
+				submitData,
+				{
+					headers: {
+						"Content-Type": "multipart/form-data",
+					},
+				}
+			);
+
+			// Reset form and reload integrations
+			setShowAddIntegrationForm(false);
+			await viewClientIntegrations(selectedClientId);
+		} catch (err: any) {
+			setError(err.response?.data?.detail || "Failed to add integration");
+		} finally {
+			setFormLoading(false);
+		}
+	};
+
 	const formatDate = (dateString: string) => {
 		return new Date(dateString).toLocaleDateString();
 	};
@@ -872,9 +967,18 @@ id,name,email,age,department
 													<div className="flex items-center space-x-2">
 														<button
 															onClick={() =>
+																viewClientIntegrations(client.client_id)
+															}
+															className="text-primary hover:text-primary/80 transition-colors"
+															title="View/Add Integrations">
+															<Plus className="h-4 w-4" />
+														</button>
+														<button
+															onClick={() =>
 																handleDeleteClient(client.client_id)
 															}
-															className="text-danger hover:text-danger/80 transition-colors">
+															className="text-danger hover:text-danger/80 transition-colors"
+															title="Delete Client">
 															<Trash2 className="h-4 w-4" />
 														</button>
 													</div>
@@ -1729,6 +1833,357 @@ id,name,email,age,department
 										{formLoading ? "Creating..." : "Create Client"}
 									</button>
 								</div>
+							</div>
+						</div>
+					</div>
+				)}
+
+				{/* Client Integrations Modal */}
+				{showIntegrationsModal && (
+					<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+						<div className="bg-white rounded-lg shadow-default border border-stroke max-w-4xl w-full max-h-[90vh] flex flex-col">
+							<div className="px-6 py-4 border-b border-stroke flex items-center justify-between flex-shrink-0">
+								<div>
+									<h3 className="text-xl font-bold text-black">
+										API Integrations
+									</h3>
+									<p className="text-sm text-body">
+										Client:{" "}
+										{
+											clients.find((c) => c.client_id === selectedClientId)
+												?.company_name
+										}
+									</p>
+								</div>
+								<button
+									onClick={() => setShowIntegrationsModal(false)}
+									className="text-gray-400 hover:text-gray-600">
+									<X className="h-6 w-6" />
+								</button>
+							</div>
+
+							<div className="flex-1 overflow-y-auto p-6">
+								{integrationLoading ? (
+									<div className="text-center py-8">
+										<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+										<p className="text-body">Loading integrations...</p>
+									</div>
+								) : (
+									<div className="space-y-6">
+										{/* Existing Integrations */}
+										<div>
+											<div className="flex items-center justify-between mb-4">
+												<h4 className="text-lg font-semibold text-black">
+													Existing Integrations ({clientIntegrations.length})
+												</h4>
+												<button
+													onClick={() => setShowAddIntegrationForm(true)}
+													className="flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+													<Plus className="h-4 w-4" />
+													<span>Add Integration</span>
+												</button>
+											</div>
+
+											{clientIntegrations.length === 0 ? (
+												<div className="text-center py-8 bg-gray-50 rounded-lg">
+													<Cloud className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+													<p className="text-body">
+														No API integrations found.
+													</p>
+													<p className="text-sm text-gray-500">
+														Add an integration to enable automated data sync.
+													</p>
+												</div>
+											) : (
+												<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+													{clientIntegrations.map(
+														(integration: any, index: number) => (
+															<div
+																key={index}
+																className="bg-gray-50 rounded-lg border border-stroke p-4">
+																<div className="flex items-center justify-between mb-2">
+																	<div className="flex items-center space-x-2">
+																		{integration.platform_type ===
+																			"shopify" && (
+																			<Store className="h-5 w-5 text-green-600" />
+																		)}
+																		{integration.platform_type === "amazon" && (
+																			<ShoppingCart className="h-5 w-5 text-orange-600" />
+																		)}
+																		{integration.platform_type ===
+																			"woocommerce" && (
+																			<Globe className="h-5 w-5 text-purple-600" />
+																		)}
+																		<h5 className="font-semibold text-black capitalize">
+																			{integration.platform_type}
+																		</h5>
+																	</div>
+																	<span
+																		className={`px-2 py-1 text-xs rounded-full ${
+																			integration.status === "connected"
+																				? "bg-green-100 text-green-800"
+																				: integration.status === "error"
+																				? "bg-red-100 text-red-800"
+																				: "bg-yellow-100 text-yellow-800"
+																		}`}>
+																		{integration.status}
+																	</span>
+																</div>
+																<p className="text-sm text-body mb-2">
+																	{integration.connection_name}
+																</p>
+																<div className="text-xs text-gray-500 space-y-1">
+																	<p>
+																		Last Sync:{" "}
+																		{integration.last_sync_at
+																			? formatDate(integration.last_sync_at)
+																			: "Never"}
+																	</p>
+																	<p>
+																		Frequency:{" "}
+																		{integration.sync_frequency_hours} hours
+																	</p>
+																</div>
+															</div>
+														)
+													)}
+												</div>
+											)}
+										</div>
+
+										{/* Add Integration Form */}
+										{showAddIntegrationForm && (
+											<div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+												<div className="flex items-center justify-between mb-4">
+													<h4 className="text-lg font-semibold text-blue-800">
+														Add New Integration
+													</h4>
+													<button
+														onClick={() => setShowAddIntegrationForm(false)}
+														className="text-blue-600 hover:text-blue-800">
+														<X className="h-5 w-5" />
+													</button>
+												</div>
+
+												<form
+													onSubmit={handleAddIntegration}
+													className="space-y-4">
+													{error && (
+														<div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
+															{error}
+														</div>
+													)}
+
+													{/* Platform Selection */}
+													<div>
+														<label className="block text-sm font-medium text-black mb-2">
+															Platform
+														</label>
+														<div className="grid grid-cols-3 gap-2">
+															<button
+																type="button"
+																onClick={() =>
+																	setFormData({
+																		...formData,
+																		platform_type: "shopify",
+																	})
+																}
+																className={`p-2 rounded border transition-colors text-xs ${
+																	formData.platform_type === "shopify"
+																		? "bg-green-50 border-green-500 text-green-700"
+																		: "bg-white border-stroke hover:bg-gray-1"
+																}`}>
+																<Store className="h-4 w-4 mx-auto mb-1" />
+																<div className="font-medium">Shopify</div>
+															</button>
+															<button
+																type="button"
+																onClick={() =>
+																	setFormData({
+																		...formData,
+																		platform_type: "amazon",
+																	})
+																}
+																className={`p-2 rounded border transition-colors text-xs ${
+																	formData.platform_type === "amazon"
+																		? "bg-orange-50 border-orange-500 text-orange-700"
+																		: "bg-white border-stroke hover:bg-gray-1"
+																}`}>
+																<ShoppingCart className="h-4 w-4 mx-auto mb-1" />
+																<div className="font-medium">Amazon</div>
+															</button>
+															<button
+																type="button"
+																onClick={() =>
+																	setFormData({
+																		...formData,
+																		platform_type: "woocommerce",
+																	})
+																}
+																className={`p-2 rounded border transition-colors text-xs ${
+																	formData.platform_type === "woocommerce"
+																		? "bg-purple-50 border-purple-500 text-purple-700"
+																		: "bg-white border-stroke hover:bg-gray-1"
+																}`}>
+																<Globe className="h-4 w-4 mx-auto mb-1" />
+																<div className="font-medium">WooCommerce</div>
+															</button>
+														</div>
+													</div>
+
+													{/* Connection Name */}
+													<div>
+														<label className="block text-sm font-medium text-black mb-1">
+															Connection Name
+														</label>
+														<input
+															type="text"
+															name="connection_name"
+															value={formData.connection_name}
+															onChange={handleFormChange}
+															placeholder="e.g., Main Store, Amazon US"
+															className="block w-full px-3 py-2 text-sm border border-stroke rounded bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+															required
+														/>
+													</div>
+
+													{/* Platform-specific fields */}
+													{formData.platform_type === "shopify" && (
+														<div className="grid grid-cols-2 gap-3">
+															<div>
+																<label className="block text-sm font-medium text-black mb-1">
+																	Shop Domain
+																</label>
+																<input
+																	type="text"
+																	name="shop_domain"
+																	value={formData.shop_domain}
+																	onChange={handleFormChange}
+																	placeholder="mystore.myshopify.com"
+																	className="block w-full px-3 py-2 text-sm border border-stroke rounded bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+																	required
+																/>
+															</div>
+															<div>
+																<label className="block text-sm font-medium text-black mb-1">
+																	Access Token
+																</label>
+																<input
+																	type="password"
+																	name="shopify_access_token"
+																	value={formData.shopify_access_token}
+																	onChange={handleFormChange}
+																	placeholder="shpat_..."
+																	className="block w-full px-3 py-2 text-sm border border-stroke rounded bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+																	required
+																/>
+															</div>
+														</div>
+													)}
+
+													{formData.platform_type === "amazon" && (
+														<div className="space-y-3">
+															<div className="grid grid-cols-2 gap-3">
+																<div>
+																	<label className="block text-sm font-medium text-black mb-1">
+																		Seller ID
+																	</label>
+																	<input
+																		type="text"
+																		name="amazon_seller_id"
+																		value={formData.amazon_seller_id}
+																		onChange={handleFormChange}
+																		placeholder="A1B2C3D4E5F6G7"
+																		className="block w-full px-3 py-2 text-sm border border-stroke rounded bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+																		required
+																	/>
+																</div>
+																<div>
+																	<label className="block text-sm font-medium text-black mb-1">
+																		Access Key ID
+																	</label>
+																	<input
+																		type="text"
+																		name="amazon_access_key_id"
+																		value={formData.amazon_access_key_id}
+																		onChange={handleFormChange}
+																		placeholder="AKIA..."
+																		className="block w-full px-3 py-2 text-sm border border-stroke rounded bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+																		required
+																	/>
+																</div>
+															</div>
+															<div className="grid grid-cols-2 gap-3">
+																<div>
+																	<label className="block text-sm font-medium text-black mb-1">
+																		Secret Access Key
+																	</label>
+																	<input
+																		type="password"
+																		name="amazon_secret_access_key"
+																		value={formData.amazon_secret_access_key}
+																		onChange={handleFormChange}
+																		placeholder="Secret key"
+																		className="block w-full px-3 py-2 text-sm border border-stroke rounded bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+																		required
+																	/>
+																</div>
+																<div>
+																	<label className="block text-sm font-medium text-black mb-1">
+																		Refresh Token
+																	</label>
+																	<input
+																		type="password"
+																		name="amazon_refresh_token"
+																		value={formData.amazon_refresh_token}
+																		onChange={handleFormChange}
+																		placeholder="Atzr|..."
+																		className="block w-full px-3 py-2 text-sm border border-stroke rounded bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+																		required
+																	/>
+																</div>
+															</div>
+														</div>
+													)}
+
+													{/* Sync Frequency */}
+													<div>
+														<label className="block text-sm font-medium text-black mb-1">
+															Sync Frequency
+														</label>
+														<select
+															name="sync_frequency_hours"
+															value={formData.sync_frequency_hours}
+															onChange={handleFormChange}
+															className="block w-full px-3 py-2 text-sm border border-stroke rounded bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
+															<option value={1}>Every Hour</option>
+															<option value={6}>Every 6 Hours</option>
+															<option value={12}>Every 12 Hours</option>
+															<option value={24}>Daily</option>
+															<option value={168}>Weekly</option>
+														</select>
+													</div>
+
+													{/* Submit Buttons */}
+													<div className="flex space-x-3 pt-2">
+														<button
+															type="button"
+															onClick={() => setShowAddIntegrationForm(false)}
+															className="flex-1 px-4 py-2 border border-stroke text-body rounded hover:bg-gray-1 transition-colors">
+															Cancel
+														</button>
+														<button
+															type="submit"
+															disabled={formLoading}
+															className="flex-1 px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors disabled:opacity-50">
+															{formLoading ? "Adding..." : "Add Integration"}
+														</button>
+													</div>
+												</form>
+											</div>
+										)}
+									</div>
+								)}
 							</div>
 						</div>
 					</div>

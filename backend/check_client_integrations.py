@@ -10,11 +10,6 @@ async def check_client_integrations(client_id: str = "3b619a14-3cd8-49fa-9c24-d8
     """Check what API integrations exist for a client"""
     
     try:
-        # Import database module properly
-        import os
-        import sys
-        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-        
         from database import get_admin_client
         
         db_client = get_admin_client()
