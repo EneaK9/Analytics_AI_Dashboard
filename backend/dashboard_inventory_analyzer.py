@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 import pandas as pd
 from database import get_admin_client
-from component_data_functions import ComponentDataFunctions
+from component_data_functions import ComponentDataManager
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class DashboardInventoryAnalyzer:
     def __init__(self):
         self.admin_client = None
         self._client_initialized = False
-        self.component_data = ComponentDataFunctions()
+        self.component_data = ComponentDataManager()
     
     def _ensure_client(self):
         """Lazy initialization of database client"""
