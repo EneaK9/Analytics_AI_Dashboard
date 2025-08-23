@@ -171,13 +171,14 @@ export default function UnitsSoldCharts({
 	const processUnitsSoldData = (data: any, dateRange: DateRange) => {
 		if (!data?.units_sold_chart) return [];
 
-		const startDate = dateRange.start;
-		const endDate = dateRange.end;
+		// Normalize dates to compare only date parts (ignore time components)
+		const startDateStr = dateRange.start.toISOString().split('T')[0];
+		const endDateStr = dateRange.end.toISOString().split('T')[0];
 
 		return data.units_sold_chart
 			.filter((item: { date: string; units_sold: number }) => {
-				const itemDate = new Date(item.date);
-				return itemDate >= startDate && itemDate <= endDate;
+				const itemDateStr = item.date.split('T')[0]; // Handle both "2025-08-16" and "2025-08-16T00:00:00Z" formats
+				return itemDateStr >= startDateStr && itemDateStr <= endDateStr;
 			})
 			.map((item: { date: string; units_sold: number }) => ({
 				date: new Date(item.date).toLocaleDateString("en-US", {
@@ -223,14 +224,14 @@ export default function UnitsSoldCharts({
 		const amazonRawData = amazonPlatformData?.trend_analysis?.units_sold_chart || [];
 
 		// Apply the same date filtering logic to both platforms using the effective date range
-		const startDate = effectiveDateRange.start;
-		const endDate = effectiveDateRange.end;
+		const startDateStr = effectiveDateRange.start.toISOString().split('T')[0];
+		const endDateStr = effectiveDateRange.end.toISOString().split('T')[0];
 
 		// Filter and format Shopify data
 		const filteredShopifyData = shopifyRawData
 			.filter((item: { date: string; units_sold: number }) => {
-				const itemDate = new Date(item.date);
-				return itemDate >= startDate && itemDate <= endDate;
+				const itemDateStr = item.date.split('T')[0]; // Handle both "2025-08-16" and "2025-08-16T00:00:00Z" formats
+				return itemDateStr >= startDateStr && itemDateStr <= endDateStr;
 			})
 			.map((item: { date: string; units_sold: number }) => ({
 				date: new Date(item.date).toLocaleDateString("en-US", {
@@ -243,8 +244,8 @@ export default function UnitsSoldCharts({
 		// Filter and format Amazon data  
 		const filteredAmazonData = amazonRawData
 			.filter((item: { date: string; units_sold: number }) => {
-				const itemDate = new Date(item.date);
-				return itemDate >= startDate && itemDate <= endDate;
+				const itemDateStr = item.date.split('T')[0]; // Handle both "2025-08-16" and "2025-08-16T00:00:00Z" formats
+				return itemDateStr >= startDateStr && itemDateStr <= endDateStr;
 			})
 			.map((item: { date: string; units_sold: number }) => ({
 				date: new Date(item.date).toLocaleDateString("en-US", {
