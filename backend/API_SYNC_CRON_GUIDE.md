@@ -8,9 +8,9 @@ The API Sync Cron System automatically syncs new data from Shopify and Amazon AP
 
 ### 1. **Automatic Scheduling**
 
-- Each client has API credentials with `sync_frequency_hours` (default: 24 hours)
+- Each client has API credentials with `sync_frequency_hours` (default: 2 hours)
 - System tracks `last_sync_at` and `next_sync_at` timestamps
-- Cron job runs every hour checking for clients due for sync
+- Cron job runs every hour checking for clients due for sync (2-hour intervals)
 
 ### 2. **Smart Sync Process**
 
@@ -103,8 +103,8 @@ POST /api/admin/trigger-api-sync?platform_filter=shopify&force_sync=true
 
 ### **API Sync Cron Job:**
 
-- **Frequency**: Every 24 hours (or client's custom `sync_frequency_hours`)
-- **Default Time**: Midnight (00:00)
+- **Frequency**: Every 2 hours (or client's custom `sync_frequency_hours`)
+- **Check Schedule**: Every hour (hourly checks for 2-hour intervals)
 - **What it does**:
   - Fetches NEW data from Shopify/Amazon APIs
   - Stores data in same table names as always
@@ -113,7 +113,7 @@ POST /api/admin/trigger-api-sync?platform_filter=shopify&force_sync=true
 
 ### **SKU Analysis Cron Job:**
 
-- **Frequency**: Every 8 hours (01:00, 09:00, 17:00)
+- **Frequency**: Every 2 hours (00:00, 02:00, 04:00, 06:00, ...)
 - **What it does**:
   - Analyzes stored data to generate SKU cache
   - Improves dashboard performance

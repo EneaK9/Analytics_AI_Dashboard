@@ -197,7 +197,7 @@ class APICredentials(BaseModel):
     status: APIConnectionStatus = APIConnectionStatus.PENDING
     last_sync_at: Optional[datetime] = None
     next_sync_at: Optional[datetime] = None
-    sync_frequency_hours: int = Field(default=24, description="How often to sync data (hours)")
+    sync_frequency_hours: int = Field(default=2, description="How often to sync data (hours)")
     error_message: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -229,7 +229,7 @@ class ClientCreateAdmin(BaseModel):
     platform_type: Optional[PlatformType] = None
     api_credentials: Optional[Dict[str, Any]] = None
     connection_name: Optional[str] = None
-    sync_frequency_hours: Optional[int] = 24
+    sync_frequency_hours: Optional[int] = 2
     
     # SFTP Integration fields
     sftp_host: Optional[str] = None
@@ -899,7 +899,7 @@ class ClientSFTPConfig(BaseModel):
     remote_path: str = "/"
     file_pattern: str = "*.*"
     auto_sync_enabled: bool = False
-    sync_frequency_hours: int = 24
+    sync_frequency_hours: int = 2
     last_sync_at: Optional[datetime] = None
 
 class SFTPSyncLog(BaseModel):

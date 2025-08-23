@@ -17,26 +17,26 @@ REM Delete existing tasks if they exist
 schtasks /Delete /TN "API_Sync_Cron" /F >nul 2>&1
 schtasks /Delete /TN "SKU_Analysis_Cron" /F >nul 2>&1
 
-REM Create API Sync task (runs every 24 hours - THE MAIN ONE!)
-echo 🔄 Creating API Sync task (every 24 hours)...
-schtasks /Create /TN "API_Sync_Cron" /TR "%PYTHON_PATH% %SCRIPT_DIR%api_sync_cron.py" /SC DAILY /ST 00:00 /F
+REM Create API Sync task (checks every hour for 2-hour sync intervals - THE MAIN ONE!)
+echo 🔄 Creating API Sync task (checks every hour for 2-hour intervals)...
+schtasks /Create /TN "API_Sync_Cron" /TR "%PYTHON_PATH% %SCRIPT_DIR%api_sync_cron.py" /SC HOURLY /ST 00:00 /F
 
 if %ERRORLEVEL% EQU 0 (
     echo ✅ API Sync scheduled task created successfully!
-    echo 📋 Task "API_Sync_Cron" will run daily at midnight
+    echo 📋 Task "API_Sync_Cron" will check hourly for 2-hour sync intervals
 ) else (
     echo ❌ Failed to create API sync task. Make sure you run this as Administrator.
     pause
     exit /b 1
 )
 
-REM Create SKU Analysis task (runs every 8 hours)
-echo 📊 Creating SKU Analysis task (every 8 hours)...
-schtasks /Create /TN "SKU_Analysis_Cron" /TR "%PYTHON_PATH% %SCRIPT_DIR%sku_analysis_cron.py" /SC HOURLY /MO 8 /ST 01:00 /F
+REM Create SKU Analysis task (runs every 2 hours)
+echo 📊 Creating SKU Analysis task (every 2 hours)...
+schtasks /Create /TN "SKU_Analysis_Cron" /TR "%PYTHON_PATH% %SCRIPT_DIR%sku_analysis_cron.py" /SC HOURLY /MO 2 /ST 01:00 /F
 
 if %ERRORLEVEL% EQU 0 (
     echo ✅ SKU Analysis scheduled task created successfully!
-    echo 📋 Task "SKU_Analysis_Cron" will run every 8 hours starting at 1:00 AM
+    echo 📋 Task "SKU_Analysis_Cron" will run every 2 hours starting at 1:00 AM
 ) else (
     echo ❌ Failed to create SKU analysis task. Make sure you run this as Administrator.
     pause

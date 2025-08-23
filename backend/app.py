@@ -2703,7 +2703,7 @@ async def add_api_integration_to_existing_client(
     woo_consumer_key: str = Form(default=""),
     woo_consumer_secret: str = Form(default=""),
     woo_version: str = Form(default="wc/v3"),
-    sync_frequency_hours: int = Form(default=24),
+    sync_frequency_hours: int = Form(default=2),
 ):
     """Add additional API integration to existing client (multiple platforms per client)"""
     try:
@@ -2936,7 +2936,7 @@ async def create_client_with_api_integration(
     woo_consumer_key: str = Form(default=""),
     woo_consumer_secret: str = Form(default=""),
     woo_version: str = Form(default="wc/v3"),
-    sync_frequency_hours: int = Form(default=24),
+    sync_frequency_hours: int = Form(default=2),
 ):
     """Superadmin: Create a new client with API integration"""
 
@@ -3467,7 +3467,7 @@ async def create_client_with_sftp_integration(
     sftp_remote_path: str = Form("/"),
     sftp_file_pattern: str = Form("*.*"),
     auto_sync_enabled: bool = Form(False),
-    sync_frequency_hours: int = Form(24),
+    sync_frequency_hours: int = Form(2),
     selected_files: str = Form(default=""),  # JSON string of selected files
 ):
     """Superadmin: Create a new client with SFTP integration"""

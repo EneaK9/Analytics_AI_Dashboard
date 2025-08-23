@@ -29,13 +29,13 @@ sed -i.bak '/sku_analysis_cron.py/d' "$TEMP_CRON"
 echo "" >> "$TEMP_CRON"
 echo "# Analytics AI Dashboard Cron Jobs" >> "$TEMP_CRON"
 
-# Add API Sync cron job (runs daily at midnight - THE MAIN ONE!)
-echo "🔄 Adding API Sync cron job (daily at midnight)..."
-echo "0 0 * * * cd $SCRIPT_DIR && $PYTHON_PATH api_sync_cron.py >> $SCRIPT_DIR/logs/api_sync_cron.log 2>&1 # Analytics AI API Sync" >> "$TEMP_CRON"
+# Add API Sync cron job (checks every hour for 2-hour sync intervals - THE MAIN ONE!)
+echo "🔄 Adding API Sync cron job (checks hourly for 2-hour intervals)..."
+echo "0 * * * * cd $SCRIPT_DIR && $PYTHON_PATH api_sync_cron.py >> $SCRIPT_DIR/logs/api_sync_cron.log 2>&1 # Analytics AI API Sync" >> "$TEMP_CRON"
 
-# Add SKU Analysis cron job (runs every 8 hours)
-echo "📊 Adding SKU Analysis cron job (every 8 hours)..."
-echo "0 1,9,17 * * * cd $SCRIPT_DIR && $PYTHON_PATH sku_analysis_cron.py >> $SCRIPT_DIR/logs/sku_analysis_cron.log 2>&1 # Analytics AI SKU Analysis" >> "$TEMP_CRON"
+# Add SKU Analysis cron job (runs every 2 hours)
+echo "📊 Adding SKU Analysis cron job (every 2 hours)..."
+echo "0 */2 * * * cd $SCRIPT_DIR && $PYTHON_PATH sku_analysis_cron.py >> $SCRIPT_DIR/logs/sku_analysis_cron.log 2>&1 # Analytics AI SKU Analysis" >> "$TEMP_CRON"
 
 # Add log cleanup job (weekly)
 echo "🧹 Adding log cleanup job (weekly)..."
@@ -48,8 +48,8 @@ if [ $? -eq 0 ]; then
     echo "✅ Cron jobs installed successfully!"
     echo ""
     echo "📋 Installed cron jobs:"
-    echo "  🔄 API Sync: Daily at midnight (00:00)"
-    echo "  📊 SKU Analysis: Every 8 hours (01:00, 09:00, 17:00)"
+    echo "  🔄 API Sync: Hourly checks for 2-hour intervals (*:00)"
+    echo "  📊 SKU Analysis: Every 2 hours (even hours: 00:00, 02:00, 04:00...)"
     echo "  🧹 Log Cleanup: Weekly on Sunday at 02:00"
     echo ""
     echo "📁 Logs will be saved to: $SCRIPT_DIR/logs/"
