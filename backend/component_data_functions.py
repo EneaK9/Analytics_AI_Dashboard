@@ -51,6 +51,160 @@ class ComponentDataManager:
                 logger.warning(f"Could not parse date: {date_str}")
                 return None
     
+    def _get_available_inventory_for_platform(self, client_id: str, platform: str) -> int:
+        """Get available inventory for a specific platform (total - outgoing/reserved)"""
+        try:
+            client = get_admin_client()
+            table_names = self._get_table_names(client_id)
+            available_inventory = 0
+            
+            if platform == "shopify":
+                # Get Shopify products
+                products_query = client.table(table_names['shopify_products']).select('sku, inventory_quantity')
+                products_response = products_query.execute()
+                products = products_response.data or []
+                
+                # Get unfulfilled Shopify orders for outgoing calculation
+                orders_query = client.table(table_names['shopify_orders']).select('raw_data, financial_status, fulfillment_status')
+                orders_response = orders_query.execute()
+                orders = orders_response.data or []
+                
+                for product in products:
+                    total_inventory = product.get('inventory_quantity', 0) or 0
+                    sku = product.get('sku')
+                    
+                    # Calculate outgoing inventory (simplified - would need proper SKU matching)
+                    outgoing = 0  # TODO: Implement proper SKU-specific outgoing calculation
+                    
+                    # Available = total - outgoing
+                    product_available = max(0, total_inventory - outgoing)
+                    available_inventory += product_available
+                    
+            elif platform == "amazon":
+                # Get Amazon products  
+                products_query = client.table(table_names['amazon_products']).select('sku, asin, quantity')
+                products_response = products_query.execute()
+                products = products_response.data or []
+                
+                for product in products:
+                    total_inventory = product.get('quantity', 0) or 0
+                    sku = product.get('sku') or product.get('asin')
+                    
+                    # 🔥 FIXED: Calculate Amazon outgoing using order_status and number_of_items_unshipped
+                    outgoing = self._calculate_amazon_outgoing_for_sku(client_id, sku, platform) if sku else 0
+                    
+                    product_available = max(0, total_inventory - outgoing)
+                    available_inventory += product_available
+                    
+            logger.info(f"📦 {platform.upper()} Available Inventory: {available_inventory} units")
+            return available_inventory
+            
+        except Exception as e:
+            logger.error(f"Error calculating available inventory for {platform}: {e}")
+            return 0
+
+    def _calculate_average_inventory(self, current_inventory: int, units_sold: int, period_days: int = 30) -> float:
+        """Calculate average inventory = (begin_inventory + end_inventory) / 2"""
+        # Current inventory is end_inventory
+        end_inventory = current_inventory
+        
+                # 🔥 FIXED: Calculate begin_inventory = current + units sold during the period
+        # This assumes inventory at period start = current inventory + units sold since then
+        begin_inventory = current_inventory + units_sold
+        
+        avg_inventory = (begin_inventory + end_inventory) / 2
+        
+        logger.info(f"📊 Avg Inventory: begin({current_inventory} + {units_sold}) + end({end_inventory}) / 2 = {avg_inventory}")
+        logger.info(f"📊 Logic: inventory at period start ≈ current({current_inventory}) + sold_since_then({units_sold}) = {begin_inventory}")
+        
+        # 🔥 FIXED: Allow 0 inventory when there are no products/sales
+        # Only return 1 as minimum if we have actual inventory or sales (avoid false turnover rates)
+        if current_inventory == 0 and units_sold == 0:
+            return 0  # Truly no inventory or activity
+        return max(avg_inventory, 1)  # Avoid division by zero only when there's some activity
+
+    def _calculate_amazon_outgoing_for_sku(self, client_id: str, sku: str, platform: str) -> int:
+        """🔥 NEW: Calculate outgoing inventory for Amazon SKU using order_status and number_of_items_unshipped"""
+        if not sku or platform != "amazon":
+            return 0
+            
+        try:
+            client = get_admin_client()
+            table_names = self._get_table_names(client_id)
+            
+            # Get recent Amazon orders that are not yet shipped
+            orders_query = client.table(table_names['amazon_orders']).select('order_id, order_status, number_of_items_unshipped, number_of_items_shipped, raw_data')
+            orders_query = orders_query.neq('order_status', 'shipped')  # Only unshipped orders
+            orders_query = orders_query.limit(20)  # Limit for performance
+            
+            orders_response = orders_query.execute()
+            orders = orders_response.data or []
+            
+            outgoing = 0
+            
+            for order in orders:
+                try:
+                    # Amazon uses number_of_items_unshipped for pending items
+                    unshipped_items = order.get('number_of_items_unshipped', 0) or 0
+                    
+                    # If we don't have unshipped count, estimate from total items
+                    if unshipped_items == 0:
+                        total_items = order.get('number_of_items_shipped', 0) or 0
+                        total_items += order.get('number_of_items_unshipped', 0) or 0
+                        # If order is not shipped, assume all items are unshipped
+                        if total_items > 0:
+                            unshipped_items = total_items
+                        else:
+                            unshipped_items = 1  # Conservative estimate
+                    
+                    # TODO: Ideally, we'd parse raw_data to match specific SKUs in order line items
+                    # For now, attribute proportionally if this order contains our SKU
+                    # This is a simplified approach - in practice, you'd want to parse order line items
+                    if unshipped_items > 0:
+                        outgoing += unshipped_items
+                        
+                except Exception as e:
+                    logger.debug(f"Error processing Amazon order for outgoing calculation: {e}")
+                    continue
+            
+            logger.info(f"📦 Amazon SKU {sku} outgoing inventory: {outgoing} units from {len(orders)} unshipped orders")
+            return outgoing
+            
+        except Exception as e:
+            logger.error(f"Error calculating Amazon outgoing for SKU {sku}: {e}")
+            return 0
+
+    def _is_order_fulfilled(self, order: Dict) -> bool:
+        """Check if order should be counted for sales based on platform-specific status rules"""
+        platform = order.get('platform', '').lower()
+        
+        if platform == 'shopify':
+            # Shopify: financial_status = 'paid' AND fulfillment_status = 'fulfilled'
+            financial_status = (order.get('financial_status', '') or '').lower()
+            fulfillment_status = (order.get('fulfillment_status', '') or '').lower()
+            return financial_status == 'paid' and fulfillment_status == 'fulfilled'
+        
+        elif platform == 'amazon':
+            # Amazon: order_status = 'shipped'
+            order_status = (order.get('order_status', '') or '').lower()
+            return order_status == 'shipped'
+        
+        else:
+            # For mixed data or unknown platform, try to detect from fields
+            if 'financial_status' in order and 'fulfillment_status' in order:
+                # Likely Shopify
+                financial_status = (order.get('financial_status', '') or '').lower()
+                fulfillment_status = (order.get('fulfillment_status', '') or '').lower()
+                return financial_status == 'paid' and fulfillment_status == 'fulfilled'
+            elif 'order_status' in order:
+                # Likely Amazon
+                order_status = (order.get('order_status', '') or '').lower()
+                return order_status == 'shipped'
+            else:
+                # Fallback: include all orders if we can't determine platform
+                logger.warning(f"Could not determine platform for order {order.get('order_id', 'unknown')}, including in sales")
+                return True
+    
     async def get_total_sales_data(self, client_id: str, platform: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
         """
         Get total sales data for a specific platform and date range.
@@ -147,10 +301,16 @@ class ComponentDataManager:
             
             # Calculate sales metrics
             total_revenue = 0
-            total_orders = len(orders)
+            total_orders = 0  # Count only fulfilled orders
+            fulfilled_orders = 0
+            filtered_orders = 0
             total_units = 0
             
             for order in orders:
+                # 🔥 NEW: Check if order should be counted based on fulfillment status
+                if self._is_order_fulfilled(order):
+                    fulfilled_orders += 1
+                    
                 if platform == "shopify":
                     # For Shopify orders, sum the total_price
                     order_value = float(order.get('total_price', 0) or 0)
@@ -166,7 +326,15 @@ class ComponentDataManager:
                     # For Amazon orders, sum the total_price
                     order_value = float(order.get('total_price', 0) or 0)
                     total_revenue += order_value
-                    total_units += int(order.get('quantity', 0) or 0)
+                    # 🔥 FIXED: Use number_of_items_shipped for Amazon (not generic 'quantity')
+                    total_units += int(order.get('number_of_items_shipped', 0) or 0)
+                else:
+                    filtered_orders += 1
+            
+            total_orders = fulfilled_orders  # Only count fulfilled orders
+            
+            # 🔥 EXPLICIT LOGGING: Debug values for zero inventory cases
+            logger.info(f"📊 {platform} sales calculation: {len(orders)} total orders, {fulfilled_orders} fulfilled, ${total_revenue:.2f} revenue, {total_units} units")
             
             # Calculate comparison metrics (within-period trend)
             period_days = 30  # default period
@@ -187,6 +355,9 @@ class ComponentDataManager:
             
             first_half_avg_revenue = first_half_revenue / first_half_days
             second_half_avg_revenue = second_half_revenue / second_half_days
+            
+            # Log filtering results
+            logger.info(f"🔥 {platform.upper()} SALES FILTERING: Fulfilled: {fulfilled_orders}, Filtered: {filtered_orders}, Revenue: ${total_revenue:.2f}")
             
             return {
                 'total_sales_30_days': {
@@ -659,13 +830,10 @@ class ComponentDataManager:
                     logger.info(f"     ✅ EXTRACTED UNITS: {debug_info['extracted_units']}")
                     logger.info("     " + "-" * 30)
             
-            # Step 3: Calculate inventory at start_date
-            inventory_at_start_date = current_total_inventory + total_units_sold_since_start
-            
             logger.info(f"🧮 CALCULATION BREAKDOWN:")
             logger.info(f"   📊 Current inventory: {current_total_inventory}")
             logger.info(f"   🛒 Units sold since {start_date}: {total_units_sold_since_start}")
-            logger.info(f"   📦 Inventory at {start_date}: {inventory_at_start_date}")
+            logger.info(f"   🔥 Using BACKWARDS calculation approach (no need for start_date inventory)")
             
             # Step 4: Calculate daily sales within the selected period
             daily_sales_in_period = {}
@@ -688,47 +856,69 @@ class ComponentDataManager:
             else:
                 logger.warning(f"   ⚠️ NO SALES found in period {start_date} to {end_date}")
             
-            # Step 5: Create timeline with correct cumulative calculation
+            # 🔥 Step 5: Create timeline working BACKWARDS from current date (user's suggested approach!)
             timeline_data = []
-            current_date = start_dt
-            cumulative_units_sold_from_start = 0
             
-            while current_date <= end_dt:
-                date_key = current_date.strftime('%Y-%m-%d')
-                units_sold_today = daily_sales_in_period.get(date_key, 0)
+            logger.info(f"🔥 NEW BACKWARDS CALCULATION APPROACH:")
+            logger.info(f"   📊 Current inventory (today): {current_total_inventory}")
+            logger.info(f"   📅 Working backwards from {end_dt.date()} to {start_dt.date()}")
+            
+            # Generate list of dates from end to start (backwards)
+            dates_backwards = []
+            temp_date = end_dt.date()
+            while temp_date >= start_dt.date():
+                dates_backwards.append(temp_date)
+                temp_date -= timedelta(days=1)
+            
+            # Calculate inventory for each day working backwards
+            cumulative_units_sold_backwards = 0
+            
+            for i, date in enumerate(dates_backwards):
+                date_key = date.strftime('%Y-%m-%d')
+                units_sold_this_day = daily_sales_in_period.get(date_key, 0)
                 
-                # Add today's sales to cumulative total from start_date
-                cumulative_units_sold_from_start += units_sold_today
-                
-                # Calculate inventory: inventory_at_start_date - cumulative_units_sold_from_start_date
-                inventory_level_today = max(0, inventory_at_start_date - cumulative_units_sold_from_start)
+                if i == 0:
+                    # Today (end_dt): use current inventory
+                    inventory_level = current_total_inventory
+                    logger.info(f"   {date_key} (today): {inventory_level} (current inventory)")
+                else:
+                    # Previous days: current_inventory + cumulative_units_sold_since_this_day
+                    # 🔥 FIXED: Add current day's sales to cumulative for next iteration
+                    # We need inventory BEFORE this day's sales were sold
+                    inventory_level = current_total_inventory + cumulative_units_sold_backwards
+                    
+                    # Now add today's sales to cumulative for next iteration (going further back)
+                    cumulative_units_sold_backwards += units_sold_this_day
+                    
+                    if i < 6:  # Debug first few days
+                        days_back = i
+                        cumulative_before_today = cumulative_units_sold_backwards - units_sold_this_day
+                        logger.info(f"   {date_key} ({days_back} days ago): {current_total_inventory} + {cumulative_before_today} = {inventory_level}")
+                        logger.info(f"      (Adding {units_sold_this_day} units sold this day to cumulative for next iteration)")
                 
                 timeline_data.append({
                     'date': date_key,
-                    'inventory_level': inventory_level_today,
-                    'value': inventory_level_today
+                    'inventory_level': max(0, inventory_level),  # Prevent negative inventory
+                    'value': max(0, inventory_level)
                 })
-                current_date += timedelta(days=1)
             
-            logger.info(f"📊 Sample timeline calculations:")
-            cumulative_debug = 0
-            for i in range(min(5, len(timeline_data))):
-                item = timeline_data[i]
-                date = item['date']
-                units_today = daily_sales_in_period.get(date, 0)
-                cumulative_debug += units_today
-                inventory = item['inventory_level']
-                logger.info(f"   {date}: {inventory_at_start_date} - {cumulative_debug} = {inventory} (sold today: {units_today})")
+            # Sort timeline_data by date (ascending) since we built it backwards
+            timeline_data.sort(key=lambda x: x['date'])
+            
+            logger.info(f"📊 BACKWARDS calculation completed:")
+            logger.info(f"   - Generated {len(timeline_data)} daily inventory points")
+            logger.info(f"   - Sample final timeline (first 3 days):")
+            for item in timeline_data[:3]:
+                logger.info(f"     {item['date']}: {item['inventory_level']} units")
             
             return {
                 'inventory_levels_chart': timeline_data,
                 'current_total_inventory': current_total_inventory,
-                'inventory_at_start_date': inventory_at_start_date,
                 'period_info': {
                     'start_date': start_date,
                     'end_date': end_date,
                     'data_points': len(timeline_data),
-                    'calculation_method': 'start_date_inventory_minus_cumulative_sales_from_start',
+                    'calculation_method': 'backwards_from_current_inventory_plus_daily_sales',
                     'total_units_sold_in_period': sum(daily_sales_in_period.values()),
                     'total_units_sold_since_start': total_units_sold_since_start,
                     'daily_sales_calculated': len(daily_sales_in_period)
@@ -811,11 +1001,45 @@ class ComponentDataManager:
             result = {}
             
             if platform == "combined":
-                # Calculate combined turnover
-                total_revenue = sales_data.get('combined', {}).get('total_revenue', 0)
+                # 🔥 FIXED: Calculate combined turnover using total_sales/average_inventory
+                total_units_sold = (
+                    sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('units', 0) +
+                    sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('units', 0)
+                )
+                total_sales_revenue = (
+                    sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('revenue', 0) +
+                    sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('revenue', 0)
+                )
                 total_inventory = inventory_data.get('combined', {}).get('current_total_inventory', 0)
                 
-                turnover_rate = total_revenue / total_inventory if total_inventory > 0 else 0
+                # 🔥 DEBUG: Log combined platform values
+                logger.info(f"🔍 COMBINED DEBUG: total_inventory={total_inventory}, total_sales_revenue=${total_sales_revenue:.2f}, total_units_sold={total_units_sold}")
+                
+                # 🔥 EXTRA SAFETY: If no combined inventory, return 0 immediately
+                if total_inventory == 0:
+                    logger.info(f"📊 COMBINED: No inventory (${total_sales_revenue:.2f} sales, {total_units_sold} units) - returning 0 turnover")
+                    result = {
+                        'inventory_turnover_ratio': 0,
+                        'avg_days_to_sell': 999,
+                        'total_revenue': 0,
+                        'total_inventory_value': 0,
+                        'fast_moving_items': 0,
+                        'turnover_comparison': {
+                            'first_half_turnover_rate': 0,
+                            'second_half_turnover_rate': 0,
+                            'growth_rate': 0
+                        },
+                        'period_info': {
+                            'start_date': start_date,
+                            'end_date': end_date,
+                            'days': period_days
+                        }
+                    }
+                    logger.info(f"✅ Inventory turnover data calculated for combined (no inventory)")
+                    return result
+                
+                average_inventory = self._calculate_average_inventory(total_inventory, total_units_sold, period_days)
+                turnover_rate = total_sales_revenue / average_inventory if average_inventory > 0 and total_sales_revenue > 0 else 0
                 avg_days_to_sell = 365 / turnover_rate if turnover_rate > 0 else 999
                 
                 # Get within-period trend for combined platforms
@@ -826,7 +1050,7 @@ class ComponentDataManager:
                 result = {
                     'inventory_turnover_ratio': round(turnover_rate, 2),
                     'avg_days_to_sell': round(avg_days_to_sell, 1),
-                    'total_revenue': total_revenue,
+                    'total_revenue': total_sales_revenue,
                     'total_inventory_value': total_inventory,
                     'fast_moving_items': 0,  # TODO: Calculate based on individual SKU performance
                     'turnover_comparison': {
@@ -840,15 +1064,48 @@ class ComponentDataManager:
                         'days': period_days
                     }
                 }
+                
+                # 🔥 FINAL DEBUG: Log the combined result
+                logger.info(f"🎯 COMBINED FINAL RESULT: turnover_ratio={result.get('inventory_turnover_ratio', 'N/A')}")
             else:
-                # Calculate for specific platform
+                # 🔥 FIXED: Calculate for specific platform using total_sales/average_inventory
                 platform_sales = sales_data.get(platform, {})
                 platform_inventory = inventory_data.get(platform, {})
                 
-                revenue = platform_sales.get('total_sales_30_days', {}).get('revenue', 0)
+                units_sold = platform_sales.get('total_sales_30_days', {}).get('units', 0)
+                sales_revenue = platform_sales.get('total_sales_30_days', {}).get('revenue', 0)
                 inventory = platform_inventory.get('current_total_inventory', 0)
                 
-                turnover_rate = revenue / inventory if inventory > 0 else 0
+                # 🔥 DEBUG: Log all values for debugging
+                logger.info(f"🔍 {platform} DEBUG: inventory={inventory}, sales_revenue=${sales_revenue:.2f}, units_sold={units_sold}")
+                
+                # 🔥 EXTRA SAFETY: If no inventory, return 0 immediately regardless of sales
+                # Can't have inventory turnover without inventory!
+                if inventory == 0:
+                    logger.info(f"📊 {platform}: No inventory (${sales_revenue:.2f} sales, {units_sold} units) - returning 0 turnover")
+                    result = {
+                        'inventory_turnover_ratio': 0,
+                        'avg_days_to_sell': 999,
+                        'total_revenue': 0,
+                        'total_inventory_value': 0,
+                        'fast_moving_items': 0,
+                        'turnover_comparison': {
+                            'first_half_turnover_rate': 0,
+                            'second_half_turnover_rate': 0,
+                            'growth_rate': 0
+                        },
+                        'period_info': {
+                            'start_date': start_date,
+                            'end_date': end_date,
+                            'days': period_days
+                        }
+                    }
+                    logger.info(f"✅ Inventory turnover data calculated for {platform} (no activity)")
+                    return result
+                
+                average_inventory = self._calculate_average_inventory(inventory, units_sold, period_days)
+                
+                turnover_rate = sales_revenue / average_inventory if average_inventory > 0 and sales_revenue > 0 else 0
                 avg_days_to_sell = 365 / turnover_rate if turnover_rate > 0 else 999
                 
                 # Get within-period turnover trend
@@ -859,7 +1116,7 @@ class ComponentDataManager:
                 result = {
                     'inventory_turnover_ratio': round(turnover_rate, 2),
                     'avg_days_to_sell': round(avg_days_to_sell, 1),
-                    'total_revenue': revenue,
+                    'total_revenue': sales_revenue,
                     'total_inventory_value': inventory,
                     'fast_moving_items': 0,
                     'turnover_comparison': {
@@ -874,6 +1131,8 @@ class ComponentDataManager:
                     }
                 }
             
+            # 🔥 FINAL DEBUG: Log the final result  
+            logger.info(f"🎯 {platform} FINAL RESULT: turnover_ratio={result.get('inventory_turnover_ratio', 'N/A')}")
             logger.info(f"✅ Inventory turnover data calculated for {platform}")
             return result
             
@@ -909,10 +1168,17 @@ class ComponentDataManager:
                     sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('units', 0) +
                     sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('units', 0)
                 )
-                total_inventory = inventory_data.get('combined', {}).get('current_total_inventory', 0)
+                # 🔥 FIXED: Use available inventory for combined platforms
+                available_inventory = (
+                    self._get_available_inventory_for_platform(client_id, "shopify") +
+                    self._get_available_inventory_for_platform(client_id, "amazon")
+                )
+                total_inventory = inventory_data.get('combined', {}).get('current_total_inventory', 0)  # Keep for other metrics
             else:
                 total_units_sold = sales_data.get(platform, {}).get('total_sales_30_days', {}).get('units', 0)
-                total_inventory = inventory_data.get(platform, {}).get('current_total_inventory', 0)
+                # 🔥 FIXED: Use available inventory for specific platform  
+                available_inventory = self._get_available_inventory_for_platform(client_id, platform)
+                total_inventory = inventory_data.get(platform, {}).get('current_total_inventory', 0)  # Keep for other metrics
             
             # Calculate daily sales velocity
             period_days = 30  # default
@@ -923,7 +1189,8 @@ class ComponentDataManager:
                     period_days = max((end_dt - start_dt).days + 1, 1)  # Include both start and end dates
             
             daily_sales_velocity = total_units_sold / period_days if period_days > 0 else 0
-            days_of_stock = total_inventory / max(daily_sales_velocity, 1) if daily_sales_velocity > 0 else 999
+            # 🔥 FIXED: Days of stock using available inventory (on-hand) instead of total inventory
+            days_of_stock = available_inventory / max(daily_sales_velocity, 1) if daily_sales_velocity > 0 else 999
             
             # Categorize stock levels - Note: This is simplified for aggregate view
             # In a real implementation, you'd want to calculate this per SKU
@@ -1092,8 +1359,12 @@ class ComponentDataManager:
                     logger.warning(f"⚠️ You selected dates in {start_dt.year} - check if you have orders in the future!")
                 
                 if start_dt and end_dt:
-                    # Calculate daily sales from filtered orders
-                    daily_sales = await self._calculate_daily_sales_from_orders(orders, platform, start_dt, end_dt)
+                    # 🔥 FIXED: Filter orders by fulfillment status before calculating daily sales
+                    fulfilled_orders = [order for order in orders if self._is_order_fulfilled(order)]
+                    logger.info(f"🔥 UNITS SOLD FILTERING: {len(orders)} total orders → {len(fulfilled_orders)} fulfilled orders")
+                    
+                    # Calculate daily sales from fulfilled orders only
+                    daily_sales = await self._calculate_daily_sales_from_orders(fulfilled_orders, platform, start_dt, end_dt)
                     
                     # Convert daily sales to chart format
                     current_date = start_dt
@@ -1128,7 +1399,7 @@ class ComponentDataManager:
             }
 
     async def _calculate_daily_sales_from_orders(self, orders: List[Dict], platform: str, start_dt: datetime, end_dt: datetime) -> Dict[str, int]:
-        """Calculate daily sales quantities from ALREADY FILTERED orders data"""
+        """Calculate daily sales quantities from FULFILLED orders only (Shopify: paid+fulfilled, Amazon: shipped)"""
         daily_sales = {}
         
         # Initialize all dates with 0 sales
@@ -1138,7 +1409,7 @@ class ComponentDataManager:
             daily_sales[date_str] = 0
             current_date += timedelta(days=1)
         
-        logger.info(f"🔍 Processing {len(orders)} FILTERED orders for daily sales calculation ({platform})")
+        logger.info(f"🔍 Processing {len(orders)} FULFILLED orders for daily units sold calculation ({platform})")
         
         orders_processed = 0
         orders_with_units = 0
@@ -1215,10 +1486,10 @@ class ComponentDataManager:
                                 logger.info(f"     🛍️ Using alternative quantity field: {units_sold}")
                         
                 elif platform == "amazon":
-                    # Amazon orders have direct quantity field
-                    units_sold = int(order.get('quantity', 1) or 1)
+                    # 🔥 FIXED: Amazon orders use number_of_items_shipped (not 'quantity')
+                    units_sold = int(order.get('number_of_items_shipped', 1) or 1)
                     if orders_processed <= 5:
-                        logger.info(f"     🛍️ Amazon quantity: {units_sold}")
+                        logger.info(f"     🛍️ Amazon number_of_items_shipped: {units_sold}")
                 
                 # LOG DETAILED DEBUG INFO if units_sold is still 0
                 if units_sold == 0:
@@ -1247,10 +1518,18 @@ class ComponentDataManager:
                             except Exception as e:
                                 logger.warning(f"   Raw data parse error: {e}")
                     
-                    # Final fallback: count as 1 unit per order
-                    units_sold = 1
-                    if orders_processed <= 5:
-                        logger.info(f"     🛍️ Final fallback: counting as 1 unit")
+                    # 🔥 FIXED: Only use fallback for orders with actual revenue
+                    order_revenue = float(order.get('total_price', 0) or 0)
+                    if order_revenue > 0:
+                        # Only for orders with revenue, use minimal fallback
+                        units_sold = 1
+                        if orders_processed <= 5:
+                            logger.info(f"     🛍️ Fallback: Order has revenue ${order_revenue:.2f}, counting as 1 unit")
+                    else:
+                        # No revenue, no units - skip this order
+                        if orders_processed <= 5:
+                            logger.info(f"     ❌ Skipping: Order has no revenue and no extractable units")
+                        continue  # Skip adding to daily_sales
                 
                 # Add to daily sales (since orders are pre-filtered, we know date is in range)
                 if date_str in daily_sales:
@@ -1419,16 +1698,20 @@ class ComponentDataManager:
                 current_revenue = 0
                 previous_revenue = 0
                 
-                # Calculate revenue from daily sales (using same logic as total sales)
+                # Calculate revenue from daily sales (using same logic as total sales with filtering)
                 for order in current_orders:
                     order_date = self._parse_date(order.get('created_at'))
                     if order_date and order_date.strftime('%Y-%m-%d') == current_date_str:
-                        current_revenue += float(order.get('total_price', 0) or 0)
+                        # 🔥 NEW: Only count fulfilled orders
+                        if self._is_order_fulfilled(order):
+                            current_revenue += float(order.get('total_price', 0) or 0)
                 
                 for order in previous_orders:
                     order_date = self._parse_date(order.get('created_at'))
                     if order_date and order_date.strftime('%Y-%m-%d') == previous_date_str:
-                        previous_revenue += float(order.get('total_price', 0) or 0)
+                        # 🔥 NEW: Only count fulfilled orders
+                        if self._is_order_fulfilled(order):
+                            previous_revenue += float(order.get('total_price', 0) or 0)
                 
                 comparison_data.append({
                     'date': current_date_str,

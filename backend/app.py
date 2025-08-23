@@ -5902,7 +5902,7 @@ async def get_paginated_sku_inventory(
             total_inventory_value = sum(sku.get("total_value", 0) for sku in skus)
 
             low_stock_count = sum(
-                1 for sku in skus if 0 < sku.get("current_availability", 0) <= 10
+                1 for sku in skus if 0 < sku.get("current_availability", 0) < 5
             )
 
             out_of_stock_count = sum(
@@ -6050,7 +6050,7 @@ async def get_sku_summary_stats(token: str = Depends(security)):
                 total_inventory_value = sum(sku.get("total_value", 0) for sku in skus)
 
                 low_stock_count = sum(
-                    1 for sku in skus if sku.get("current_availability", 0) < 10
+                    1 for sku in skus if sku.get("current_availability", 0) < 5
                 )
 
                 out_of_stock_count = sum(
