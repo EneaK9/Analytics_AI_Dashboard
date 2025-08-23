@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 import pandas as pd
 from database import get_admin_client
+from component_data_functions import ComponentDataFunctions
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class DashboardInventoryAnalyzer:
     def __init__(self):
         self.admin_client = None
         self._client_initialized = False
+        self.component_data = ComponentDataFunctions()
     
     def _ensure_client(self):
         """Lazy initialization of database client"""
@@ -760,69 +762,92 @@ class DashboardInventoryAnalyzer:
         else:
             return "PREMIUM"
     async def _get_kpi_charts(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> Dict[str, Any]:
-        """Get optimized KPI charts data with corrected calculations"""
+        """Get optimized KPI charts data using same calculations as component_data_functions"""
         try:
-            shopify_orders = shopify_data.get('orders', [])
-            amazon_orders = amazon_data.get('orders', [])
+            logger.info(f"🔥 Using component_data_functions for consistent 30-day metrics for client {client_id}")
             
-            # Current time and date ranges
+            # Use component_data_functions for consistent 30-day calculations
+            # Calculate 30-day date range  
             now = datetime.now()
-            seven_days_ago = now - timedelta(days=7)
             thirty_days_ago = now - timedelta(days=30)
-            ninety_days_ago = now - timedelta(days=90)
+            start_date = thirty_days_ago.strftime("%Y-%m-%d")
+            end_date = now.strftime("%Y-%m-%d")
             
-            logger.info(f"Calculating KPIs for {len(shopify_orders)} Shopify orders, {len(amazon_orders)} Amazon orders")
+            # Get consistent metrics using component_data_functions
+            total_sales_task = asyncio.create_task(
+                self.component_data.get_total_sales_data(client_id, "combined", start_date, end_date)
+            )
+            inventory_turnover_task = asyncio.create_task(
+                self.component_data.get_inventory_turnover_data(client_id, "combined", start_date, end_date)
+            )
+            days_of_stock_task = asyncio.create_task(
+                self.component_data.get_days_of_stock_data(client_id, "combined", start_date, end_date)
+            )
+            units_sold_task = asyncio.create_task(
+                self.component_data.get_units_sold_data(client_id, "combined", start_date, end_date)
+            )
+            inventory_levels_task = asyncio.create_task(
+                self.component_data.get_inventory_levels_data(client_id, "combined", start_date, end_date)
+            )
             
-            # Calculate sales for each period with proper date filtering
-            all_orders = shopify_orders + amazon_orders
-            sales_7_days = self._calculate_sales_for_period(all_orders, seven_days_ago, now)
-            sales_30_days = self._calculate_sales_for_period(all_orders, thirty_days_ago, now)
-            sales_90_days = self._calculate_sales_for_period(all_orders, ninety_days_ago, now)
+            # Wait for all calculations to complete
+            total_sales_data, inventory_turnover_data, days_of_stock_data, units_sold_data, inventory_levels_data = await asyncio.gather(
+                total_sales_task, inventory_turnover_task, days_of_stock_task, units_sold_task, inventory_levels_task,
+                return_exceptions=True
+            )
             
-            logger.info(f"Sales calculated - 7d: {sales_7_days}, 30d: {sales_30_days}, 90d: {sales_90_days}")
+            # Handle any exceptions from parallel execution
+            def safe_get_data(data, default={}):
+                return data if not isinstance(data, Exception) else default
             
-            # Fast inventory calculation
-            total_inventory = self._calculate_total_inventory(shopify_data, amazon_data)
-            available_inventory = self._calculate_available_inventory(shopify_data, amazon_data)
-            avg_daily_sales = sales_30_days['units'] / 30 if sales_30_days['units'] > 0 else 0
+            total_sales_data = safe_get_data(total_sales_data)
+            inventory_turnover_data = safe_get_data(inventory_turnover_data)
+            days_of_stock_data = safe_get_data(days_of_stock_data)
+            units_sold_data = safe_get_data(units_sold_data)
+            inventory_levels_data = safe_get_data(inventory_levels_data)
             
-            # 🔥 FIXED: Correct inventory turnover formula = units_sold / average_inventory_units
-            total_units_sold = sales_30_days['units']
+            # Extract the consistent 30-day metrics
+            combined_sales = total_sales_data.get('combined', {})
+            combined_turnover = inventory_turnover_data.get('combined', {})
+            combined_days_stock = days_of_stock_data.get('combined', {})
+            combined_units_sold = units_sold_data.get('combined', {})
+            combined_inventory = inventory_levels_data.get('combined', {})
             
-            # 🔥 EXTRA SAFETY: If no inventory, turnover should be 0 regardless of sales
-            if total_inventory == 0:
-                logger.info(f"📊 No total inventory - returning 0 turnover rate (had {total_units_sold} units sold)")
-                turnover_rate = 0
-            else:
-                average_inventory_units = self._calculate_average_inventory(total_inventory, sales_30_days['units'], 30)
-                turnover_rate = total_units_sold / average_inventory_units if average_inventory_units > 0 and total_units_sold > 0 else 0
-            # 🔥 FIXED: Days of stock using available inventory (on-hand) instead of total inventory
-            days_stock_remaining = available_inventory / avg_daily_sales if avg_daily_sales > 0 else 999
+            logger.info(f"✅ Component data functions completed for consistent metrics")
             
             return {
-                "total_sales_7_days": {
-                    "revenue": round(sales_7_days['revenue'], 2),
-                    "units": sales_7_days['units'],
-                    "orders": sales_7_days['orders']
-                },
                 "total_sales_30_days": {
-                    "revenue": round(sales_30_days['revenue'], 2),
-                    "units": sales_30_days['units'], 
-                    "orders": sales_30_days['orders']
+                    "revenue": combined_sales.get('total_revenue', 0),
+                    "units": combined_units_sold.get('total_units_sold_30d', 0),
+                    "orders": combined_sales.get('total_orders', 0)
                 },
-                "total_sales_90_days": {
-                    "revenue": round(sales_90_days['revenue'], 2),
-                    "units": sales_90_days['units'],
-                    "orders": sales_90_days['orders']
+                "inventory_turnover_30_days": {
+                    "turnover_rate": combined_turnover.get('inventory_turnover_ratio', 0),
+                    "comparison": combined_turnover.get('turnover_comparison', {}),
+                    "avg_days_to_sell": combined_turnover.get('avg_days_to_sell', 999),
+                    "fast_moving_items": combined_turnover.get('fast_moving_items', 0)
                 },
-                "inventory_turnover_rate": round(turnover_rate, 2),
-                "days_stock_remaining": round(min(days_stock_remaining, 999), 1),
-                "avg_daily_sales": round(avg_daily_sales, 1),
-                "total_inventory_units": total_inventory
+                "days_of_remaining_stock": {
+                    "avg_days_of_stock": combined_days_stock.get('avg_days_of_stock', 999),
+                    "daily_sales_velocity": combined_days_stock.get('daily_sales_velocity', 0),
+                    "current_inventory": combined_days_stock.get('current_inventory', 0),
+                    "low_stock_count": combined_days_stock.get('low_stock_count', 0),
+                    "out_of_stock_count": combined_days_stock.get('out_of_stock_count', 0),
+                    "overstock_count": combined_days_stock.get('overstock_count', 0)
+                },
+                "inventory_levels_chart": combined_inventory.get('inventory_levels_chart', []),
+                "units_sold_30_days": {
+                    "total_units_sold": combined_units_sold.get('total_units_sold_30d', 0),
+                    "units_sold_chart": combined_units_sold.get('units_sold_chart', []),
+                    "velocity_metrics": combined_units_sold.get('velocity_metrics', {})
+                },
+                "total_inventory_units": combined_inventory.get('current_total_inventory', 0),
+                "data_source": "component_data_functions",
+                "calculation_period": f"{start_date} to {end_date}"
             }
             
         except Exception as e:
-            logger.error(f"Error calculating KPI charts: {e}")
+            logger.error(f"Error calculating KPI charts using component_data_functions: {e}")
             return {"error": str(e)}
     
     def _calculate_available_inventory(self, shopify_data: Dict, amazon_data: Dict) -> int:
@@ -913,15 +938,11 @@ class DashboardInventoryAnalyzer:
         return outgoing
 
     def _calculate_average_inventory(self, current_inventory: int, units_sold: int, period_days: int = 30) -> float:
-        """Calculate average inventory = (begin_inventory + end_inventory) / 2
-        
-        Returns the actual calculated average inventory value.
-        Division by zero should be handled by the calling function.
-        """
+        """Calculate average inventory = (begin_inventory + end_inventory) / 2"""
         # Current inventory is end_inventory
         end_inventory = current_inventory
         
-        # Calculate begin_inventory = current + units sold during the period
+        # 🔥 FIXED: Calculate begin_inventory = current + units sold during the period
         # This assumes inventory at period start = current inventory + units sold since then
         begin_inventory = current_inventory + units_sold
         
@@ -930,8 +951,11 @@ class DashboardInventoryAnalyzer:
         logger.info(f"📊 Avg Inventory: begin({current_inventory} + {units_sold}) + end({end_inventory}) / 2 = {avg_inventory}")
         logger.info(f"📊 Logic: inventory {period_days} days ago ≈ current({current_inventory}) + sold_since_then({units_sold}) = {begin_inventory}")
         
-        # Return the actual calculated value - let calling functions handle zero cases appropriately
-        return avg_inventory
+        # 🔥 FIXED: Allow 0 inventory when there are no products/sales 
+        # Only return 1 as minimum if we have actual inventory or sales (avoid false turnover rates)
+        if current_inventory == 0 and units_sold == 0:
+            return 0  # Truly no inventory or activity
+        return max(avg_inventory, 1)  # Avoid division by zero only when there's some activity
 
     def _is_order_fulfilled(self, order: Dict) -> bool:
         """Check if order should be counted for sales based on platform-specific status rules"""
@@ -1040,78 +1064,69 @@ class DashboardInventoryAnalyzer:
         return total
     
     async def _get_trend_visualizations(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> Dict[str, Any]:
-        """Get trend visualization data with corrected weekly calculations"""
+        """Get trend visualization data using component_data_functions for consistent calculations"""
         try:
-            shopify_orders = shopify_data.get('orders', [])
-            amazon_orders = amazon_data.get('orders', [])
-            all_orders = shopify_orders + amazon_orders
+            logger.info(f"🔥 Using component_data_functions for consistent trend analysis for client {client_id}")
             
-            logger.info(f"Generating trends for {len(all_orders)} total orders")
-            
-            # Calculate weekly data for last 12 weeks
+            # Calculate 30-day date range  
             now = datetime.now()
-            weekly_data = []
+            thirty_days_ago = now - timedelta(days=30)
+            start_date = thirty_days_ago.strftime("%Y-%m-%d")
+            end_date = now.strftime("%Y-%m-%d")
             
-            for i in range(12):  # Last 12 weeks
-                week_end = now - timedelta(weeks=i)
-                week_start = now - timedelta(weeks=i+1)
-                
-                # Calculate sales for this specific week
-                week_sales = self._calculate_sales_for_period(all_orders, week_start, week_end)
-                
-                weekly_data.append({
-                    "week": week_start.strftime("%Y-W%U"),
-                    "date": week_start.strftime("%Y-%m-%d"),
-                    "revenue": round(week_sales['revenue'], 2),
-                    "units_sold": week_sales['units'],
-                    "orders": week_sales['orders']
-                })
+            # Get historical comparison using component_data_functions for consistency
+            historical_comparison_task = asyncio.create_task(
+                self.component_data.get_historical_comparison_data(client_id, "combined", start_date, end_date)
+            )
+            inventory_levels_task = asyncio.create_task(
+                self.component_data.get_inventory_levels_data(client_id, "combined", start_date, end_date)
+            )
+            units_sold_task = asyncio.create_task(
+                self.component_data.get_units_sold_data(client_id, "combined", start_date, end_date)
+            )
             
-            weekly_data.reverse()  # Chronological order (oldest first)
+            # Wait for all trend calculations to complete
+            historical_comparison_data, inventory_levels_data, units_sold_data = await asyncio.gather(
+                historical_comparison_task, inventory_levels_task, units_sold_task,
+                return_exceptions=True
+            )
             
-            # Calculate comparison metrics - last 4 weeks vs previous 4 weeks
-            if len(weekly_data) >= 8:
-                recent_4_weeks = weekly_data[-4:]  # Last 4 weeks
-                previous_4_weeks = weekly_data[-8:-4]  # Previous 4 weeks
-                
-                current_avg_revenue = sum(w['revenue'] for w in recent_4_weeks) / 4
-                historical_avg_revenue = sum(w['revenue'] for w in previous_4_weeks) / 4
-                
-                current_avg_units = sum(w['units_sold'] for w in recent_4_weeks) / 4
-                historical_avg_units = sum(w['units_sold'] for w in previous_4_weeks) / 4
-                
-                revenue_change = ((current_avg_revenue - historical_avg_revenue) / historical_avg_revenue * 100) if historical_avg_revenue > 0 else 0
-                units_change = ((current_avg_units - historical_avg_units) / historical_avg_units * 100) if historical_avg_units > 0 else 0
-            else:
-                current_avg_revenue = historical_avg_revenue = 0
-                current_avg_units = historical_avg_units = 0
-                revenue_change = units_change = 0
+            # Handle any exceptions from parallel execution
+            def safe_get_data(data, default={}):
+                return data if not isinstance(data, Exception) else default
             
-            # Calculate inventory levels with estimated historical changes
-            current_inventory = self._calculate_total_inventory(shopify_data, amazon_data)
-            inventory_levels_chart = self._estimate_historical_inventory_levels(weekly_data, current_inventory, all_orders)
+            historical_comparison_data = safe_get_data(historical_comparison_data)
+            inventory_levels_data = safe_get_data(inventory_levels_data)
+            units_sold_data = safe_get_data(units_sold_data)
             
-            logger.info(f"Trends calculated - {len(weekly_data)} weeks, current avg revenue: ${current_avg_revenue:.2f}")
+            # Extract the consistent trend data
+            combined_historical = historical_comparison_data.get('combined', {})
+            combined_inventory = inventory_levels_data.get('combined', {})
+            combined_units_sold = units_sold_data.get('combined', {})
+            
+            logger.info(f"✅ Component data functions completed for consistent trend analysis")
             
             return {
-                "weekly_data_12_weeks": weekly_data,
-                "inventory_levels_chart": inventory_levels_chart,
-                "units_sold_chart": [
-                    {"date": w["date"], "units_sold": w["units_sold"]} 
-                    for w in weekly_data
-                ],
-                "sales_comparison": {
-                    "current_period_avg_revenue": round(current_avg_revenue, 2),
-                    "historical_avg_revenue": round(historical_avg_revenue, 2),
-                    "revenue_change_percent": round(revenue_change, 1),
-                    "current_period_avg_units": round(current_avg_units, 1),
-                    "historical_avg_units": round(historical_avg_units, 1),
-                    "units_change_percent": round(units_change, 1)
-                }
+                "inventory_levels_chart_30_days": combined_inventory.get('inventory_levels_chart', []),
+                "units_sold_chart_30_days": combined_units_sold.get('units_sold_chart', []),
+                "historical_comparison_30_days": {
+                    "current_period_revenue": combined_historical.get('current_period_revenue', 0),
+                    "previous_period_revenue": combined_historical.get('previous_period_revenue', 0),
+                    "revenue_change_percent": combined_historical.get('revenue_change_percent', 0),
+                    "current_period_units": combined_historical.get('current_period_units', 0),
+                    "previous_period_units": combined_historical.get('previous_period_units', 0),
+                    "units_change_percent": combined_historical.get('units_change_percent', 0),
+                    "current_period_orders": combined_historical.get('current_period_orders', 0),
+                    "previous_period_orders": combined_historical.get('previous_period_orders', 0),
+                    "orders_change_percent": combined_historical.get('orders_change_percent', 0)
+                },
+                "velocity_metrics_30_days": combined_units_sold.get('velocity_metrics', {}),
+                "data_source": "component_data_functions",
+                "calculation_period": f"{start_date} to {end_date}"
             }
             
         except Exception as e:
-            logger.error(f"Error generating trend visualizations: {e}")
+            logger.error(f"Error generating trend visualizations using component_data_functions: {e}")
             return {"error": str(e)}
     
     def _estimate_historical_inventory_levels(self, weekly_data: List[Dict], current_inventory: int, all_orders: List[Dict]) -> List[Dict]:
@@ -1155,18 +1170,19 @@ class DashboardInventoryAnalyzer:
                 title = product.get('title', 'Unknown Product')
                 sku = product.get('sku')
                 
-                if inventory < 5:  # 🔥 FIXED: Low stock threshold (was <=10, now <5 to match specification)
+                if inventory < 5:  # 🔥 CONSISTENT: Low stock threshold < 5 (as specified by user)
                     low_stock_count += 1
-                    if len(low_stock_details) < 5:  # Keep first 5 for display
-                        severity = "critical" if inventory == 0 else "high" if inventory <= 3 else "medium"
+                    if len(low_stock_details) < 10:  # Show more details for low stock alerts
+                        severity = "critical" if inventory == 0 else "high" if inventory <= 2 else "medium"
                         low_stock_details.append({
                             "platform": "shopify",
                             "sku": sku,
                             "item_name": title,
                             "current_stock": inventory,
-                            "severity": severity
+                            "severity": severity,
+                            "alert_type": "low_stock"
                         })
-                elif inventory >= 100:  # Overstock threshold
+                elif inventory > 100:  # 🔥 CONSISTENT: Overstock threshold > 100 (as specified by user)
                     overstock_count += 1
                     if len(overstock_details) < 3:  # Keep first 3 for display
                         overstock_details.append({
@@ -1174,7 +1190,8 @@ class DashboardInventoryAnalyzer:
                             "sku": sku,
                             "item_name": title,
                             "current_stock": inventory,
-                            "severity": "medium"
+                            "severity": "medium",
+                            "alert_type": "overstock"
                         })
             
             # Process Amazon products for stock alerts
@@ -1185,19 +1202,20 @@ class DashboardInventoryAnalyzer:
                 sku = product.get('sku')
                 asin = product.get('asin')
                 
-                if quantity < 5:  # 🔥 FIXED: Low stock threshold (was <=10, now <5 to match specification)
+                if quantity < 5:  # 🔥 CONSISTENT: Low stock threshold < 5 (as specified by user)
                     low_stock_count += 1
-                    if len(low_stock_details) < 5:  # Keep first 5 for display
-                        severity = "critical" if quantity == 0 else "high" if quantity <= 3 else "medium"
+                    if len(low_stock_details) < 10:  # Show more details for low stock alerts
+                        severity = "critical" if quantity == 0 else "high" if quantity <= 2 else "medium"
                         low_stock_details.append({
                             "platform": "amazon",
                             "sku": sku,
                             "asin": asin,
                             "item_name": title,
                             "current_stock": quantity,
-                            "severity": severity
+                            "severity": severity,
+                            "alert_type": "low_stock"
                         })
-                elif quantity >= 100:  # Overstock threshold
+                elif quantity > 100:  # 🔥 CONSISTENT: Overstock threshold > 100 (as specified by user)
                     overstock_count += 1
                     if len(overstock_details) < 3:  # Keep first 3 for display
                         overstock_details.append({
@@ -1206,7 +1224,8 @@ class DashboardInventoryAnalyzer:
                             "asin": asin,
                             "item_name": title,
                             "current_stock": quantity,
-                            "severity": "medium"
+                            "severity": "medium",
+                            "alert_type": "overstock"
                         })
             
             # Calculate sales trend alerts
@@ -1230,10 +1249,12 @@ class DashboardInventoryAnalyzer:
             sales_spike_details = []
             sales_slowdown_details = []
             
-            # 🔥 FIXED: Configurable sales down alert thresholds
-            # Default thresholds (can be made configurable via parameters later)
+            # 🔥 CONSISTENT ALERT THRESHOLDS: Use same logic as component_data_functions
+            # Low stock: products with quantity < 5
+            # Overstock: products with stock > 100  
+            # Sales dropping: > 20% decrease
             sales_spike_threshold = 50  # 50% increase = spike
-            sales_down_threshold = 20   # 20% decrease = slowdown (configurable, was hardcoded 30%)
+            sales_down_threshold = 20   # 20% decrease = slowdown (as specified by user)
             
             # Check for significant sales changes
             if previous_week_sales['revenue'] > 0:
@@ -1242,7 +1263,8 @@ class DashboardInventoryAnalyzer:
                 if revenue_change > sales_spike_threshold:  # Configurable spike threshold
                     sales_spike_count = 1
                     sales_spike_details.append({
-                        "type": "sales_spike",
+                        "alert_type": "sales_spike",
+                        "type": "sales_spike", 
                         "severity": "info",
                         "message": f"Sales spiked {revenue_change:.1f}% this week (${recent_week_sales['revenue']:.2f} vs ${previous_week_sales['revenue']:.2f})",
                         "current_revenue": recent_week_sales['revenue'],
@@ -1252,13 +1274,14 @@ class DashboardInventoryAnalyzer:
                 elif revenue_change < -sales_down_threshold:  # 🔥 FIXED: Configurable sales down threshold (was -30, now -20)
                     sales_slowdown_count = 1
                     sales_slowdown_details.append({
+                        "alert_type": "sales_dropping",
                         "type": "sales_slowdown",
-                        "severity": "warning",
+                        "severity": "warning",  
                         "message": f"Sales dropped {abs(revenue_change):.1f}% this week (${recent_week_sales['revenue']:.2f} vs ${previous_week_sales['revenue']:.2f})",
                         "current_revenue": recent_week_sales['revenue'],
                         "previous_revenue": previous_week_sales['revenue'],
                         "change_percent": revenue_change,
-                        "threshold_used": sales_down_threshold  # Track which threshold was used
+                        "threshold_used": sales_down_threshold  # Track which threshold was used (20% as specified by user)
                     })
             
             total_alerts = low_stock_count + overstock_count + sales_spike_count + sales_slowdown_count
@@ -1267,23 +1290,29 @@ class DashboardInventoryAnalyzer:
             
             return {
                 "summary_counts": {
-                    "low_stock_alerts": low_stock_count,
-                    "overstock_alerts": overstock_count,
+                    "low_stock_alerts": low_stock_count,  # Products with quantity < 5
+                    "overstock_alerts": overstock_count,  # Products with stock > 100
+                    "sales_dropping_alerts": sales_slowdown_count,  # Sales dropping > 20%
                     "sales_spike_alerts": sales_spike_count,
-                    "sales_slowdown_alerts": sales_slowdown_count,
                     "total_alerts": total_alerts
                 },
                 "detailed_alerts": {
-                    "low_stock_alerts": low_stock_details,
-                    "overstock_alerts": overstock_details,
-                    "sales_spike_alerts": sales_spike_details,
-                    "sales_slowdown_alerts": sales_slowdown_details
+                    "low_stock_alerts": low_stock_details,  # Products whose quantity < 5
+                    "overstock_alerts": overstock_details,  # Products whose stock > 100  
+                    "sales_dropping_alerts": sales_slowdown_details,  # Sales dropping > 20%
+                    "sales_spike_alerts": sales_spike_details
+                },
+                "alert_thresholds": {
+                    "low_stock_threshold": 5,  # Quantity < 5
+                    "overstock_threshold": 100,  # Stock > 100
+                    "sales_dropping_threshold": sales_down_threshold  # 20% decrease
                 },
                 "quick_links": {
                     "view_low_stock": f"/dashboard/alerts/low-stock?client_id={client_id}",
                     "view_overstock": f"/dashboard/alerts/overstock?client_id={client_id}",
                     "view_sales_alerts": f"/dashboard/alerts/sales?client_id={client_id}"
-                }
+                },
+                "data_source": "dashboard_inventory_analyzer_with_consistent_thresholds"
             }
             
         except Exception as e:
