@@ -20,7 +20,7 @@ services:
       - key: FRONTEND_URL
         value: https://tryliora.ai
       # Note: Add these in Render dashboard as secret environment variables:
-      # SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, OPENAI_API_KEY, JWT_SECRET_KEY
+      # SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, OPENAI_API_KEY, JWT_SECRET_KEY, ELLIPSIS_API_KEY
     healthCheckPath: /health
 
   # Frontend Web Service

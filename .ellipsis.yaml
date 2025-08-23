@@ -1,0 +1,203 @@
+# Ellipsis Code Review Configuration for Analytics AI Dashboard
+# This configuration enables automated code reviews for your full-stack application
+
+name: "Analytics AI Dashboard"
+description: "Full-stack analytics dashboard with Next.js frontend and FastAPI backend"
+
+# Global review settings
+review:
+  # Enable automatic reviews for all non-draft PRs
+  auto_review: true
+
+  # Enable inline comments for specific issues
+  inline_comments: true
+
+  # Request changes for critical issues
+  request_changes_on:
+    - security_vulnerability
+    - performance_critical
+    - breaking_change
+
+  # Approve PRs that pass all checks
+  auto_approve_on:
+    - minor_fix
+    - documentation_only
+    - test_only
+
+# File patterns to include/exclude
+files:
+  include:
+    - "frontend/**/*.{ts,tsx,js,jsx,json,css,scss}"
+    - "backend/**/*.{py,sql,yml,yaml,json,txt}"
+    - "*.{md,yml,yaml,json}"
+    - "render.yaml"
+    - "Dockerfile*"
+    - "requirements.txt"
+    - "package*.json"
+    - "tsconfig.json"
+    - "next.config.mjs"
+    - "tailwind.config.js"
+
+  exclude:
+    - "node_modules/**"
+    - "backend/venv/**"
+    - "backend/__pycache__/**"
+    - "*.log"
+    - "*.cache"
+    - ".next/**"
+    - "build/**"
+    - "dist/**"
+
+# Language-specific rules
+rules:
+  # TypeScript/React Frontend Rules
+  typescript:
+    - name: "type_safety"
+      description: "Ensure proper TypeScript usage"
+      severity: "high"
+      patterns:
+        - "any types should be avoided"
+        - "interfaces should be preferred over types for object shapes"
+        - "components should have proper prop types"
+
+    - name: "react_best_practices"
+      description: "Follow React 19 best practices"
+      severity: "medium"
+      patterns:
+        - "use hooks correctly (no conditionals)"
+        - "proper component composition"
+        - "avoid inline styles in JSX"
+        - "use proper event handlers"
+
+    - name: "next_js_optimization"
+      description: "Next.js 15.3 optimizations"
+      severity: "medium"
+      patterns:
+        - "use Image component for images"
+        - "proper dynamic imports"
+        - "avoid client-side only code in SSR"
+
+  # Python Backend Rules
+  python:
+    - name: "fastapi_best_practices"
+      description: "FastAPI development standards"
+      severity: "high"
+      patterns:
+        - "use proper dependency injection"
+        - "validate request/response models with Pydantic"
+        - "handle errors properly with HTTPException"
+        - "use async/await consistently"
+
+    - name: "security"
+      description: "Security best practices"
+      severity: "critical"
+      patterns:
+        - "no hardcoded secrets or API keys"
+        - "proper input validation"
+        - "SQL injection prevention"
+        - "authentication and authorization checks"
+
+    - name: "performance"
+      description: "Performance optimizations"
+      severity: "medium"
+      patterns:
+        - "efficient database queries"
+        - "proper caching strategies"
+        - "avoid N+1 query problems"
+
+  # SQL Rules
+  sql:
+    - name: "query_optimization"
+      description: "SQL query best practices"
+      severity: "medium"
+      patterns:
+        - "use indexes appropriately"
+        - "avoid SELECT *"
+        - "proper JOIN usage"
+
+    - name: "security"
+      description: "SQL security"
+      severity: "high"
+      patterns:
+        - "parameterized queries only"
+        - "no dynamic SQL construction"
+
+# Review focus areas
+focus_areas:
+  - name: "security"
+    weight: 0.3
+    description: "Security vulnerabilities and best practices"
+
+  - name: "performance"
+    weight: 0.25
+    description: "Performance optimizations and bottlenecks"
+
+  - name: "maintainability"
+    weight: 0.2
+    description: "Code organization and maintainability"
+
+  - name: "testing"
+    weight: 0.15
+    description: "Test coverage and quality"
+
+  - name: "documentation"
+    weight: 0.1
+    description: "Code documentation and comments"
+
+# Custom review prompts
+prompts:
+  general: |
+    Please review this code for the Analytics AI Dashboard project. This is a full-stack application with:
+    - Frontend: Next.js 15.3 with React 19, TypeScript, Tailwind CSS
+    - Backend: FastAPI with Python, Supabase, OpenAI integration
+    - Deployment: Render platform with Docker containers
+
+    Focus on security, performance, type safety, and maintainability.
+    Provide specific, actionable feedback with code examples where appropriate.
+
+  frontend: |
+    Review this frontend code considering:
+    - React 19 best practices and performance
+    - Next.js 15.3 optimization features
+    - TypeScript type safety
+    - Tailwind CSS utility usage
+    - Component composition and reusability
+    - Accessibility (a11y) compliance
+
+  backend: |
+    Review this backend code considering:
+    - FastAPI async/await patterns
+    - Pydantic model validation
+    - Database query optimization
+    - Security best practices
+    - Error handling and logging
+    - API design and RESTful principles
+
+# Integration settings
+integrations:
+  github:
+    enabled: true
+    check_name: "ellipsis/code-review"
+
+  slack:
+    enabled: false # Set to true if you want Slack notifications
+
+  teams:
+    enabled: false # Set to true if you want Microsoft Teams notifications
+
+# Advanced settings
+advanced:
+  # Maximum number of files to review in a single PR
+  max_files_per_review: 50
+
+  # Minimum confidence level for suggestions
+  confidence_threshold: 0.7
+
+  # Enable learning from feedback
+  learn_from_feedback: true
+
+  # Custom model preferences
+  model_preferences:
+    code_analysis: "gpt-4"
+    security_scan: "gpt-4"
+    performance_check: "gpt-4"

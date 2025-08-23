@@ -5879,6 +5879,68 @@ async def refresh_sku_background(client_id: str, platform: str, page: int, page_
     """Background task to refresh SKU cache - replaced by cron job"""
     logger.info(f"🔄 Background SKU refresh triggered (legacy) - should use cron job instead")
 
+@app.post("/api/admin/trigger-api-sync")
+async def trigger_api_sync_manually(
+    token: str = Depends(security),
+    client_id_filter: Optional[str] = None,
+    platform_filter: Optional[str] = None,
+    force_sync: Optional[bool] = False
+):
+    """🔧 ADMIN ONLY: Manually trigger API sync for all clients or specific client/platform"""
+    try:
+        # Verify admin token
+        token_data = verify_token(token.credentials)
+        
+        # TODO: Add admin role check when role system is implemented
+        # For now, any authenticated user can trigger (add role check later)
+        
+        logger.info(f"🔧 Manual API sync triggered by client {token_data.client_id}")
+        
+        from api_sync_cron import api_sync_cron
+        
+        # If force_sync is True, update next_sync_at to current time for targeted clients
+        if force_sync:
+            from datetime import datetime
+            db_client = get_admin_client()
+            current_time = datetime.now().isoformat()
+            
+            query = db_client.table("client_api_credentials").update({
+                "next_sync_at": current_time
+            })
+            
+            if client_id_filter:
+                query = query.eq("client_id", client_id_filter)
+            if platform_filter:
+                query = query.eq("platform_type", platform_filter)
+                
+            query = query.eq("status", "connected")
+            response = query.execute()
+            
+            logger.info(f"🔄 Force sync enabled: Updated {len(response.data if response.data else [])} credentials")
+        
+        # Run the sync
+        results = await api_sync_cron.run_full_sync()
+        
+        return {
+            "success": True,
+            "message": "API sync completed",
+            "total_integrations": results.get("total_integrations", 0),
+            "successful_syncs": results.get("successful_syncs", 0), 
+            "failed_syncs": results.get("failed_syncs", 0),
+            "total_records_synced": results.get("total_records_synced", 0),
+            "duration_seconds": results.get("duration_seconds", 0),
+            "client_results": results.get("client_results", {}),
+            "filters_applied": {
+                "client_id": client_id_filter,
+                "platform": platform_filter,
+                "force_sync": force_sync
+            }
+        }
+            
+    except Exception as e:
+        logger.error(f"❌ Error triggering manual API sync: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to trigger API sync: {str(e)}")
+
 @app.post("/api/admin/trigger-sku-analysis")
 async def trigger_sku_analysis_manually(
     token: str = Depends(security),
