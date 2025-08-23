@@ -104,11 +104,15 @@ class ComponentDataManager:
             return 0
 
     def _calculate_average_inventory(self, current_inventory: int, units_sold: int, period_days: int = 30) -> float:
-        """Calculate average inventory = (begin_inventory + end_inventory) / 2"""
+        """Calculate average inventory = (begin_inventory + end_inventory) / 2
+        
+        Returns the actual calculated average inventory value.
+        Division by zero should be handled by the calling function.
+        """
         # Current inventory is end_inventory
         end_inventory = current_inventory
         
-                # 🔥 FIXED: Calculate begin_inventory = current + units sold during the period
+        # Calculate begin_inventory = current + units sold during the period
         # This assumes inventory at period start = current inventory + units sold since then
         begin_inventory = current_inventory + units_sold
         
@@ -117,11 +121,8 @@ class ComponentDataManager:
         logger.info(f"📊 Avg Inventory: begin({current_inventory} + {units_sold}) + end({end_inventory}) / 2 = {avg_inventory}")
         logger.info(f"📊 Logic: inventory at period start ≈ current({current_inventory}) + sold_since_then({units_sold}) = {begin_inventory}")
         
-        # 🔥 FIXED: Allow 0 inventory when there are no products/sales
-        # Only return 1 as minimum if we have actual inventory or sales (avoid false turnover rates)
-        if current_inventory == 0 and units_sold == 0:
-            return 0  # Truly no inventory or activity
-        return max(avg_inventory, 1)  # Avoid division by zero only when there's some activity
+        # Return the actual calculated value - let calling functions handle zero cases appropriately
+        return avg_inventory
 
     def _extract_units_from_order(self, order, platform: str):
         """Extract units from order using multiple fallback strategies"""
