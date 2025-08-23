@@ -1006,37 +1006,48 @@ class ComponentDataManager:
             result = {}
             
             if platform == "combined":
-                # 🔥 FIXED: Calculate combined turnover using total_sales/average_inventory
-                total_units_sold = (
-                    sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('units', 0) +
-                    sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('units', 0)
-                )
-                total_sales_revenue = (
-                    sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('revenue', 0) +
-                    sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('revenue', 0)
-                )
-                total_inventory = inventory_data.get('combined', {}).get('current_total_inventory', 0)
+                # 🔥 FIXED: Use IDENTICAL data sources as individual calculations to ensure consistency
+                # Get Shopify data using same method as individual Shopify calculation
+                shopify_sales_data = await self.get_total_sales_data(client_id, "shopify", start_date, end_date)
+                shopify_inventory_data = await self.get_inventory_levels_data(client_id, "shopify", start_date, end_date)
                 
-                # 🔥 DEBUG: Log combined platform values with Amazon 0 products detection
-                shopify_inventory = inventory_data.get('shopify', {}).get('current_total_inventory', 0)
-                amazon_inventory = inventory_data.get('amazon', {}).get('current_total_inventory', 0)
-                shopify_sales = sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('revenue', 0)
-                amazon_sales = sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('revenue', 0)
+                # Get Amazon data using same method as individual Amazon calculation  
+                amazon_sales_data = await self.get_total_sales_data(client_id, "amazon", start_date, end_date)
+                amazon_inventory_data = await self.get_inventory_levels_data(client_id, "amazon", start_date, end_date)
                 
+                # Extract using IDENTICAL logic as individual calculations
+                shopify_units = shopify_sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('units', 0)
+                shopify_revenue = shopify_sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('revenue', 0)
+                shopify_inventory = shopify_inventory_data.get('shopify', {}).get('current_total_inventory', 0)
+                
+                amazon_units = amazon_sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('units', 0)
+                amazon_revenue = amazon_sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('revenue', 0)
+                amazon_inventory = amazon_inventory_data.get('amazon', {}).get('current_total_inventory', 0)
+                
+                # Sum using identical sources  
+                total_units_sold = shopify_units + amazon_units
+                total_sales_revenue = shopify_revenue + amazon_revenue
+                total_inventory = shopify_inventory + amazon_inventory
+                
+                # 🔥 DEBUG: Log combined platform values using new consistent data sources
                 logger.info(f"🔍 COMBINED DEBUG: total_inventory={total_inventory} (Shopify: {shopify_inventory}, Amazon: {amazon_inventory})")
-                logger.info(f"🔍 COMBINED DEBUG: total_sales_revenue=${total_sales_revenue:.2f} (Shopify: ${shopify_sales:.2f}, Amazon: ${amazon_sales:.2f})")
-                logger.info(f"🔍 COMBINED DEBUG: total_units_sold={total_units_sold}")
+                logger.info(f"🔍 COMBINED DEBUG: total_sales_revenue=${total_sales_revenue:.2f} (Shopify: ${shopify_revenue:.2f}, Amazon: ${amazon_revenue:.2f})")
+                logger.info(f"🔍 COMBINED DEBUG: total_units_sold={total_units_sold} (Shopify: {shopify_units}, Amazon: {amazon_units})")
                 
                 if amazon_inventory == 0:
-                    logger.info("🔍 COMBINED DEBUG: Amazon has 0 products - using Shopify data only for combined calculation")
+                    logger.info("🔍 COMBINED DEBUG: Amazon has 0 products - combined = Shopify only")
+                
+                # 🔥 CONSISTENCY CHECK: Log individual vs combined data comparison
+                logger.info(f"🔍 CONSISTENCY: Shopify individual calculation will use: {shopify_units} units, {shopify_inventory} inventory")
+                logger.info(f"🔍 CONSISTENCY: Amazon individual calculation will use: {amazon_units} units, {amazon_inventory} inventory")
                 
                 # 🔥 CRITICAL DEBUG: Check combined units vs revenue consistency
                 if total_sales_revenue > 0 and total_units_sold == 0:
                     logger.warning(f"🚨 COMBINED CRITICAL ISSUE: Has revenue (${total_sales_revenue:.2f}) but 0 units!")
                     
-                    # Try to estimate from orders
-                    shopify_orders = sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('orders', 0)
-                    amazon_orders = sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('orders', 0)
+                    # Try to estimate from orders using new consistent data sources
+                    shopify_orders = shopify_sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('orders', 0)
+                    amazon_orders = amazon_sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('orders', 0)
                     total_orders = shopify_orders + amazon_orders
                     
                     if total_orders > 0:
@@ -1073,6 +1084,21 @@ class ComponentDataManager:
                 turnover_rate = total_units_sold / average_inventory if average_inventory > 0 and total_units_sold > 0 else 0
                 
                 logger.info(f"📊 COMBINED TURNOVER: {total_units_sold} units sold / {average_inventory} avg inventory = {turnover_rate:.2f}x")
+                
+                # 🔥 MATHEMATICAL VALIDATION: Combined should never exceed max individual platform
+                shopify_avg_inventory = self._calculate_average_inventory(shopify_inventory, shopify_units, period_days)
+                shopify_turnover = shopify_units / shopify_avg_inventory if shopify_avg_inventory > 0 and shopify_units > 0 else 0
+                amazon_avg_inventory = self._calculate_average_inventory(amazon_inventory, amazon_units, period_days)  
+                amazon_turnover = amazon_units / amazon_avg_inventory if amazon_avg_inventory > 0 and amazon_units > 0 else 0
+                max_individual_turnover = max(shopify_turnover, amazon_turnover)
+                
+                logger.info(f"🔍 VALIDATION: Shopify individual turnover = {shopify_turnover:.2f}x, Amazon = {amazon_turnover:.2f}x")
+                logger.info(f"🔍 VALIDATION: Combined turnover = {turnover_rate:.2f}x (should be ≤ {max_individual_turnover:.2f}x)")
+                
+                if turnover_rate > max_individual_turnover * 1.01:  # Allow 1% tolerance for rounding
+                    logger.warning(f"🚨 MATHEMATICAL ERROR: Combined turnover ({turnover_rate:.2f}x) > max individual ({max_individual_turnover:.2f}x)!")
+                    logger.warning("🚨 This violates basic mathematical logic - investigating data inconsistency")
+                
                 avg_days_to_sell = 365 / turnover_rate if turnover_rate > 0 else 999
                 
                 # Get within-period trend for combined platforms
