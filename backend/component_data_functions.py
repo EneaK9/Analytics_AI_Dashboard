@@ -123,6 +123,76 @@ class ComponentDataManager:
             return 0  # Truly no inventory or activity
         return max(avg_inventory, 1)  # Avoid division by zero only when there's some activity
 
+    def _extract_units_from_order(self, order, platform: str):
+        """Extract units from order using multiple fallback strategies"""
+        units_in_order = 0
+        
+        # Priority 1: Try lines_of_item column first (user suggestion)
+        if order.get('lines_of_item') is not None:
+            try:
+                units_in_order = int(order.get('lines_of_item', 0))
+                if units_in_order > 0:
+                    return units_in_order
+            except (ValueError, TypeError):
+                pass
+        
+        # Priority 2: Try line_items_count column
+        if order.get('line_items_count') is not None:
+            try:
+                units_in_order = int(order.get('line_items_count', 0))
+                if units_in_order > 0:
+                    return units_in_order
+            except (ValueError, TypeError):
+                pass
+        
+        # Priority 3: For Amazon, try quantity column
+        if platform == "amazon" and order.get('quantity') is not None:
+            try:
+                units_in_order = int(order.get('quantity', 0))
+                if units_in_order > 0:
+                    return units_in_order
+            except (ValueError, TypeError):
+                pass
+        
+        # Priority 4: Parse raw_data for Shopify
+        if platform == "shopify":
+            raw_data = order.get('raw_data')
+            if raw_data:
+                try:
+                    import json
+                    if isinstance(raw_data, str):
+                        raw_order = json.loads(raw_data)
+                    else:
+                        raw_order = raw_data
+                    
+                    line_items = raw_order.get('line_items', [])
+                    if isinstance(line_items, list):
+                        for item in line_items:
+                            if isinstance(item, dict):
+                                quantity = int(item.get('quantity', 0) or 0)
+                                units_in_order += quantity
+                                
+                        if units_in_order > 0:
+                            return units_in_order
+                except Exception as e:
+                    pass
+        
+        # Priority 5: Try Amazon specific fields
+        if platform == "amazon":
+            if order.get('number_of_items_shipped') is not None:
+                try:
+                    units_in_order = int(order.get('number_of_items_shipped', 0))
+                    if units_in_order > 0:
+                        return units_in_order
+                except (ValueError, TypeError):
+                    pass
+        
+        # Final fallback: assume 1 unit if we have revenue
+        if float(order.get('total_price', 0) or 0) > 0:
+            return 1
+            
+        return 0
+
     def _calculate_amazon_outgoing_for_sku(self, client_id: str, sku: str, platform: str) -> int:
         """🔥 NEW: Calculate outgoing inventory for Amazon SKU using order_status and number_of_items_unshipped"""
         if not sku or platform != "amazon":
@@ -311,23 +381,16 @@ class ComponentDataManager:
                 if self._is_order_fulfilled(order):
                     fulfilled_orders += 1
                     
-                if platform == "shopify":
-                    # For Shopify orders, sum the total_price
+                    # 🔥 FIXED: Use proven units extraction method for all platforms
                     order_value = float(order.get('total_price', 0) or 0)
                     total_revenue += order_value
                     
-                    # Count line items for units
-                    line_items = order.get('line_items', [])
-                    if isinstance(line_items, list):
-                        for item in line_items:
-                            total_units += int(item.get('quantity', 0) or 0)
+                    # Extract units using the proven method from inventory levels calculation
+                    order_units = self._extract_units_from_order(order, platform)
+                    total_units += order_units
                     
-                elif platform == "amazon":
-                    # For Amazon orders, sum the total_price
-                    order_value = float(order.get('total_price', 0) or 0)
-                    total_revenue += order_value
-                    # 🔥 FIXED: Use number_of_items_shipped for Amazon (not generic 'quantity')
-                    total_units += int(order.get('number_of_items_shipped', 0) or 0)
+                    if order_units > 0:
+                        logger.debug(f"📦 {platform.capitalize()} order: ${order_value:.2f}, {order_units} units")
                 else:
                     filtered_orders += 1
             
@@ -477,9 +540,9 @@ class ComponentDataManager:
                 return 0.0, 0.0
             
             # Calculate turnover rates for each half
-            # Note: Using same inventory baseline to show revenue acceleration/deceleration
-            first_half_turnover = first_half_revenue / inventory_value
-            second_half_turnover = second_half_revenue / inventory_value
+            # Note: Using revenue for trend to show revenue acceleration/deceleration (different from main units-based turnover)
+            first_half_turnover = first_half_revenue / inventory_value if inventory_value > 0 else 0
+            second_half_turnover = second_half_revenue / inventory_value if inventory_value > 0 else 0
             
             logger.debug(f"📊 Turnover trend for {platform}: Revenue trend - First half: ${first_half_revenue:.2f}, Second half: ${second_half_revenue:.2f}")
             logger.debug(f"📊 Turnover rates - First half: {first_half_turnover:.2f}, Second half: {second_half_turnover:.2f}")
@@ -490,9 +553,14 @@ class ComponentDataManager:
             logger.error(f"❌ Error getting platform turnover trend: {str(e)}")
             return 0.0, 0.0
     
-    async def _get_combined_turnover_trend(self, client_id: str, start_date: Optional[str], end_date: Optional[str], period_days: int) -> tuple[float, float]:
+    async def _get_combined_turnover_trend(self, client_id: str, start_date: Optional[str], end_date: Optional[str], period_days: int, combined_inventory: int) -> tuple[float, float]:
         """Get combined turnover rates for first half and second half of the selected period"""
         try:
+            # 🔥 FIXED: Use passed inventory to ensure consistency and avoid duplicate data calls
+            if combined_inventory <= 0:
+                logger.warning(f"⚠️ No combined inventory data available for trend calculation (inventory: {combined_inventory})")
+                return 0.0, 0.0
+            
             # Get revenue data for both platforms for each half
             table_names = self._get_table_names(client_id)
             
@@ -516,19 +584,12 @@ class ComponentDataManager:
             combined_first_revenue = shopify_first_revenue + amazon_first_revenue
             combined_second_revenue = shopify_second_revenue + amazon_second_revenue
             
-            # Get combined inventory data
-            inventory_data = await self.get_inventory_levels_data(client_id, "combined", start_date, end_date)
-            combined_inventory = inventory_data.get('combined', {}).get('current_total_inventory', 0)
-            
-            if combined_inventory <= 0:
-                logger.warning(f"⚠️ No combined inventory data available for trend calculation")
-                return 0.0, 0.0
-            
-            # Calculate combined turnover rates for each half
+            # Calculate combined turnover rates for each half using consistent inventory data
             combined_first_half = combined_first_revenue / combined_inventory
             combined_second_half = combined_second_revenue / combined_inventory
             
             logger.debug(f"📊 Combined turnover trend: Revenue - First half: ${combined_first_revenue:.2f}, Second half: ${combined_second_revenue:.2f}")
+            logger.debug(f"📊 Combined inventory: {combined_inventory} (Amazon 0 products case handled)")
             logger.debug(f"📊 Combined turnover rates - First half: {combined_first_half:.2f}, Second half: {combined_second_half:.2f}")
             
             return combined_first_half, combined_second_half
@@ -743,69 +804,13 @@ class ComponentDataManager:
             logger.info(f"📦 Current total inventory: {current_total_inventory}")
             
             # Step 2: Calculate total units sold from start_date to NOW
-            def extract_units_from_order(order):
-                units_in_order = 0
-                
-                # Priority 1: Try lines_of_item column first (user suggestion)
-                if order.get('lines_of_item') is not None:
-                    try:
-                        units_in_order = int(order.get('lines_of_item', 0))
-                        if units_in_order > 0:
-                            return units_in_order
-                    except (ValueError, TypeError):
-                        pass
-                
-                # Priority 2: Try line_items_count column
-                if order.get('line_items_count') is not None:
-                    try:
-                        units_in_order = int(order.get('line_items_count', 0))
-                        if units_in_order > 0:
-                            return units_in_order
-                    except (ValueError, TypeError):
-                        pass
-                
-                # Priority 3: For Amazon, try quantity column
-                if platform == "amazon" and order.get('quantity') is not None:
-                    try:
-                        units_in_order = int(order.get('quantity', 0))
-                        if units_in_order > 0:
-                            return units_in_order
-                    except (ValueError, TypeError):
-                        pass
-                
-                # Priority 4: Parse raw_data for Shopify
-                if platform == "shopify":
-                    raw_data = order.get('raw_data')
-                    if raw_data:
-                        try:
-                            if isinstance(raw_data, str):
-                                raw_order = json.loads(raw_data)
-                            else:
-                                raw_order = raw_data
-                            
-                            line_items = raw_order.get('line_items', [])
-                            if isinstance(line_items, list):
-                                for item in line_items:
-                                    if isinstance(item, dict):
-                                        quantity = int(item.get('quantity', 0) or 0)
-                                        units_in_order += quantity
-                                        
-                            if units_in_order > 0:
-                                return units_in_order
-                        except Exception as e:
-                            logger.debug(f"Error parsing raw_data: {e}")
-                
-                # Fallback: Default to 1 unit per order if nothing else works
-                return 1
-            
-            # Calculate total units sold from start_date to NOW
             total_units_sold_since_start = 0
             units_extraction_debug = []
             
             for i, order in enumerate(all_orders_since_start):
                 order_date = self._parse_date(order.get('created_at', ''))
                 if order_date and order_date >= start_dt:
-                    units = extract_units_from_order(order)
+                    units = self._extract_units_from_order(order, platform)
                     total_units_sold_since_start += units
                     
                     # Debug first 3 extractions
@@ -843,7 +848,7 @@ class ComponentDataManager:
                 order_date = self._parse_date(order.get('created_at', ''))
                 if order_date and start_dt <= order_date <= end_dt:
                     date_key = order_date.strftime('%Y-%m-%d')
-                    units = extract_units_from_order(order)
+                    units = self._extract_units_from_order(order, platform)
                     daily_sales_in_period[date_key] = daily_sales_in_period.get(date_key, 0) + units
                     period_orders_processed += 1
             
@@ -1012,8 +1017,32 @@ class ComponentDataManager:
                 )
                 total_inventory = inventory_data.get('combined', {}).get('current_total_inventory', 0)
                 
-                # 🔥 DEBUG: Log combined platform values
-                logger.info(f"🔍 COMBINED DEBUG: total_inventory={total_inventory}, total_sales_revenue=${total_sales_revenue:.2f}, total_units_sold={total_units_sold}")
+                # 🔥 DEBUG: Log combined platform values with Amazon 0 products detection
+                shopify_inventory = inventory_data.get('shopify', {}).get('current_total_inventory', 0)
+                amazon_inventory = inventory_data.get('amazon', {}).get('current_total_inventory', 0)
+                shopify_sales = sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('revenue', 0)
+                amazon_sales = sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('revenue', 0)
+                
+                logger.info(f"🔍 COMBINED DEBUG: total_inventory={total_inventory} (Shopify: {shopify_inventory}, Amazon: {amazon_inventory})")
+                logger.info(f"🔍 COMBINED DEBUG: total_sales_revenue=${total_sales_revenue:.2f} (Shopify: ${shopify_sales:.2f}, Amazon: ${amazon_sales:.2f})")
+                logger.info(f"🔍 COMBINED DEBUG: total_units_sold={total_units_sold}")
+                
+                if amazon_inventory == 0:
+                    logger.info("🔍 COMBINED DEBUG: Amazon has 0 products - using Shopify data only for combined calculation")
+                
+                # 🔥 CRITICAL DEBUG: Check combined units vs revenue consistency
+                if total_sales_revenue > 0 and total_units_sold == 0:
+                    logger.warning(f"🚨 COMBINED CRITICAL ISSUE: Has revenue (${total_sales_revenue:.2f}) but 0 units!")
+                    
+                    # Try to estimate from orders
+                    shopify_orders = sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('orders', 0)
+                    amazon_orders = sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('orders', 0)
+                    total_orders = shopify_orders + amazon_orders
+                    
+                    if total_orders > 0:
+                        estimated_units = int(total_orders * 1.5)  # Rough estimate
+                        logger.warning(f"🔧 COMBINED WORKAROUND: Estimating {estimated_units} units from {total_orders} orders")
+                        total_units_sold = estimated_units
                 
                 # 🔥 EXTRA SAFETY: If no combined inventory, return 0 immediately
                 if total_inventory == 0:
@@ -1039,12 +1068,16 @@ class ComponentDataManager:
                     return result
                 
                 average_inventory = self._calculate_average_inventory(total_inventory, total_units_sold, period_days)
-                turnover_rate = total_sales_revenue / average_inventory if average_inventory > 0 and total_sales_revenue > 0 else 0
+                # 🔥 FIXED: Use units-based turnover calculation (units sold / average inventory units)
+                # This ensures consistent units and logical combined calculations
+                turnover_rate = total_units_sold / average_inventory if average_inventory > 0 and total_units_sold > 0 else 0
+                
+                logger.info(f"📊 COMBINED TURNOVER: {total_units_sold} units sold / {average_inventory} avg inventory = {turnover_rate:.2f}x")
                 avg_days_to_sell = 365 / turnover_rate if turnover_rate > 0 else 999
                 
                 # Get within-period trend for combined platforms
                 first_half_turnover, second_half_turnover = await self._get_combined_turnover_trend(
-                    client_id, start_date, end_date, period_days
+                    client_id, start_date, end_date, period_days, total_inventory
                 )
                 
                 result = {
@@ -1079,6 +1112,21 @@ class ComponentDataManager:
                 # 🔥 DEBUG: Log all values for debugging
                 logger.info(f"🔍 {platform} DEBUG: inventory={inventory}, sales_revenue=${sales_revenue:.2f}, units_sold={units_sold}")
                 
+                # 🔥 CRITICAL DEBUG: Check if we have revenue but no units
+                if sales_revenue > 0 and units_sold == 0:
+                    logger.warning(f"🚨 {platform} CRITICAL ISSUE: Has revenue (${sales_revenue:.2f}) but 0 units! Checking sales data structure...")
+                    logger.warning(f"🚨 Sales data keys: {list(platform_sales.keys())}")
+                    if 'total_sales_30_days' in platform_sales:
+                        logger.warning(f"🚨 total_sales_30_days content: {platform_sales['total_sales_30_days']}")
+                    
+                    # 🔥 TEMPORARY WORKAROUND: Estimate units from orders count if available
+                    orders_count = platform_sales.get('total_sales_30_days', {}).get('orders', 0)
+                    if orders_count > 0:
+                        # Rough estimate: assume 1.5 units per order on average
+                        estimated_units = int(orders_count * 1.5)
+                        logger.warning(f"🔧 WORKAROUND: Estimating {estimated_units} units from {orders_count} orders")
+                        units_sold = estimated_units
+                
                 # 🔥 EXTRA SAFETY: If no inventory, return 0 immediately regardless of sales
                 # Can't have inventory turnover without inventory!
                 if inventory == 0:
@@ -1105,7 +1153,11 @@ class ComponentDataManager:
                 
                 average_inventory = self._calculate_average_inventory(inventory, units_sold, period_days)
                 
-                turnover_rate = sales_revenue / average_inventory if average_inventory > 0 and sales_revenue > 0 else 0
+                # 🔥 FIXED: Use units-based turnover calculation (units sold / average inventory units)
+                # This ensures consistent units across all platforms
+                turnover_rate = units_sold / average_inventory if average_inventory > 0 and units_sold > 0 else 0
+                
+                logger.info(f"📊 {platform.upper()} TURNOVER: {units_sold} units sold / {average_inventory} avg inventory = {turnover_rate:.2f}x")
                 avg_days_to_sell = 365 / turnover_rate if turnover_rate > 0 else 999
                 
                 # Get within-period turnover trend
@@ -1168,6 +1220,21 @@ class ComponentDataManager:
                     sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('units', 0) +
                     sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('units', 0)
                 )
+                
+                # 🔥 DAYS OF STOCK WORKAROUND: Check for units consistency
+                combined_revenue = (
+                    sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('revenue', 0) +
+                    sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('revenue', 0)
+                )
+                if combined_revenue > 0 and total_units_sold == 0:
+                    combined_orders = (
+                        sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('orders', 0) +
+                        sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('orders', 0)
+                    )
+                    if combined_orders > 0:
+                        total_units_sold = int(combined_orders * 1.5)
+                        logger.warning(f"🔧 DAYS OF STOCK COMBINED: Estimated {total_units_sold} units from {combined_orders} orders")
+                
                 # 🔥 FIXED: Use available inventory for combined platforms
                 available_inventory = (
                     self._get_available_inventory_for_platform(client_id, "shopify") +
@@ -1176,6 +1243,14 @@ class ComponentDataManager:
                 total_inventory = inventory_data.get('combined', {}).get('current_total_inventory', 0)  # Keep for other metrics
             else:
                 total_units_sold = sales_data.get(platform, {}).get('total_sales_30_days', {}).get('units', 0)
+                
+                # 🔥 DAYS OF STOCK WORKAROUND: Check for units consistency (single platform)
+                platform_revenue = sales_data.get(platform, {}).get('total_sales_30_days', {}).get('revenue', 0)
+                if platform_revenue > 0 and total_units_sold == 0:
+                    platform_orders = sales_data.get(platform, {}).get('total_sales_30_days', {}).get('orders', 0)
+                    if platform_orders > 0:
+                        total_units_sold = int(platform_orders * 1.5)
+                        logger.warning(f"🔧 DAYS OF STOCK {platform}: Estimated {total_units_sold} units from {platform_orders} orders")
                 # 🔥 FIXED: Use available inventory for specific platform  
                 available_inventory = self._get_available_inventory_for_platform(client_id, platform)
                 total_inventory = inventory_data.get(platform, {}).get('current_total_inventory', 0)  # Keep for other metrics
