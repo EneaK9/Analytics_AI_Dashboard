@@ -4312,18 +4312,28 @@ async def get_raw_data_tables(
 
                 elif "orders" in table_key:
 
-                    # Order tables: search in order_number, customer_email, financial_status, order_status, source_name, tags
-
-                    search_fields = [
-                        "order_number",
-                        "customer_email",
-                        "financial_status",
-                        "order_status",
-                        "source_name",
-                        "tags",
-                        "sales_channel",
-                        "marketplace_id",
-                    ]
+                    # Order tables: use platform-specific search fields
+                    
+                    if "amazon" in table_key:
+                        # Amazon order tables
+                        search_fields = [
+                            "order_number",
+                            "order_status", 
+                            "sales_channel",
+                            "marketplace_id",
+                            "payment_method",
+                            "fulfillment_channel"
+                        ]
+                    else:
+                        # Shopify order tables
+                        search_fields = [
+                            "order_number",
+                            "customer_email",
+                            "financial_status",
+                            "fulfillment_status",
+                            "source_name",
+                            "tags"
+                        ]
 
                 # Build an OR condition for text search - use proper PostgREST syntax
 
@@ -4368,15 +4378,15 @@ async def get_raw_data_tables(
                 page = 1
 
                 # Re-run count query without search filter
-                try:
-                    fallback_query = db_client.table(table_name).select("*", count="exact")
-                    count_response = fallback_query.execute()
-                    total_records = (
-                        count_response.count if count_response.count is not None else 0
-                    )
-                except Exception as fallback_error:
-                    logger.error(f"❌ Fallback count query failed: {fallback_error}")
-                    total_records = 0
+
+                fallback_query = db_client.table(table_name).select("*", count="exact")
+
+                count_response = fallback_query.execute()
+
+                total_records = (
+                    count_response.count if count_response.count is not None else 0
+                )
+
             # Calculate pagination
 
             offset = (page - 1) * page_size
@@ -4410,16 +4420,28 @@ async def get_raw_data_tables(
 
                 elif "orders" in table_key:
 
-                    search_fields = [
-                        "order_number",
-                        "customer_email",
-                        "financial_status",
-                        "order_status",
-                        "source_name",
-                        "tags",
-                        "sales_channel",
-                        "marketplace_id",
-                    ]
+                    # Order tables: use platform-specific search fields
+                    
+                    if "amazon" in table_key:
+                        # Amazon order tables
+                        search_fields = [
+                            "order_number",
+                            "order_status", 
+                            "sales_channel",
+                            "marketplace_id",
+                            "payment_method",
+                            "fulfillment_channel"
+                        ]
+                    else:
+                        # Shopify order tables
+                        search_fields = [
+                            "order_number",
+                            "customer_email",
+                            "financial_status",
+                            "fulfillment_status",
+                            "source_name",
+                            "tags"
+                        ]
 
                 for field in search_fields:
 
@@ -5603,57 +5625,55 @@ async def get_paginated_sku_inventory(
         )
 
         # Try cache first for INSTANT response
+
         if use_cache and not force_refresh:
+
             try:
+
                 from sku_cache_manager import get_sku_cache_manager
+
                 cache_manager = get_sku_cache_manager(get_admin_client())
+
                 cache_key = f"{client_id}_{platform}"
-                
+
                 cached_result = await cache_manager.get_cached_skus(
                     cache_key, page, page_size
                 )
+
                 if cached_result.get("success"):
+
                     logger.info(
                         f"⚡ INSTANT RESPONSE: Using cached SKUs for {platform}"
                     )
+
                     # Start background refresh for next time
+
                     background_tasks.add_task(
                         refresh_sku_background, client_id, platform, page, page_size
                     )
-                    return cached_result
-                    
-            except Exception as e:
-                logger.warning(f"⚠️ SKU cache check failed: {e}")
 
-        # If no cache found and not forcing refresh, return message about cron job
-        if use_cache and not force_refresh:
-            logger.info(f"📦 No cache found for {client_id} (platform={platform}) - SKU analysis runs via cron job every 8 hours")
-            return {
-                "success": False,
-                "cached": False,
-                "message": "SKU analysis data not available. Analysis runs automatically every 8 hours via background job.",
-                "note": "To manually trigger analysis, contact administrator",
-                "next_scheduled_analysis": "Analysis runs every 8 hours",
-                "pagination": {
-                    "current_page": page,
-                    "page_size": page_size,
-                    "total_count": 0,
-                    "total_pages": 0,
-                    "has_next": False,
-                    "has_previous": False
-                }
-            }
+                    return cached_result
+
+            except Exception as e:
+
+                logger.warning(f"⚠️ SKU cache check failed: {e}")
 
         logger.info(
             f"📦 Generating fresh SKU list for {client_id} (platform={platform})"
         )
 
         # 🔥 FIXED: Allow large page sizes to show ALL data as requested
+
         if page < 1:
+
             page = 1
+
         if page_size < 1:
+
             page_size = 50  # Default fallback
+
         elif page_size > 5000:  # Reasonable maximum to prevent memory issues
+
             page_size = 5000
 
         logger.info(
@@ -5661,44 +5681,63 @@ async def get_paginated_sku_inventory(
         )
 
         # Use dashboard inventory analyzer with caching
+
         from dashboard_inventory_analyzer import dashboard_inventory_analyzer
 
         # Get data using organized tables
+
         db_client = get_admin_client()
+
         if not db_client:
+
             raise HTTPException(status_code=503, detail="Database not configured")
 
         # Get data efficiently based on platform
+
         if platform.lower() == "shopify":
+
             shopify_data = await dashboard_inventory_analyzer._get_shopify_data(
                 client_id
             )
+
             amazon_data = {"products": [], "orders": []}
+
         elif platform.lower() == "amazon":
+
             amazon_data = await dashboard_inventory_analyzer._get_amazon_data(client_id)
+
             shopify_data = {"products": [], "orders": []}
+
         else:
+
             # For backward compatibility, get both if platform is invalid
+
             shopify_data = await dashboard_inventory_analyzer._get_shopify_data(
                 client_id
             )
+
             amazon_data = await dashboard_inventory_analyzer._get_amazon_data(client_id)
 
         # Check if we have any organized data, if not, try legacy approach
+
         total_organized_records = len(shopify_data.get("products", [])) + len(
             amazon_data.get("products", [])
         )
 
         if total_organized_records == 0:
+
             logger.info(
                 f"📋 No organized data found for client {client_id}, trying legacy SKU extraction"
             )
 
             # Try to get SKU data from raw client_data (legacy approach)
+
             try:
+
                 from inventory_analyzer import inventory_analyzer
 
                 # Get raw client data
+
                 response = (
                     db_client.table("client_data")
                     .select("*")
@@ -5709,22 +5748,35 @@ async def get_paginated_sku_inventory(
                 )
 
                 if response.data:
+
                     client_data_for_legacy = {"client_id": client_id, "data": []}
 
                     for record in response.data:
+
                         if record.get("data"):
+
                             try:
+
                                 if isinstance(record["data"], dict):
+
                                     parsed_data = record["data"]
+
                                 elif isinstance(record["data"], str):
+
                                     parsed_data = json.loads(record["data"])
+
                                 else:
+
                                     continue
+
                                 client_data_for_legacy["data"].append(parsed_data)
+
                             except:
+
                                 continue
 
                     # Use legacy analyzer to get SKU data
+
                     legacy_analytics = inventory_analyzer.analyze_inventory_data(
                         client_data_for_legacy
                     )
@@ -5734,26 +5786,33 @@ async def get_paginated_sku_inventory(
                     )
 
                     if legacy_skus:
+
                         logger.info(
                             f"✅ Found {len(legacy_skus)} SKUs from legacy data"
                         )
 
                         # 🔥 FIXED: Calculate real summary stats from legacy SKU data too!
+
                         legacy_summary_stats = None
+
                         if page == 1:
+
                             total_inventory_value = sum(
                                 sku.get("total_value", 0) for sku in legacy_skus
                             )
+
                             low_stock_count = sum(
                                 1
                                 for sku in legacy_skus
                                 if 0 < sku.get("current_availability", 0) <= 10
                             )
+
                             out_of_stock_count = sum(
                                 1
                                 for sku in legacy_skus
                                 if sku.get("current_availability", 0) <= 0
                             )
+
                             overstock_count = sum(
                                 1
                                 for sku in legacy_skus
@@ -5775,8 +5834,11 @@ async def get_paginated_sku_inventory(
                             )
 
                         # Paginate the legacy SKUs
+
                         start_idx = (page - 1) * page_size
+
                         end_idx = start_idx + page_size
+
                         paginated_skus = legacy_skus[start_idx:end_idx]
 
                         return {
@@ -5801,37 +5863,52 @@ async def get_paginated_sku_inventory(
                         }
 
             except Exception as legacy_error:
+
                 logger.warning(f"⚠️ Legacy SKU extraction failed: {legacy_error}")
 
         # If force refresh, clear cache first
+
         if force_refresh:
+
             from sku_cache_manager import get_sku_cache_manager
+
             cache_manager = get_sku_cache_manager(db_client)
+
             await cache_manager.invalidate_cache(client_id)
 
         # Get paginated SKU data using organized approach
+
         sku_result = await dashboard_inventory_analyzer.get_sku_list(
             client_id, page, page_size, use_cache, platform
         )
 
         if not sku_result.get("success"):
+
             raise HTTPException(
                 status_code=500,
                 detail=sku_result.get("error", "Failed to get SKU data"),
             )
 
         # 🔥 FIXED: Calculate summary stats from actual data, not empty cache!
+
         summary_stats = None
+
         if page == 1 and sku_result.get("skus"):
+
             # Calculate real summary stats from the actual SKU data
+
             skus = sku_result["skus"]
+
             total_inventory_value = sum(sku.get("total_value", 0) for sku in skus)
+
             low_stock_count = sum(
                 1 for sku in skus if 0 < sku.get("current_availability", 0) <= 10
             )
+
             out_of_stock_count = sum(
                 1 for sku in skus if sku.get("current_availability", 0) <= 0
             )
+
             overstock_count = sum(
                 1 for sku in skus if sku.get("current_availability", 0) > 100
             )

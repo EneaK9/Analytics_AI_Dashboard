@@ -37,15 +37,18 @@ export default function SimpleLineChart({
 	const maxValue = Math.max(...values);
 	const range = maxValue - minValue || 1;
 
-	// Chart dimensions
-	const padding = 20;
+	// Chart dimensions with improved padding for labels
+	const leftPadding = 50; // Increased for Y-axis labels
+	const rightPadding = 10;
+	const topPadding = 20;
+	const bottomPadding = 40; // Increased for X-axis labels
 	const chartWidth = 300;
-	const chartHeight = height - padding * 2;
+	const chartHeight = height - topPadding - bottomPadding;
 
 	// Create points for the line
 	const points = data.map((item, index) => {
-		const x = padding + (index / (data.length - 1)) * (chartWidth - padding * 2);
-		const y = padding + chartHeight - ((values[index] - minValue) / range) * chartHeight;
+		const x = leftPadding + (index / (data.length - 1)) * (chartWidth - leftPadding - rightPadding);
+		const y = topPadding + ((maxValue - values[index]) / range) * chartHeight;
 		return { x, y, value: values[index] };
 	});
 
@@ -56,7 +59,7 @@ export default function SimpleLineChart({
 	}, '');
 
 	// Create area path for fill
-	const areaData = `${pathData} L ${points[points.length - 1].x} ${height - padding} L ${padding} ${height - padding} Z`;
+	const areaData = `${pathData} L ${points[points.length - 1].x} ${topPadding + chartHeight} L ${leftPadding} ${topPadding + chartHeight} Z`;
 
 	return (
 		<div className={`relative ${className}`}>
@@ -102,19 +105,40 @@ export default function SimpleLineChart({
 			</svg>
 
 			{/* Y-axis labels */}
-			<div className="absolute left-0 top-0 h-full flex flex-col justify-between text-xs text-gray-500 -ml-2">
-				<span>{maxValue.toLocaleString()}</span>
-				<span>{Math.round((minValue + maxValue) / 2).toLocaleString()}</span>
-				<span>{minValue.toLocaleString()}</span>
+			<div 
+				className="absolute left-0 flex flex-col justify-between text-xs text-gray-500 text-right pr-2"
+				style={{
+					top: `${topPadding}px`,
+					height: `${chartHeight}px`,
+					width: `${leftPadding - 5}px`
+				}}
+			>
+				<span className="leading-none">{maxValue.toLocaleString()}</span>
+				<span className="leading-none">{Math.round((minValue + maxValue) / 2).toLocaleString()}</span>
+				<span className="leading-none">{minValue.toLocaleString()}</span>
 			</div>
 
 			{/* X-axis labels */}
-			<div className="flex justify-between text-xs text-gray-500 mt-2 px-5">
-				<span>{data[0]?.date}</span>
+			<div 
+				className="absolute flex justify-between text-xs text-gray-500"
+				style={{
+					top: `${topPadding + chartHeight + 10}px`,
+					left: `${leftPadding}px`,
+					right: `${rightPadding}px`,
+					width: `${chartWidth - leftPadding - rightPadding}px`
+				}}
+			>
+				<span className="truncate max-w-[60px]" title={data[0]?.date}>
+					{data[0]?.date}
+				</span>
 				{data.length > 2 && (
-					<span>{data[Math.floor(data.length / 2)]?.date}</span>
+					<span className="truncate max-w-[60px] text-center" title={data[Math.floor(data.length / 2)]?.date}>
+						{data[Math.floor(data.length / 2)]?.date}
+					</span>
 				)}
-				<span>{data[data.length - 1]?.date}</span>
+				<span className="truncate max-w-[60px] text-right" title={data[data.length - 1]?.date}>
+					{data[data.length - 1]?.date}
+				</span>
 			</div>
 		</div>
 	);
