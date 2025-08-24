@@ -15,7 +15,7 @@ class SKUCacheManager:
     def __init__(self, admin_client: Client):
         self.admin_client = admin_client
         self.cache_table = "sku_cache"
-        self.cache_duration = timedelta(hours=8)  # Cache for 8 hours - refreshed by cron job
+        self.cache_duration = timedelta(hours=2)  # Cache for 2 hours - refreshed by cron job
         
     async def get_cached_skus(self, client_id: str, page: int = 1, page_size: int = 50) -> Dict[str, Any]:
         """Get cached SKU data with pagination"""
@@ -73,7 +73,7 @@ class SKUCacheManager:
                         "data_source": "cron_cache"
                     }
             
-            return {"success": False, "cached": False, "message": "No valid cache found - analysis runs via cron job every 8 hours"}
+            return {"success": False, "cached": False, "message": "No valid cache found - analysis runs via cron job every 2 hours"}
             
         except Exception as e:
             logger.error(f" Error retrieving cached SKUs: {e}")

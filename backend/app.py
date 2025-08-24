@@ -15,6 +15,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security import HTTPBearer
 
 import os
+import sys
 
 from typing import Optional, List, Dict, Any
 
@@ -460,15 +461,29 @@ async def lifespan(app: FastAPI):
     Lifespan event handler that starts/stops the internal scheduler
     This ensures cron jobs run automatically when the app is deployed!
     """
-    logger.info("STARTING ANALYTICS AI DASHBOARD...")
+    logger.info("=== STARTING ANALYTICS AI DASHBOARD ===")
+    logger.info(f"FastAPI startup - Process ID: {os.getpid()}")
+    logger.info(f"Working directory: {os.getcwd()}")
+    logger.info(f"Python version: {sys.version}")
     
     # Startup: Start the internal scheduler
     try:
+        logger.info("Attempting to initialize internal scheduler...")
         start_internal_scheduler()
-        logger.info("Internal scheduler started successfully!")
+        logger.info("INTERNAL SCHEDULER STARTUP SUCCESSFUL!")
         logger.info("API Sync and SKU Analysis jobs are now running automatically!")
+        
+        # Verify scheduler status
+        from internal_scheduler import get_scheduler_status
+        status = get_scheduler_status()
+        logger.info(f"Scheduler verification: {status}")
+        
     except Exception as e:
-        logger.error(f"Failed to start internal scheduler: {e}")
+        logger.error(f"CRITICAL FAILURE: Failed to start internal scheduler: {e}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        # Don't raise - let the app start anyway
     
     yield  # App is running
     
@@ -5887,13 +5902,13 @@ async def get_paginated_sku_inventory(
 
         # If no cache found and not forcing refresh, return message about cron job
         if use_cache and not force_refresh:
-            logger.info(f" No cache found for {client_id} (platform={platform}) - SKU analysis runs via cron job every 8 hours")
+            logger.info(f" No cache found for {client_id} (platform={platform}) - SKU analysis runs via cron job every 2 hours")
             return {
                 "success": False,
                 "cached": False,
-                "message": "SKU analysis data not available. Analysis runs automatically every 8 hours via background job.",
+                "message": "SKU analysis data not available. Analysis runs automatically every 2 hours via background job.",
                 "note": "To manually trigger analysis, contact administrator",
-                "next_scheduled_analysis": "Analysis runs every 8 hours",
+                "next_scheduled_analysis": "Analysis runs every 2 hours",
                 "pagination": {
                     "current_page": page,
                     "page_size": page_size,
