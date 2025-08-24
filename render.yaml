@@ -41,3 +41,63 @@ services:
       - key: NEXT_PUBLIC_API_URL
         value: https://analytics-ai-backend.onrender.com
     # Note: Render will automatically add https:// prefix to the service URL
+
+  # Cron Jobs for Background Tasks
+  - type: cron
+    name: api-sync-cron
+    env: python
+    plan: starter
+    buildCommand: |
+      cd backend
+      pip install -r requirements.txt
+    startCommand: |
+      cd backend
+      python3 api_sync_cron.py
+    schedule: "0 */2 * * *"  # Every 2 hours
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ENVIRONMENT
+        value: production
+      # Note: Add these in Render dashboard as secret environment variables:
+      # SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, OPENAI_API_KEY, JWT_SECRET_KEY, ELLIPSIS_API_KEY
+
+  - type: cron
+    name: sku-analysis-cron
+    env: python
+    plan: starter
+    buildCommand: |
+      cd backend
+      pip install -r requirements.txt
+    startCommand: |
+      cd backend
+      python3 sku_analysis_cron.py
+    schedule: "0 */2 * * *"  # Every 2 hours
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ENVIRONMENT
+        value: production
+      # Note: Add these in Render dashboard as secret environment variables:
+      # SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, OPENAI_API_KEY, JWT_SECRET_KEY, ELLIPSIS_API_KEY
+
+  - type: cron
+    name: analytics-refresh-cron
+    env: python
+    plan: starter
+    buildCommand: |
+      cd backend
+      pip install -r requirements.txt
+    startCommand: |
+      cd backend
+      python3 analytics_refresh_cron.py
+    schedule: "*/5 * * * *"  # Every 5 minutes (testing schedule)
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ENVIRONMENT
+        value: production
+      - key: API_BASE_URL
+        value: https://analytics-ai-backend.onrender.com
+      # Note: Add these in Render dashboard as secret environment variables:
+      # SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, OPENAI_API_KEY, JWT_SECRET_KEY, ELLIPSIS_API_KEY
