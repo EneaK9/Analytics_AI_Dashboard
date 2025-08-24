@@ -185,9 +185,11 @@ class InternalScheduler:
         try:
             logger.info("STARTING SCHEDULED SKU ANALYSIS JOB...")
             
-            # Run SKU analysis for all clients
-            await asyncio.to_thread(sku_analysis_cron.run_sku_analysis_for_all_clients)
+            # Create and run the SKU analysis cron job
+            sku_cron = sku_analysis_cron.SKUAnalysisCronJob()
+            results = await sku_cron.run_full_analysis()
             
+            logger.info(f"SKU Analysis results: {results}")
             logger.info("SKU Analysis completed")
             
         except Exception as e:

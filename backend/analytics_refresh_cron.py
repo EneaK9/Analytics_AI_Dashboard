@@ -90,15 +90,31 @@ class AnalyticsRefreshCronJob:
     async def generate_client_token(self, client_id: str) -> Optional[str]:
         """Generate a temporary token for API calls"""
         try:
-            # Use the same token generation as the system
-            from api_key_auth import create_token_for_client
+            # Import JWT functions
+            from datetime import timedelta
+            import jwt
+            from datetime import datetime
             
-            token_data = create_token_for_client(client_id)
-            if token_data and token_data.get("access_token"):
-                return token_data["access_token"]
-            else:
-                logger.error(f"Failed to generate token for client {client_id}")
-                return None
+            # JWT configuration (same as in app.py)
+            JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback-secret-key")
+            JWT_ALGORITHM = "HS256"
+            
+            # Create token data
+            to_encode = {
+                "client_id": client_id,
+                "email": f"system@{client_id}",  # System email
+                "role": "client"
+            }
+            
+            # Set expiration to 1 hour
+            expire = datetime.utcnow() + timedelta(hours=1)
+            to_encode.update({"exp": expire})
+            
+            # Create the token
+            token = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+            
+            logger.info(f"Generated temporary token for client {client_id}")
+            return token
                 
         except Exception as e:
             logger.error(f"Token generation failed for {client_id}: {e}")
