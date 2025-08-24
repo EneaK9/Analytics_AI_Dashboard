@@ -24,7 +24,7 @@ class EnhancedDataOrganizer(DataOrganizer):
                     results[data_type] = 0
                     continue
                 
-                logger.info(f"🔄 Processing {len(records)} {data_type} records into separate table")
+                logger.info(f" Processing {len(records)} {data_type} records into separate table")
                 
                 # Transform records based on type
                 transformed_records = []
@@ -45,7 +45,7 @@ class EnhancedDataOrganizer(DataOrganizer):
                             transformed_records.append(transformed)
                     
                     except Exception as e:
-                        logger.warning(f"⚠️ Error transforming {data_type} record: {e}")
+                        logger.warning(f" Error transforming {data_type} record: {e}")
                         continue
                 
                 if not transformed_records:
@@ -59,17 +59,17 @@ class EnhancedDataOrganizer(DataOrganizer):
                     # Insert directly into the separate table
                     response = self.admin_client.table(table_name).insert(transformed_records).execute()
                     results[data_type] = len(response.data) if response.data else 0
-                    logger.info(f"✅ Inserted {results[data_type]} records into {table_name}")
+                    logger.info(f" Inserted {results[data_type]} records into {table_name}")
                 
                 except Exception as e:
-                    logger.error(f"❌ Failed to insert into {table_name}: {e}")
-                    logger.info(f"💡 Make sure the table {table_name} exists in Supabase")
+                    logger.error(f" Failed to insert into {table_name}: {e}")
+                    logger.info(f" Make sure the table {table_name} exists in Supabase")
                     results[data_type] = 0
             
             return results
             
         except Exception as e:
-            logger.error(f"❌ Failed to insert organized data: {e}")
+            logger.error(f" Failed to insert organized data: {e}")
             return {}
 
 async def main():
@@ -77,19 +77,19 @@ async def main():
     client_id = "3b619a14-3cd8-49fa-9c24-d8df5e54c452"
     
     try:
-        logger.info("🚀 Testing Enhanced Data Organizer (separate tables)")
+        logger.info(" Testing Enhanced Data Organizer (separate tables)")
         
         organizer = EnhancedDataOrganizer()
         result = await organizer.organize_client_data(client_id)
         
         if result.get('success'):
-            print("✅ Enhanced data organization successful!")
-            print(f"📊 Results: {result}")
+            print(" Enhanced data organization successful!")
+            print(f" Results: {result}")
         else:
-            print(f"❌ Enhanced organization failed: {result.get('error')}")
+            print(f" Enhanced organization failed: {result.get('error')}")
     
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f" Error: {e}")
 
 if __name__ == "__main__":
     import logging

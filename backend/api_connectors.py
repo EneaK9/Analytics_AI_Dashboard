@@ -44,7 +44,7 @@ class ShopifyConnector:
                     if response.status == 200:
                         shop_data = await response.json()
                         shop_name = shop_data.get('shop', {}).get('name', 'Unknown Shop')
-                        logger.info(f"✅ Shopify connection successful: {shop_name}")
+                        logger.info(f" Shopify connection successful: {shop_name}")
                         return True, f"Connected to {shop_name}"
                     elif response.status == 401:
                         return False, "Invalid access token"
@@ -53,7 +53,7 @@ class ShopifyConnector:
                     else:
                         return False, f"Connection failed: HTTP {response.status}"
         except Exception as e:
-            logger.error(f"❌ Shopify connection test failed: {e}")
+            logger.error(f" Shopify connection test failed: {e}")
             return False, f"Connection error: {str(e)}"
     
     async def fetch_orders(self, days_back: int = None) -> List[Dict]:
@@ -123,7 +123,7 @@ class ShopifyConnector:
                                 })
                             
                             all_orders.extend(page_orders)
-                            logger.info(f"📦 Fetched page with {len(page_orders)} orders (Total: {len(all_orders)})")
+                            logger.info(f" Fetched page with {len(page_orders)} orders (Total: {len(all_orders)})")
                             
                             # Check if there are more pages
                             link_header = response.headers.get('Link', '')
@@ -134,7 +134,7 @@ class ShopifyConnector:
                                 if next_match:
                                     # URL decode the page_info parameter
                                     page_info = unquote(next_match.group(1))
-                                    logger.info(f"🔄 Next page_info: {page_info[:50]}...")
+                                    logger.info(f" Next page_info: {page_info[:50]}...")
                                 else:
                                     break
                             else:
@@ -142,20 +142,20 @@ class ShopifyConnector:
                         
                         elif response.status == 429:
                             # Rate limited - wait and retry
-                            logger.warning("⏳ Rate limited by Shopify, waiting 1 second...")
+                            logger.warning(" Rate limited by Shopify, waiting 1 second...")
                             await asyncio.sleep(1)
                             continue
                         else:
                             # Get detailed error response
                             error_text = await response.text()
-                            logger.error(f"❌ Shopify orders API error {response.status}: {error_text[:200]}")
+                            logger.error(f" Shopify orders API error {response.status}: {error_text[:200]}")
                             raise APIConnectorError(f"Failed to fetch orders: HTTP {response.status} - {error_text[:100]}")
                 
-                logger.info(f"✅ Fetched ALL {len(all_orders)} Shopify orders")
+                logger.info(f" Fetched ALL {len(all_orders)} Shopify orders")
                 return all_orders
                         
         except Exception as e:
-            logger.error(f"❌ Failed to fetch Shopify orders: {e}")
+            logger.error(f" Failed to fetch Shopify orders: {e}")
             raise APIConnectorError(f"Shopify orders fetch failed: {str(e)}")
     
     async def fetch_products(self) -> List[Dict]:
@@ -223,7 +223,7 @@ class ShopifyConnector:
                                 })
                             
                             all_products.extend(page_products)
-                            logger.info(f"🛍️ Fetched page with {len(page_products)} products (Total: {len(all_products)})")
+                            logger.info(f"️ Fetched page with {len(page_products)} products (Total: {len(all_products)})")
                             
                             # Check if there are more pages
                             link_header = response.headers.get('Link', '')
@@ -234,7 +234,7 @@ class ShopifyConnector:
                                 if next_match:
                                     # URL decode the page_info parameter
                                     page_info = unquote(next_match.group(1))
-                                    logger.info(f"🔄 Next page_info: {page_info[:50]}...")
+                                    logger.info(f" Next page_info: {page_info[:50]}...")
                                 else:
                                     break
                             else:
@@ -242,17 +242,17 @@ class ShopifyConnector:
                         
                         elif response.status == 429:
                             # Rate limited - wait and retry
-                            logger.warning("⏳ Rate limited by Shopify, waiting 1 second...")
+                            logger.warning(" Rate limited by Shopify, waiting 1 second...")
                             await asyncio.sleep(1)
                             continue
                         else:
                             raise APIConnectorError(f"Failed to fetch products: HTTP {response.status}")
                 
-                logger.info(f"✅ Fetched ALL {len(all_products)} Shopify products")
+                logger.info(f" Fetched ALL {len(all_products)} Shopify products")
                 return all_products
                         
         except Exception as e:
-            logger.error(f"❌ Failed to fetch Shopify products: {e}")
+            logger.error(f" Failed to fetch Shopify products: {e}")
             raise APIConnectorError(f"Shopify products fetch failed: {str(e)}")
 
 class AmazonConnector:
@@ -286,13 +286,13 @@ class AmazonConnector:
                         token_data = await response.json()
                         self.access_token = token_data['access_token']
                         self.token_expires_at = datetime.now() + timedelta(seconds=token_data.get('expires_in', 3600))
-                        logger.info("✅ Amazon SP-API token refreshed")
+                        logger.info(" Amazon SP-API token refreshed")
                         return self.access_token
                     else:
                         raise APIConnectorError(f"Failed to get Amazon access token: HTTP {response.status}")
                         
         except Exception as e:
-            logger.error(f"❌ Failed to get Amazon access token: {e}")
+            logger.error(f" Failed to get Amazon access token: {e}")
             raise APIConnectorError(f"Amazon token refresh failed: {str(e)}")
     
     async def test_connection(self) -> Tuple[bool, str]:
@@ -307,9 +307,9 @@ class AmazonConnector:
             }
             
             # Log detailed connection attempt
-            logger.info(f"🔍 Testing SP-API connection to {self.base_url}")
-            logger.info(f"🔍 Using seller_id: {self.credentials.seller_id}")
-            logger.info(f"🔍 Marketplace IDs: {self.credentials.marketplace_ids}")
+            logger.info(f" Testing SP-API connection to {self.base_url}")
+            logger.info(f" Using seller_id: {self.credentials.seller_id}")
+            logger.info(f" Marketplace IDs: {self.credentials.marketplace_ids}")
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(
@@ -319,22 +319,22 @@ class AmazonConnector:
                     
                     # Log response details for debugging
                     response_text = await response.text()
-                    logger.info(f"🔍 SP-API Response Status: {response.status}")
-                    logger.info(f"🔍 SP-API Response Headers: {dict(response.headers)}")
+                    logger.info(f" SP-API Response Status: {response.status}")
+                    logger.info(f" SP-API Response Headers: {dict(response.headers)}")
                     
                     if response.status == 200:
                         data = await response.json()
                         marketplaces = data.get('payload', [])
                         marketplace_names = [mp.get('marketplace', {}).get('name', 'Unknown') for mp in marketplaces]
-                        logger.info(f"✅ Amazon SP-API connection successful: {', '.join(marketplace_names)}")
+                        logger.info(f" Amazon SP-API connection successful: {', '.join(marketplace_names)}")
                         return True, f"Connected to marketplaces: {', '.join(marketplace_names[:3])}"
                     
                     elif response.status == 401:
-                        logger.error(f"❌ SP-API 401 Unauthorized: {response_text}")
+                        logger.error(f" SP-API 401 Unauthorized: {response_text}")
                         return False, "Invalid credentials or expired token"
                     
                     elif response.status == 403:
-                        logger.error(f"❌ SP-API 403 Forbidden: {response_text}")
+                        logger.error(f" SP-API 403 Forbidden: {response_text}")
                         
                         # Parse error response for more details
                         try:
@@ -343,7 +343,7 @@ class AmazonConnector:
                             if error_details:
                                 error_code = error_details[0].get('code', 'Unknown')
                                 error_message = error_details[0].get('message', 'Unknown error')
-                                logger.error(f"❌ SP-API Error Details - Code: {error_code}, Message: {error_message}")
+                                logger.error(f" SP-API Error Details - Code: {error_code}, Message: {error_message}")
                                 
                                 # Provide specific guidance based on error
                                 if 'unauthorized' in error_message.lower() or 'forbidden' in error_message.lower():
@@ -356,11 +356,11 @@ class AmazonConnector:
                             return False, f"Access Forbidden (403). Raw response: {response_text[:200]}..."
                     
                     else:
-                        logger.error(f"❌ SP-API Unexpected Status {response.status}: {response_text}")
+                        logger.error(f" SP-API Unexpected Status {response.status}: {response_text}")
                         return False, f"Connection failed: HTTP {response.status} - {response_text[:100]}..."
                         
         except Exception as e:
-            logger.error(f"❌ Amazon connection test failed: {e}")
+            logger.error(f" Amazon connection test failed: {e}")
             return False, f"Connection error: {str(e)}"
     
     async def fetch_orders(self, days_back: int = None) -> List[Dict]:
@@ -433,7 +433,7 @@ class AmazonConnector:
                                 })
                             
                             all_orders.extend(page_orders)
-                            logger.info(f"📦 Fetched page with {len(page_orders)} Amazon orders (Total: {len(all_orders)})")
+                            logger.info(f" Fetched page with {len(page_orders)} Amazon orders (Total: {len(all_orders)})")
                             
                             # Check for next page
                             next_token = payload.get('NextToken')
@@ -445,17 +445,17 @@ class AmazonConnector:
                         
                         elif response.status == 429:
                             # Rate limited - wait and retry
-                            logger.warning("⏳ Rate limited by Amazon SP-API, waiting 10 seconds...")
+                            logger.warning(" Rate limited by Amazon SP-API, waiting 10 seconds...")
                             await asyncio.sleep(10)
                             continue
                         else:
                             raise APIConnectorError(f"Failed to fetch orders: HTTP {response.status}")
                 
-                logger.info(f"✅ Fetched ALL {len(all_orders)} Amazon orders")
+                logger.info(f" Fetched ALL {len(all_orders)} Amazon orders")
                 return all_orders
                         
         except Exception as e:
-            logger.error(f"❌ Failed to fetch Amazon orders: {e}")
+            logger.error(f" Failed to fetch Amazon orders: {e}")
             raise APIConnectorError(f"Amazon orders fetch failed: {str(e)}")
 
 class WooCommerceConnector:
@@ -482,7 +482,7 @@ class WooCommerceConnector:
                         return False, f"Connection failed: HTTP {response.status}"
                         
         except Exception as e:
-            logger.error(f"❌ WooCommerce connection test failed: {e}")
+            logger.error(f" WooCommerce connection test failed: {e}")
             return False, f"Connection error: {str(e)}"
 
 class APIConnectorFactory:
@@ -519,7 +519,7 @@ class APIDataFetcher:
             connector = APIConnectorFactory.create_connector(platform_type, credentials)
             return await connector.test_connection()
         except Exception as e:
-            logger.error(f"❌ Connection test failed for {platform_type}: {e}")
+            logger.error(f" Connection test failed for {platform_type}: {e}")
             return False, f"Connection test failed: {str(e)}"
     
     async def fetch_all_data(self, platform_type: PlatformType, credentials: Dict[str, Any]) -> Dict[str, List[Dict]]:
@@ -534,33 +534,33 @@ class APIDataFetcher:
                 try:
                     orders = await connector.fetch_orders()  # No limit parameters - fetch ALL
                     all_data['orders'] = orders
-                    logger.info(f"📦 Fetched {len(orders)} orders from {platform_type}")
+                    logger.info(f" Fetched {len(orders)} orders from {platform_type}")
                 except Exception as e:
-                    logger.warning(f"⚠️ Failed to fetch orders from {platform_type}: {e}")
+                    logger.warning(f" Failed to fetch orders from {platform_type}: {e}")
                     all_data['orders'] = []
             
             if hasattr(connector, 'fetch_products'):
                 try:
                     products = await connector.fetch_products()  # No limit parameters - fetch ALL
                     all_data['products'] = products
-                    logger.info(f"🛍️ Fetched {len(products)} products from {platform_type}")
+                    logger.info(f"️ Fetched {len(products)} products from {platform_type}")
                 except Exception as e:
-                    logger.warning(f"⚠️ Failed to fetch products from {platform_type}: {e}")
+                    logger.warning(f" Failed to fetch products from {platform_type}: {e}")
                     all_data['products'] = []
             
             if hasattr(connector, 'fetch_customers'):
                 try:
                     customers = await connector.fetch_customers()
                     all_data['customers'] = customers
-                    logger.info(f"👥 Fetched {len(customers)} customers from {platform_type}")
+                    logger.info(f" Fetched {len(customers)} customers from {platform_type}")
                 except Exception as e:
-                    logger.warning(f"⚠️ Failed to fetch customers from {platform_type}: {e}")
+                    logger.warning(f" Failed to fetch customers from {platform_type}: {e}")
                     all_data['customers'] = []
             
             return all_data
             
         except Exception as e:
-            logger.error(f"❌ Failed to fetch data from {platform_type}: {e}")
+            logger.error(f" Failed to fetch data from {platform_type}: {e}")
             raise APIConnectorError(f"Data fetch failed: {str(e)}")
 
 # Create global instance

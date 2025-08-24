@@ -221,7 +221,7 @@ class BusinessDNAAnalyzer:
             return dna
             
         except Exception as e:
-            logger.error(f"❌ Business DNA analysis failed: {e}")
+            logger.error(f" Business DNA analysis failed: {e}")
             # Return basic DNA as fallback
             return self._create_fallback_dna(data_analysis)
     

@@ -14,10 +14,10 @@ async def check_client_integrations(client_id: str = "3b619a14-3cd8-49fa-9c24-d8
         
         db_client = get_admin_client()
         if not db_client:
-            print("❌ Could not connect to database")
+            print(" Could not connect to database")
             return
         
-        print(f"🔍 Checking API integrations for client: {client_id}")
+        print(f" Checking API integrations for client: {client_id}")
         print("=" * 80)
         
         # Get all API integrations for this client
@@ -27,11 +27,11 @@ async def check_client_integrations(client_id: str = "3b619a14-3cd8-49fa-9c24-d8
         ).eq("client_id", client_id).order("platform_type").execute()
         
         if not response.data:
-            print(f"❌ NO API integrations found for client {client_id}")
-            print("💡 You need to add API integrations via the admin panel")
+            print(f" NO API integrations found for client {client_id}")
+            print(" You need to add API integrations via the admin panel")
             return
         
-        print(f"✅ Found {len(response.data)} API integration(s):")
+        print(f" Found {len(response.data)} API integration(s):")
         print("")
         
         platforms = {}
@@ -39,7 +39,7 @@ async def check_client_integrations(client_id: str = "3b619a14-3cd8-49fa-9c24-d8
             platform = integration['platform_type']
             platforms[platform] = integration
             
-            print(f"📱 Platform: {platform.upper()}")
+            print(f" Platform: {platform.upper()}")
             print(f"   Connection: {integration['connection_name']}")
             print(f"   Status: {integration['status']}")
             print(f"   Last Sync: {integration.get('last_sync_at', 'Never')}")
@@ -49,7 +49,7 @@ async def check_client_integrations(client_id: str = "3b619a14-3cd8-49fa-9c24-d8
             print("")
         
         print("=" * 80)
-        print("📊 SUMMARY:")
+        print(" SUMMARY:")
         print(f"   Total integrations: {len(response.data)}")
         print(f"   Platforms: {', '.join(platforms.keys())}")
         
@@ -58,20 +58,20 @@ async def check_client_integrations(client_id: str = "3b619a14-3cd8-49fa-9c24-d8
         missing = [p for p in expected if p not in platforms]
         
         if missing:
-            print(f"   ❌ Missing: {', '.join(missing)}")
+            print(f"    Missing: {', '.join(missing)}")
             print("")
-            print("💡 TO ADD MISSING INTEGRATIONS:")
+            print(" TO ADD MISSING INTEGRATIONS:")
             print("   1. Go to your admin panel")
             print("   2. Navigate to API Integrations") 
             print(f"   3. Add {', '.join(missing)} integration(s)")
             print(f"   4. Use client ID: {client_id}")
         else:
-            print("   ✅ All expected platforms found!")
+            print("    All expected platforms found!")
             
         print("=" * 80)
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f" Error: {e}")
         import traceback
         traceback.print_exc()
 

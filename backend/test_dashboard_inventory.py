@@ -26,20 +26,20 @@ async def test_dashboard_inventory_analytics():
         
         for client_name, client_id in clients.items():
             print(f"\n{'='*80}")
-            print(f"🧪 Testing Dashboard Inventory Analytics for {client_name}")
+            print(f" Testing Dashboard Inventory Analytics for {client_name}")
             print(f"Client ID: {client_id}")
             print("="*80)
             
             # Test the dashboard analyzer
-            logger.info(f"🚀 Running dashboard inventory analysis for {client_name}")
+            logger.info(f" Running dashboard inventory analysis for {client_name}")
             result = await dashboard_inventory_analyzer.get_dashboard_inventory_analytics(client_id)
             
             if result.get('success'):
-                print("✅ Dashboard inventory analytics successful!")
+                print(" Dashboard inventory analytics successful!")
                 
                 # Test 1: SKU List
                 sku_list = result.get("sku_list", [])
-                print(f"\n📦 SKU LIST ({len(sku_list)} items):")
+                print(f"\n SKU LIST ({len(sku_list)} items):")
                 print("-" * 60)
                 print(f"{'Item Name':<30} {'SKU':<15} {'On-Hand':<8} {'Outgoing':<8} {'Available':<8} {'Platform':<8}")
                 print("-" * 60)
@@ -60,19 +60,19 @@ async def test_dashboard_inventory_analytics():
                 # Test 2: KPI Charts
                 kpi_charts = result.get("kpi_charts", {})
                 if kpi_charts and not kpi_charts.get("error"):
-                    print(f"\n📈 KPI CHARTS:")
+                    print(f"\n KPI CHARTS:")
                     print("-" * 40)
                     
                     sales_7d = kpi_charts.get('total_sales_7_days', {})
                     sales_30d = kpi_charts.get('total_sales_30_days', {})
                     sales_90d = kpi_charts.get('total_sales_90_days', {})
                     
-                    print(f"📊 Sales Performance:")
+                    print(f" Sales Performance:")
                     print(f"   • Last 7 days:  ${sales_7d.get('revenue', 0):,.2f} ({sales_7d.get('units', 0)} units, {sales_7d.get('orders', 0)} orders)")
                     print(f"   • Last 30 days: ${sales_30d.get('revenue', 0):,.2f} ({sales_30d.get('units', 0)} units, {sales_30d.get('orders', 0)} orders)")
                     print(f"   • Last 90 days: ${sales_90d.get('revenue', 0):,.2f} ({sales_90d.get('units', 0)} units, {sales_90d.get('orders', 0)} orders)")
                     
-                    print(f"\n🔄 Inventory Metrics:")
+                    print(f"\n Inventory Metrics:")
                     print(f"   • Inventory Turnover Rate: {kpi_charts.get('inventory_turnover_rate', 0)}")
                     print(f"   • Days of Stock Remaining: {kpi_charts.get('days_stock_remaining', 'N/A')}")
                     print(f"   • Average Daily Sales: {kpi_charts.get('avg_daily_sales', 0)} units")
@@ -81,15 +81,15 @@ async def test_dashboard_inventory_analytics():
                 # Test 3: Trend Visualizations
                 trends = result.get("trend_visualizations", {})
                 if trends and not trends.get("error"):
-                    print(f"\n📊 TREND VISUALIZATIONS:")
+                    print(f"\n TREND VISUALIZATIONS:")
                     print("-" * 40)
                     
                     daily_data = trends.get('daily_data_90_days', [])
-                    print(f"📈 Daily Data Points: {len(daily_data)} days")
+                    print(f" Daily Data Points: {len(daily_data)} days")
                     
                     if daily_data:
                         # Show last 7 days
-                        print(f"\n📅 Last 7 Days Sample:")
+                        print(f"\n Last 7 Days Sample:")
                         print(f"{'Date':<12} {'Revenue':<10} {'Units':<6} {'Orders':<6} {'Inventory':<9}")
                         print("-" * 45)
                         
@@ -105,18 +105,18 @@ async def test_dashboard_inventory_analytics():
                     # Sales comparison
                     comparison = trends.get('sales_comparison', {})
                     if comparison:
-                        print(f"\n📊 Sales Comparison (Current vs Historical):")
+                        print(f"\n Sales Comparison (Current vs Historical):")
                         print(f"   • Revenue: ${comparison.get('current_period_avg_revenue', 0):.2f} vs ${comparison.get('historical_avg_revenue', 0):.2f} ({comparison.get('revenue_change_percent', 0):+.1f}%)")
                         print(f"   • Units: {comparison.get('current_period_avg_units', 0):.1f} vs {comparison.get('historical_avg_units', 0):.1f} ({comparison.get('units_change_percent', 0):+.1f}%)")
                 
                 # Test 4: Alerts Summary
                 alerts = result.get("alerts_summary", {})
                 if alerts and not alerts.get("error"):
-                    print(f"\n🚨 ALERTS SUMMARY:")
+                    print(f"\n ALERTS SUMMARY:")
                     print("-" * 40)
                     
                     summary_counts = alerts.get('summary_counts', {})
-                    print(f"📊 Alert Counts:")
+                    print(f" Alert Counts:")
                     print(f"   • Low Stock Alerts: {summary_counts.get('low_stock_alerts', 0)}")
                     print(f"   • Overstock Alerts: {summary_counts.get('overstock_alerts', 0)}")
                     print(f"   • Sales Spike Alerts: {summary_counts.get('sales_spike_alerts', 0)}")
@@ -128,7 +128,7 @@ async def test_dashboard_inventory_analytics():
                     low_stock = detailed_alerts.get('low_stock_alerts', [])
                     
                     if low_stock:
-                        print(f"\n⚠️  Low Stock Alert Details (showing first 5):")
+                        print(f"\n  Low Stock Alert Details (showing first 5):")
                         print(f"{'Item Name':<25} {'SKU':<15} {'Stock':<6} {'Severity':<8} {'Platform':<8}")
                         print("-" * 65)
                         
@@ -144,30 +144,30 @@ async def test_dashboard_inventory_analytics():
                     # Quick links
                     quick_links = alerts.get('quick_links', {})
                     if quick_links:
-                        print(f"\n🔗 Quick Links:")
+                        print(f"\n Quick Links:")
                         for link_name, link_url in quick_links.items():
                             print(f"   • {link_name}: {link_url}")
                 
                 # Data Summary
                 data_summary = result.get("data_summary", {})
-                print(f"\n📋 DATA SUMMARY:")
+                print(f"\n DATA SUMMARY:")
                 print("-" * 40)
                 for source, count in data_summary.items():
                     print(f"   • {source}: {count} records")
                 
             else:
-                print(f"❌ Dashboard inventory analytics failed for {client_name}")
+                print(f" Dashboard inventory analytics failed for {client_name}")
                 print(f"Error: {result.get('error')}")
     
     except Exception as e:
-        print(f"❌ Test failed with exception: {e}")
+        print(f" Test failed with exception: {e}")
         import traceback
         traceback.print_exc()
 
 async def test_api_endpoint():
     """Test the API endpoint directly"""
     print(f"\n{'='*80}")
-    print("🌐 Testing API Endpoint Integration")
+    print(" Testing API Endpoint Integration")
     print("="*80)
     
     try:
@@ -180,11 +180,11 @@ async def test_api_endpoint():
         
         client_id = "3b619a14-3cd8-49fa-9c24-d8df5e54c452"
         
-        print(f"\n🧪 Testing dashboard analyzer for client {client_id}")
+        print(f"\n Testing dashboard analyzer for client {client_id}")
         result = await dashboard_inventory_analyzer.get_dashboard_inventory_analytics(client_id)
         
         if result.get('success'):
-            print("✅ API endpoint logic test successful!")
+            print(" API endpoint logic test successful!")
             
             # Simulate the API response structure
             api_response = {
@@ -196,21 +196,21 @@ async def test_api_endpoint():
                 "inventory_analytics": result
             }
             
-            print(f"\n📄 API Response Structure:")
+            print(f"\n API Response Structure:")
             print(f"   • client_id: {api_response['client_id']}")
             print(f"   • success: {api_response['success']}")
             print(f"   • data_type: {api_response['data_type']}")
             print(f"   • inventory_analytics keys: {list(api_response['inventory_analytics'].keys())}")
             
         else:
-            print(f"❌ API endpoint logic test failed: {result.get('error')}")
+            print(f" API endpoint logic test failed: {result.get('error')}")
     
     except Exception as e:
-        print(f"❌ API test failed: {e}")
+        print(f" API test failed: {e}")
 
 async def main():
     """Main test function"""
-    print("🧪 Dashboard Inventory Analytics Test Suite")
+    print(" Dashboard Inventory Analytics Test Suite")
     print("=" * 80)
     
     print("\nChoose test mode:")
@@ -226,7 +226,7 @@ async def main():
         elif choice == "2":
             await test_api_endpoint()
         elif choice == "3":
-            print("\n🔧 Running full test suite...")
+            print("\n Running full test suite...")
             await test_dashboard_inventory_analytics()
             await test_api_endpoint()
         else:
@@ -234,9 +234,9 @@ async def main():
             await test_dashboard_inventory_analytics()
     
     except KeyboardInterrupt:
-        print("\n⚠️ Test interrupted by user")
+        print("\n Test interrupted by user")
     except Exception as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\n Test failed: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())

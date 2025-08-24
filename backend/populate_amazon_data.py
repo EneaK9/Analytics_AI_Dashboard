@@ -28,12 +28,12 @@ class AmazonDataPopulator:
         self.admin_client = get_admin_client()
         
         if not self.admin_client:
-            raise Exception("❌ No admin database client available")
+            raise Exception(" No admin database client available")
     
     async def fetch_client_data(self, client_id: str) -> List[Dict[str, Any]]:
         """Fetch all data for a specific client"""
         try:
-            logger.info(f"📊 Fetching data for Amazon client {client_id}")
+            logger.info(f" Fetching data for Amazon client {client_id}")
             
             result = await self.db_manager.fast_client_data_lookup(
                 client_id=client_id,
@@ -41,14 +41,14 @@ class AmazonDataPopulator:
             )
             
             if not result or not result.get('data'):
-                logger.warning(f"⚠️ No data found for client {client_id}")
+                logger.warning(f" No data found for client {client_id}")
                 return []
             
-            logger.info(f"📦 Found {len(result['data'])} records for client {client_id}")
+            logger.info(f" Found {len(result['data'])} records for client {client_id}")
             return result['data']
             
         except Exception as e:
-            logger.error(f"❌ Failed to fetch client data: {e}")
+            logger.error(f" Failed to fetch client data: {e}")
             return []
     
     def extract_amazon_data(self, raw_data: List[Any]) -> Dict[str, List[Dict[str, Any]]]:
@@ -83,11 +83,11 @@ class AmazonDataPopulator:
                         amazon_data['products'].append(data)
                         
             except Exception as e:
-                logger.warning(f"⚠️ Error processing record: {e}")
+                logger.warning(f" Error processing record: {e}")
                 continue
         
-        logger.info(f"📋 Found {len(amazon_data['orders'])} Amazon orders")
-        logger.info(f"📋 Found {len(amazon_data['products'])} Amazon products")
+        logger.info(f" Found {len(amazon_data['orders'])} Amazon orders")
+        logger.info(f" Found {len(amazon_data['products'])} Amazon products")
         
         return amazon_data
     
@@ -141,7 +141,7 @@ class AmazonDataPopulator:
                 'raw_data': json.dumps(data)
             }
         except Exception as e:
-            logger.warning(f"⚠️ Error transforming Amazon order: {e}")
+            logger.warning(f" Error transforming Amazon order: {e}")
             return None
     
     def transform_amazon_product(self, data: Dict[str, Any], client_id: str) -> Dict[str, Any]:
@@ -165,7 +165,7 @@ class AmazonDataPopulator:
                 'raw_data': json.dumps(data)
             }
         except Exception as e:
-            logger.warning(f"⚠️ Error transforming Amazon product: {e}")
+            logger.warning(f" Error transforming Amazon product: {e}")
             return None
     
     def _safe_decimal(self, value) -> Optional[float]:
@@ -196,26 +196,26 @@ class AmazonDataPopulator:
             orders_table = f"{client_id.replace('-', '_')}_amazon_orders"
             products_table = f"{client_id.replace('-', '_')}_amazon_products"
             
-            logger.info(f"🗑️ Clearing existing data from Amazon tables")
+            logger.info(f"️ Clearing existing data from Amazon tables")
             
             # Clear orders
             try:
                 self.admin_client.table(orders_table).delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
-                logger.info(f"✅ Cleared {orders_table}")
+                logger.info(f" Cleared {orders_table}")
             except Exception as e:
-                logger.warning(f"⚠️ Could not clear {orders_table}: {e}")
+                logger.warning(f" Could not clear {orders_table}: {e}")
             
             # Clear products
             try:
                 self.admin_client.table(products_table).delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
-                logger.info(f"✅ Cleared {products_table}")
+                logger.info(f" Cleared {products_table}")
             except Exception as e:
-                logger.warning(f"⚠️ Could not clear {products_table}: {e}")
+                logger.warning(f" Could not clear {products_table}: {e}")
             
             return True
             
         except Exception as e:
-            logger.error(f"❌ Failed to clear existing data: {e}")
+            logger.error(f" Failed to clear existing data: {e}")
             return False
     
     async def insert_amazon_data(self, client_id: str, amazon_data: Dict[str, List[Dict[str, Any]]]) -> Dict[str, int]:
@@ -251,7 +251,7 @@ class AmazonDataPopulator:
             if not transformed_orders:
                 return 0
             
-            logger.info(f"📥 Inserting {len(transformed_orders)} Amazon orders into {table_name}")
+            logger.info(f" Inserting {len(transformed_orders)} Amazon orders into {table_name}")
             
             # Insert in batches
             batch_size = 100
@@ -266,17 +266,17 @@ class AmazonDataPopulator:
                     if response.data:
                         batch_inserted = len(response.data)
                         total_inserted += batch_inserted
-                        logger.info(f"✅ Inserted orders batch {i//batch_size + 1}: {batch_inserted} rows")
+                        logger.info(f" Inserted orders batch {i//batch_size + 1}: {batch_inserted} rows")
                 
                 except Exception as e:
-                    logger.error(f"❌ Failed to insert orders batch {i//batch_size + 1}: {e}")
+                    logger.error(f" Failed to insert orders batch {i//batch_size + 1}: {e}")
                     continue
             
-            logger.info(f"🎉 Total Amazon orders inserted: {total_inserted}")
+            logger.info(f" Total Amazon orders inserted: {total_inserted}")
             return total_inserted
             
         except Exception as e:
-            logger.error(f"❌ Failed to insert Amazon orders: {e}")
+            logger.error(f" Failed to insert Amazon orders: {e}")
             return 0
     
     async def _insert_products(self, client_id: str, products: List[Dict[str, Any]]) -> int:
@@ -294,7 +294,7 @@ class AmazonDataPopulator:
             if not transformed_products:
                 return 0
             
-            logger.info(f"📥 Inserting {len(transformed_products)} Amazon products into {table_name}")
+            logger.info(f" Inserting {len(transformed_products)} Amazon products into {table_name}")
             
             # Insert in batches
             batch_size = 100
@@ -309,23 +309,23 @@ class AmazonDataPopulator:
                     if response.data:
                         batch_inserted = len(response.data)
                         total_inserted += batch_inserted
-                        logger.info(f"✅ Inserted products batch {i//batch_size + 1}: {batch_inserted} rows")
+                        logger.info(f" Inserted products batch {i//batch_size + 1}: {batch_inserted} rows")
                 
                 except Exception as e:
-                    logger.error(f"❌ Failed to insert products batch {i//batch_size + 1}: {e}")
+                    logger.error(f" Failed to insert products batch {i//batch_size + 1}: {e}")
                     continue
             
-            logger.info(f"🎉 Total Amazon products inserted: {total_inserted}")
+            logger.info(f" Total Amazon products inserted: {total_inserted}")
             return total_inserted
             
         except Exception as e:
-            logger.error(f"❌ Failed to insert Amazon products: {e}")
+            logger.error(f" Failed to insert Amazon products: {e}")
             return 0
     
     async def populate_amazon_data(self, client_id: str) -> Dict[str, Any]:
         """Main method to populate Amazon data tables"""
         try:
-            logger.info(f"🚀 Starting Amazon data population for client {client_id}")
+            logger.info(f" Starting Amazon data population for client {client_id}")
             start_time = datetime.now()
             
             # Step 1: Fetch raw data
@@ -359,13 +359,13 @@ class AmazonDataPopulator:
                 "success": True
             }
             
-            logger.info(f"✅ Amazon data population completed in {processing_time:.2f}s")
-            logger.info(f"📊 Summary: {summary}")
+            logger.info(f" Amazon data population completed in {processing_time:.2f}s")
+            logger.info(f" Summary: {summary}")
             
             return summary
             
         except Exception as e:
-            logger.error(f"❌ Amazon data population failed: {e}")
+            logger.error(f" Amazon data population failed: {e}")
             return {"error": str(e), "success": False}
 
 async def main():
@@ -377,8 +377,8 @@ async def main():
         result = await populator.populate_amazon_data(client_id)
         
         if result.get('success'):
-            print("✅ Amazon data population successful!")
-            print(f"📊 Results:")
+            print(" Amazon data population successful!")
+            print(f" Results:")
             print(f"   - Processing time: {result['processing_time_seconds']:.2f}s")
             print(f"   - Raw records processed: {result['raw_records_processed']}")
             print(f"   - Amazon orders found: {result['amazon_orders_found']}")
@@ -387,10 +387,10 @@ async def main():
             print(f"   - Products inserted: {result['products_inserted']}")
             print(f"   - Total inserted: {result['total_inserted']}")
         else:
-            print(f"❌ Amazon data population failed: {result.get('error')}")
+            print(f" Amazon data population failed: {result.get('error')}")
     
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f" Error: {e}")
         import traceback
         traceback.print_exc()
 

@@ -100,7 +100,7 @@ class HighPerformanceAIOrchestrator:
         start_time = time.time()
         
         try:
-            logger.info(f"⚡ High-performance analysis of {len(data)} records")
+            logger.info(f" High-performance analysis of {len(data)} records")
             
             # Run analysis operations concurrently for maximum speed
             tasks = [
@@ -135,11 +135,11 @@ class HighPerformanceAIOrchestrator:
                 / self.performance_stats['total_analyses']
             )
             
-            logger.info(f"⚡ High-performance analysis completed in {analysis_time:.3f}s")
+            logger.info(f" High-performance analysis completed in {analysis_time:.3f}s")
             return analysis
             
         except Exception as e:
-            logger.error(f"❌ High-performance analysis failed: {e}")
+            logger.error(f" High-performance analysis failed: {e}")
             raise Exception(f"Data analysis failed: {str(e)}")
     
     async def _assess_data_quality_async(self, data: pd.DataFrame) -> Dict[str, Any]:
@@ -361,33 +361,33 @@ class HighPerformanceAIOrchestrator:
             
             # Data quality recommendations
             if analysis["data_quality"]["score"] < 80:
-                recommendations.append("🔍 Improve data quality by addressing missing values and duplicates")
+                recommendations.append(" Improve data quality by addressing missing values and duplicates")
             
             # Trend-based recommendations
             trends = analysis.get("trends", {})
             for col, trend_info in trends.items():
                 if trend_info["direction"] == "decreasing" and trend_info["strength"] > 10:
-                    recommendations.append(f"📉 {col} shows declining trend ({trend_info['strength']:.1f}%) - investigate root causes")
+                    recommendations.append(f" {col} shows declining trend ({trend_info['strength']:.1f}%) - investigate root causes")
                 elif trend_info["direction"] == "increasing" and trend_info["strength"] > 20:
-                    recommendations.append(f"📈 {col} shows strong growth ({trend_info['strength']:.1f}%) - consider scaling strategies")
+                    recommendations.append(f" {col} shows strong growth ({trend_info['strength']:.1f}%) - consider scaling strategies")
             
             # Anomaly recommendations
             anomalies = analysis.get("anomalies", {})
             for col, anomaly_info in anomalies.items():
                 if anomaly_info["percentage"] > 5:
-                    recommendations.append(f"⚠️ {col} has {anomaly_info['percentage']:.1f}% outliers - review data collection process")
+                    recommendations.append(f" {col} has {anomaly_info['percentage']:.1f}% outliers - review data collection process")
             
             # Correlation insights
             correlations = analysis.get("correlations", {})
             strong_corrs = correlations.get("strong_correlations", [])
             for corr in strong_corrs[:3]:
-                recommendations.append(f"🔗 Strong correlation between {corr['variable1']} and {corr['variable2']} ({corr['correlation']}) - explore causality")
+                recommendations.append(f" Strong correlation between {corr['variable1']} and {corr['variable2']} ({corr['correlation']}) - explore causality")
             
             # Seasonality recommendations
             seasonality = analysis.get("seasonality", {})
             for col, season_info in seasonality.items():
                 if season_info.get("has_seasonality"):
-                    recommendations.append(f"📅 {col} shows seasonal patterns - plan for {season_info['type']} variations")
+                    recommendations.append(f" {col} shows seasonal patterns - plan for {season_info['type']} variations")
             
             return recommendations[:10]
         

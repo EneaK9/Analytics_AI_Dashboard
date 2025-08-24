@@ -220,7 +220,7 @@ class APISyncCronJob:
         try:
             db_client = self._get_admin_client()
             if not db_client:
-                logger.error("❌ No database connection")
+                logger.error(" No database connection")
                 return []
             
             current_time = datetime.now()

@@ -23,7 +23,7 @@ class DashboardGenerationTester:
     
     def load_test_data(self) -> Dict[str, Any]:
         """Load the comprehensive JSON test data"""
-        print("📂 Loading comprehensive JSON test data...")
+        print(" Loading comprehensive JSON test data...")
         try:
             # Try multiple possible paths
             possible_paths = [
@@ -38,7 +38,7 @@ class DashboardGenerationTester:
                     if os.path.exists(path):
                         with open(path, 'r') as f:
                             test_data = json.load(f)
-                        print(f"✅ Loaded JSON from: {path}")
+                        print(f" Loaded JSON from: {path}")
                         break
                 except:
                     continue
@@ -46,20 +46,20 @@ class DashboardGenerationTester:
             if not test_data:
                 raise FileNotFoundError("diverse_client_data.json not found in any expected location")
             
-            print(f"✅ Loaded JSON with {len(test_data)} top-level sections:")
+            print(f" Loaded JSON with {len(test_data)} top-level sections:")
             for key in test_data.keys():
                 print(f"   - {key}")
             
             return test_data
         except Exception as e:
-            print(f"❌ Failed to load test data: {e}")
-            print("💡 Make sure you're running from the correct directory or the JSON file exists")
+            print(f" Failed to load test data: {e}")
+            print(" Make sure you're running from the correct directory or the JSON file exists")
             return {}
     
     def test_universal_parser(self, test_data: Dict[str, Any]) -> List[Dict]:
         """Test the universal parser conversion"""
         print("\n" + "="*50)
-        print("🔧 TESTING UNIVERSAL PARSER")
+        print(" TESTING UNIVERSAL PARSER")
         print("="*50)
         
         try:
@@ -68,30 +68,30 @@ class DashboardGenerationTester:
             
             # Convert to JSON string
             json_str = json.dumps(test_data)
-            print(f"📏 JSON string length: {len(json_str):,} characters")
+            print(f" JSON string length: {len(json_str):,} characters")
             
             # Parse using universal parser
             parsed_records = parser.parse_to_json(json_str, 'json')
             
             if parsed_records:
-                print(f"✅ Parser returned {len(parsed_records)} records")
-                print(f"🔍 First record type: {type(parsed_records[0])}")
-                print(f"🔍 First record keys: {list(parsed_records[0].keys())[:10]}...")
+                print(f" Parser returned {len(parsed_records)} records")
+                print(f" First record type: {type(parsed_records[0])}")
+                print(f" First record keys: {list(parsed_records[0].keys())[:10]}...")
                 
                 # Check for business structure
                 first_record = parsed_records[0]
                 business_keys = ['client_info', 'financial_metrics', 'customer_data', 'sales_data']
                 found_keys = [key for key in business_keys if key in first_record]
-                print(f"🏢 Business keys found: {found_keys}")
+                print(f" Business keys found: {found_keys}")
                 
                 self.test_results['json_parsing'] = True
                 return parsed_records
             else:
-                print("❌ Parser returned no records")
+                print(" Parser returned no records")
                 return []
                 
         except Exception as e:
-            print(f"❌ Universal parser test failed: {e}")
+            print(f" Universal parser test failed: {e}")
             import traceback
             traceback.print_exc()
             return []
@@ -99,20 +99,20 @@ class DashboardGenerationTester:
     def test_business_structure_detection(self, parsed_records: List[Dict]) -> bool:
         """Test business structure detection"""
         print("\n" + "="*50)
-        print("🏢 TESTING BUSINESS STRUCTURE DETECTION")
+        print(" TESTING BUSINESS STRUCTURE DETECTION")
         print("="*50)
         
         try:
             # Test business structure detection without importing dashboard_orchestrator
             # to avoid pandas dependency issues in test environment
-            print("🔧 Testing business key detection directly...")
+            print(" Testing business key detection directly...")
             
             if not parsed_records:
-                print("❌ No records to test")
+                print(" No records to test")
                 return False
             
             first_record = parsed_records[0]
-            print(f"📊 Testing record with {len(first_record)} keys")
+            print(f" Testing record with {len(first_record)} keys")
             
             # Replicate business structure detection logic
             business_keys = [
@@ -126,20 +126,20 @@ class DashboardGenerationTester:
             found_business_keys = [key for key in business_keys if key in first_record]
             is_business = len(found_business_keys) > 0
             
-            print(f"🔍 Found business keys: {found_business_keys}")
-            print(f"🎯 Is business structure: {is_business}")
+            print(f" Found business keys: {found_business_keys}")
+            print(f" Is business structure: {is_business}")
             
             if is_business:
-                print("✅ Business structure correctly detected!")
+                print(" Business structure correctly detected!")
                 self.test_results['business_detection'] = True
                 return True
             else:
-                print("❌ Business structure not detected")
-                print("🔍 Available keys:", list(first_record.keys())[:10])
+                print(" Business structure not detected")
+                print(" Available keys:", list(first_record.keys())[:10])
                 return False
                 
         except Exception as e:
-            print(f"❌ Business detection test failed: {e}")
+            print(f" Business detection test failed: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -147,14 +147,14 @@ class DashboardGenerationTester:
     def test_entity_extraction(self, parsed_records: List[Dict]) -> List[Dict]:
         """Test business entity extraction"""
         print("\n" + "="*50)
-        print("🔧 TESTING ENTITY EXTRACTION")
+        print(" TESTING ENTITY EXTRACTION")
         print("="*50)
         
         try:
-            print("🔧 Simulating entity extraction from business structure...")
+            print(" Simulating entity extraction from business structure...")
             
             if not parsed_records:
-                print("❌ No records to extract entities from")
+                print(" No records to extract entities from")
                 return []
             
             # Simulate entity extraction logic
@@ -216,7 +216,7 @@ class DashboardGenerationTester:
                         entities.append(entity)
             
             if entities:
-                print(f"✅ Extracted {len(entities)} business entities")
+                print(f" Extracted {len(entities)} business entities")
                 
                 # Analyze entity types
                 entity_types = {}
@@ -229,16 +229,16 @@ class DashboardGenerationTester:
                     entity_types[entity_type] = entity_types.get(entity_type, 0) + 1
                     metric_categories[metric_category] = metric_categories.get(metric_category, 0) + 1
                 
-                print(f"\n📋 Entity Type Breakdown ({len(entity_types)} types):")
+                print(f"\n Entity Type Breakdown ({len(entity_types)} types):")
                 for entity_type, count in sorted(entity_types.items()):
                     print(f"   - {entity_type}: {count}")
                 
-                print(f"\n📊 Metric Category Breakdown:")
+                print(f"\n Metric Category Breakdown:")
                 for category, count in sorted(metric_categories.items()):
                     print(f"   - {category}: {count}")
                 
                 # Show sample entities
-                print(f"\n🔸 Sample Entities (first 3):")
+                print(f"\n Sample Entities (first 3):")
                 for i, entity in enumerate(entities[:3]):
                     print(f"\n   Entity {i+1} ({entity.get('entity_type', 'unknown')}):")
                     sample_keys = list(entity.keys())[:5]
@@ -261,18 +261,18 @@ class DashboardGenerationTester:
                             'numeric_fields': numeric_fields
                         })
                 
-                print(f"\n📈 Entities with Numeric Data ({len(numeric_entities)}):")
+                print(f"\n Entities with Numeric Data ({len(numeric_entities)}):")
                 for ne in numeric_entities[:5]:
                     print(f"   - {ne['entity_type']}: {ne['numeric_fields'][:3]}...")
                 
                 self.test_results['entity_extraction'] = True
                 return entities
             else:
-                print("❌ No entities extracted")
+                print(" No entities extracted")
                 return []
                 
         except Exception as e:
-            print(f"❌ Entity extraction test failed: {e}")
+            print(f" Entity extraction test failed: {e}")
             import traceback
             traceback.print_exc()
             return []
@@ -280,14 +280,14 @@ class DashboardGenerationTester:
     def test_data_flattening(self, entities: List[Dict]) -> List[Dict]:
         """Test data flattening for LLM analysis"""
         print("\n" + "="*50)
-        print("🔧 TESTING DATA FLATTENING")
+        print(" TESTING DATA FLATTENING")
         print("="*50)
         
         try:
-            print("🔧 Simulating data flattening process...")
+            print(" Simulating data flattening process...")
             
             if not entities:
-                print("❌ No entities to flatten")
+                print(" No entities to flatten")
                 return []
             
             # Simulate flattening logic
@@ -309,7 +309,7 @@ class DashboardGenerationTester:
                 flattened.append(flat_record)
             
             if flattened:
-                print(f"✅ Flattened {len(entities)} entities to {len(flattened)} records")
+                print(f" Flattened {len(entities)} entities to {len(flattened)} records")
                 
                 # Analyze flattened data
                 total_fields = 0
@@ -324,7 +324,7 @@ class DashboardGenerationTester:
                         elif isinstance(value, str):
                             categorical_fields += 1
                 
-                print(f"📊 Flattened Data Analysis:")
+                print(f" Flattened Data Analysis:")
                 print(f"   - Total fields: {total_fields}")
                 print(f"   - Numeric fields: {numeric_fields} ({numeric_fields/total_fields*100:.1f}%)")
                 print(f"   - Categorical fields: {categorical_fields} ({categorical_fields/total_fields*100:.1f}%)")
@@ -332,18 +332,18 @@ class DashboardGenerationTester:
                 # Show sample flattened record
                 if flattened:
                     sample_record = flattened[0]
-                    print(f"\n🔸 Sample Flattened Record ({len(sample_record)} fields):")
+                    print(f"\n Sample Flattened Record ({len(sample_record)} fields):")
                     for key, value in list(sample_record.items())[:8]:
                         print(f"   - {key}: {value}")
                 
                 self.test_results['flattening'] = True
                 return flattened
             else:
-                print("❌ Flattening returned no records")
+                print(" Flattening returned no records")
                 return []
                 
         except Exception as e:
-            print(f"❌ Data flattening test failed: {e}")
+            print(f" Data flattening test failed: {e}")
             import traceback
             traceback.print_exc()
             return []
@@ -356,7 +356,7 @@ class DashboardGenerationTester:
         
         try:
             if not flattened_data:
-                print("❌ No flattened data to prepare")
+                print(" No flattened data to prepare")
                 return {}
             
             # Simulate LLM data preparation
@@ -388,18 +388,18 @@ class DashboardGenerationTester:
             
             dataset_summary['total_fields'] = len(all_fields)
             
-            print(f"✅ LLM Data Preparation Complete:")
+            print(f" LLM Data Preparation Complete:")
             print(f"   - Records: {dataset_summary['total_records']}")
             print(f"   - Total Fields: {dataset_summary['total_fields']}")
             print(f"   - Numeric Fields: {len(dataset_summary['numeric_fields'])}")
             print(f"   - Categorical Fields: {len(dataset_summary['categorical_fields'])}")
             
-            print(f"\n📈 Numeric Fields for Charts/KPIs:")
+            print(f"\n Numeric Fields for Charts/KPIs:")
             for field in dataset_summary['numeric_fields'][:10]:
                 samples = dataset_summary['field_samples'][field]
                 print(f"   - {field}: {samples}")
             
-            print(f"\n📊 Categorical Fields for Segmentation:")
+            print(f"\n Categorical Fields for Segmentation:")
             for field in dataset_summary['categorical_fields'][:5]:
                 samples = dataset_summary['field_samples'][field]
                 print(f"   - {field}: {samples}")
@@ -409,34 +409,34 @@ class DashboardGenerationTester:
             has_enough_categorical = len(dataset_summary['categorical_fields']) >= 3
             has_enough_records = dataset_summary['total_records'] >= 10
             
-            print(f"\n🎯 Visualization Readiness:")
+            print(f"\n Visualization Readiness:")
             print(f"   - Sufficient numeric fields: {has_enough_numeric} ({len(dataset_summary['numeric_fields'])} >= 5)")
             print(f"   - Sufficient categorical fields: {has_enough_categorical} ({len(dataset_summary['categorical_fields'])} >= 3)")
             print(f"   - Sufficient records: {has_enough_records} ({dataset_summary['total_records']} >= 10)")
             
             if has_enough_numeric and has_enough_categorical and has_enough_records:
-                print("✅ Data is ready for rich chart and KPI generation!")
+                print(" Data is ready for rich chart and KPI generation!")
                 self.test_results['llm_preparation'] = True
             else:
-                print("⚠️ Data may not generate diverse visualizations")
+                print(" Data may not generate diverse visualizations")
             
             return dataset_summary
             
         except Exception as e:
-            print(f"❌ LLM preparation test failed: {e}")
+            print(f" LLM preparation test failed: {e}")
             import traceback
             traceback.print_exc()
             return {}
     
     def run_complete_test(self):
         """Run the complete test suite"""
-        print("🚀 STARTING COMPREHENSIVE DASHBOARD GENERATION TEST")
+        print(" STARTING COMPREHENSIVE DASHBOARD GENERATION TEST")
         print("="*80)
         
         # Step 1: Load test data
         test_data = self.load_test_data()
         if not test_data:
-            print("❌ Cannot proceed without test data")
+            print(" Cannot proceed without test data")
             return
         
         # Step 2: Test universal parser
@@ -460,26 +460,26 @@ class DashboardGenerationTester:
     def print_final_results(self):
         """Print final test results summary"""
         print("\n" + "="*80)
-        print("📊 FINAL TEST RESULTS")
+        print(" FINAL TEST RESULTS")
         print("="*80)
         
         passed_tests = sum(self.test_results.values())
         total_tests = len(self.test_results)
         
         for test_name, passed in self.test_results.items():
-            status = "✅ PASS" if passed else "❌ FAIL"
+            status = " PASS" if passed else " FAIL"
             print(f"{status} {test_name.replace('_', ' ').title()}")
         
-        print(f"\n🎯 Overall Score: {passed_tests}/{total_tests} tests passed")
+        print(f"\n Overall Score: {passed_tests}/{total_tests} tests passed")
         
         if passed_tests == total_tests:
-            print("🎉 ALL TESTS PASSED! Your JSON should generate rich charts and KPIs!")
+            print(" ALL TESTS PASSED! Your JSON should generate rich charts and KPIs!")
         elif passed_tests >= 3:
-            print("⚠️ Most tests passed. Some visualizations should be generated.")
+            print(" Most tests passed. Some visualizations should be generated.")
         else:
-            print("❌ Multiple test failures. Dashboard generation may not work properly.")
+            print(" Multiple test failures. Dashboard generation may not work properly.")
         
-        print("\n🚀 Next Steps:")
+        print("\n Next Steps:")
         if passed_tests == total_tests:
             print("   1. Upload your comprehensive JSON via the client creation form")
             print("   2. Navigate to the dashboard to see rich visualizations")

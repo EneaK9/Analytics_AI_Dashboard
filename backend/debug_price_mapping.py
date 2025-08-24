@@ -21,14 +21,14 @@ class PriceDebugger:
         self.admin_client = get_admin_client()
         
         if not self.admin_client:
-            raise Exception("❌ No admin database client available")
+            raise Exception(" No admin database client available")
     
     async def check_database_price_data(self, client_id: str) -> Dict[str, Any]:
         """Check what's actually in the database price column"""
         try:
             table_name = f"{client_id.replace('-', '_')}_shopify_products"
             
-            logger.info(f"🔍 Checking price data in {table_name}")
+            logger.info(f" Checking price data in {table_name}")
             
             # Get sample records with price focus
             response = self.admin_client.table(table_name).select(
@@ -36,7 +36,7 @@ class PriceDebugger:
             ).limit(10).execute()
             
             if response.data:
-                logger.info(f"📊 Found {len(response.data)} records")
+                logger.info(f" Found {len(response.data)} records")
                 
                 price_stats = {
                     "total_records": len(response.data),
@@ -64,24 +64,24 @@ class PriceDebugger:
                         "price_type": type(price).__name__
                     })
                 
-                logger.info(f"📈 Price Statistics:")
+                logger.info(f" Price Statistics:")
                 logger.info(f"   Records with valid price: {price_stats['records_with_price']}")
                 logger.info(f"   Records with zero price: {price_stats['records_with_zero_price']}")
                 logger.info(f"   Records with null price: {price_stats['records_with_null_price']}")
                 
                 return price_stats
             else:
-                logger.warning("⚠️ No data found in database")
+                logger.warning(" No data found in database")
                 return {"error": "No data found"}
                 
         except Exception as e:
-            logger.error(f"❌ Error checking database: {e}")
+            logger.error(f" Error checking database: {e}")
             return {"error": str(e)}
     
     async def check_raw_data_structure(self, client_id: str) -> Dict[str, Any]:
         """Check the raw data structure to understand price field names"""
         try:
-            logger.info(f"🔍 Checking raw data structure for client {client_id}")
+            logger.info(f" Checking raw data structure for client {client_id}")
             
             # Fetch raw client data
             result = await self.db_manager.fast_client_data_lookup(
@@ -93,7 +93,7 @@ class PriceDebugger:
                 return {"error": "No raw data found"}
             
             raw_data = result['data']
-            logger.info(f"📊 Found {len(raw_data)} raw records")
+            logger.info(f" Found {len(raw_data)} raw records")
             
             # Look for Shopify products with variants
             shopify_samples = []
@@ -137,7 +137,7 @@ class PriceDebugger:
                             break
                             
                 except Exception as e:
-                    logger.warning(f"⚠️ Error processing record: {e}")
+                    logger.warning(f" Error processing record: {e}")
                     continue
             
             result = {
@@ -147,17 +147,17 @@ class PriceDebugger:
                 "sample_products": shopify_samples
             }
             
-            logger.info(f"💡 Price field variations found: {price_field_variations}")
+            logger.info(f" Price field variations found: {price_field_variations}")
             return result
             
         except Exception as e:
-            logger.error(f"❌ Error checking raw data: {e}")
+            logger.error(f" Error checking raw data: {e}")
             return {"error": str(e)}
     
     async def test_specific_sku(self, client_id: str, sku_code: str = "todd-blk-l") -> Dict[str, Any]:
         """Test the specific SKU that has price = 0"""
         try:
-            logger.info(f"🎯 Testing specific SKU: {sku_code}")
+            logger.info(f" Testing specific SKU: {sku_code}")
             
             # Check database
             table_name = f"{client_id.replace('-', '_')}_shopify_products"
@@ -210,7 +210,7 @@ class PriceDebugger:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error testing specific SKU: {e}")
+            logger.error(f" Error testing specific SKU: {e}")
             return {"error": str(e)}
 
 async def main():
@@ -220,7 +220,7 @@ async def main():
     try:
         debugger = PriceDebugger()
         
-        print("🔍 DEBUGGING PRICE MAPPING ISSUES")
+        print(" DEBUGGING PRICE MAPPING ISSUES")
         print("=" * 50)
         
         # 1. Check database price data
@@ -238,15 +238,15 @@ async def main():
         sku_test = await debugger.test_specific_sku(client_id, "todd-blk-l")
         print(json.dumps(sku_test, indent=2))
         
-        print("\n✅ DEBUG ANALYSIS COMPLETE")
-        print("\n💡 RECOMMENDATIONS:")
+        print("\n DEBUG ANALYSIS COMPLETE")
+        print("\n RECOMMENDATIONS:")
         print("1. Check if price fields in raw data use different names")
         print("2. Verify if data needs to be repopulated after schema changes")  
         print("3. Check if price data is stored at product level vs variant level")
         print("4. Run repopulate_shopify_products.py if price mapping is incorrect")
     
     except Exception as e:
-        print(f"❌ Debug error: {e}")
+        print(f" Debug error: {e}")
         import traceback
         traceback.print_exc()
 

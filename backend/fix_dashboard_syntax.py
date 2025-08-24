@@ -45,7 +45,7 @@ def fix_dashboard_syntax():
         
         print(f"Removed duplicate method from line {start_duplicate} to {end_duplicate}")
     
-    print("✅ Syntax fix completed")
+    print(" Syntax fix completed")
 
 if __name__ == "__main__":
     fix_dashboard_syntax()

@@ -24,12 +24,12 @@ class ShopifyOrdersPopulator:
         self.admin_client = get_admin_client()
         
         if not self.admin_client:
-            raise Exception("❌ No admin database client available")
+            raise Exception(" No admin database client available")
     
     async def fetch_client_data(self, client_id: str) -> List[Dict[str, Any]]:
         """Fetch all data for a specific client"""
         try:
-            logger.info(f"📊 Fetching data for client {client_id}")
+            logger.info(f" Fetching data for client {client_id}")
             
             result = await self.db_manager.fast_client_data_lookup(
                 client_id=client_id,
@@ -37,14 +37,14 @@ class ShopifyOrdersPopulator:
             )
             
             if not result or not result.get('data'):
-                logger.warning(f"⚠️ No data found for client {client_id}")
+                logger.warning(f" No data found for client {client_id}")
                 return []
             
-            logger.info(f"📦 Found {len(result['data'])} records for client {client_id}")
+            logger.info(f" Found {len(result['data'])} records for client {client_id}")
             return result['data']
             
         except Exception as e:
-            logger.error(f"❌ Failed to fetch client data: {e}")
+            logger.error(f" Failed to fetch client data: {e}")
             return []
     
     def extract_shopify_orders(self, raw_data: List[Any]) -> List[Dict[str, Any]]:
@@ -70,10 +70,10 @@ class ShopifyOrdersPopulator:
                     shopify_orders.append(data)
                         
             except Exception as e:
-                logger.warning(f"⚠️ Error processing record: {e}")
+                logger.warning(f" Error processing record: {e}")
                 continue
         
-        logger.info(f"📋 Found {len(shopify_orders)} Shopify orders")
+        logger.info(f" Found {len(shopify_orders)} Shopify orders")
         return shopify_orders
     
     def _is_shopify_order(self, data: Dict[str, Any]) -> bool:
@@ -123,7 +123,7 @@ class ShopifyOrdersPopulator:
                 'raw_data': json.dumps(data)
             }
         except Exception as e:
-            logger.warning(f"⚠️ Error transforming Shopify order: {e}")
+            logger.warning(f" Error transforming Shopify order: {e}")
             return None
     
     def _safe_decimal(self, value) -> Optional[float]:
@@ -153,18 +153,18 @@ class ShopifyOrdersPopulator:
         try:
             orders_table = f"{client_id.replace('-', '_')}_shopify_orders"
             
-            logger.info(f"🗑️ Clearing existing data from {orders_table}")
+            logger.info(f"️ Clearing existing data from {orders_table}")
             
             try:
                 self.admin_client.table(orders_table).delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
-                logger.info(f"✅ Cleared {orders_table}")
+                logger.info(f" Cleared {orders_table}")
             except Exception as e:
-                logger.warning(f"⚠️ Could not clear {orders_table}: {e}")
+                logger.warning(f" Could not clear {orders_table}: {e}")
             
             return True
             
         except Exception as e:
-            logger.error(f"❌ Failed to clear existing data: {e}")
+            logger.error(f" Failed to clear existing data: {e}")
             return False
     
     async def insert_shopify_orders(self, client_id: str, orders: List[Dict[str, Any]]) -> int:
@@ -182,7 +182,7 @@ class ShopifyOrdersPopulator:
             if not transformed_orders:
                 return 0
             
-            logger.info(f"📥 Inserting {len(transformed_orders)} Shopify orders into {table_name}")
+            logger.info(f" Inserting {len(transformed_orders)} Shopify orders into {table_name}")
             
             # Insert in batches
             batch_size = 100
@@ -197,23 +197,23 @@ class ShopifyOrdersPopulator:
                     if response.data:
                         batch_inserted = len(response.data)
                         total_inserted += batch_inserted
-                        logger.info(f"✅ Inserted batch {i//batch_size + 1}: {batch_inserted} orders")
+                        logger.info(f" Inserted batch {i//batch_size + 1}: {batch_inserted} orders")
                 
                 except Exception as e:
-                    logger.error(f"❌ Failed to insert batch {i//batch_size + 1}: {e}")
+                    logger.error(f" Failed to insert batch {i//batch_size + 1}: {e}")
                     continue
             
-            logger.info(f"🎉 Total Shopify orders inserted: {total_inserted}")
+            logger.info(f" Total Shopify orders inserted: {total_inserted}")
             return total_inserted
             
         except Exception as e:
-            logger.error(f"❌ Failed to insert Shopify orders: {e}")
+            logger.error(f" Failed to insert Shopify orders: {e}")
             return 0
     
     async def populate_shopify_orders(self, client_id: str) -> Dict[str, Any]:
         """Main method to populate Shopify orders table"""
         try:
-            logger.info(f"🚀 Starting Shopify orders population for client {client_id}")
+            logger.info(f" Starting Shopify orders population for client {client_id}")
             start_time = datetime.now()
             
             # Step 1: Fetch raw data
@@ -244,13 +244,13 @@ class ShopifyOrdersPopulator:
                 "success": True
             }
             
-            logger.info(f"✅ Shopify orders population completed in {processing_time:.2f}s")
-            logger.info(f"📊 Summary: {summary}")
+            logger.info(f" Shopify orders population completed in {processing_time:.2f}s")
+            logger.info(f" Summary: {summary}")
             
             return summary
             
         except Exception as e:
-            logger.error(f"❌ Shopify orders population failed: {e}")
+            logger.error(f" Shopify orders population failed: {e}")
             return {"error": str(e), "success": False}
 
 async def main():
@@ -270,17 +270,17 @@ async def main():
             result = await populator.populate_shopify_orders(client_id)
             
             if result.get('success'):
-                print(f"✅ Shopify orders population successful for {client_id}!")
-                print(f"📊 Results:")
+                print(f" Shopify orders population successful for {client_id}!")
+                print(f" Results:")
                 print(f"   - Processing time: {result['processing_time_seconds']:.2f}s")
                 print(f"   - Raw records processed: {result['raw_records_processed']}")
                 print(f"   - Shopify orders found: {result['shopify_orders_found']}")
                 print(f"   - Orders inserted: {result['orders_inserted']}")
             else:
-                print(f"❌ Shopify orders population failed for {client_id}: {result.get('error')}")
+                print(f" Shopify orders population failed for {client_id}: {result.get('error')}")
         
         except Exception as e:
-            print(f"❌ Error processing {client_id}: {e}")
+            print(f" Error processing {client_id}: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())

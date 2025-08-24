@@ -26,7 +26,7 @@ class PerformanceOptimizedDatabaseManager:
         self.supabase_key = os.getenv("SUPABASE_KEY")
         self.supabase_service_key = os.getenv("SUPABASE_SERVICE_KEY")
         
-        # 🚀 MASSIVE CONNECTION POOL for high throughput
+        #  MASSIVE CONNECTION POOL for high throughput
         self.client_pool: List[Client] = []
         self.admin_pool: List[Client] = []
         self.pool_size = 25  # Maintain 25 connections in pool
@@ -37,7 +37,7 @@ class PerformanceOptimizedDatabaseManager:
         self.cache_lock = threading.Lock()
         self.default_cache_duration = 300  # 5 minutes
         
-        # 🚀 HIGH-SPEED BATCH PROCESSING
+        #  HIGH-SPEED BATCH PROCESSING
         self.batch_queue = defaultdict(list)
         self.batch_lock = threading.Lock()
         self.batch_size = 500  # 10x larger batches
@@ -47,31 +47,31 @@ class PerformanceOptimizedDatabaseManager:
         self.executor = ThreadPoolExecutor(max_workers=5)
         
         if not self.supabase_url or not self.supabase_key:
-            raise Exception("❌ Supabase credentials REQUIRED - no fallbacks allowed")
+            raise Exception(" Supabase credentials REQUIRED - no fallbacks allowed")
         
         try:
             self._initialize_connection_pools()
             # Start background batch processor
             self._start_batch_processor()
         except Exception as e:
-            logger.error(f"❌ Failed to initialize optimized database manager: {e}")
+            logger.error(f" Failed to initialize optimized database manager: {e}")
             raise
     
     def _initialize_connection_pools(self):
         """Initialize connection pools for better performance"""
         try:
-            logger.info("🚀 Initializing high-performance connection pools...")
+            logger.info(" Initializing high-performance connection pools...")
             
             # Try to create a simple client first to test the connection
             try:
-                # 🚀 CUSTOM TIMEOUT SETTINGS - Use correct supabase-py format
+                #  CUSTOM TIMEOUT SETTINGS - Use correct supabase-py format
                 test_client = create_client(self.supabase_url, self.supabase_key)
                 # Set timeout on the underlying httpx client
                 if hasattr(test_client, '_client') and hasattr(test_client._client, 'timeout'):
                     test_client._client.timeout = 120.0
-                logger.info("✅ Supabase connection test successful with 120s timeout")
+                logger.info(" Supabase connection test successful with 120s timeout")
             except Exception as e:
-                logger.error(f"❌ Supabase connection test failed: {e}")
+                logger.error(f" Supabase connection test failed: {e}")
                 raise
             
             # Create regular client pool with extended timeouts
@@ -83,7 +83,7 @@ class PerformanceOptimizedDatabaseManager:
                         client._client.timeout = 120.0
                     self.client_pool.append(client)
                 except Exception as e:
-                    logger.warning(f"⚠️  Failed to create client {i+1}: {e}")
+                    logger.warning(f"  Failed to create client {i+1}: {e}")
                     if i == 0:  # If first client fails, abort
                         raise
             
@@ -97,18 +97,18 @@ class PerformanceOptimizedDatabaseManager:
                             admin_client._client.timeout = 120.0
                         self.admin_pool.append(admin_client)
                     except Exception as e:
-                        logger.warning(f"⚠️  Failed to create admin client {i+1}: {e}")
+                        logger.warning(f"  Failed to create admin client {i+1}: {e}")
                         if i == 0:  # If first admin client fails, abort
                             raise
-                logger.info(f"✅ Created {len(self.client_pool)} client connections and {len(self.admin_pool)} admin connections")
+                logger.info(f" Created {len(self.client_pool)} client connections and {len(self.admin_pool)} admin connections")
             else:
-                logger.warning("⚠️  No service role key - admin operations will be limited")
+                logger.warning("  No service role key - admin operations will be limited")
                 
         except Exception as e:
-            logger.error(f"❌ Failed to initialize connection pools: {e}")
+            logger.error(f" Failed to initialize connection pools: {e}")
             # Fallback: Create minimal single client
             try:
-                logger.info("🔄 Attempting fallback to single client mode...")
+                logger.info(" Attempting fallback to single client mode...")
                 fallback_client = create_client(self.supabase_url, self.supabase_key)
                 # Set timeout on fallback client
                 if hasattr(fallback_client, '_client') and hasattr(fallback_client._client, 'timeout'):
@@ -119,9 +119,9 @@ class PerformanceOptimizedDatabaseManager:
                     if hasattr(fallback_admin, '_client') and hasattr(fallback_admin._client, 'timeout'):
                         fallback_admin._client.timeout = 120.0
                     self.admin_pool = [fallback_admin]
-                logger.info("✅ Fallback single client mode initialized with 120s timeout")
+                logger.info(" Fallback single client mode initialized with 120s timeout")
             except Exception as fallback_error:
-                logger.error(f"❌ Fallback initialization also failed: {fallback_error}")
+                logger.error(f" Fallback initialization also failed: {fallback_error}")
                 raise
     
     def _get_pooled_client(self) -> Client:
@@ -145,7 +145,7 @@ class PerformanceOptimizedDatabaseManager:
         with self.cache_lock:
             if key in self.cache:
                 if key in self.cache_ttl and time.time() < self.cache_ttl[key]:
-                    logger.debug(f"📦 Cache HIT: {key}")
+                    logger.debug(f" Cache HIT: {key}")
                     return self.cache[key]
                 else:
                     # Expired, remove from cache
@@ -161,7 +161,7 @@ class PerformanceOptimizedDatabaseManager:
         with self.cache_lock:
             self.cache[key] = value
             self.cache_ttl[key] = time.time() + ttl
-            logger.debug(f"📦 Cache SET: {key} (TTL: {ttl}s)")
+            logger.debug(f" Cache SET: {key} (TTL: {ttl}s)")
     
     def _start_batch_processor(self):
         """Start background batch processor for bulk operations"""
@@ -182,12 +182,12 @@ class PerformanceOptimizedDatabaseManager:
                     
                     time.sleep(0.1)  # Check every 100ms
                 except Exception as e:
-                    logger.error(f"❌ Batch processor error: {e}")
+                    logger.error(f" Batch processor error: {e}")
                     time.sleep(1)
         
         batch_thread = threading.Thread(target=process_batches, daemon=True)
         batch_thread.start()
-        logger.info("🚀 Background batch processor started")
+        logger.info(" Background batch processor started")
     
     def _execute_batch(self, table: str, operations: List[Dict]):
         """Execute a batch of operations"""
@@ -198,12 +198,12 @@ class PerformanceOptimizedDatabaseManager:
             inserts = [op['data'] for op in operations if op['type'] == 'insert']
             
             if inserts:
-                logger.info(f"📦 Executing batch: {len(inserts)} inserts to {table}")
+                logger.info(f" Executing batch: {len(inserts)} inserts to {table}")
                 response = client.table(table).insert(inserts).execute()
-                logger.info(f"✅ Batch completed: {len(response.data)} records processed")
+                logger.info(f" Batch completed: {len(response.data)} records processed")
                 
         except Exception as e:
-            logger.error(f"❌ Batch execution failed: {e}")
+            logger.error(f" Batch execution failed: {e}")
     
     async def fast_client_data_lookup(self, client_id: str, use_cache: bool = True, start_date: str = None, end_date: str = None, limit: int = None) -> Dict:
         """Ultra-fast client data lookup with aggressive caching and optional date range.
@@ -244,11 +244,11 @@ class PerformanceOptimizedDatabaseManager:
             # Apply limit only if explicitly requested and no date range
             # For dashboard generation, we need ALL records to get full business data
             if limit and not (start_date or end_date) and limit < 1000:
-                logger.info(f"⚠️ Applying limit {limit} to data retrieval - this may truncate business entities")
+                logger.info(f" Applying limit {limit} to data retrieval - this may truncate business entities")
                 query = query.limit(limit)
             elif limit and limit >= 1000:
                 # Don't apply large limits - get all data for comprehensive analysis
-                logger.info(f"🔍 Skipping large limit {limit} to ensure complete data retrieval")
+                logger.info(f" Skipping large limit {limit} to ensure complete data retrieval")
 
             response = query.execute()
 
@@ -267,19 +267,19 @@ class PerformanceOptimizedDatabaseManager:
             self._set_cache(cache_key, result, ttl_seconds=ttl)
 
             logger.info(
-                f"⚡ Fast lookup completed in {result['query_time']:.3f}s - {len(data_records)} records"
+                f" Fast lookup completed in {result['query_time']:.3f}s - {len(data_records)} records"
             )
             return result
 
         except Exception as e:
-            logger.error(f"❌ Fast client data lookup failed: {e}")
+            logger.error(f" Fast client data lookup failed: {e}")
             raise Exception(f"Database lookup failed: {str(e)}")
     
     async def batch_insert_client_data(self, table_name: str, data: List[Dict[str, Any]], client_id: str) -> int:
         """High-performance batch insert with retry logic and exponential backoff for large datasets"""
         try:
             start_time = time.time()
-            logger.info(f"⚡ ENHANCED batch insert: {len(data)} records to {table_name}")
+            logger.info(f" ENHANCED batch insert: {len(data)} records to {table_name}")
             
             # Prepare records with metadata
             records_to_insert = []
@@ -295,7 +295,7 @@ class PerformanceOptimizedDatabaseManager:
             # Use pooled admin client for faster processing
             client = self._get_pooled_admin_client()
             
-            # 🚀 ULTRA-FAST SETTINGS for massive datasets (1M+ records)
+            #  ULTRA-FAST SETTINGS for massive datasets (1M+ records)
             batch_size = 1000  # Match app layer - 1000 record chunks
             max_retries = 4
             total_inserted = 0
@@ -309,13 +309,13 @@ class PerformanceOptimizedDatabaseManager:
                 
                 while retry_count <= max_retries and not batch_inserted:
                     try:
-                        # 🚀 NO DELAYS - Maximum throughput for massive datasets
+                        #  NO DELAYS - Maximum throughput for massive datasets
                         
                         response = client.table("client_data").insert(batch).execute()
                         
                         if response.data:
                             total_inserted += len(response.data)
-                            logger.debug(f"📦 Batch {batch_num}: {len(response.data)} records inserted")
+                            logger.debug(f" Batch {batch_num}: {len(response.data)} records inserted")
                             batch_inserted = True
                         else:
                             raise Exception("No data returned from insert")
@@ -324,28 +324,28 @@ class PerformanceOptimizedDatabaseManager:
                         retry_count += 1
                         error_msg = str(batch_error)
                         
-                        # 🚀 SMART TIMEOUT DETECTION - Similar to app layer
+                        #  SMART TIMEOUT DETECTION - Similar to app layer
                         is_timeout = any(keyword in error_msg.lower() for keyword in [
                             "timeout", "timed out", "statement timeout", "canceling statement", "57014"
                         ])
                         
                         if is_timeout and retry_count <= max_retries:
-                            # 🚀 MINIMAL BACKOFF - Linear instead of exponential for speed
+                            #  MINIMAL BACKOFF - Linear instead of exponential for speed
                             delay = 0.2 * retry_count  # 0.2s, 0.4s, 0.6s, 0.8s
                             logger.warning(f"⏱️ Batch {batch_num} timeout (attempt {retry_count}/{max_retries + 1}). Retrying in {delay}s...")
                             await asyncio.sleep(delay)
                         elif retry_count > max_retries:
-                            logger.error(f"❌ Batch {batch_num} failed after {max_retries + 1} attempts")
+                            logger.error(f" Batch {batch_num} failed after {max_retries + 1} attempts")
                             failed_batches.append(batch)
                             break
                         else:
-                            logger.error(f"❌ Batch {batch_num} failed with error: {batch_error}")
+                            logger.error(f" Batch {batch_num} failed with error: {batch_error}")
                             failed_batches.append(batch)
                             break
             
-            # 🚀 FAST RECOVERY - Handle failed batches with optimized smaller chunks
+            #  FAST RECOVERY - Handle failed batches with optimized smaller chunks
             if failed_batches:
-                logger.info(f"🔄 FAST RECOVERY: Processing {len(failed_batches)} failed batches...")
+                logger.info(f" FAST RECOVERY: Processing {len(failed_batches)} failed batches...")
                 recovery_batch_size = 500  # Larger recovery chunks for speed
                 
                 for failed_batch in failed_batches:
@@ -356,9 +356,9 @@ class PerformanceOptimizedDatabaseManager:
                             response = client.table("client_data").insert(recovery_batch).execute()
                             if response.data:
                                 total_inserted += len(response.data)
-                                logger.info(f"🔧 Recovered {len(response.data)} records")
+                                logger.info(f" Recovered {len(response.data)} records")
                         except Exception as final_error:
-                            logger.error(f"💥 Final batch attempt failed: {final_error}")
+                            logger.error(f" Final batch attempt failed: {final_error}")
                             # Skip this problematic batch rather than individual inserts
                             continue
             
@@ -372,12 +372,12 @@ class PerformanceOptimizedDatabaseManager:
             
             insert_time = time.time() - start_time
             success_rate = (total_inserted / len(data)) * 100
-            logger.info(f"⚡ Enhanced batch insert completed in {insert_time:.3f}s - {total_inserted}/{len(data)} records ({success_rate:.1f}% success)")
+            logger.info(f" Enhanced batch insert completed in {insert_time:.3f}s - {total_inserted}/{len(data)} records ({success_rate:.1f}% success)")
             
             return total_inserted
             
         except Exception as e:
-            logger.error(f"❌ Batch insert failed: {e}")
+            logger.error(f" Batch insert failed: {e}")
             raise Exception(f"Database insert failed: {str(e)}")
 
     def _compute_record_fingerprint(self, record: Dict[str, Any]) -> str:
@@ -458,7 +458,7 @@ class PerformanceOptimizedDatabaseManager:
                             existing_by_key[f"{key_name}:{rec[key_name]}"] = {"row_id": row.get("id"), "data": rec}
                             break
         except Exception as e:
-            logger.warning(f"⚠️ Could not load existing scope records for dedup/update: {e}")
+            logger.warning(f" Could not load existing scope records for dedup/update: {e}")
 
         # Filter incoming
         unique_records: List[Dict[str, Any]] = []
@@ -502,7 +502,7 @@ class PerformanceOptimizedDatabaseManager:
                     client.table("client_data").update({"data": upd["new_data"], "updated_at": "now()"}).eq("id", upd["row_id"]).execute()
                     updated_count += 1
                 except Exception as ue:
-                    logger.warning(f"⚠️ Failed to update row {upd['row_id']}: {ue}")
+                    logger.warning(f" Failed to update row {upd['row_id']}: {ue}")
 
         if not unique_records:
             logger.info(f"ℹ️ No new unique records to insert after dedup; {updated_count} updated")
@@ -544,12 +544,12 @@ class PerformanceOptimizedDatabaseManager:
                         del self.cache_ttl[key]
             
             save_time = time.time() - start_time
-            logger.info(f"⚡ Dashboard config saved in {save_time:.3f}s")
+            logger.info(f" Dashboard config saved in {save_time:.3f}s")
             
             return bool(response.data)
             
         except Exception as e:
-            logger.error(f"❌ Fast dashboard config save failed: {e}")
+            logger.error(f" Fast dashboard config save failed: {e}")
             raise Exception(f"Dashboard save failed: {str(e)}")
     
     async def fast_dashboard_metrics_save(self, metrics_data: List[Dict]) -> int:
@@ -568,11 +568,11 @@ class PerformanceOptimizedDatabaseManager:
             inserted_count = len(response.data) if response.data else 0
             save_time = time.time() - start_time
             
-            logger.info(f"⚡ {inserted_count} metrics saved in {save_time:.3f}s")
+            logger.info(f" {inserted_count} metrics saved in {save_time:.3f}s")
             return inserted_count
             
         except Exception as e:
-            logger.error(f"❌ Fast metrics save failed: {e}")
+            logger.error(f" Fast metrics save failed: {e}")
             raise Exception(f"Metrics save failed: {str(e)}")
     
     async def cached_dashboard_exists(self, client_id: str) -> bool:
@@ -597,7 +597,7 @@ class PerformanceOptimizedDatabaseManager:
             return exists
             
         except Exception as e:
-            logger.error(f"❌ Dashboard exists check failed: {e}")
+            logger.error(f" Dashboard exists check failed: {e}")
             return False
     
     def clear_cache(self, pattern: str = None):
@@ -610,11 +610,11 @@ class PerformanceOptimizedDatabaseManager:
                         del self.cache[key]
                     if key in self.cache_ttl:
                         del self.cache_ttl[key]
-                logger.info(f"🗑️ Cleared {len(keys_to_remove)} cache entries matching '{pattern}'")
+                logger.info(f"️ Cleared {len(keys_to_remove)} cache entries matching '{pattern}'")
             else:
                 self.cache.clear()
                 self.cache_ttl.clear()
-                logger.info("🗑️ Cleared all cache entries")
+                logger.info("️ Cleared all cache entries")
     
     def get_cache_stats(self) -> Dict:
         """Get cache performance statistics"""
@@ -657,7 +657,7 @@ def get_db_manager():
         try:
             _db_manager = PerformanceOptimizedDatabaseManager()
         except Exception as e:
-            logger.error(f"❌ Failed to initialize database manager: {e}")
+            logger.error(f" Failed to initialize database manager: {e}")
             # Return a simple fallback that will allow the app to start
             _db_manager = SimpleDatabaseManager()
     return _db_manager
@@ -671,13 +671,13 @@ class SimpleDatabaseManager:
         self.supabase_service_key = os.getenv("SUPABASE_SERVICE_KEY")
         
         if not self.supabase_url or not self.supabase_key:
-            logger.warning("⚠️ Supabase credentials not configured")
+            logger.warning(" Supabase credentials not configured")
     
     def get_client(self):
         """Get simple client without pooling"""
         if not self.supabase_url or not self.supabase_key:
             return None
-        # 🚀 EXTENDED TIMEOUT for simple client too
+        #  EXTENDED TIMEOUT for simple client too
         client = create_client(self.supabase_url, self.supabase_key)
         if hasattr(client, '_client') and hasattr(client._client, 'timeout'):
             client._client.timeout = 120.0
@@ -687,7 +687,7 @@ class SimpleDatabaseManager:
         """Get simple admin client without pooling"""
         if not self.supabase_url or not self.supabase_service_key:
             return None
-        # 🚀 EXTENDED TIMEOUT for simple admin client too
+        #  EXTENDED TIMEOUT for simple admin client too
         admin_client = create_client(self.supabase_url, self.supabase_service_key)
         if hasattr(admin_client, '_client') and hasattr(admin_client._client, 'timeout'):
             admin_client._client.timeout = 120.0
@@ -712,7 +712,7 @@ class SimpleDatabaseManager:
     
     async def create_client_table(self, table_name: str, create_sql: str):
         """Simple fallback for table creation"""
-        logger.info(f"📊 Simple manager: Table creation simulated for {table_name}")
+        logger.info(f" Simple manager: Table creation simulated for {table_name}")
         return True
     
     async def fast_client_data_lookup(self, client_id: str, use_cache: bool = True):
@@ -721,12 +721,12 @@ class SimpleDatabaseManager:
     
     async def batch_insert_client_data(self, table_name: str, data: list, client_id: str):
         """Simple fallback for data insertion"""
-        logger.info(f"📥 Simple manager: Data insertion simulated for {table_name}")
+        logger.info(f" Simple manager: Data insertion simulated for {table_name}")
         return len(data)
     
     async def fast_dashboard_config_save(self, client_id: str, dashboard_config: dict):
         """Simple fallback for dashboard config save"""
-        logger.info(f"💾 Simple manager: Dashboard config save simulated for {client_id}")
+        logger.info(f" Simple manager: Dashboard config save simulated for {client_id}")
         return True
     
     async def cached_dashboard_exists(self, client_id: str):
@@ -735,12 +735,12 @@ class SimpleDatabaseManager:
     
     async def fast_dashboard_metrics_save(self, metrics_data: list):
         """Simple fallback for metrics save"""
-        logger.info(f"📊 Simple manager: Metrics save simulated for {len(metrics_data)} metrics")
+        logger.info(f" Simple manager: Metrics save simulated for {len(metrics_data)} metrics")
         return len(metrics_data)
     
     async def insert_client_data(self, table_name: str, records: list, client_id: str):
         """Simple fallback for data insertion"""
-        logger.info(f"📥 Simple manager: Data insertion simulated for {table_name}")
+        logger.info(f" Simple manager: Data insertion simulated for {table_name}")
         return len(records)
 
 # Convenience functions (optimized with lazy loading)

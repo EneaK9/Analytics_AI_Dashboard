@@ -94,11 +94,11 @@ class APIKeyManager:
                 description=key_info["description"]
             )
             
-            logger.info(f"✅ Created API key '{key_data.name}' for client {client_id}")
+            logger.info(f" Created API key '{key_data.name}' for client {client_id}")
             return api_key, api_key_response
             
         except Exception as e:
-            logger.error(f"❌ Failed to create API key: {e}")
+            logger.error(f" Failed to create API key: {e}")
             raise Exception(f"Failed to create API key: {str(e)}")
     
     async def validate_api_key(self, api_key: str, required_scope: Optional[APIKeyScope] = None) -> Dict[str, Any]:
@@ -160,7 +160,7 @@ class APIKeyManager:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"❌ API key validation failed: {e}")
+            logger.error(f" API key validation failed: {e}")
             raise HTTPException(status_code=401, detail="Invalid API key")
     
     async def _check_rate_limit(self, key_id: str, rate_limit: int):
@@ -190,7 +190,7 @@ class APIKeyManager:
             }).eq("key_id", key_id).execute()
             
         except Exception as e:
-            logger.warning(f"⚠️ Failed to update key usage: {e}")
+            logger.warning(f" Failed to update key usage: {e}")
     
     async def list_api_keys(self, client_id: uuid.UUID) -> List[APIKeyResponse]:
         """List all API keys for a client"""
@@ -220,7 +220,7 @@ class APIKeyManager:
             return keys
             
         except Exception as e:
-            logger.error(f"❌ Failed to list API keys: {e}")
+            logger.error(f" Failed to list API keys: {e}")
             raise Exception(f"Failed to list API keys: {str(e)}")
     
     async def revoke_api_key(self, key_id: uuid.UUID, client_id: uuid.UUID) -> bool:
@@ -239,11 +239,11 @@ class APIKeyManager:
                     del self.cache[cache_key]
                     break
             
-            logger.info(f"✅ Revoked API key {key_id} for client {client_id}")
+            logger.info(f" Revoked API key {key_id} for client {client_id}")
             return bool(response.data)
             
         except Exception as e:
-            logger.error(f"❌ Failed to revoke API key: {e}")
+            logger.error(f" Failed to revoke API key: {e}")
             raise Exception(f"Failed to revoke API key: {str(e)}")
 
 # Global API key manager instance
@@ -279,10 +279,10 @@ async def authenticate_request(
         try:
             auth_result = await api_key_manager.validate_api_key(api_key, required_scope)
             auth_result["auth_type"] = "api_key"
-            logger.debug(f"✅ API key authentication successful for client {auth_result['client_id']}")
+            logger.debug(f" API key authentication successful for client {auth_result['client_id']}")
             return auth_result
         except HTTPException as e:
-            logger.warning(f"⚠️ API key authentication failed: {e.detail}")
+            logger.warning(f" API key authentication failed: {e.detail}")
             # Fall through to JWT authentication
     
     # Try JWT authentication
@@ -296,10 +296,10 @@ async def authenticate_request(
                 "auth_type": "jwt",
                 "scopes": [APIKeyScope.FULL_ACCESS]  # JWT tokens have full access
             }
-            logger.debug(f"✅ JWT authentication successful for client {token_data.client_id}")
+            logger.debug(f" JWT authentication successful for client {token_data.client_id}")
             return auth_result
         except Exception as e:
-            logger.warning(f"⚠️ JWT authentication failed: {e}")
+            logger.warning(f" JWT authentication failed: {e}")
     
     # No valid authentication found
     raise HTTPException(

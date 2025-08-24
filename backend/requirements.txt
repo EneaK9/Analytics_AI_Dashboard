@@ -50,6 +50,9 @@ requests==2.31.0
 python-dateutil==2.8.2
 pytz==2023.3
 
+# Internal Scheduler for Cron Jobs - STABLE
+APScheduler==3.10.4
+
 # Logging and monitoring
 python-json-logger==2.0.7
 sentry-sdk[fastapi]==2.35.0

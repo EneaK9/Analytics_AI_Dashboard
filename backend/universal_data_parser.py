@@ -23,20 +23,20 @@ class UniversalDataParser:
         try:
             format_type = format_type.lower()
             
-            # 🔧 ENHANCED: Handle bytes content (from SFTP/file uploads) 
+            #  ENHANCED: Handle bytes content (from SFTP/file uploads) 
             if isinstance(content, bytes):
                 if format_type == 'bak':
                     # Use app.py strategy: try multiple encodings for .bak files
-                    print("🔄 Received bytes content, trying multiple encodings for .bak file...")
+                    print(" Received bytes content, trying multiple encodings for .bak file...")
                     for encoding in ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']:
                         try:
                             content = content.decode(encoding)
-                            print(f"✅ Successfully decoded .bak file using {encoding} encoding")
+                            print(f" Successfully decoded .bak file using {encoding} encoding")
                             break
                         except UnicodeDecodeError:
                             continue
                     else:
-                        print("❌ Could not decode .bak file with any encoding")
+                        print(" Could not decode .bak file with any encoding")
                         return []
                 else:
                     # For other formats, try UTF-8 first, then latin-1
@@ -66,7 +66,7 @@ class UniversalDataParser:
                 return self._auto_detect_and_parse(content)
                 
         except Exception as e:
-            print(f"❌ Universal parsing failed for {format_type}: {e}")
+            print(f" Universal parsing failed for {format_type}: {e}")
             return []
     
     def _parse_json(self, content: str) -> List[Dict[str, Any]]:
@@ -92,11 +92,11 @@ class UniversalDataParser:
                     record['_row_number'] = i + 1
                     record['_source_format'] = 'json'
             
-            print(f"✅ Parsed {len(records)} JSON records")
+            print(f" Parsed {len(records)} JSON records")
             return records
             
         except json.JSONDecodeError as e:
-            print(f"❌ JSON parsing failed: {e}")
+            print(f" JSON parsing failed: {e}")
             return []
     
     def _parse_csv(self, content: str) -> List[Dict[str, Any]]:
@@ -108,9 +108,9 @@ class UniversalDataParser:
             
             # Auto-detect delimiter
             delimiter = self._detect_csv_delimiter(content)
-            print(f"🔍 CSV delimiter detected: '{delimiter}'")
+            print(f" CSV delimiter detected: '{delimiter}'")
             
-            # 🚀 ROBUST CSV parsing with multiple fallback strategies
+            #  ROBUST CSV parsing with multiple fallback strategies
             records = []
             lines = content.split('\n')
             
@@ -156,12 +156,12 @@ class UniversalDataParser:
                         records.append(clean_row)
                         
             except csv.Error as csv_error:
-                print(f"⚠️ Standard CSV parsing failed: {csv_error}")
-                print("🔄 Trying manual line-by-line parsing...")
+                print(f" Standard CSV parsing failed: {csv_error}")
+                print(" Trying manual line-by-line parsing...")
                 
                 # Strategy 2: Manual line-by-line parsing for problematic files
                 if len(lines) > 1:
-                    # 🔧 SMART HEADER DETECTION - Try multiple approaches
+                    #  SMART HEADER DETECTION - Try multiple approaches
                     header_line = lines[0].strip()
                     
                     # Try all possible delimiters to find the right one
@@ -174,7 +174,7 @@ class UniversalDataParser:
                             max_fields = len(test_headers)
                             best_delimiter = test_delim
                     
-                    print(f"🔍 Testing delimiters: detected '{delimiter}' but '{best_delimiter}' gives {max_fields} fields")
+                    print(f" Testing delimiters: detected '{delimiter}' but '{best_delimiter}' gives {max_fields} fields")
                     
                     # Use the best delimiter
                     delimiter = best_delimiter
@@ -183,14 +183,14 @@ class UniversalDataParser:
                     
                     # If still too few headers, this might not be CSV - try alternate approach
                     if len(headers) < 2:
-                        print("⚠️ Very few headers detected, trying pattern-based extraction...")
+                        print(" Very few headers detected, trying pattern-based extraction...")
                         # Look for GUID patterns and use positional headers
                         if 'AB467008' in header_line or len(header_line) > 100:
                             headers = ['guid_1', 'guid_2', 'data_field', 'additional_data']
                             delimiter = None  # Use position-based parsing
-                            print(f"🔧 Using positional parsing with {len(headers)} generic headers")
+                            print(f" Using positional parsing with {len(headers)} generic headers")
                     
-                    print(f"📋 Found {len(headers)} headers: {headers[:5]}..." if len(headers) > 5 else f"📋 Found headers: {headers}")
+                    print(f" Found {len(headers)} headers: {headers[:5]}..." if len(headers) > 5 else f" Found headers: {headers}")
                     
                     # Process data lines
                     for line_num, line in enumerate(lines[1:], 1):
@@ -198,7 +198,7 @@ class UniversalDataParser:
                         if not line or len(line) < 5:  # Skip very short lines
                             continue
                         
-                        # 🔧 SMART PARSING: Handle both delimiter-based and position-based
+                        #  SMART PARSING: Handle both delimiter-based and position-based
                         if delimiter is None:
                             # Position-based parsing for complex formats
                             values = []
@@ -281,13 +281,13 @@ class UniversalDataParser:
                                 
                                 # No artificial limit - let the 1/8 sampling handle size control
                 
-                print(f"✅ Manual parsing extracted {len(records)} records")
+                print(f" Manual parsing extracted {len(records)} records")
                 
-            print(f"✅ Parsed {len(records)} CSV records")
+            print(f" Parsed {len(records)} CSV records")
             return records
             
         except Exception as e:
-            print(f"❌ CSV parsing failed: {e}")
+            print(f" CSV parsing failed: {e}")
             return []
     
     def _parse_xml(self, content: str) -> List[Dict[str, Any]]:
@@ -358,11 +358,11 @@ class UniversalDataParser:
                 record['_source_format'] = 'xml'
                 records.append(record)
             
-            print(f"✅ Parsed {len(records)} XML records")
+            print(f" Parsed {len(records)} XML records")
             return records
             
         except ET.ParseError as e:
-            print(f"❌ XML parsing failed: {e}")
+            print(f" XML parsing failed: {e}")
             return []
     
     def _parse_tsv(self, content: str) -> List[Dict[str, Any]]:
@@ -406,11 +406,11 @@ class UniversalDataParser:
                     clean_row['_source_format'] = 'tsv'
                     records.append(clean_row)
             
-            print(f"✅ Parsed {len(records)} TSV records")
+            print(f" Parsed {len(records)} TSV records")
             return records
             
         except Exception as e:
-            print(f"❌ TSV parsing failed: {e}")
+            print(f" TSV parsing failed: {e}")
             return []
     
     def _parse_yaml(self, content: str) -> List[Dict[str, Any]]:
@@ -465,11 +465,11 @@ class UniversalDataParser:
                 current_record['_source_format'] = 'yaml'
                 records.append(current_record)
             
-            print(f"✅ Parsed {len(records)} YAML records")
+            print(f" Parsed {len(records)} YAML records")
             return records
             
         except Exception as e:
-            print(f"❌ YAML parsing failed: {e}")
+            print(f" YAML parsing failed: {e}")
             return []
     
     def _parse_txt(self, content: str) -> List[Dict[str, Any]]:
@@ -494,11 +494,11 @@ class UniversalDataParser:
                     }
                     records.append(record)
             
-            print(f"✅ Parsed {len(records)} TXT records (lines)")
+            print(f" Parsed {len(records)} TXT records (lines)")
             return records
             
         except Exception as e:
-            print(f"❌ TXT parsing failed: {e}")
+            print(f" TXT parsing failed: {e}")
             return []
     
     def _auto_detect_and_parse(self, content: str) -> List[Dict[str, Any]]:
@@ -571,7 +571,7 @@ class UniversalDataParser:
                         binary_content = base64.b64decode(content)
                     except:
                         # If not base64, treat as text and try CSV parsing
-                        print("⚠️ Excel content appears to be text, falling back to CSV parsing")
+                        print(" Excel content appears to be text, falling back to CSV parsing")
                         return self._parse_csv(content)
                 else:
                     binary_content = content
@@ -598,80 +598,80 @@ class UniversalDataParser:
                     record['_source_format'] = 'excel'
                     records.append(record)
                 
-                print(f"✅ Parsed {len(records)} Excel records")
+                print(f" Parsed {len(records)} Excel records")
                 return records
                 
             except ImportError:
-                print("⚠️ pandas/openpyxl not available, falling back to CSV parsing for Excel files")
+                print(" pandas/openpyxl not available, falling back to CSV parsing for Excel files")
                 return self._parse_csv(content)
                 
         except Exception as e:
-            print(f"❌ Excel parsing failed: {e}")
+            print(f" Excel parsing failed: {e}")
             # Fallback to CSV parsing
             return self._parse_csv(content)
     
     def _parse_bak(self, content: str) -> List[Dict[str, Any]]:
         """Parse .bak files with intelligent business data extraction"""
         try:
-            print("🔍 Parsing .bak file with intelligent business data extraction...")
-            print(f"📏 Original content length: {len(content)} characters")
+            print(" Parsing .bak file with intelligent business data extraction...")
+            print(f" Original content length: {len(content)} characters")
             
             # Check if content is empty
             if not content or len(content.strip()) < 50:
-                print("❌ .bak file content is empty or too small to parse")
+                print(" .bak file content is empty or too small to parse")
                 return self._create_bak_error_record(content, Exception("BAK file content is empty or too small"))
             
             # STEP 1: Try to extract actual business data patterns
             try:
-                print("🔍 Step 1: Searching for real business data patterns...")
+                print(" Step 1: Searching for real business data patterns...")
                 business_records = self._extract_business_data_from_bak(content)
                 if business_records and len(business_records) > 0:
                     total_lines = len(business_records)
                     sample_size = int(total_lines * 0.06)  # 6% sampling
-                    print(f"⚡ SAMPLING: Taking 6% sample = {sample_size}/{total_lines} lines")
+                    print(f" SAMPLING: Taking 6% sample = {sample_size}/{total_lines} lines")
                     sampled_records = business_records[:sample_size] if sample_size > 0 else business_records[:1]
-                    print(f"✅ Business data extraction successful: {len(sampled_records)} records")
+                    print(f" Business data extraction successful: {len(sampled_records)} records")
                     return sampled_records
-                print("⚠️ No business data patterns found")
+                print(" No business data patterns found")
             except Exception as e:
-                print(f"⚠️ Business data extraction failed: {e}")
+                print(f" Business data extraction failed: {e}")
             
             # STEP 2: Try to extract readable text data with intelligent filtering
             try:
-                print("🔍 Step 2: Attempting intelligent text extraction...")
+                print(" Step 2: Attempting intelligent text extraction...")
                 text_records = self._extract_intelligent_text_from_bak(content)
                 if text_records and len(text_records) > 0:
                     total_lines = len(text_records)
                     sample_size = int(total_lines * 0.06)  # 6% sampling
-                    print(f"⚡ SAMPLING: Taking 6% sample = {sample_size}/{total_lines} lines")
+                    print(f" SAMPLING: Taking 6% sample = {sample_size}/{total_lines} lines")
                     sampled_records = text_records[:sample_size] if sample_size > 0 else text_records[:1]
-                    print(f"✅ Intelligent text extraction successful: {len(sampled_records)} records")
+                    print(f" Intelligent text extraction successful: {len(sampled_records)} records")
                     return sampled_records
-                print("⚠️ No meaningful text data found")
+                print(" No meaningful text data found")
             except Exception as e:
-                print(f"⚠️ Intelligent text extraction failed: {e}")
+                print(f" Intelligent text extraction failed: {e}")
             
             # STEP 3: Last resort - try to find ANY meaningful patterns
             try:
-                print("🔍 Step 3: Final attempt - extracting any meaningful patterns...")
+                print(" Step 3: Final attempt - extracting any meaningful patterns...")
                 fallback_records = self._extract_fallback_patterns_from_bak(content)
                 if fallback_records and len(fallback_records) > 0:
                     total_lines = len(fallback_records)
                     sample_size = int(total_lines * 0.06)  # 6% sampling
-                    print(f"⚡ SAMPLING: Taking 6% sample = {sample_size}/{total_lines} lines")
+                    print(f" SAMPLING: Taking 6% sample = {sample_size}/{total_lines} lines")
                     sampled_records = fallback_records[:sample_size] if sample_size > 0 else fallback_records[:1]
-                    print(f"✅ Fallback pattern extraction successful: {len(sampled_records)} records")
+                    print(f" Fallback pattern extraction successful: {len(sampled_records)} records")
                     return sampled_records
-                print("⚠️ No meaningful patterns found")
+                print(" No meaningful patterns found")
             except Exception as e:
-                print(f"⚠️ Fallback pattern extraction failed: {e}")
+                print(f" Fallback pattern extraction failed: {e}")
             
             # If all methods fail, return a helpful error record
-            print("❌ All BAK parsing methods failed, returning error record")
+            print(" All BAK parsing methods failed, returning error record")
             return self._create_bak_error_record(content, Exception("All BAK parsing methods failed to extract meaningful data"))
             
         except Exception as e:
-            print(f"❌ .bak file parsing failed with unexpected error: {e}")
+            print(f" .bak file parsing failed with unexpected error: {e}")
             import traceback
             print(f"Full traceback: {traceback.format_exc()}")
             return self._create_bak_error_record(content, e)
@@ -681,7 +681,7 @@ class UniversalDataParser:
         try:
             import re
             
-            print(f"🔍 Analyzing content for business data patterns...")
+            print(f" Analyzing content for business data patterns...")
             records = []
             
             # Look for common business data patterns
@@ -711,7 +711,7 @@ class UniversalDataParser:
                     
                     if clean_matches:
                         business_data[pattern_name] = list(set(clean_matches))  # Remove duplicates
-                        print(f"📊 Found {len(clean_matches)} {pattern_name} patterns")
+                        print(f" Found {len(clean_matches)} {pattern_name} patterns")
             
             # Create structured records from business data
             record_id = 1
@@ -728,19 +728,19 @@ class UniversalDataParser:
                     record_id += 1
             
             if records:
-                print(f"✅ Extracted {len(records)} business data records")
+                print(f" Extracted {len(records)} business data records")
                 return records
             
                 return []
             
         except Exception as e:
-            print(f"❌ Business data extraction failed: {e}")
+            print(f" Business data extraction failed: {e}")
             return []
     
     def _extract_intelligent_text_from_bak(self, content: str) -> List[Dict[str, Any]]:
         """Extract meaningful text data with intelligent filtering"""
         try:
-            print(f"🔍 Processing content for meaningful text patterns...")
+            print(f" Processing content for meaningful text patterns...")
             
             lines = content.split('\n')
             records = []
@@ -766,13 +766,13 @@ class UniversalDataParser:
                         processed_lines += 1
             
             if records:
-                print(f"✅ Extracted {len(records)} meaningful text records")
+                print(f" Extracted {len(records)} meaningful text records")
                 return records
             
             return []
             
         except Exception as e:
-            print(f"❌ Intelligent text extraction failed: {e}")
+            print(f" Intelligent text extraction failed: {e}")
             return []
     
     def _extract_fallback_patterns_from_bak(self, content: str) -> List[Dict[str, Any]]:
@@ -780,7 +780,7 @@ class UniversalDataParser:
         try:
             import re
             
-            print(f"🔍 Final attempt: searching for any recognizable patterns...")
+            print(f" Final attempt: searching for any recognizable patterns...")
             
             # Look for simple patterns that might indicate structured data
             patterns = [
@@ -828,16 +828,16 @@ class UniversalDataParser:
                             useful_matches += 1
                 
             if useful_matches > 0:
-                    print(f"📊 Found {useful_matches} useful {pattern_type} patterns")
+                    print(f" Found {useful_matches} useful {pattern_type} patterns")
             
             if records:
-                print(f"✅ Extracted {len(records)} fallback pattern records")
+                print(f" Extracted {len(records)} fallback pattern records")
                 return records
             
             return []
             
         except Exception as e:
-            print(f"❌ Fallback pattern extraction failed: {e}")
+            print(f" Fallback pattern extraction failed: {e}")
             return []
     
     def _is_meaningful_text(self, text: str) -> bool:
@@ -934,7 +934,7 @@ class UniversalDataParser:
             
             for pattern in sql_patterns:
                 matches = re.findall(pattern, content, re.IGNORECASE | re.MULTILINE)
-                print(f"🔍 Found {len(matches)} matches for SQL pattern")
+                print(f" Found {len(matches)} matches for SQL pattern")
                 for match in matches:  # NO LIMITS - process all SQL matches
                     if len(match) >= 2:
                         record = {
@@ -946,13 +946,13 @@ class UniversalDataParser:
                         records.append(record)
             
             if records:
-                print(f"✅ Extracted {len(records)} SQL structure records from BAK")
+                print(f" Extracted {len(records)} SQL structure records from BAK")
                 return records  # NO LIMITS - return all SQL data
             
             return []
             
         except Exception as e:
-            print(f"❌ SQL extraction failed: {e}")
+            print(f" SQL extraction failed: {e}")
             return []
     
     def _extract_database_schema(self, content: str) -> List[Dict[str, Any]]:
@@ -1006,13 +1006,13 @@ class UniversalDataParser:
                     records.append(data_record)
             
             if records:
-                print(f"✅ Extracted {len(records)} database schema records from BAK")
+                print(f" Extracted {len(records)} database schema records from BAK")
                 return records
             
             return []
             
         except Exception as e:
-            print(f"❌ Database schema extraction failed: {e}")
+            print(f" Database schema extraction failed: {e}")
             return []
     
     def _extract_structured_data_from_bak(self, content: str) -> List[Dict[str, Any]]:
@@ -1020,7 +1020,7 @@ class UniversalDataParser:
         try:
             import re
             
-            print(f"🔍 Processing complete BAK file content ({len(content)} characters)...")
+            print(f" Processing complete BAK file content ({len(content)} characters)...")
             # Process the entire content - no size limitations
             
             # Look for structured data patterns
@@ -1044,7 +1044,7 @@ class UniversalDataParser:
             ]:
                 matches = re.findall(pattern, content, re.MULTILINE)
                 if matches:
-                    print(f"🔍 Found {len(matches)} {pattern_name} patterns")
+                    print(f" Found {len(matches)} {pattern_name} patterns")
                     extracted_data[pattern_name] = matches  # NO LIMITS - capture all patterns
             
             # Create records from extracted patterns
@@ -1075,25 +1075,25 @@ class UniversalDataParser:
                         record_id += 1
             
             if records:
-                print(f"✅ Extracted {len(records)} structured data records from BAK")
+                print(f" Extracted {len(records)} structured data records from BAK")
                 return records  # NO LIMITS - return all structured data
             
             # If no structured patterns found, extract clean text lines
             return self._extract_clean_text_from_bak(content)
             
         except Exception as e:
-            print(f"❌ Structured data extraction failed: {e}")
+            print(f" Structured data extraction failed: {e}")
             return self._extract_clean_text_from_bak(content)
     
     def _extract_clean_text_from_bak(self, content: str) -> List[Dict[str, Any]]:
         """Extract clean readable text from BAK content"""
         try:
-            print(f"🔍 Processing complete BAK file for text extraction ({len(content)} characters)...")
+            print(f" Processing complete BAK file for text extraction ({len(content)} characters)...")
             
             lines = content.split('\n')
             records = []
             
-            print(f"📄 Processing all {len(lines)} lines from BAK file...")
+            print(f" Processing all {len(lines)} lines from BAK file...")
             
             for line_num, line in enumerate(lines):
                 # Extract only readable ASCII text
@@ -1118,15 +1118,15 @@ class UniversalDataParser:
                     
                     # Progress logging for large files (but no limits)
                     if len(records) % 10000 == 0 and len(records) > 0:
-                        print(f"⚡ Processed {len(records)} text records so far...")
+                        print(f" Processed {len(records)} text records so far...")
                     
                     # NO LIMITS - process all content
             
-            print(f"✅ Extracted {len(records)} clean text records from BAK")
+            print(f" Extracted {len(records)} clean text records from BAK")
             return records
             
         except Exception as e:
-            print(f"❌ Clean text extraction failed: {e}")
+            print(f" Clean text extraction failed: {e}")
             return []
     
     def _create_bak_error_record(self, content: str, error: Exception) -> List[Dict[str, Any]]:
@@ -1226,7 +1226,7 @@ class UniversalDataParser:
                 records.append(record)
                 
         except Exception as e:
-            print(f"⚠️ SQL extraction failed: {e}")
+            print(f" SQL extraction failed: {e}")
         
         return records
     
@@ -1243,11 +1243,11 @@ class UniversalDataParser:
                 if not line or len(line) < 10:  # Skip very short lines
                     continue
                 
-                # 🚫 SKIP GARBAGE: Filter out lines that are clearly binary/encoded junk
+                #  SKIP GARBAGE: Filter out lines that are clearly binary/encoded junk
                 if self._is_garbage_line(line):
                     continue
                 
-                # 🎯 LOOK FOR BUSINESS DATA: Only process lines that seem meaningful
+                #  LOOK FOR BUSINESS DATA: Only process lines that seem meaningful
                 for delimiter in [',', '\t', '|', ';']:
                     if delimiter in line and len(line.split(delimiter)) >= 3:
                         values = line.split(delimiter)
@@ -1273,10 +1273,10 @@ class UniversalDataParser:
                             break  # Found valid delimiter, move to next line
                 
         except Exception as e:
-            print(f"⚠️ Delimited data extraction failed: {e}")
+            print(f" Delimited data extraction failed: {e}")
         
         if meaningful_lines:
-            print(f"📊 Found meaningful business data on lines: {meaningful_lines[:10]}{'...' if len(meaningful_lines) > 10 else ''}")
+            print(f" Found meaningful business data on lines: {meaningful_lines[:10]}{'...' if len(meaningful_lines) > 10 else ''}")
         
         return records  # No limit - process all records
     
@@ -1287,7 +1287,7 @@ class UniversalDataParser:
             import re
             import json
             
-            print("🔍 Enhanced JSON extraction with business data prioritization...")
+            print(" Enhanced JSON extraction with business data prioritization...")
             
             # Look for JSON object patterns with better business data detection
             json_pattern = r'\{[^{}]*\}'
@@ -1308,7 +1308,7 @@ class UniversalDataParser:
                 try:
                     json_obj = json.loads(match)
                     if isinstance(json_obj, dict) and len(json_obj) > 0:
-                        # 🎯 Prioritize JSON objects with business-relevant fields
+                        #  Prioritize JSON objects with business-relevant fields
                         field_names = [str(key).lower() for key in json_obj.keys()]
                         business_relevance = sum(1 for keyword in business_keywords 
                                                if any(keyword in field for field in field_names))
@@ -1324,10 +1324,10 @@ class UniversalDataParser:
                     continue
             
             if business_json_count > 0:
-                print(f"💼 Found {business_json_count} business-relevant JSON objects out of {len(records)} total")
+                print(f" Found {business_json_count} business-relevant JSON objects out of {len(records)} total")
                     
         except Exception as e:
-            print(f"⚠️ JSON extraction failed: {e}")
+            print(f" JSON extraction failed: {e}")
         
         return records  # No limit - process all JSON objects
     
@@ -1355,7 +1355,7 @@ class UniversalDataParser:
                         meaningful_pairs = 0
                     continue
                 
-                # 🚫 SKIP GARBAGE: Don't process obviously binary lines
+                #  SKIP GARBAGE: Don't process obviously binary lines
                 if self._is_garbage_line(line):
                     continue
                 
@@ -1386,10 +1386,10 @@ class UniversalDataParser:
                 records.append(current_record)
                 
         except Exception as e:
-            print(f"⚠️ Key-value extraction failed: {e}")
+            print(f" Key-value extraction failed: {e}")
         
         if records:
-            print(f"📊 Found {len(records)} meaningful configuration/key-value records")
+            print(f" Found {len(records)} meaningful configuration/key-value records")
         
         return records  # No limit - process all records
     
@@ -1430,7 +1430,7 @@ class UniversalDataParser:
             return records
             
         except Exception as e:
-            print(f"⚠️ Binary summary creation failed: {e}")
+            print(f" Binary summary creation failed: {e}")
             return [{
                 'record_type': 'binary_file',
                 'content_length': len(content),
@@ -1467,7 +1467,7 @@ class UniversalDataParser:
             return records
             
         except Exception as e:
-            print(f"⚠️ Text pattern extraction failed: {e}")
+            print(f" Text pattern extraction failed: {e}")
             return [{
                 'record_type': 'text_content',
                 'content_length': len(content),
@@ -1574,12 +1574,12 @@ class UniversalDataParser:
             matches = re.findall(create_table_pattern, content, re.IGNORECASE | re.MULTILINE)
             
             for table_name, columns_def in matches:
-                print(f"🏗️ Found table: {table_name}")
+                print(f"️ Found table: {table_name}")
                 # Extract column names from definition
                 column_pattern = r'\[?(\w+)\]?\s+\w+'
                 columns = re.findall(column_pattern, columns_def)
                 headers.extend(columns)
-                print(f"📊 Table {table_name} columns: {columns}")
+                print(f" Table {table_name} columns: {columns}")
             
             # Also look for INSERT INTO statements to get column lists
             insert_pattern = r'INSERT\s+INTO\s+\[?(\w+)\]?\s*\(\s*([^)]+)\)'
@@ -1588,10 +1588,10 @@ class UniversalDataParser:
             for table_name, columns_list in insert_matches:
                 columns = [col.strip().strip('[]') for col in columns_list.split(',')]
                 headers.extend(columns)
-                print(f"📝 INSERT columns for {table_name}: {columns}")
+                print(f" INSERT columns for {table_name}: {columns}")
                 
         except Exception as e:
-            print(f"⚠️ SQL Server header extraction failed: {e}")
+            print(f" SQL Server header extraction failed: {e}")
         
         return list(set(headers))  # Remove duplicates
     
@@ -1621,7 +1621,7 @@ class UniversalDataParser:
                             headers.append(definition.strip())
                             
         except Exception as e:
-            print(f"⚠️ Backup header extraction failed: {e}")
+            print(f" Backup header extraction failed: {e}")
         
         return list(set(headers))
     
@@ -1638,7 +1638,7 @@ class UniversalDataParser:
             for table_name, columns_list in matches:
                 columns = [col.strip().strip('`[]') for col in columns_list.split(',')]
                 headers.extend(columns)
-                print(f"📝 SQL dump table {table_name} columns: {columns}")
+                print(f" SQL dump table {table_name} columns: {columns}")
             
             # Look for CREATE TABLE statements
             create_pattern = r'CREATE\s+TABLE\s+`?(\w+)`?\s*\(\s*([^;]+)\);?'
@@ -1649,10 +1649,10 @@ class UniversalDataParser:
                 column_pattern = r'`?(\w+)`?\s+\w+'
                 columns = re.findall(column_pattern, table_def)
                 headers.extend(columns)
-                print(f"🏗️ SQL dump CREATE TABLE {table_name} columns: {columns}")
+                print(f"️ SQL dump CREATE TABLE {table_name} columns: {columns}")
                 
         except Exception as e:
-            print(f"⚠️ SQL dump header extraction failed: {e}")
+            print(f" SQL dump header extraction failed: {e}")
         
         return list(set(headers))
     
@@ -1676,7 +1676,7 @@ class UniversalDataParser:
                     parts = [p.strip().strip('[]`"\'') for p in line.split(',')]
                     if all(re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', part) for part in parts[:5]):
                         headers.extend(parts)
-                        print(f"📋 Found potential column list: {parts[:10]}")
+                        print(f" Found potential column list: {parts[:10]}")
                 
                 # Look for key-value patterns that might indicate field names
                 kv_pattern = r'(\w+)\s*[:=]\s*'
@@ -1695,10 +1695,10 @@ class UniversalDataParser:
             
             if found_business_fields:
                 headers.extend(found_business_fields)
-                print(f"💼 Found business field indicators: {found_business_fields}")
+                print(f" Found business field indicators: {found_business_fields}")
                 
         except Exception as e:
-            print(f"⚠️ Generic header extraction failed: {e}")
+            print(f" Generic header extraction failed: {e}")
         
         return list(set(headers))[:20]  # Limit to 20 headers
 

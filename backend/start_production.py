@@ -19,13 +19,13 @@ def main():
     try:
         is_windows = platform.system().lower() == "windows"
         
-        logger.info("🚀 Starting AI Dashboard in PRODUCTION mode...")
+        logger.info(" Starting AI Dashboard in PRODUCTION mode...")
         
         if is_windows:
-            logger.info("💻 Windows detected - using Uvicorn with multiple workers")
+            logger.info(" Windows detected - using Uvicorn with multiple workers")
             logger.info("ℹ️  Note: Gunicorn doesn't work on Windows, but production (Linux) will use Gunicorn")
-            logger.info("📊 Using 4 workers for better concurrency")
-            logger.info("📋 Server will be available at: http://localhost:8000")
+            logger.info(" Using 4 workers for better concurrency")
+            logger.info(" Server will be available at: http://localhost:8000")
             logger.info("🤖 Health check at: http://localhost:8000/health")
             
             # Use uvicorn with workers for Windows (limited but works)
@@ -39,9 +39,9 @@ def main():
             ]
             
         else:
-            logger.info("🐧 Linux/Unix detected - using Gunicorn with Uvicorn workers")
-            logger.info("📊 Using 4 workers for better concurrency")  
-            logger.info("📋 Server will be available at: http://localhost:8000")
+            logger.info(" Linux/Unix detected - using Gunicorn with Uvicorn workers")
+            logger.info(" Using 4 workers for better concurrency")  
+            logger.info(" Server will be available at: http://localhost:8000")
             logger.info("🤖 Health check at: http://localhost:8000/health")
             
             # Use Gunicorn + Uvicorn workers for Linux/Unix
@@ -58,19 +58,19 @@ def main():
                 "--keep-alive", "5"
             ]
         
-        logger.info(f"🔧 Running command: {' '.join(cmd)}")
+        logger.info(f" Running command: {' '.join(cmd)}")
         subprocess.run(cmd, check=True)
         
     except FileNotFoundError:
-        logger.error("❌ Gunicorn not found. Install with: pip install gunicorn")
+        logger.error(" Gunicorn not found. Install with: pip install gunicorn")
         sys.exit(1)
     except KeyboardInterrupt:
-        logger.info("🛑 Server stopped by user")
+        logger.info(" Server stopped by user")
     except subprocess.CalledProcessError as e:
-        logger.error(f"❌ Server failed to start: {e}")
+        logger.error(f" Server failed to start: {e}")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"❌ Unexpected error: {e}")
+        logger.error(f" Unexpected error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

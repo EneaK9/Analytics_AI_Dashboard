@@ -32,7 +32,7 @@ async def get_superadmin_token():
                 result = await response.json()
                 return result.get("access_token")
             else:
-                print(f"❌ Login failed: {response.status}")
+                print(f" Login failed: {response.status}")
                 text = await response.text()
                 print(f"Error: {text}")
                 return None
@@ -47,11 +47,11 @@ async def test_client_data_summary(token: str):
         async with session.get(url, headers=headers) as response:
             if response.status == 200:
                 result = await response.json()
-                print("✅ Client data summary retrieved successfully!")
+                print(" Client data summary retrieved successfully!")
                 print(json.dumps(result, indent=2))
                 return result
             else:
-                print(f"❌ Failed to get client data summary: {response.status}")
+                print(f" Failed to get client data summary: {response.status}")
                 text = await response.text()
                 print(f"Error: {text}")
                 return None
@@ -63,38 +63,38 @@ async def test_organize_data(token: str):
     async with aiohttp.ClientSession() as session:
         url = f"{API_BASE_URL}/api/superadmin/organize-data/{CLIENT_ID}"
         
-        print(f"🚀 Starting data organization for client {CLIENT_ID}...")
+        print(f" Starting data organization for client {CLIENT_ID}...")
         async with session.post(url, headers=headers) as response:
             if response.status == 200:
                 result = await response.json()
-                print("✅ Data organization completed successfully!")
+                print(" Data organization completed successfully!")
                 print(json.dumps(result, indent=2))
                 return result
             else:
-                print(f"❌ Data organization failed: {response.status}")
+                print(f" Data organization failed: {response.status}")
                 text = await response.text()
                 print(f"Error: {text}")
                 return None
 
 async def main():
     """Main test function"""
-    print("🧪 Testing Data Organization API")
+    print(" Testing Data Organization API")
     print("=" * 50)
     
     # Step 1: Get superadmin token
     print("1. Getting superadmin token...")
     token = await get_superadmin_token()
     if not token:
-        print("❌ Cannot proceed without valid token")
+        print(" Cannot proceed without valid token")
         return
-    print("✅ Token obtained successfully")
+    print(" Token obtained successfully")
     
     # Step 2: Test client data summary
     print("\n2. Testing client data summary...")
     summary = await test_client_data_summary(token)
     
     if summary and summary.get('organization_recommended'):
-        print("\n📊 Organization is recommended for this client")
+        print("\n Organization is recommended for this client")
         
         # Step 3: Test data organization
         print("\n3. Testing data organization...")
@@ -105,7 +105,7 @@ async def main():
             # Get summary again to see the changes
             updated_summary = await test_client_data_summary(token)
             if updated_summary:
-                print("📈 Updated summary after organization:")
+                print(" Updated summary after organization:")
                 print(f"   - Organized tables: {len(updated_summary.get('organized_tables', []))}")
                 print(f"   - Is organized: {updated_summary.get('is_organized')}")
     else:

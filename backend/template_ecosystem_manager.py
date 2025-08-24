@@ -100,7 +100,7 @@ class TemplateEcosystemManager:
         self.naming_patterns = self._initialize_naming_patterns()
         self.ecosystem_templates = self._initialize_ecosystem_templates()
         
-        logger.info("✅ Template Ecosystem Manager initialized")
+        logger.info(" Template Ecosystem Manager initialized")
     
     def _initialize_color_psychology(self) -> Dict[ColorPsychology, Dict[str, str]]:
         """Initialize color psychology mappings"""
@@ -240,7 +240,7 @@ class TemplateEcosystemManager:
         """Generate intelligent themes based on business DNA and template personalities"""
         
         try:
-            logger.info(f"🎨 Generating intelligent themes for {len(template_architectures)} templates")
+            logger.info(f" Generating intelligent themes for {len(template_architectures)} templates")
             
             # Get business theme profile
             business_profile = self.business_theme_profiles.get(
@@ -262,11 +262,11 @@ class TemplateEcosystemManager:
                 )
                 themes[architecture.template_id] = theme
             
-            logger.info(f"🎨 Generated {len(themes)} personalized themes")
+            logger.info(f" Generated {len(themes)} personalized themes")
             return themes
             
         except Exception as e:
-            logger.error(f"❌ Theme generation failed: {e}")
+            logger.error(f" Theme generation failed: {e}")
             return await self._generate_fallback_themes(template_architectures)
     
     async def _generate_base_theme(self, business_dna: BusinessDNA, business_profile: Dict[str, Any]) -> Dict[str, Any]:
@@ -398,7 +398,7 @@ class TemplateEcosystemManager:
         """Generate contextually intelligent template names"""
         
         try:
-            logger.info(f"🏷️ Generating smart names for {len(template_architectures)} templates")
+            logger.info(f"️ Generating smart names for {len(template_architectures)} templates")
             
             smart_names = {}
             
@@ -412,11 +412,11 @@ class TemplateEcosystemManager:
             # Ensure name uniqueness across ecosystem
             smart_names = await self._ensure_name_uniqueness(smart_names)
             
-            logger.info(f"🏷️ Generated {len(smart_names)} intelligent template names")
+            logger.info(f"️ Generated {len(smart_names)} intelligent template names")
             return smart_names
             
         except Exception as e:
-            logger.error(f"❌ Smart naming failed: {e}")
+            logger.error(f" Smart naming failed: {e}")
             return await self._generate_fallback_names(template_architectures)
     
     async def _generate_contextual_name(self, architecture: TemplateArchitecture, business_dna: BusinessDNA) -> SmartTemplateName:
@@ -482,7 +482,7 @@ class TemplateEcosystemManager:
     async def build_ecosystem_relationships(self, template_architectures: List[TemplateArchitecture], business_dna: BusinessDNA) -> EcosystemNavigation:
         """Build intelligent relationships between templates"""
         
-        logger.info("🌐 Building template ecosystem relationships")
+        logger.info(" Building template ecosystem relationships")
         
         # Create template hierarchy
         hierarchy = self._build_template_hierarchy(template_architectures)

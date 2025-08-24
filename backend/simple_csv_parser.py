@@ -28,7 +28,7 @@ class SimpleCSVParser:
             
             # Try different delimiters and find the best one
             delimiter = self._detect_delimiter(csv_content.split('\n')[:5])
-            print(f"🔍 Detected delimiter: '{delimiter}'")
+            print(f" Detected delimiter: '{delimiter}'")
             
             # Reset file pointer
             csv_file.seek(0)
@@ -38,7 +38,7 @@ class SimpleCSVParser:
             
             # Get fieldnames to debug
             fieldnames = csv_reader.fieldnames
-            print(f"🔍 CSV columns detected: {fieldnames}")
+            print(f" CSV columns detected: {fieldnames}")
             
             json_records = []
             for row_num, row in enumerate(csv_reader):
@@ -79,14 +79,14 @@ class SimpleCSVParser:
                         json_records.append(clean_row)
                     
                 except Exception as row_error:
-                    print(f"⚠️  Error parsing row {row_num}: {row_error}")
+                    print(f"  Error parsing row {row_num}: {row_error}")
                     continue
             
-            print(f"✅ Parsed {len(json_records)} CSV rows to JSON")
+            print(f" Parsed {len(json_records)} CSV rows to JSON")
             return json_records
             
         except Exception as e:
-            print(f"❌ CSV parsing failed: {e}")
+            print(f" CSV parsing failed: {e}")
             return []
     
     def _detect_delimiter(self, sample_lines: List[str]) -> str:

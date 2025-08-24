@@ -24,9 +24,9 @@ class AIDataAnalyzer:
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         if self.openai_api_key:
             self.openai_client = OpenAI(api_key=self.openai_api_key)
-            logger.info("✅ OpenAI API key configured")
+            logger.info(" OpenAI API key configured")
         else:
-            raise Exception("❌ OpenAI API key REQUIRED - no fallbacks allowed")
+            raise Exception(" OpenAI API key REQUIRED - no fallbacks allowed")
         
         # Initialize enhanced parser with default config
         self.enhanced_parser = enhanced_parser
@@ -41,7 +41,7 @@ class AIDataAnalyzer:
         
         while retry_count < max_retries:
             try:
-                logger.info(f"🔄 Enhanced analysis of {data_format} data for client {client_id} (attempt {retry_count + 1})")
+                logger.info(f" Enhanced analysis of {data_format} data for client {client_id} (attempt {retry_count + 1})")
                 
                 # Step 1: Use enhanced parser for parsing and validation
                 parsed_data, validation_result = await self.enhanced_parser.parse_data(
@@ -57,7 +57,7 @@ class AIDataAnalyzer:
                 # Step 2: Generate data quality report
                 quality_report = await self.enhanced_parser.generate_data_quality_report(parsed_data)
                 
-                logger.info(f"📊 Data quality score: {quality_report.quality_score:.2f}")
+                logger.info(f" Data quality score: {quality_report.quality_score:.2f}")
                 
                 # Step 3: Analyze data structure for schema generation
                 columns = self._analyze_columns_enhanced(parsed_data, quality_report)
@@ -90,28 +90,28 @@ class AIDataAnalyzer:
                     sample_queries=business_insights.get('queries', [])
                 )
                 
-                logger.info(f"✅ Enhanced AI analysis completed for client {client_id}")
-                logger.info(f"📈 Detected: {result.data_type} data with {quality_report.quality_score:.1%} quality")
+                logger.info(f" Enhanced AI analysis completed for client {client_id}")
+                logger.info(f" Detected: {result.data_type} data with {quality_report.quality_score:.1%} quality")
                 
                 return result
                 
             except Exception as e:
                 retry_count += 1
-                logger.warning(f"⚠️ Enhanced analysis attempt {retry_count} failed: {e}")
+                logger.warning(f" Enhanced analysis attempt {retry_count} failed: {e}")
                 
                 if retry_count >= max_retries:
-                    logger.error(f"❌ Enhanced analysis failed after {max_retries} attempts")
+                    logger.error(f" Enhanced analysis failed after {max_retries} attempts")
                     raise Exception(f"AI analysis failed after {max_retries} attempts: {str(e)}")
                 
                 # Exponential backoff
                 wait_time = min(2 ** retry_count + (random.random() * 2), 30)
-                logger.info(f"⏳ Waiting {wait_time:.1f}s before retry...")
+                logger.info(f" Waiting {wait_time:.1f}s before retry...")
                 await asyncio.sleep(wait_time)
     
     async def create_table_and_insert_data(self, ai_result: AIAnalysisResult, parsed_data: pd.DataFrame, client_id: str):
         """High-performance table creation and data insertion using database manager"""
         try:
-            logger.info(f"🚀 Starting high-performance data insertion for client {client_id}")
+            logger.info(f" Starting high-performance data insertion for client {client_id}")
             
             # Step 1: Create the table first
             await self._create_client_table(None, ai_result.table_schema)
@@ -120,7 +120,7 @@ class AIDataAnalyzer:
             clean_records = self._prepare_data_for_insertion(parsed_data)
             
             if not clean_records:
-                logger.warning(f"⚠️  No records to insert for client {client_id}")
+                logger.warning(f"  No records to insert for client {client_id}")
                 return 0
             
             # Step 3: Use optimized batch insert
@@ -136,11 +136,11 @@ class AIDataAnalyzer:
                 client_id, data_format, len(raw_data), rows_inserted
             )
             
-            logger.info(f"✅ High-performance insertion completed: {rows_inserted} rows")
+            logger.info(f" High-performance insertion completed: {rows_inserted} rows")
             return rows_inserted
                 
         except Exception as e:
-            logger.error(f"❌ Optimized data insertion failed: {e}")
+            logger.error(f" Optimized data insertion failed: {e}")
             raise Exception(f"Failed to create table and insert data: {str(e)}")
     
     async def _create_client_table(self, db_client, schema: TableSchema):
@@ -148,19 +148,19 @@ class AIDataAnalyzer:
         try:
             create_table_sql = self._generate_create_table_sql(schema)
             
-            logger.info(f"📊 Creating table: {schema.table_name}")
+            logger.info(f" Creating table: {schema.table_name}")
             
             # Use the database manager to create the table
             manager = get_db_manager()
             success = await manager.create_client_table(schema.table_name, create_table_sql)
             
             if success:
-                logger.info(f"✅ Table {schema.table_name} created successfully")
+                logger.info(f" Table {schema.table_name} created successfully")
             else:
-                logger.warning(f"⚠️  Table creation simulated for {schema.table_name}")
+                logger.warning(f"  Table creation simulated for {schema.table_name}")
                 
         except Exception as e:
-            logger.error(f"❌ Failed to create table {schema.table_name}: {e}")
+            logger.error(f" Failed to create table {schema.table_name}: {e}")
             raise Exception(f"Failed to create client table: {str(e)}")
     
     def _prepare_data_for_insertion(self, parsed_data: pd.DataFrame) -> List[Dict]:
@@ -188,7 +188,7 @@ class AIDataAnalyzer:
     async def insert_data_into_table(self, table_name: str, records: List[Dict], data_format: str = "json"):
         """Insert data into existing table using optimized database manager"""
         try:
-            logger.info(f"⚡ Fast data insertion into {table_name}: {len(records)} records")
+            logger.info(f" Fast data insertion into {table_name}: {len(records)} records")
             
             # Extract client_id from table name
             client_id = None
@@ -200,25 +200,25 @@ class AIDataAnalyzer:
                     client_id = uuid_part.replace("_", "-")
             
             if not client_id:
-                logger.error(f"❌ Could not extract client_id from table name: {table_name}")
+                logger.error(f" Could not extract client_id from table name: {table_name}")
                 return 0
             
             # Use the database manager to insert data
             manager = get_db_manager()
             rows_inserted = await manager.insert_client_data(table_name, records, client_id)
             
-            logger.info(f"✅ Successfully inserted {rows_inserted} records into {table_name}")
+            logger.info(f" Successfully inserted {rows_inserted} records into {table_name}")
             return rows_inserted
             
         except Exception as e:
-            logger.error(f"❌ Failed to insert data into {table_name}: {e}")
+            logger.error(f" Failed to insert data into {table_name}: {e}")
             raise Exception(f"Failed to insert data: {str(e)}")
     
     async def _update_data_uploads_status(self, db_client, client_id: str, data_format: DataFormat, 
                                         file_size: int, rows_processed: int):
         """Update data_uploads table with optimized operations"""
         try:
-            logger.info(f"📝 Updating upload status for client {client_id}")
+            logger.info(f" Updating upload status for client {client_id}")
             
             upload_record = {
                 "client_id": client_id,
@@ -234,12 +234,12 @@ class AIDataAnalyzer:
             response = db_client.table("data_uploads").insert(upload_record).execute()
             
             if response.data:
-                logger.info(f"✅ Upload status updated for client {client_id}")
+                logger.info(f" Upload status updated for client {client_id}")
             else:
-                logger.warning(f"⚠️  Upload status update failed for client {client_id}")
+                logger.warning(f"  Upload status update failed for client {client_id}")
                 
         except Exception as e:
-            logger.error(f"❌ Failed to update upload status: {e}")
+            logger.error(f" Failed to update upload status: {e}")
     
     async def _update_data_uploads_status_optimized(self, client_id: str, data_format: DataFormat, 
                                                   file_size: int, rows_processed: int):
@@ -262,19 +262,19 @@ class AIDataAnalyzer:
             response = client.table("data_uploads").insert(upload_record).execute()
             
             if response.data:
-                logger.info(f"✅ Optimized upload status updated for client {client_id}")
+                logger.info(f" Optimized upload status updated for client {client_id}")
             else:
-                logger.warning(f"⚠️  Optimized upload status update failed for client {client_id}")
+                logger.warning(f"  Optimized upload status update failed for client {client_id}")
                 
         except Exception as e:
-            logger.error(f"❌ Failed to update optimized upload status: {e}")
+            logger.error(f" Failed to update optimized upload status: {e}")
     
     async def get_client_data_optimized(self, client_id: str, start_date: str = None, end_date: str = None) -> Dict[str, Any]:
         """Retrieve client data using optimized database operations with caching.
 
         Accepts optional start_date/end_date ISO strings to return a full-range dataset without sampling."""
         try:
-            logger.info(f"⚡ Fast data retrieval for client {client_id}")
+            logger.info(f" Fast data retrieval for client {client_id}")
 
             manager = get_db_manager()
             result = await manager.fast_client_data_lookup(
@@ -285,12 +285,12 @@ class AIDataAnalyzer:
             result['client_id'] = client_id
 
             logger.info(
-                f"✅ Retrieved {result['row_count']} records in {result.get('query_time', 0):.3f}s"
+                f" Retrieved {result['row_count']} records in {result.get('query_time', 0):.3f}s"
             )
             return result
 
         except Exception as e:
-            logger.error(f"❌ Failed to retrieve client data: {e}")
+            logger.error(f" Failed to retrieve client data: {e}")
             raise Exception(f"Failed to retrieve data: {str(e)}")
     
     def _generate_create_table_sql(self, schema: TableSchema) -> str:
@@ -690,16 +690,16 @@ class AIDataAnalyzer:
                     if key not in ai_response:
                         raise Exception(f"Missing required key in AI response: {key}")
                 
-                logger.info(f"✅ Enhanced AI insights completed - detected {ai_response.get('data_type', 'unknown')} data")
+                logger.info(f" Enhanced AI insights completed - detected {ai_response.get('data_type', 'unknown')} data")
                 return ai_response
                 
             except Exception as e:
                 retry_count += 1
                 wait_time = min(retry_count * 3, 60)
-                logger.warning(f"⚠️ Enhanced AI insights attempt {retry_count} failed: {e}")
+                logger.warning(f" Enhanced AI insights attempt {retry_count} failed: {e}")
                 
                 if retry_count >= max_retries:
-                    logger.error(f"❌ Enhanced AI insights failed after {max_retries} attempts: {e}")
+                    logger.error(f" Enhanced AI insights failed after {max_retries} attempts: {e}")
                     # Return fallback response
                     return {
                         "data_type": "general",
@@ -711,7 +711,7 @@ class AIDataAnalyzer:
                         "kpi_suggestions": ["Total Records", "Data Quality Score"]
                     }
                 
-                logger.info(f"🔄 Retrying enhanced AI call in {wait_time} seconds...")
+                logger.info(f" Retrying enhanced AI call in {wait_time} seconds...")
                 await asyncio.sleep(wait_time)
     
     def _detect_enhanced_data_type(self, df: pd.DataFrame, business_insights: Dict[str, Any]) -> str:

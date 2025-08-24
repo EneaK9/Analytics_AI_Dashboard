@@ -90,13 +90,13 @@ class ComponentDataManager:
                     total_inventory = product.get('quantity', 0) or 0
                     sku = product.get('sku') or product.get('asin')
                     
-                    # 🔥 FIXED: Calculate Amazon outgoing using order_status and number_of_items_unshipped
+                    #  FIXED: Calculate Amazon outgoing using order_status and number_of_items_unshipped
                     outgoing = self._calculate_amazon_outgoing_for_sku(client_id, sku, platform) if sku else 0
                     
                     product_available = max(0, total_inventory - outgoing)
                     available_inventory += product_available
                     
-            logger.info(f"📦 {platform.upper()} Available Inventory: {available_inventory} units")
+            logger.info(f" {platform.upper()} Available Inventory: {available_inventory} units")
             return available_inventory
             
         except Exception as e:
@@ -118,8 +118,8 @@ class ComponentDataManager:
         
         avg_inventory = (begin_inventory + end_inventory) / 2
         
-        logger.info(f"📊 Avg Inventory: begin({current_inventory} + {units_sold}) + end({end_inventory}) / 2 = {avg_inventory}")
-        logger.info(f"📊 Logic: inventory at period start ≈ current({current_inventory}) + sold_since_then({units_sold}) = {begin_inventory}")
+        logger.info(f" Avg Inventory: begin({current_inventory} + {units_sold}) + end({end_inventory}) / 2 = {avg_inventory}")
+        logger.info(f" Logic: inventory at period start ≈ current({current_inventory}) + sold_since_then({units_sold}) = {begin_inventory}")
         
         # Return the actual calculated value - let calling functions handle zero cases appropriately
         return avg_inventory
@@ -195,7 +195,7 @@ class ComponentDataManager:
         return 0
 
     def _calculate_amazon_outgoing_for_sku(self, client_id: str, sku: str, platform: str) -> int:
-        """🔥 NEW: Calculate outgoing inventory for Amazon SKU using order_status and number_of_items_unshipped"""
+        """ NEW: Calculate outgoing inventory for Amazon SKU using order_status and number_of_items_unshipped"""
         if not sku or platform != "amazon":
             return 0
             
@@ -238,7 +238,7 @@ class ComponentDataManager:
                     logger.debug(f"Error processing Amazon order for outgoing calculation: {e}")
                     continue
             
-            logger.info(f"📦 Amazon SKU {sku} outgoing inventory: {outgoing} units from {len(orders)} unshipped orders")
+            logger.info(f" Amazon SKU {sku} outgoing inventory: {outgoing} units from {len(orders)} unshipped orders")
             return outgoing
             
         except Exception as e:
@@ -281,7 +281,7 @@ class ComponentDataManager:
         Get total sales data for a specific platform and date range.
         Sums all order prices for the specified period.
         """
-        logger.info(f"📊 Getting total sales data for {client_id} - {platform} ({start_date} to {end_date})")
+        logger.info(f" Getting total sales data for {client_id} - {platform} ({start_date} to {end_date})")
         
         tables = self._get_table_names(client_id)
         result = {}
@@ -336,11 +336,11 @@ class ComponentDataManager:
                     }
                 }
             
-            logger.info(f"✅ Total sales data retrieved for {platform}")
+            logger.info(f" Total sales data retrieved for {platform}")
             return result
             
         except Exception as e:
-            logger.error(f"❌ Error getting total sales data: {str(e)}")
+            logger.error(f" Error getting total sales data: {str(e)}")
             return {"error": str(e)}
     
     async def _get_platform_sales_data(self, table_name: str, platform: str, start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
@@ -378,11 +378,11 @@ class ComponentDataManager:
             total_units = 0
             
             for order in orders:
-                # 🔥 NEW: Check if order should be counted based on fulfillment status
+                #  NEW: Check if order should be counted based on fulfillment status
                 if self._is_order_fulfilled(order):
                     fulfilled_orders += 1
                     
-                    # 🔥 FIXED: Use proven units extraction method for all platforms
+                    #  FIXED: Use proven units extraction method for all platforms
                     order_value = float(order.get('total_price', 0) or 0)
                     total_revenue += order_value
                     
@@ -391,14 +391,14 @@ class ComponentDataManager:
                     total_units += order_units
                     
                     if order_units > 0:
-                        logger.debug(f"📦 {platform.capitalize()} order: ${order_value:.2f}, {order_units} units")
+                        logger.debug(f" {platform.capitalize()} order: ${order_value:.2f}, {order_units} units")
                 else:
                     filtered_orders += 1
             
             total_orders = fulfilled_orders  # Only count fulfilled orders
             
-            # 🔥 EXPLICIT LOGGING: Debug values for zero inventory cases
-            logger.info(f"📊 {platform} sales calculation: {len(orders)} total orders, {fulfilled_orders} fulfilled, ${total_revenue:.2f} revenue, {total_units} units")
+            #  EXPLICIT LOGGING: Debug values for zero inventory cases
+            logger.info(f" {platform} sales calculation: {len(orders)} total orders, {fulfilled_orders} fulfilled, ${total_revenue:.2f} revenue, {total_units} units")
             
             # Calculate comparison metrics (within-period trend)
             period_days = 30  # default period
@@ -421,7 +421,7 @@ class ComponentDataManager:
             second_half_avg_revenue = second_half_revenue / second_half_days
             
             # Log filtering results
-            logger.info(f"🔥 {platform.upper()} SALES FILTERING: Fulfilled: {fulfilled_orders}, Filtered: {filtered_orders}, Revenue: ${total_revenue:.2f}")
+            logger.info(f" {platform.upper()} SALES FILTERING: Fulfilled: {fulfilled_orders}, Filtered: {filtered_orders}, Revenue: ${total_revenue:.2f}")
             
             return {
                 'total_sales_30_days': {
@@ -442,7 +442,7 @@ class ComponentDataManager:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error getting {platform} sales data: {str(e)}")
+            logger.error(f" Error getting {platform} sales data: {str(e)}")
             return {
                 'total_sales_30_days': {'revenue': 0, 'orders': 0, 'units': 0},
                 'sales_comparison': {'first_half_avg_revenue': 0, 'second_half_avg_revenue': 0, 'growth_rate': 0},
@@ -494,12 +494,12 @@ class ComponentDataManager:
             for order in second_half_orders:
                 second_half_revenue += float(order.get('total_price', 0) or 0)
             
-            logger.debug(f"📊 Within-period trend for {platform}: First half: ${first_half_revenue}, Second half: ${second_half_revenue}")
+            logger.debug(f" Within-period trend for {platform}: First half: ${first_half_revenue}, Second half: ${second_half_revenue}")
             
             return first_half_revenue, second_half_revenue
             
         except Exception as e:
-            logger.error(f"❌ Error getting within-period trend: {str(e)}")
+            logger.error(f" Error getting within-period trend: {str(e)}")
             return 0.0, 0.0
     
     async def _get_platform_turnover_trend(self, client_id: str, platform: str, start_date: Optional[str], end_date: Optional[str], period_days: int) -> tuple[float, float]:
@@ -537,7 +537,7 @@ class ComponentDataManager:
             inventory_value = platform_inventory_data.get('current_total_inventory', 0)
             
             if inventory_value <= 0:
-                logger.warning(f"⚠️ No inventory data available for {platform} trend calculation")
+                logger.warning(f" No inventory data available for {platform} trend calculation")
                 return 0.0, 0.0
             
             # Calculate turnover rates for each half
@@ -545,21 +545,21 @@ class ComponentDataManager:
             first_half_turnover = first_half_revenue / inventory_value if inventory_value > 0 else 0
             second_half_turnover = second_half_revenue / inventory_value if inventory_value > 0 else 0
             
-            logger.debug(f"📊 Turnover trend for {platform}: Revenue trend - First half: ${first_half_revenue:.2f}, Second half: ${second_half_revenue:.2f}")
-            logger.debug(f"📊 Turnover rates - First half: {first_half_turnover:.2f}, Second half: {second_half_turnover:.2f}")
+            logger.debug(f" Turnover trend for {platform}: Revenue trend - First half: ${first_half_revenue:.2f}, Second half: ${second_half_revenue:.2f}")
+            logger.debug(f" Turnover rates - First half: {first_half_turnover:.2f}, Second half: {second_half_turnover:.2f}")
             
             return first_half_turnover, second_half_turnover
             
         except Exception as e:
-            logger.error(f"❌ Error getting platform turnover trend: {str(e)}")
+            logger.error(f" Error getting platform turnover trend: {str(e)}")
             return 0.0, 0.0
     
     async def _get_combined_turnover_trend(self, client_id: str, start_date: Optional[str], end_date: Optional[str], period_days: int, combined_inventory: int) -> tuple[float, float]:
         """Get combined turnover rates for first half and second half of the selected period"""
         try:
-            # 🔥 FIXED: Use passed inventory to ensure consistency and avoid duplicate data calls
+            #  FIXED: Use passed inventory to ensure consistency and avoid duplicate data calls
             if combined_inventory <= 0:
-                logger.warning(f"⚠️ No combined inventory data available for trend calculation (inventory: {combined_inventory})")
+                logger.warning(f" No combined inventory data available for trend calculation (inventory: {combined_inventory})")
                 return 0.0, 0.0
             
             # Get revenue data for both platforms for each half
@@ -589,14 +589,14 @@ class ComponentDataManager:
             combined_first_half = combined_first_revenue / combined_inventory
             combined_second_half = combined_second_revenue / combined_inventory
             
-            logger.debug(f"📊 Combined turnover trend: Revenue - First half: ${combined_first_revenue:.2f}, Second half: ${combined_second_revenue:.2f}")
-            logger.debug(f"📊 Combined inventory: {combined_inventory} (Amazon 0 products case handled)")
-            logger.debug(f"📊 Combined turnover rates - First half: {combined_first_half:.2f}, Second half: {combined_second_half:.2f}")
+            logger.debug(f" Combined turnover trend: Revenue - First half: ${combined_first_revenue:.2f}, Second half: ${combined_second_revenue:.2f}")
+            logger.debug(f" Combined inventory: {combined_inventory} (Amazon 0 products case handled)")
+            logger.debug(f" Combined turnover rates - First half: {combined_first_half:.2f}, Second half: {combined_second_half:.2f}")
             
             return combined_first_half, combined_second_half
             
         except Exception as e:
-            logger.error(f"❌ Error getting combined turnover trend: {str(e)}")
+            logger.error(f" Error getting combined turnover trend: {str(e)}")
             return 0.0, 0.0
     
     async def get_inventory_levels_data(self, client_id: str, platform: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
@@ -604,7 +604,7 @@ class ComponentDataManager:
         Get inventory levels data for timeline charts.
         Returns daily inventory data for the specified date range.
         """
-        logger.info(f"📈 Getting inventory levels data for {client_id} - {platform} ({start_date} to {end_date})")
+        logger.info(f" Getting inventory levels data for {client_id} - {platform} ({start_date} to {end_date})")
         
         tables = self._get_table_names(client_id)
         result = {}
@@ -628,11 +628,11 @@ class ComponentDataManager:
                     result.get('shopify', {}), result.get('amazon', {})
                 )
             
-            logger.info(f"✅ Inventory levels data retrieved for {platform}")
+            logger.info(f" Inventory levels data retrieved for {platform}")
             return result
             
         except Exception as e:
-            logger.error(f"❌ Error getting inventory levels data: {str(e)}")
+            logger.error(f" Error getting inventory levels data: {str(e)}")
             return {"error": str(e)}
     
     async def _get_platform_inventory_levels(self, table_name: str, platform: str, start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
@@ -644,9 +644,9 @@ class ComponentDataManager:
             products_response = db_client.table(table_name).select("*").execute()
             products = products_response.data or []
             
-            # 🚨 CRITICAL: If no products exist, return empty inventory levels immediately
+            #  CRITICAL: If no products exist, return empty inventory levels immediately
             if not products:
-                logger.info(f"📦 No products found in {table_name} for {platform} - returning empty inventory levels")
+                logger.info(f" No products found in {table_name} for {platform} - returning empty inventory levels")
                 
                 # Generate empty timeline for the date range
                 start_dt = self._parse_date(start_date)
@@ -690,7 +690,7 @@ class ComponentDataManager:
             elif platform == "amazon":
                 orders_table = table_name.replace('_amazon_products', '_amazon_orders')
             else:
-                logger.error(f"❌ Unknown platform: {platform}")
+                logger.error(f" Unknown platform: {platform}")
                 return {'inventory_levels_chart': [], 'current_total_inventory': 0, 'error': 'Unknown platform'}
             
             # Parse dates first
@@ -721,14 +721,14 @@ class ComponentDataManager:
             orders_response = orders_query.execute()
             all_orders_since_start = orders_response.data or []
             
-            logger.info(f"🔍 INVENTORY CALCULATION (NEW LOGIC):")
-            logger.info(f"   📊 Products: {len(products)}, Orders since start: {len(all_orders_since_start)}")
-            logger.info(f"   📊 Platform: {platform}, Date range: {start_date} to {end_date}")
-            logger.info(f"   📊 Orders table: {orders_table}, Query: {start_date} to NOW")
+            logger.info(f" INVENTORY CALCULATION (NEW LOGIC):")
+            logger.info(f"    Products: {len(products)}, Orders since start: {len(all_orders_since_start)}")
+            logger.info(f"    Platform: {platform}, Date range: {start_date} to {end_date}")
+            logger.info(f"    Orders table: {orders_table}, Query: {start_date} to NOW")
             
             # Debug: Show sample orders if any exist
             if all_orders_since_start:
-                logger.info(f"📋 Sample order data (first 3):")
+                logger.info(f" Sample order data (first 3):")
                 for i, order in enumerate(all_orders_since_start[:3]):
                     logger.info(f"   Order {i+1}: created_at={order.get('created_at')}")
                     logger.info(f"   Order {i+1}: available columns: {list(order.keys())}")
@@ -749,7 +749,7 @@ class ComponentDataManager:
                             logger.info(f"   Order {i+1}: raw_data parse error: {e}")
                     logger.info("   " + "-" * 50)
             else:
-                logger.warning(f"⚠️ NO ORDERS FOUND since {start_date}")
+                logger.warning(f" NO ORDERS FOUND since {start_date}")
                 logger.info(f"   Debug: Query was for table '{orders_table}' from {start_date} to NOW")
                 
                 # Debug: Check what orders actually exist in the database
@@ -757,14 +757,14 @@ class ComponentDataManager:
                     all_orders_response = db_client.table(orders_table).select("*").limit(5).execute()
                     all_orders = all_orders_response.data or []
                     if all_orders:
-                        logger.info(f"   📅 Sample order data from database:")
+                        logger.info(f"    Sample order data from database:")
                         for i, order in enumerate(all_orders[:2]):
                             logger.info(f"   Order {i+1}: created_at={order.get('created_at', 'N/A')[:10]}")
                             logger.info(f"   Order {i+1}: columns: {list(order.keys())}")
                     else:
-                        logger.warning(f"   ❌ NO ORDERS found in table '{orders_table}' at all!")
+                        logger.warning(f"    NO ORDERS found in table '{orders_table}' at all!")
                 except Exception as e:
-                    logger.error(f"   ❌ Error checking order dates: {e}")
+                    logger.error(f"    Error checking order dates: {e}")
             
             # Step 1: Calculate current total inventory
             current_total_inventory = 0
@@ -802,7 +802,7 @@ class ComponentDataManager:
                 
                 current_total_inventory += inventory
             
-            logger.info(f"📦 Current total inventory: {current_total_inventory}")
+            logger.info(f" Current total inventory: {current_total_inventory}")
             
             # Step 2: Calculate total units sold from start_date to NOW
             total_units_sold_since_start = 0
@@ -827,19 +827,19 @@ class ComponentDataManager:
             
             # Log extraction debugging
             if units_extraction_debug:
-                logger.info(f"🔍 UNITS EXTRACTION DEBUG:")
+                logger.info(f" UNITS EXTRACTION DEBUG:")
                 for debug_info in units_extraction_debug:
                     logger.info(f"   Order {debug_info['order_id']} ({debug_info['date']}):")
                     logger.info(f"     lines_of_item: {debug_info['lines_of_item']}")
                     logger.info(f"     line_items_count: {debug_info['line_items_count']}")
                     logger.info(f"     quantity: {debug_info['quantity']}")
-                    logger.info(f"     ✅ EXTRACTED UNITS: {debug_info['extracted_units']}")
+                    logger.info(f"      EXTRACTED UNITS: {debug_info['extracted_units']}")
                     logger.info("     " + "-" * 30)
             
             logger.info(f"🧮 CALCULATION BREAKDOWN:")
-            logger.info(f"   📊 Current inventory: {current_total_inventory}")
-            logger.info(f"   🛒 Units sold since {start_date}: {total_units_sold_since_start}")
-            logger.info(f"   🔥 Using BACKWARDS calculation approach (no need for start_date inventory)")
+            logger.info(f"    Current inventory: {current_total_inventory}")
+            logger.info(f"    Units sold since {start_date}: {total_units_sold_since_start}")
+            logger.info(f"    Using BACKWARDS calculation approach (no need for start_date inventory)")
             
             # Step 4: Calculate daily sales within the selected period
             daily_sales_in_period = {}
@@ -853,21 +853,21 @@ class ComponentDataManager:
                     daily_sales_in_period[date_key] = daily_sales_in_period.get(date_key, 0) + units
                     period_orders_processed += 1
             
-            logger.info(f"📊 PERIOD SALES SUMMARY:")
+            logger.info(f" PERIOD SALES SUMMARY:")
             logger.info(f"   - Orders in selected period: {period_orders_processed}")
             logger.info(f"   - Days with sales: {len(daily_sales_in_period)}")
             logger.info(f"   - Total period sales: {sum(daily_sales_in_period.values())}")
             if daily_sales_in_period:
                 logger.info(f"   - Sample daily sales: {dict(list(daily_sales_in_period.items())[:3])}")
             else:
-                logger.warning(f"   ⚠️ NO SALES found in period {start_date} to {end_date}")
+                logger.warning(f"    NO SALES found in period {start_date} to {end_date}")
             
-            # 🔥 Step 5: Create timeline working BACKWARDS from current date (user's suggested approach!)
+            #  Step 5: Create timeline working BACKWARDS from current date (user's suggested approach!)
             timeline_data = []
             
-            logger.info(f"🔥 NEW BACKWARDS CALCULATION APPROACH:")
-            logger.info(f"   📊 Current inventory (today): {current_total_inventory}")
-            logger.info(f"   📅 Working backwards from {end_dt.date()} to {start_dt.date()}")
+            logger.info(f" NEW BACKWARDS CALCULATION APPROACH:")
+            logger.info(f"    Current inventory (today): {current_total_inventory}")
+            logger.info(f"    Working backwards from {end_dt.date()} to {start_dt.date()}")
             
             # Generate list of dates from end to start (backwards)
             dates_backwards = []
@@ -889,7 +889,7 @@ class ComponentDataManager:
                     logger.info(f"   {date_key} (today): {inventory_level} (current inventory)")
                 else:
                     # Previous days: current_inventory + cumulative_units_sold_since_this_day
-                    # 🔥 FIXED: Add current day's sales to cumulative for next iteration
+                    #  FIXED: Add current day's sales to cumulative for next iteration
                     # We need inventory BEFORE this day's sales were sold
                     inventory_level = current_total_inventory + cumulative_units_sold_backwards
                     
@@ -911,7 +911,7 @@ class ComponentDataManager:
             # Sort timeline_data by date (ascending) since we built it backwards
             timeline_data.sort(key=lambda x: x['date'])
             
-            logger.info(f"📊 BACKWARDS calculation completed:")
+            logger.info(f" BACKWARDS calculation completed:")
             logger.info(f"   - Generated {len(timeline_data)} daily inventory points")
             logger.info(f"   - Sample final timeline (first 3 days):")
             for item in timeline_data[:3]:
@@ -932,7 +932,7 @@ class ComponentDataManager:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error getting {platform} inventory levels: {str(e)}")
+            logger.error(f" Error getting {platform} inventory levels: {str(e)}")
             return {
                 'inventory_levels_chart': [],
                 'current_total_inventory': 0,
@@ -980,7 +980,7 @@ class ComponentDataManager:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error combining inventory timelines: {str(e)}")
+            logger.error(f" Error combining inventory timelines: {str(e)}")
             return {
                 'inventory_levels_chart': [],
                 'current_total_inventory': 0,
@@ -989,7 +989,7 @@ class ComponentDataManager:
     
     async def get_inventory_turnover_data(self, client_id: str, platform: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
         """Get inventory turnover data for the specified period with within-period trend analysis"""
-        logger.info(f"🔄 Getting inventory turnover data for {client_id} - {platform}")
+        logger.info(f" Getting inventory turnover data for {client_id} - {platform}")
         
         try:
             # Get sales and inventory data
@@ -1007,7 +1007,7 @@ class ComponentDataManager:
             result = {}
             
             if platform == "combined":
-                # 🔥 FIXED: Use IDENTICAL data sources as individual calculations to ensure consistency
+                #  FIXED: Use IDENTICAL data sources as individual calculations to ensure consistency
                 # Get Shopify data using same method as individual Shopify calculation
                 shopify_sales_data = await self.get_total_sales_data(client_id, "shopify", start_date, end_date)
                 shopify_inventory_data = await self.get_inventory_levels_data(client_id, "shopify", start_date, end_date)
@@ -1030,21 +1030,21 @@ class ComponentDataManager:
                 total_sales_revenue = shopify_revenue + amazon_revenue
                 total_inventory = shopify_inventory + amazon_inventory
                 
-                # 🔥 DEBUG: Log combined platform values using new consistent data sources
-                logger.info(f"🔍 COMBINED DEBUG: total_inventory={total_inventory} (Shopify: {shopify_inventory}, Amazon: {amazon_inventory})")
-                logger.info(f"🔍 COMBINED DEBUG: total_sales_revenue=${total_sales_revenue:.2f} (Shopify: ${shopify_revenue:.2f}, Amazon: ${amazon_revenue:.2f})")
-                logger.info(f"🔍 COMBINED DEBUG: total_units_sold={total_units_sold} (Shopify: {shopify_units}, Amazon: {amazon_units})")
+                #  DEBUG: Log combined platform values using new consistent data sources
+                logger.info(f" COMBINED DEBUG: total_inventory={total_inventory} (Shopify: {shopify_inventory}, Amazon: {amazon_inventory})")
+                logger.info(f" COMBINED DEBUG: total_sales_revenue=${total_sales_revenue:.2f} (Shopify: ${shopify_revenue:.2f}, Amazon: ${amazon_revenue:.2f})")
+                logger.info(f" COMBINED DEBUG: total_units_sold={total_units_sold} (Shopify: {shopify_units}, Amazon: {amazon_units})")
                 
                 if amazon_inventory == 0:
-                    logger.info("🔍 COMBINED DEBUG: Amazon has 0 products - combined = Shopify only")
+                    logger.info(" COMBINED DEBUG: Amazon has 0 products - combined = Shopify only")
                 
-                # 🔥 CONSISTENCY CHECK: Log individual vs combined data comparison
-                logger.info(f"🔍 CONSISTENCY: Shopify individual calculation will use: {shopify_units} units, {shopify_inventory} inventory")
-                logger.info(f"🔍 CONSISTENCY: Amazon individual calculation will use: {amazon_units} units, {amazon_inventory} inventory")
+                #  CONSISTENCY CHECK: Log individual vs combined data comparison
+                logger.info(f" CONSISTENCY: Shopify individual calculation will use: {shopify_units} units, {shopify_inventory} inventory")
+                logger.info(f" CONSISTENCY: Amazon individual calculation will use: {amazon_units} units, {amazon_inventory} inventory")
                 
-                # 🔥 CRITICAL DEBUG: Check combined units vs revenue consistency
+                #  CRITICAL DEBUG: Check combined units vs revenue consistency
                 if total_sales_revenue > 0 and total_units_sold == 0:
-                    logger.warning(f"🚨 COMBINED CRITICAL ISSUE: Has revenue (${total_sales_revenue:.2f}) but 0 units!")
+                    logger.warning(f" COMBINED CRITICAL ISSUE: Has revenue (${total_sales_revenue:.2f}) but 0 units!")
                     
                     # Try to estimate from orders using new consistent data sources
                     shopify_orders = shopify_sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('orders', 0)
@@ -1053,12 +1053,12 @@ class ComponentDataManager:
                     
                     if total_orders > 0:
                         estimated_units = int(total_orders * 1.5)  # Rough estimate
-                        logger.warning(f"🔧 COMBINED WORKAROUND: Estimating {estimated_units} units from {total_orders} orders")
+                        logger.warning(f" COMBINED WORKAROUND: Estimating {estimated_units} units from {total_orders} orders")
                         total_units_sold = estimated_units
                 
-                # 🔥 EXTRA SAFETY: If no combined inventory, return 0 immediately
+                #  EXTRA SAFETY: If no combined inventory, return 0 immediately
                 if total_inventory == 0:
-                    logger.info(f"📊 COMBINED: No inventory (${total_sales_revenue:.2f} sales, {total_units_sold} units) - returning 0 turnover")
+                    logger.info(f" COMBINED: No inventory (${total_sales_revenue:.2f} sales, {total_units_sold} units) - returning 0 turnover")
                     result = {
                         'inventory_turnover_ratio': 0,
                         'avg_days_to_sell': 999,
@@ -1076,29 +1076,29 @@ class ComponentDataManager:
                             'days': period_days
                         }
                     }
-                    logger.info(f"✅ Inventory turnover data calculated for combined (no inventory)")
+                    logger.info(f" Inventory turnover data calculated for combined (no inventory)")
                     return result
                 
                 average_inventory = self._calculate_average_inventory(total_inventory, total_units_sold, period_days)
-                # 🔥 FIXED: Use units-based turnover calculation (units sold / average inventory units)
+                #  FIXED: Use units-based turnover calculation (units sold / average inventory units)
                 # This ensures consistent units and logical combined calculations
                 turnover_rate = total_units_sold / average_inventory if average_inventory > 0 and total_units_sold > 0 else 0
                 
-                logger.info(f"📊 COMBINED TURNOVER: {total_units_sold} units sold / {average_inventory} avg inventory = {turnover_rate:.2f}x")
+                logger.info(f" COMBINED TURNOVER: {total_units_sold} units sold / {average_inventory} avg inventory = {turnover_rate:.2f}x")
                 
-                # 🔥 MATHEMATICAL VALIDATION: Combined should never exceed max individual platform
+                #  MATHEMATICAL VALIDATION: Combined should never exceed max individual platform
                 shopify_avg_inventory = self._calculate_average_inventory(shopify_inventory, shopify_units, period_days)
                 shopify_turnover = shopify_units / shopify_avg_inventory if shopify_avg_inventory > 0 and shopify_units > 0 else 0
                 amazon_avg_inventory = self._calculate_average_inventory(amazon_inventory, amazon_units, period_days)  
                 amazon_turnover = amazon_units / amazon_avg_inventory if amazon_avg_inventory > 0 and amazon_units > 0 else 0
                 max_individual_turnover = max(shopify_turnover, amazon_turnover)
                 
-                logger.info(f"🔍 VALIDATION: Shopify individual turnover = {shopify_turnover:.2f}x, Amazon = {amazon_turnover:.2f}x")
-                logger.info(f"🔍 VALIDATION: Combined turnover = {turnover_rate:.2f}x (should be ≤ {max_individual_turnover:.2f}x)")
+                logger.info(f" VALIDATION: Shopify individual turnover = {shopify_turnover:.2f}x, Amazon = {amazon_turnover:.2f}x")
+                logger.info(f" VALIDATION: Combined turnover = {turnover_rate:.2f}x (should be ≤ {max_individual_turnover:.2f}x)")
                 
                 if turnover_rate > max_individual_turnover * 1.01:  # Allow 1% tolerance for rounding
-                    logger.warning(f"🚨 MATHEMATICAL ERROR: Combined turnover ({turnover_rate:.2f}x) > max individual ({max_individual_turnover:.2f}x)!")
-                    logger.warning("🚨 This violates basic mathematical logic - investigating data inconsistency")
+                    logger.warning(f" MATHEMATICAL ERROR: Combined turnover ({turnover_rate:.2f}x) > max individual ({max_individual_turnover:.2f}x)!")
+                    logger.warning(" This violates basic mathematical logic - investigating data inconsistency")
                 
                 avg_days_to_sell = 365 / turnover_rate if turnover_rate > 0 else 999
                 
@@ -1125,10 +1125,10 @@ class ComponentDataManager:
                     }
                 }
                 
-                # 🔥 FINAL DEBUG: Log the combined result
-                logger.info(f"🎯 COMBINED FINAL RESULT: turnover_ratio={result.get('inventory_turnover_ratio', 'N/A')}")
+                #  FINAL DEBUG: Log the combined result
+                logger.info(f" COMBINED FINAL RESULT: turnover_ratio={result.get('inventory_turnover_ratio', 'N/A')}")
             else:
-                # 🔥 FIXED: Calculate for specific platform using total_sales/average_inventory
+                #  FIXED: Calculate for specific platform using total_sales/average_inventory
                 platform_sales = sales_data.get(platform, {})
                 platform_inventory = inventory_data.get(platform, {})
                 
@@ -1136,28 +1136,28 @@ class ComponentDataManager:
                 sales_revenue = platform_sales.get('total_sales_30_days', {}).get('revenue', 0)
                 inventory = platform_inventory.get('current_total_inventory', 0)
                 
-                # 🔥 DEBUG: Log all values for debugging
-                logger.info(f"🔍 {platform} DEBUG: inventory={inventory}, sales_revenue=${sales_revenue:.2f}, units_sold={units_sold}")
+                #  DEBUG: Log all values for debugging
+                logger.info(f" {platform} DEBUG: inventory={inventory}, sales_revenue=${sales_revenue:.2f}, units_sold={units_sold}")
                 
-                # 🔥 CRITICAL DEBUG: Check if we have revenue but no units
+                #  CRITICAL DEBUG: Check if we have revenue but no units
                 if sales_revenue > 0 and units_sold == 0:
-                    logger.warning(f"🚨 {platform} CRITICAL ISSUE: Has revenue (${sales_revenue:.2f}) but 0 units! Checking sales data structure...")
-                    logger.warning(f"🚨 Sales data keys: {list(platform_sales.keys())}")
+                    logger.warning(f" {platform} CRITICAL ISSUE: Has revenue (${sales_revenue:.2f}) but 0 units! Checking sales data structure...")
+                    logger.warning(f" Sales data keys: {list(platform_sales.keys())}")
                     if 'total_sales_30_days' in platform_sales:
-                        logger.warning(f"🚨 total_sales_30_days content: {platform_sales['total_sales_30_days']}")
+                        logger.warning(f" total_sales_30_days content: {platform_sales['total_sales_30_days']}")
                     
-                    # 🔥 TEMPORARY WORKAROUND: Estimate units from orders count if available
+                    #  TEMPORARY WORKAROUND: Estimate units from orders count if available
                     orders_count = platform_sales.get('total_sales_30_days', {}).get('orders', 0)
                     if orders_count > 0:
                         # Rough estimate: assume 1.5 units per order on average
                         estimated_units = int(orders_count * 1.5)
-                        logger.warning(f"🔧 WORKAROUND: Estimating {estimated_units} units from {orders_count} orders")
+                        logger.warning(f" WORKAROUND: Estimating {estimated_units} units from {orders_count} orders")
                         units_sold = estimated_units
                 
-                # 🔥 EXTRA SAFETY: If no inventory, return 0 immediately regardless of sales
+                #  EXTRA SAFETY: If no inventory, return 0 immediately regardless of sales
                 # Can't have inventory turnover without inventory!
                 if inventory == 0:
-                    logger.info(f"📊 {platform}: No inventory (${sales_revenue:.2f} sales, {units_sold} units) - returning 0 turnover")
+                    logger.info(f" {platform}: No inventory (${sales_revenue:.2f} sales, {units_sold} units) - returning 0 turnover")
                     result = {
                         'inventory_turnover_ratio': 0,
                         'avg_days_to_sell': 999,
@@ -1175,16 +1175,16 @@ class ComponentDataManager:
                             'days': period_days
                         }
                     }
-                    logger.info(f"✅ Inventory turnover data calculated for {platform} (no activity)")
+                    logger.info(f" Inventory turnover data calculated for {platform} (no activity)")
                     return result
                 
                 average_inventory = self._calculate_average_inventory(inventory, units_sold, period_days)
                 
-                # 🔥 FIXED: Use units-based turnover calculation (units sold / average inventory units)
+                #  FIXED: Use units-based turnover calculation (units sold / average inventory units)
                 # This ensures consistent units across all platforms
                 turnover_rate = units_sold / average_inventory if average_inventory > 0 and units_sold > 0 else 0
                 
-                logger.info(f"📊 {platform.upper()} TURNOVER: {units_sold} units sold / {average_inventory} avg inventory = {turnover_rate:.2f}x")
+                logger.info(f" {platform.upper()} TURNOVER: {units_sold} units sold / {average_inventory} avg inventory = {turnover_rate:.2f}x")
                 avg_days_to_sell = 365 / turnover_rate if turnover_rate > 0 else 999
                 
                 # Get within-period turnover trend
@@ -1210,13 +1210,13 @@ class ComponentDataManager:
                     }
                 }
             
-            # 🔥 FINAL DEBUG: Log the final result  
-            logger.info(f"🎯 {platform} FINAL RESULT: turnover_ratio={result.get('inventory_turnover_ratio', 'N/A')}")
-            logger.info(f"✅ Inventory turnover data calculated for {platform}")
+            #  FINAL DEBUG: Log the final result  
+            logger.info(f" {platform} FINAL RESULT: turnover_ratio={result.get('inventory_turnover_ratio', 'N/A')}")
+            logger.info(f" Inventory turnover data calculated for {platform}")
             return result
             
         except Exception as e:
-            logger.error(f"❌ Error getting inventory turnover data: {str(e)}")
+            logger.error(f" Error getting inventory turnover data: {str(e)}")
             return {
                 'inventory_turnover_ratio': 0,
                 'avg_days_to_sell': 999,
@@ -1233,7 +1233,7 @@ class ComponentDataManager:
     
     async def get_days_of_stock_data(self, client_id: str, platform: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
         """Get days of stock remaining data"""
-        logger.info(f"📅 Getting days of stock data for {client_id} - {platform}")
+        logger.info(f" Getting days of stock data for {client_id} - {platform}")
         
         try:
             # Get sales velocity and current inventory
@@ -1248,7 +1248,7 @@ class ComponentDataManager:
                     sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('units', 0)
                 )
                 
-                # 🔥 DAYS OF STOCK WORKAROUND: Check for units consistency
+                #  DAYS OF STOCK WORKAROUND: Check for units consistency
                 combined_revenue = (
                     sales_data.get('shopify', {}).get('total_sales_30_days', {}).get('revenue', 0) +
                     sales_data.get('amazon', {}).get('total_sales_30_days', {}).get('revenue', 0)
@@ -1260,9 +1260,9 @@ class ComponentDataManager:
                     )
                     if combined_orders > 0:
                         total_units_sold = int(combined_orders * 1.5)
-                        logger.warning(f"🔧 DAYS OF STOCK COMBINED: Estimated {total_units_sold} units from {combined_orders} orders")
+                        logger.warning(f" DAYS OF STOCK COMBINED: Estimated {total_units_sold} units from {combined_orders} orders")
                 
-                # 🔥 FIXED: Use available inventory for combined platforms
+                #  FIXED: Use available inventory for combined platforms
                 available_inventory = (
                     self._get_available_inventory_for_platform(client_id, "shopify") +
                     self._get_available_inventory_for_platform(client_id, "amazon")
@@ -1271,14 +1271,14 @@ class ComponentDataManager:
             else:
                 total_units_sold = sales_data.get(platform, {}).get('total_sales_30_days', {}).get('units', 0)
                 
-                # 🔥 DAYS OF STOCK WORKAROUND: Check for units consistency (single platform)
+                #  DAYS OF STOCK WORKAROUND: Check for units consistency (single platform)
                 platform_revenue = sales_data.get(platform, {}).get('total_sales_30_days', {}).get('revenue', 0)
                 if platform_revenue > 0 and total_units_sold == 0:
                     platform_orders = sales_data.get(platform, {}).get('total_sales_30_days', {}).get('orders', 0)
                     if platform_orders > 0:
                         total_units_sold = int(platform_orders * 1.5)
-                        logger.warning(f"🔧 DAYS OF STOCK {platform}: Estimated {total_units_sold} units from {platform_orders} orders")
-                # 🔥 FIXED: Use available inventory for specific platform  
+                        logger.warning(f" DAYS OF STOCK {platform}: Estimated {total_units_sold} units from {platform_orders} orders")
+                #  FIXED: Use available inventory for specific platform  
                 available_inventory = self._get_available_inventory_for_platform(client_id, platform)
                 total_inventory = inventory_data.get(platform, {}).get('current_total_inventory', 0)  # Keep for other metrics
             
@@ -1291,7 +1291,7 @@ class ComponentDataManager:
                     period_days = max((end_dt - start_dt).days + 1, 1)  # Include both start and end dates
             
             daily_sales_velocity = total_units_sold / period_days if period_days > 0 else 0
-            # 🔥 FIXED: Days of stock using available inventory (on-hand) instead of total inventory
+            #  FIXED: Days of stock using available inventory (on-hand) instead of total inventory
             days_of_stock = available_inventory / max(daily_sales_velocity, 1) if daily_sales_velocity > 0 else 999
             
             # Categorize stock levels - Note: This is simplified for aggregate view
@@ -1310,19 +1310,19 @@ class ComponentDataManager:
                 'period_days': period_days
             }
             
-            logger.info(f"✅ Days of stock data calculated for {platform}")
+            logger.info(f" Days of stock data calculated for {platform}")
             return result
             
         except Exception as e:
-            logger.error(f"❌ Error getting days of stock data: {str(e)}")
+            logger.error(f" Error getting days of stock data: {str(e)}")
             return {"error": str(e)}
 
     async def get_units_sold_data(self, client_id: str, platform: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
         """Get units sold data using real orders data with CONSISTENT date filtering"""
-        logger.info(f"📊 UNITS SOLD REQUEST - Getting data for {client_id} - {platform} ({start_date} to {end_date})")
+        logger.info(f" UNITS SOLD REQUEST - Getting data for {client_id} - {platform} ({start_date} to {end_date})")
         
         tables = self._get_table_names(client_id)
-        logger.info(f"📊 UNITS SOLD - Tables available: {tables}")
+        logger.info(f" UNITS SOLD - Tables available: {tables}")
         result = {}
         
         try:
@@ -1359,12 +1359,12 @@ class ComponentDataManager:
                 }
             
             # Log final summary
-            logger.info(f"✅ UNITS SOLD FINAL RESULT for {platform}:")
+            logger.info(f" UNITS SOLD FINAL RESULT for {platform}:")
             for platform_key, platform_result in result.items():
                 if isinstance(platform_result, dict) and 'units_sold_chart' in platform_result:
                     chart_data = platform_result['units_sold_chart']
                     total_units = sum(item['units_sold'] for item in chart_data) if chart_data else 0
-                    logger.info(f"   📊 {platform_key}: {len(chart_data)} data points, {total_units} total units")
+                    logger.info(f"    {platform_key}: {len(chart_data)} data points, {total_units} total units")
                     if chart_data:
                         logger.info(f"      First: {chart_data[0]}")
                         logger.info(f"      Last: {chart_data[-1]}")
@@ -1372,7 +1372,7 @@ class ComponentDataManager:
             return result
             
         except Exception as e:
-            logger.error(f"❌ Error getting units sold data: {str(e)}")
+            logger.error(f" Error getting units sold data: {str(e)}")
             return {"error": str(e)}
     
     async def _get_platform_units_sold(self, table_name: str, platform: str, start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
@@ -1388,23 +1388,23 @@ class ComponentDataManager:
                 start_dt = self._parse_date(start_date)
                 if start_dt:
                     query = query.gte("created_at", start_dt.isoformat())
-                    logger.info(f"📅 UNITS SOLD - Filtering orders >= {start_dt.isoformat()}")
+                    logger.info(f" UNITS SOLD - Filtering orders >= {start_dt.isoformat()}")
             
             if end_date:
                 end_dt = self._parse_date(end_date)
                 if end_dt:
                     query = query.lte("created_at", end_dt.isoformat())
-                    logger.info(f"📅 UNITS SOLD - Filtering orders <= {end_dt.isoformat()}")
+                    logger.info(f" UNITS SOLD - Filtering orders <= {end_dt.isoformat()}")
             
             # Execute query with filters
             orders_response = query.execute()
             orders = orders_response.data or []
             
-            logger.info(f"🔍 UNITS SOLD DEBUG - Platform: {platform}, Orders: {len(orders)}")
+            logger.info(f" UNITS SOLD DEBUG - Platform: {platform}, Orders: {len(orders)}")
             
             # Sample a few orders to understand the data structure
             if orders:
-                logger.info(f"📊 SAMPLE ORDER DATA STRUCTURE:")
+                logger.info(f" SAMPLE ORDER DATA STRUCTURE:")
                 for i, order in enumerate(orders[:3]):  # Sample first 3 orders
                     logger.info(f"   Order {i+1}: {list(order.keys())}")
                     logger.info(f"   Order {i+1} sample values:")
@@ -1442,8 +1442,8 @@ class ComponentDataManager:
                     if i >= 2:  # Only show first 3 orders
                         break
             else:
-                logger.warning(f"⚠️ NO ORDERS FOUND in table {table_name} after date filtering!")
-                logger.warning(f"⚠️ Check if orders exist in the date range {start_date} to {end_date}")
+                logger.warning(f" NO ORDERS FOUND in table {table_name} after date filtering!")
+                logger.warning(f" Check if orders exist in the date range {start_date} to {end_date}")
             
             timeline_data = []
             
@@ -1451,19 +1451,19 @@ class ComponentDataManager:
                 start_dt = self._parse_date(start_date)
                 end_dt = self._parse_date(end_date)
                 
-                logger.info(f"📅 PARSED DATE RANGE: {start_dt} to {end_dt}")
+                logger.info(f" PARSED DATE RANGE: {start_dt} to {end_dt}")
                 
                 # Check if dates are realistic
                 from datetime import datetime
                 current_year = datetime.now().year
                 if start_dt and start_dt.year > current_year:
-                    logger.warning(f"⚠️ FUTURE DATE DETECTED: {start_dt.year} > {current_year}")
-                    logger.warning(f"⚠️ You selected dates in {start_dt.year} - check if you have orders in the future!")
+                    logger.warning(f" FUTURE DATE DETECTED: {start_dt.year} > {current_year}")
+                    logger.warning(f" You selected dates in {start_dt.year} - check if you have orders in the future!")
                 
                 if start_dt and end_dt:
-                    # 🔥 FIXED: Filter orders by fulfillment status before calculating daily sales
+                    #  FIXED: Filter orders by fulfillment status before calculating daily sales
                     fulfilled_orders = [order for order in orders if self._is_order_fulfilled(order)]
-                    logger.info(f"🔥 UNITS SOLD FILTERING: {len(orders)} total orders → {len(fulfilled_orders)} fulfilled orders")
+                    logger.info(f" UNITS SOLD FILTERING: {len(orders)} total orders → {len(fulfilled_orders)} fulfilled orders")
                     
                     # Calculate daily sales from fulfilled orders only
                     daily_sales = await self._calculate_daily_sales_from_orders(fulfilled_orders, platform, start_dt, end_dt)
@@ -1493,7 +1493,7 @@ class ComponentDataManager:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error getting {platform} units sold: {str(e)}")
+            logger.error(f" Error getting {platform} units sold: {str(e)}")
             return {
                 'units_sold_chart': [],
                 'total_units_sold': 0,
@@ -1511,7 +1511,7 @@ class ComponentDataManager:
             daily_sales[date_str] = 0
             current_date += timedelta(days=1)
         
-        logger.info(f"🔍 Processing {len(orders)} FULFILLED orders for daily units sold calculation ({platform})")
+        logger.info(f" Processing {len(orders)} FULFILLED orders for daily units sold calculation ({platform})")
         
         orders_processed = 0
         orders_with_units = 0
@@ -1525,20 +1525,20 @@ class ComponentDataManager:
                 created_at = order.get('created_at')
                 if not created_at:
                     if orders_processed <= 5:  # Log first few
-                        logger.info(f"📅 Order {orders_processed}: No created_at date")
+                        logger.info(f" Order {orders_processed}: No created_at date")
                     continue
                     
                 order_date = self._parse_date(created_at)
                 if not order_date:
                     if orders_processed <= 5:  # Log first few
-                        logger.info(f"📅 Order {orders_processed}: Could not parse date {created_at}")
+                        logger.info(f" Order {orders_processed}: Could not parse date {created_at}")
                     continue
                 
                 date_str = order_date.strftime('%Y-%m-%d')
                 units_sold = 0
                 
                 if orders_processed <= 5:  # Log first few orders for debugging
-                    logger.info(f"📦 Processing Order {orders_processed}: {order.get('order_number', 'Unknown')} on {date_str}")
+                    logger.info(f" Processing Order {orders_processed}: {order.get('order_number', 'Unknown')} on {date_str}")
                 
                 if platform == "shopify":
                     # Extract line items from Shopify orders with comprehensive fallbacks
@@ -1558,26 +1558,26 @@ class ComponentDataManager:
                                         quantity = int(item.get('quantity', 0) or 0)
                                         units_sold += quantity
                                         if orders_processed <= 5:
-                                            logger.info(f"     🛍️ Line item quantity: {quantity}")
+                                            logger.info(f"     ️ Line item quantity: {quantity}")
                             else:
                                 # No line items in raw_data, use fallback
                                 fallback_count = int(order.get('line_items_count', 1) or 1)
                                 units_sold = fallback_count
                                 if orders_processed <= 5:
-                                    logger.info(f"     🛍️ Using fallback line_items_count: {fallback_count}")
+                                    logger.info(f"     ️ Using fallback line_items_count: {fallback_count}")
                         except Exception as e:
                             logger.debug(f"Error parsing Shopify order {order.get('order_number')}: {e}")
                             # Fallback to line_items_count if available
                             fallback_count = int(order.get('line_items_count', 1) or 1)
                             units_sold = fallback_count
                             if orders_processed <= 5:
-                                logger.info(f"     🛍️ Error fallback line_items_count: {fallback_count}")
+                                logger.info(f"     ️ Error fallback line_items_count: {fallback_count}")
                     else:
                         # No raw_data, try other fields
                         fallback_count = int(order.get('line_items_count', 1) or 1)
                         units_sold = fallback_count
                         if orders_processed <= 5:
-                            logger.info(f"     🛍️ No raw_data, using line_items_count: {fallback_count}")
+                            logger.info(f"     ️ No raw_data, using line_items_count: {fallback_count}")
                     
                     # Alternative: Check if there's a direct units/quantity field
                     if units_sold == 0:
@@ -1585,18 +1585,18 @@ class ComponentDataManager:
                         if alt_quantity:
                             units_sold = int(alt_quantity)
                             if orders_processed <= 5:
-                                logger.info(f"     🛍️ Using alternative quantity field: {units_sold}")
+                                logger.info(f"     ️ Using alternative quantity field: {units_sold}")
                         
                 elif platform == "amazon":
-                    # 🔥 FIXED: Amazon orders use number_of_items_shipped (not 'quantity')
+                    #  FIXED: Amazon orders use number_of_items_shipped (not 'quantity')
                     units_sold = int(order.get('number_of_items_shipped', 1) or 1)
                     if orders_processed <= 5:
-                        logger.info(f"     🛍️ Amazon number_of_items_shipped: {units_sold}")
+                        logger.info(f"     ️ Amazon number_of_items_shipped: {units_sold}")
                 
                 # LOG DETAILED DEBUG INFO if units_sold is still 0
                 if units_sold == 0:
                     if orders_processed <= 5:
-                        logger.warning(f"⚠️ Order {orders_processed} has 0 units extracted:")
+                        logger.warning(f" Order {orders_processed} has 0 units extracted:")
                         logger.warning(f"   Order number: {order.get('order_number', 'N/A')}")
                         logger.warning(f"   Total price: {order.get('total_price', 'N/A')}")
                         logger.warning(f"   Line items count: {order.get('line_items_count', 'N/A')}")
@@ -1620,17 +1620,17 @@ class ComponentDataManager:
                             except Exception as e:
                                 logger.warning(f"   Raw data parse error: {e}")
                     
-                    # 🔥 FIXED: Only use fallback for orders with actual revenue
+                    #  FIXED: Only use fallback for orders with actual revenue
                     order_revenue = float(order.get('total_price', 0) or 0)
                     if order_revenue > 0:
                         # Only for orders with revenue, use minimal fallback
                         units_sold = 1
                         if orders_processed <= 5:
-                            logger.info(f"     🛍️ Fallback: Order has revenue ${order_revenue:.2f}, counting as 1 unit")
+                            logger.info(f"     ️ Fallback: Order has revenue ${order_revenue:.2f}, counting as 1 unit")
                     else:
                         # No revenue, no units - skip this order
                         if orders_processed <= 5:
-                            logger.info(f"     ❌ Skipping: Order has no revenue and no extractable units")
+                            logger.info(f"      Skipping: Order has no revenue and no extractable units")
                         continue  # Skip adding to daily_sales
                 
                 # Add to daily sales (since orders are pre-filtered, we know date is in range)
@@ -1640,10 +1640,10 @@ class ComponentDataManager:
                     if units_sold > 0:
                         orders_with_units += 1
                         if orders_processed <= 5:  # Log first few
-                            logger.info(f"   📊 Added {units_sold} units to {date_str} (total now: {daily_sales[date_str]})")
+                            logger.info(f"    Added {units_sold} units to {date_str} (total now: {daily_sales[date_str]})")
                 else:
                     # This shouldn't happen since orders are pre-filtered, but log it
-                    logger.warning(f"⚠️ Order date {date_str} not in expected range!")
+                    logger.warning(f" Order date {date_str} not in expected range!")
                     
             except Exception as e:
                 logger.debug(f"Error processing order for daily sales: {e}")
@@ -1652,20 +1652,20 @@ class ComponentDataManager:
         # Log comprehensive summary
         non_zero_days = len([v for v in daily_sales.values() if v > 0])
         
-        logger.info(f"📊 DAILY SALES CALCULATION SUMMARY:")
-        logger.info(f"   📊 Total orders processed: {orders_processed}")
-        logger.info(f"   📊 Orders with units: {orders_with_units}")
-        logger.info(f"   📊 Total units extracted: {total_units_extracted}")
-        logger.info(f"   📊 Active sales days: {non_zero_days}")
+        logger.info(f" DAILY SALES CALCULATION SUMMARY:")
+        logger.info(f"    Total orders processed: {orders_processed}")
+        logger.info(f"    Orders with units: {orders_with_units}")
+        logger.info(f"    Total units extracted: {total_units_extracted}")
+        logger.info(f"    Active sales days: {non_zero_days}")
         
         if total_units_extracted == 0:
-            logger.warning(f"⚠️ ZERO UNITS EXTRACTED! Possible issues:")
+            logger.warning(f" ZERO UNITS EXTRACTED! Possible issues:")
             logger.warning(f"   - Orders missing line_items or quantity data")
             logger.warning(f"   - Raw_data field malformed or empty")
             logger.warning(f"   - Quantity fields not where expected")
             
             if len(orders) > 0:
-                logger.info(f"💡 DEBUGGING HINT:")
+                logger.info(f" DEBUGGING HINT:")
                 logger.info(f"   You have {len(orders)} orders in the selected date range")
                 logger.info(f"   But no units could be extracted from them")
                 logger.info(f"   Check the order data structure and quantity fields")
@@ -1674,7 +1674,7 @@ class ComponentDataManager:
 
     async def get_historical_comparison_data(self, client_id: str, platform: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
         """Get historical comparison data with period-over-period analysis"""
-        logger.info(f"📈 HISTORICAL COMPARISON REQUEST - Getting data for {client_id} - {platform} ({start_date} to {end_date})")
+        logger.info(f" HISTORICAL COMPARISON REQUEST - Getting data for {client_id} - {platform} ({start_date} to {end_date})")
         
         tables = self._get_table_names(client_id)
         result = {}
@@ -1726,26 +1726,26 @@ class ComponentDataManager:
                     'growth_rate': round(growth_rate, 2)
                 }
             
-            logger.info(f"✅ HISTORICAL COMPARISON FINAL RESULT for {platform}:")
+            logger.info(f" HISTORICAL COMPARISON FINAL RESULT for {platform}:")
             for platform_key, platform_result in result.items():
                 if isinstance(platform_result, dict) and 'comparison_chart' in platform_result:
                     chart_data = platform_result['comparison_chart']
                     current_total = platform_result.get('total_current_period', 0)
                     previous_total = platform_result.get('total_previous_period', 0)
-                    logger.info(f"   📊 {platform_key}: {len(chart_data)} data points")
+                    logger.info(f"    {platform_key}: {len(chart_data)} data points")
                     logger.info(f"      Current: ${current_total:.2f}, Previous: ${previous_total:.2f}")
             
             return result
             
         except Exception as e:
-            logger.error(f"❌ Error getting historical comparison data: {str(e)}")
+            logger.error(f" Error getting historical comparison data: {str(e)}")
             return {"error": str(e)}
 
     async def _get_platform_historical_comparison(self, table_name: str, platform: str, start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
         """Get historical comparison data for a specific platform"""
         try:
             if not start_date or not end_date:
-                logger.warning(f"❌ Historical comparison requires both start_date and end_date")
+                logger.warning(f" Historical comparison requires both start_date and end_date")
                 return {'comparison_chart': [], 'total_current_period': 0, 'total_previous_period': 0, 'error': 'Missing date range'}
             
             db_client = get_admin_client()
@@ -1754,7 +1754,7 @@ class ComponentDataManager:
             end_dt = self._parse_date(end_date)
             
             if not start_dt or not end_dt:
-                logger.warning(f"❌ Could not parse dates: {start_date}, {end_date}")
+                logger.warning(f" Could not parse dates: {start_date}, {end_date}")
                 return {'comparison_chart': [], 'total_current_period': 0, 'total_previous_period': 0, 'error': 'Invalid dates'}
             
             # Calculate period length
@@ -1764,7 +1764,7 @@ class ComponentDataManager:
             previous_end_dt = start_dt - timedelta(days=1)
             previous_start_dt = previous_end_dt - timedelta(days=period_length - 1)
             
-            logger.info(f"📅 HISTORICAL COMPARISON PERIODS:")
+            logger.info(f" HISTORICAL COMPARISON PERIODS:")
             logger.info(f"   Current: {start_dt.strftime('%Y-%m-%d')} to {end_dt.strftime('%Y-%m-%d')} ({period_length} days)")
             logger.info(f"   Previous: {previous_start_dt.strftime('%Y-%m-%d')} to {previous_end_dt.strftime('%Y-%m-%d')} ({period_length} days)")
             
@@ -1780,7 +1780,7 @@ class ComponentDataManager:
             previous_response = previous_query.execute()
             previous_orders = previous_response.data or []
             
-            logger.info(f"📊 ORDERS FOUND:")
+            logger.info(f" ORDERS FOUND:")
             logger.info(f"   Current period: {len(current_orders)} orders")
             logger.info(f"   Previous period: {len(previous_orders)} orders")
             
@@ -1804,14 +1804,14 @@ class ComponentDataManager:
                 for order in current_orders:
                     order_date = self._parse_date(order.get('created_at'))
                     if order_date and order_date.strftime('%Y-%m-%d') == current_date_str:
-                        # 🔥 NEW: Only count fulfilled orders
+                        #  NEW: Only count fulfilled orders
                         if self._is_order_fulfilled(order):
                             current_revenue += float(order.get('total_price', 0) or 0)
                 
                 for order in previous_orders:
                     order_date = self._parse_date(order.get('created_at'))
                     if order_date and order_date.strftime('%Y-%m-%d') == previous_date_str:
-                        # 🔥 NEW: Only count fulfilled orders
+                        #  NEW: Only count fulfilled orders
                         if self._is_order_fulfilled(order):
                             previous_revenue += float(order.get('total_price', 0) or 0)
                 
@@ -1830,7 +1830,7 @@ class ComponentDataManager:
             total_previous = sum(item['previous_period'] for item in comparison_data)
             growth_rate = ((total_current - total_previous) / total_previous) * 100 if total_previous > 0 else 0
             
-            logger.info(f"📊 COMPARISON SUMMARY:")
+            logger.info(f" COMPARISON SUMMARY:")
             logger.info(f"   Current period total: ${total_current:.2f}")
             logger.info(f"   Previous period total: ${total_previous:.2f}")
             logger.info(f"   Growth rate: {growth_rate:.1f}%")
@@ -1851,7 +1851,7 @@ class ComponentDataManager:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error getting {platform} historical comparison: {str(e)}")
+            logger.error(f" Error getting {platform} historical comparison: {str(e)}")
             return {
                 'comparison_chart': [],
                 'total_current_period': 0,

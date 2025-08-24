@@ -56,11 +56,11 @@ class DashboardInventoryAnalyzer:
                 shopify_data = await self._get_shopify_data(client_id)
                 amazon_data = await self._get_amazon_data(client_id)
             
-            # 🚀 PARALLEL CALCULATIONS - ALL AT ONCE, NO WAITING!
-            logger.info(f"⚡ Running ALL calculations in parallel for {client_id} ({platform})")
+            #  PARALLEL CALCULATIONS - ALL AT ONCE, NO WAITING!
+            logger.info(f" Running ALL calculations in parallel for {client_id} ({platform})")
             
-            # 🚀 ULTRA-FAST PARALLEL CALCULATIONS - ALL AT ONCE!
-            logger.info(f"⚡ TURBO MODE: Running all calculations in parallel for {client_id} ({platform})")
+            #  ULTRA-FAST PARALLEL CALCULATIONS - ALL AT ONCE!
+            logger.info(f" TURBO MODE: Running all calculations in parallel for {client_id} ({platform})")
             
             # Run ALL calculations simultaneously with timeout - NO WAITING!
             kpis_task = asyncio.create_task(self._get_kpi_charts(client_id, shopify_data, amazon_data))
@@ -73,9 +73,9 @@ class DashboardInventoryAnalyzer:
                     asyncio.gather(kpis_task, trends_task, alerts_task, return_exceptions=True),
                     timeout=3.0
                 )
-                logger.info(f"🚀 TURBO COMPLETE: All calculations finished in <3s for {client_id}")
+                logger.info(f" TURBO COMPLETE: All calculations finished in <3s for {client_id}")
             except asyncio.TimeoutError:
-                logger.warning(f"⚠️ Calculations timeout after 3s, using partial results")
+                logger.warning(f" Calculations timeout after 3s, using partial results")
                 # Get whatever completed - NO WAITING!
                 sales_kpis = kpis_task.result() if kpis_task.done() else {}
                 trend_analysis = trends_task.result() if trends_task.done() else {}
@@ -83,18 +83,18 @@ class DashboardInventoryAnalyzer:
             
             # Handle any exceptions from parallel execution
             if isinstance(sales_kpis, Exception):
-                logger.error(f"❌ KPIs calculation failed: {sales_kpis}")
+                logger.error(f" KPIs calculation failed: {sales_kpis}")
                 sales_kpis = {}
             if isinstance(trend_analysis, Exception):
-                logger.error(f"❌ Trends calculation failed: {trend_analysis}")
+                logger.error(f" Trends calculation failed: {trend_analysis}")
                 trend_analysis = {}
             if isinstance(alerts_summary, Exception):
-                logger.error(f"❌ Alerts calculation failed: {alerts_summary}")
+                logger.error(f" Alerts calculation failed: {alerts_summary}")
                 alerts_summary = {}
             
-            logger.info(f"⚡ ALL calculations completed in parallel for {client_id} ({platform})")
+            logger.info(f" ALL calculations completed in parallel for {client_id} ({platform})")
             
-            # 🔥 CALCULATE REAL INVENTORY METRICS - NO MORE HARDCODED ZEROS!
+            #  CALCULATE REAL INVENTORY METRICS - NO MORE HARDCODED ZEROS!
             total_inventory_value = self._calculate_total_inventory_value(shopify_data, amazon_data)
             total_skus = len([p for p in shopify_data.get('products', []) if p.get('sku')]) + len([p for p in amazon_data.get('products', []) if p.get('sku')])
             
@@ -103,7 +103,7 @@ class DashboardInventoryAnalyzer:
             overstock_count = alerts_summary.get('summary_counts', {}).get('overstock_alerts', 0)
             out_of_stock_count = self._calculate_out_of_stock_count(shopify_data, amazon_data)
             
-            logger.info(f"📊 REAL VALUES: SKUs: {total_skus}, Inventory Value: ${total_inventory_value}, Low Stock: {low_stock_count}, Out of Stock: {out_of_stock_count}")
+            logger.info(f" REAL VALUES: SKUs: {total_skus}, Inventory Value: ${total_inventory_value}, Low Stock: {low_stock_count}, Out of Stock: {out_of_stock_count}")
             
             analytics = {
                 "success": True,
@@ -155,7 +155,7 @@ class DashboardInventoryAnalyzer:
     async def _get_multi_platform_analytics(self, client_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
         """Get analytics for both Shopify and Amazon platforms separately"""
         try:
-            logger.info(f"🔄 Getting SEPARATE analytics for both platforms: {client_id}")
+            logger.info(f" Getting SEPARATE analytics for both platforms: {client_id}")
             
             # Get both platform data in parallel
             shopify_data_task = asyncio.create_task(self._get_shopify_data(client_id))
@@ -206,7 +206,7 @@ class DashboardInventoryAnalyzer:
             combined_trends = safe_result(combined_trends) 
             combined_alerts = safe_result(combined_alerts)
             
-            # 🔥 CALCULATE REAL INVENTORY METRICS FOR MULTI-PLATFORM - NO MORE HARDCODED ZEROS!
+            #  CALCULATE REAL INVENTORY METRICS FOR MULTI-PLATFORM - NO MORE HARDCODED ZEROS!
             shopify_inventory_value = self._calculate_total_inventory_value(shopify_data, {"products": [], "orders": []})
             amazon_inventory_value = self._calculate_total_inventory_value({"products": [], "orders": []}, amazon_data)
             combined_inventory_value = self._calculate_total_inventory_value(shopify_data, amazon_data)
@@ -215,7 +215,7 @@ class DashboardInventoryAnalyzer:
             amazon_total_skus = len([p for p in amazon_data.get('products', []) if p.get('sku')])
             combined_total_skus = shopify_total_skus + amazon_total_skus
             
-            logger.info(f"✅ Multi-platform analytics completed for {client_id}")
+            logger.info(f" Multi-platform analytics completed for {client_id}")
             
             return {
                 "success": True,
@@ -296,7 +296,7 @@ class DashboardInventoryAnalyzer:
             return {"success": False, "error": str(e)}
     
     async def _get_shopify_data(self, client_id: str) -> Dict[str, Any]:
-        """🚀 PARALLEL Shopify data fetch - NO WAITING!"""
+        """ PARALLEL Shopify data fetch - NO WAITING!"""
         try:
             # Ensure database client is available
             admin_client = self._ensure_client()
@@ -304,9 +304,9 @@ class DashboardInventoryAnalyzer:
             products_table = f"{client_id.replace('-', '_')}_shopify_products"
             orders_table = f"{client_id.replace('-', '_')}_shopify_orders"
             
-            logger.info(f"⚡ PARALLEL Shopify fetch for {client_id}")
+            logger.info(f" PARALLEL Shopify fetch for {client_id}")
             
-            # 🚀 RUN BOTH QUERIES IN PARALLEL - NO SEQUENTIAL WAITING!
+            #  RUN BOTH QUERIES IN PARALLEL - NO SEQUENTIAL WAITING!
             async def fetch_products():
                 try:
                     response = admin_client.table(products_table).select(
@@ -334,13 +334,13 @@ class DashboardInventoryAnalyzer:
             
             # Handle exceptions
             if isinstance(products, Exception):
-                logger.error(f"❌ Products fetch failed: {products}")
+                logger.error(f" Products fetch failed: {products}")
                 products = []
             if isinstance(orders, Exception):
-                logger.error(f"❌ Orders fetch failed: {orders}")
+                logger.error(f" Orders fetch failed: {orders}")
                 orders = []
             
-            logger.info(f"⚡ PARALLEL complete: {len(products)} Shopify products, {len(orders)} orders")
+            logger.info(f" PARALLEL complete: {len(products)} Shopify products, {len(orders)} orders")
             
             return {"products": products, "orders": orders}
             
@@ -357,7 +357,7 @@ class DashboardInventoryAnalyzer:
             orders_table = f"{client_id.replace('-', '_')}_amazon_orders"
             products_table = f"{client_id.replace('-', '_')}_amazon_products"
             
-            # 🚀 RUN BOTH QUERIES IN PARALLEL - NO SEQUENTIAL WAITING!
+            #  RUN BOTH QUERIES IN PARALLEL - NO SEQUENTIAL WAITING!
             async def fetch_orders():
                 try:
                     response = admin_client.table(orders_table).select(
@@ -385,13 +385,13 @@ class DashboardInventoryAnalyzer:
             
             # Handle exceptions
             if isinstance(orders, Exception):
-                logger.error(f"❌ Orders fetch failed: {orders}")
+                logger.error(f" Orders fetch failed: {orders}")
                 orders = []
             if isinstance(products, Exception):
-                logger.error(f"❌ Products fetch failed: {products}")
+                logger.error(f" Products fetch failed: {products}")
                 products = []
             
-            logger.info(f"⚡ PARALLEL complete: {len(orders)} Amazon orders, {len(products)} products")
+            logger.info(f" PARALLEL complete: {len(orders)} Amazon orders, {len(products)} products")
             
             return {"orders": orders, "products": products}
             
@@ -442,7 +442,7 @@ class DashboardInventoryAnalyzer:
             
             # If no products found but we have orders, try to extract products from orders
             if len(sku_list) == 0:
-                logger.info("📦 No products found, attempting to extract from order data...")
+                logger.info(" No products found, attempting to extract from order data...")
                 sku_list.extend(self._extract_products_from_orders(shopify_data.get('orders', []), amazon_data.get('orders', [])))
             
             # Sort by current availability (lowest first for attention)
@@ -496,7 +496,7 @@ class DashboardInventoryAnalyzer:
         """Process Shopify products and add to SKU list"""
         shopify_products = shopify_data.get('products', [])
         
-        logger.info(f"📦 Processing {len(shopify_products)} Shopify products for SKU list")
+        logger.info(f" Processing {len(shopify_products)} Shopify products for SKU list")
         
         skipped_count = 0
         processed_count = 0
@@ -537,13 +537,13 @@ class DashboardInventoryAnalyzer:
             })
             processed_count += 1
         
-        logger.info(f"✅ Shopify processing complete: {processed_count} processed, {skipped_count} skipped")
+        logger.info(f" Shopify processing complete: {processed_count} processed, {skipped_count} skipped")
 
     def _process_amazon_products(self, amazon_data: Dict, sku_list: List[Dict]):
         """Process Amazon products and add to SKU list"""
         amazon_products = amazon_data.get('products', [])
         
-        logger.info(f"📦 Processing {len(amazon_products)} Amazon products for SKU list")
+        logger.info(f" Processing {len(amazon_products)} Amazon products for SKU list")
         
         for product in amazon_products:
             sku = product.get('sku')
@@ -573,7 +573,7 @@ class DashboardInventoryAnalyzer:
             })
     
     def _calculate_outgoing_for_sku(self, sku: str, orders: List[Dict]) -> int:
-        """🔥 FIXED: Calculate outgoing inventory ONLY for orders that actually contain the SKU"""
+        """ FIXED: Calculate outgoing inventory ONLY for orders that actually contain the SKU"""
         if not sku:
             return 0
             
@@ -620,13 +620,13 @@ class DashboardInventoryAnalyzer:
                                             quantity = int(item.get('quantity', 1))
                                             outgoing += quantity
                                             found_sku_in_order = True
-                                            logger.debug(f"✅ Found SKU {sku} in order {order.get('order_number')}: +{quantity} units")
+                                            logger.debug(f" Found SKU {sku} in order {order.get('order_number')}: +{quantity} units")
                                             break  # Found the SKU, no need to check more items in this order
                                             
                         except Exception as e:
                             logger.debug(f"Error parsing raw_data for order {order.get('order_number')}: {e}")
                     
-                    # 🚫 REMOVED THE BROKEN FALLBACK LOGIC THAT WAS ADDING INVENTORY TO ALL SKUS!
+                    #  REMOVED THE BROKEN FALLBACK LOGIC THAT WAS ADDING INVENTORY TO ALL SKUS!
                     # Previously this was adding outgoing inventory to EVERY SKU for EVERY unfulfilled order
                     # Now we only count when we can actually confirm the SKU is in the order
                     
@@ -744,11 +744,11 @@ class DashboardInventoryAnalyzer:
                     "revenue_30d": round(agg['total_revenue'], 2)
                 })
             
-            logger.info(f"📦 Extracted {len(synthetic_products)} synthetic products from {len(amazon_orders)} orders")
+            logger.info(f" Extracted {len(synthetic_products)} synthetic products from {len(amazon_orders)} orders")
             return synthetic_products
             
         except Exception as e:
-            logger.error(f"❌ Error extracting products from orders: {e}")
+            logger.error(f" Error extracting products from orders: {e}")
             return []
     
     def _get_price_range(self, price: float) -> str:
@@ -764,7 +764,7 @@ class DashboardInventoryAnalyzer:
     async def _get_kpi_charts(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> Dict[str, Any]:
         """Get optimized KPI charts data using same calculations as component_data_functions"""
         try:
-            logger.info(f"🔥 Using component_data_functions for consistent 30-day metrics for client {client_id}")
+            logger.info(f" Using component_data_functions for consistent 30-day metrics for client {client_id}")
             
             # Use component_data_functions for consistent 30-day calculations
             # Calculate 30-day date range  
@@ -813,7 +813,7 @@ class DashboardInventoryAnalyzer:
             combined_units_sold = units_sold_data.get('combined', {})
             combined_inventory = inventory_levels_data.get('combined', {})
             
-            logger.info(f"✅ Component data functions completed for consistent metrics")
+            logger.info(f" Component data functions completed for consistent metrics")
             
             return {
                 "total_sales_30_days": {
@@ -877,19 +877,19 @@ class DashboardInventoryAnalyzer:
             total_inventory = product.get('quantity', 0) or 0
             sku = product.get('sku') or product.get('asin')
             
-            # 🔥 FIXED: Calculate Amazon outgoing using order_status and number_of_items_shipped
+            #  FIXED: Calculate Amazon outgoing using order_status and number_of_items_shipped
             outgoing = self._calculate_amazon_outgoing_for_sku(sku, amazon_orders) if sku else 0
             
             # Available = total - outgoing
             product_available = max(0, total_inventory - outgoing)
             available_inventory += product_available
         
-        logger.info(f"📦 Available Inventory: {available_inventory} units (total minus outgoing/reserved)")
+        logger.info(f" Available Inventory: {available_inventory} units (total minus outgoing/reserved)")
         
         return available_inventory
 
     def _calculate_amazon_outgoing_for_sku(self, sku: str, orders: List[Dict]) -> int:
-        """🔥 NEW: Calculate outgoing inventory for Amazon SKU using order_status and number_of_items_unshipped"""
+        """ NEW: Calculate outgoing inventory for Amazon SKU using order_status and number_of_items_unshipped"""
         if not sku:
             return 0
             
@@ -934,7 +934,7 @@ class DashboardInventoryAnalyzer:
                 logger.debug(f"Error processing Amazon order for outgoing calculation: {e}")
                 continue
         
-        logger.info(f"📦 Amazon SKU {sku} outgoing inventory: {outgoing} units from {recent_orders_checked} unshipped orders")
+        logger.info(f" Amazon SKU {sku} outgoing inventory: {outgoing} units from {recent_orders_checked} unshipped orders")
         return outgoing
 
     def _calculate_average_inventory(self, current_inventory: int, units_sold: int, period_days: int = 30) -> float:
@@ -942,16 +942,16 @@ class DashboardInventoryAnalyzer:
         # Current inventory is end_inventory
         end_inventory = current_inventory
         
-        # 🔥 FIXED: Calculate begin_inventory = current + units sold during the period
+        #  FIXED: Calculate begin_inventory = current + units sold during the period
         # This assumes inventory at period start = current inventory + units sold since then
         begin_inventory = current_inventory + units_sold
         
         avg_inventory = (begin_inventory + end_inventory) / 2
         
-        logger.info(f"📊 Avg Inventory: begin({current_inventory} + {units_sold}) + end({end_inventory}) / 2 = {avg_inventory}")
-        logger.info(f"📊 Logic: inventory {period_days} days ago ≈ current({current_inventory}) + sold_since_then({units_sold}) = {begin_inventory}")
+        logger.info(f" Avg Inventory: begin({current_inventory} + {units_sold}) + end({end_inventory}) / 2 = {avg_inventory}")
+        logger.info(f" Logic: inventory {period_days} days ago ≈ current({current_inventory}) + sold_since_then({units_sold}) = {begin_inventory}")
         
-        # 🔥 FIXED: Allow 0 inventory when there are no products/sales 
+        #  FIXED: Allow 0 inventory when there are no products/sales 
         # Only return 1 as minimum if we have actual inventory or sales (avoid false turnover rates)
         if current_inventory == 0 and units_sold == 0:
             return 0  # Truly no inventory or activity
@@ -1023,7 +1023,7 @@ class DashboardInventoryAnalyzer:
                         end_date = end_date.replace(tzinfo=order_date.tz)
                     
                     if start_date <= order_date <= end_date:
-                        # 🔥 NEW: Check if order should be counted based on fulfillment status
+                        #  NEW: Check if order should be counted based on fulfillment status
                         if self._is_order_fulfilled(order):
                             order_revenue = float(order.get('total_price', 0) or 0)
                             revenue += order_revenue
@@ -1066,7 +1066,7 @@ class DashboardInventoryAnalyzer:
     async def _get_trend_visualizations(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> Dict[str, Any]:
         """Get trend visualization data using component_data_functions for consistent calculations"""
         try:
-            logger.info(f"🔥 Using component_data_functions for consistent trend analysis for client {client_id}")
+            logger.info(f" Using component_data_functions for consistent trend analysis for client {client_id}")
             
             # Calculate 30-day date range  
             now = datetime.now()
@@ -1104,7 +1104,7 @@ class DashboardInventoryAnalyzer:
             combined_inventory = inventory_levels_data.get('combined', {})
             combined_units_sold = units_sold_data.get('combined', {})
             
-            logger.info(f"✅ Component data functions completed for consistent trend analysis")
+            logger.info(f" Component data functions completed for consistent trend analysis")
             
             return {
                 "inventory_levels_chart_30_days": combined_inventory.get('inventory_levels_chart', []),
@@ -1170,7 +1170,7 @@ class DashboardInventoryAnalyzer:
                 title = product.get('title', 'Unknown Product')
                 sku = product.get('sku')
                 
-                if inventory < 5:  # 🔥 CONSISTENT: Low stock threshold < 5 (as specified by user)
+                if inventory < 5:  #  CONSISTENT: Low stock threshold < 5 (as specified by user)
                     low_stock_count += 1
                     if len(low_stock_details) < 10:  # Show more details for low stock alerts
                         severity = "critical" if inventory == 0 else "high" if inventory <= 2 else "medium"
@@ -1182,7 +1182,7 @@ class DashboardInventoryAnalyzer:
                             "severity": severity,
                             "alert_type": "low_stock"
                         })
-                elif inventory > 100:  # 🔥 CONSISTENT: Overstock threshold > 100 (as specified by user)
+                elif inventory > 100:  #  CONSISTENT: Overstock threshold > 100 (as specified by user)
                     overstock_count += 1
                     if len(overstock_details) < 3:  # Keep first 3 for display
                         overstock_details.append({
@@ -1202,7 +1202,7 @@ class DashboardInventoryAnalyzer:
                 sku = product.get('sku')
                 asin = product.get('asin')
                 
-                if quantity < 5:  # 🔥 CONSISTENT: Low stock threshold < 5 (as specified by user)
+                if quantity < 5:  #  CONSISTENT: Low stock threshold < 5 (as specified by user)
                     low_stock_count += 1
                     if len(low_stock_details) < 10:  # Show more details for low stock alerts
                         severity = "critical" if quantity == 0 else "high" if quantity <= 2 else "medium"
@@ -1215,7 +1215,7 @@ class DashboardInventoryAnalyzer:
                             "severity": severity,
                             "alert_type": "low_stock"
                         })
-                elif quantity > 100:  # 🔥 CONSISTENT: Overstock threshold > 100 (as specified by user)
+                elif quantity > 100:  #  CONSISTENT: Overstock threshold > 100 (as specified by user)
                     overstock_count += 1
                     if len(overstock_details) < 3:  # Keep first 3 for display
                         overstock_details.append({
@@ -1249,7 +1249,7 @@ class DashboardInventoryAnalyzer:
             sales_spike_details = []
             sales_slowdown_details = []
             
-            # 🔥 CONSISTENT ALERT THRESHOLDS: Use same logic as component_data_functions
+            #  CONSISTENT ALERT THRESHOLDS: Use same logic as component_data_functions
             # Low stock: products with quantity < 5
             # Overstock: products with stock > 100  
             # Sales dropping: > 20% decrease
@@ -1271,7 +1271,7 @@ class DashboardInventoryAnalyzer:
                         "previous_revenue": previous_week_sales['revenue'],
                         "change_percent": revenue_change
                     })
-                elif revenue_change < -sales_down_threshold:  # 🔥 FIXED: Configurable sales down threshold (was -30, now -20)
+                elif revenue_change < -sales_down_threshold:  #  FIXED: Configurable sales down threshold (was -30, now -20)
                     sales_slowdown_count = 1
                     sales_slowdown_details.append({
                         "alert_type": "sales_dropping",
@@ -1320,7 +1320,7 @@ class DashboardInventoryAnalyzer:
             return {"error": str(e)}
 
     def _calculate_total_inventory_value(self, shopify_data: Dict, amazon_data: Dict) -> float:
-        """🔥 FIXED: Calculate the total value of all inventory across platforms with better price handling"""
+        """ FIXED: Calculate the total value of all inventory across platforms with better price handling"""
         total_value = 0.0
         items_processed = 0
         items_with_value = 0
@@ -1379,7 +1379,7 @@ class DashboardInventoryAnalyzer:
                 
             items_processed += 1
         
-        logger.info(f"💰 INVENTORY VALUE: ${total_value:.2f} from {items_with_value}/{items_processed} items with valid price & quantity")
+        logger.info(f" INVENTORY VALUE: ${total_value:.2f} from {items_with_value}/{items_processed} items with valid price & quantity")
         return round(total_value, 2)
     
     def _calculate_out_of_stock_count(self, shopify_data: Dict, amazon_data: Dict) -> int:

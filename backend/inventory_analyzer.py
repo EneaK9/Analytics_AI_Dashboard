@@ -22,7 +22,7 @@ class InventoryAnalyzer:
     def analyze_inventory_data(self, client_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze inventory data with intelligent field detection and comprehensive metrics"""
         try:
-            logger.info(f"🔍 Starting enhanced inventory analysis")
+            logger.info(f" Starting enhanced inventory analysis")
             
             # Extract data records from client data
             data_records = []
@@ -33,20 +33,20 @@ class InventoryAnalyzer:
             elif isinstance(client_data, list):
                 data_records = client_data
             else:
-                logger.warning("❌ Unsupported client_data format")
+                logger.warning(" Unsupported client_data format")
                 return self._get_empty_analytics()
                 
             if not data_records:
-                logger.warning("❌ No data records found for analysis")
+                logger.warning(" No data records found for analysis")
                 return self._get_empty_analytics()
             
             # Prepare and analyze dataframe
             df = self._prepare_dataframe(data_records)
             if df.empty:
-                logger.warning("❌ Failed to create dataframe from data records")
+                logger.warning(" Failed to create dataframe from data records")
                 return self._get_empty_analytics()
             
-            logger.info(f"📊 Analyzing dataframe with {len(df)} records, {len(df.columns)} columns")
+            logger.info(f" Analyzing dataframe with {len(df)} records, {len(df.columns)} columns")
             
             # Generate comprehensive analytics
             data_summary = self._analyze_data_summary(df)
@@ -65,11 +65,11 @@ class InventoryAnalyzer:
                 "recommendations": recommendations
             }
             
-            logger.info("✅ Enhanced inventory analysis completed successfully")
+            logger.info(" Enhanced inventory analysis completed successfully")
             return analytics
             
         except Exception as e:
-            logger.error(f"❌ Enhanced inventory analysis failed: {str(e)}")
+            logger.error(f" Enhanced inventory analysis failed: {str(e)}")
             return {
                 "error": str(e),
                 "data_summary": {"total_records": 0, "total_skus": 0}
@@ -78,7 +78,7 @@ class InventoryAnalyzer:
     def _prepare_dataframe(self, data_records: List[Dict]) -> pd.DataFrame:
         """Prepare and clean dataframe with intelligent field mapping"""
         try:
-            logger.info(f"🔧 Preparing dataframe from {len(data_records)} records")
+            logger.info(f" Preparing dataframe from {len(data_records)} records")
             
             # Flatten and standardize records
             processed_records = []
@@ -88,20 +88,20 @@ class InventoryAnalyzer:
                     processed_records.append(flattened)
             
             if not processed_records:
-                logger.warning("❌ No valid records after flattening")
+                logger.warning(" No valid records after flattening")
                 return pd.DataFrame()
             
-            logger.info(f"✅ Successfully flattened {len(processed_records)} records")
+            logger.info(f" Successfully flattened {len(processed_records)} records")
             
             # Create dataframe and standardize
             df = pd.DataFrame(processed_records)
             df = self._standardize_dataframe(df)
             
-            logger.info(f"📊 Final dataframe: {len(df)} rows, {len(df.columns)} columns")
+            logger.info(f" Final dataframe: {len(df)} rows, {len(df.columns)} columns")
             return df
             
         except Exception as e:
-            logger.error(f"❌ Failed to prepare dataframe: {str(e)}")
+            logger.error(f" Failed to prepare dataframe: {str(e)}")
             return pd.DataFrame()
     
     def _flatten_record(self, record: Dict) -> Optional[Dict]:
@@ -165,7 +165,7 @@ class InventoryAnalyzer:
             return flat_record if flat_record else None
             
         except Exception as e:
-            logger.debug(f"❌ Error flattening record: {str(e)}")
+            logger.debug(f" Error flattening record: {str(e)}")
             return None
     
     def _extract_field_value(self, record: Dict, field_names: List[str]) -> Any:
@@ -205,17 +205,17 @@ class InventoryAnalyzer:
             # Remove empty rows
             df = df[~((df.get('sku', '') == '') & (df.get('product_name', '') == 'Unknown') & (df.get('quantity', 0) == 0))]
             
-            logger.info(f"✅ Dataframe standardized: {len(df)} rows remaining")
+            logger.info(f" Dataframe standardized: {len(df)} rows remaining")
             return df
             
         except Exception as e:
-            logger.error(f"❌ Error standardizing dataframe: {str(e)}")
+            logger.error(f" Error standardizing dataframe: {str(e)}")
             return df
     
     def _analyze_data_summary(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Analyze data summary with key metrics"""
         try:
-            logger.info("📈 Analyzing data summary")
+            logger.info(" Analyzing data summary")
             
             sku_col = 'sku' if 'sku' in df.columns else 'product_name'
             if sku_col in df.columns:
@@ -238,7 +238,7 @@ class InventoryAnalyzer:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error in data summary analysis: {str(e)}")
+            logger.error(f" Error in data summary analysis: {str(e)}")
             return {
                 "total_records": 0,
                 "total_skus": 0,
@@ -255,7 +255,7 @@ class InventoryAnalyzer:
             group_field = 'sku' if 'sku' in df.columns else 'product_name'
             
             if group_field not in df.columns:
-                logger.warning("⚠️  No SKU or product name field found")
+                logger.warning("  No SKU or product name field found")
                 return self._get_empty_sku_inventory()
             
             grouped = df.groupby(group_field)
@@ -300,7 +300,7 @@ class InventoryAnalyzer:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error analyzing SKU inventory: {str(e)}")
+            logger.error(f" Error analyzing SKU inventory: {str(e)}")
             return self._get_empty_sku_inventory()
     
     def _determine_stock_status(self, on_hand: float, incoming: float, outgoing: float) -> str:
@@ -341,7 +341,7 @@ class InventoryAnalyzer:
     def _calculate_sales_kpis(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Calculate sales KPIs"""
         try:
-            logger.info("💰 Calculating sales KPIs")
+            logger.info(" Calculating sales KPIs")
             
             kpis = {}
             
@@ -366,11 +366,11 @@ class InventoryAnalyzer:
                     kpis['total_revenue'] = 0
                     kpis['revenue_source'] = 'no_sales_data'
             
-            logger.info(f"✅ Sales KPIs calculated: ${kpis.get('total_revenue', 0)} total revenue")
+            logger.info(f" Sales KPIs calculated: ${kpis.get('total_revenue', 0)} total revenue")
             return kpis
             
         except Exception as e:
-            logger.error(f"❌ Error calculating sales KPIs: {str(e)}")
+            logger.error(f" Error calculating sales KPIs: {str(e)}")
             return {"total_revenue": 0, "error": str(e)}
     
     def _calculate_completeness(self, df: pd.DataFrame) -> float:
@@ -392,13 +392,13 @@ class InventoryAnalyzer:
                 "inventory_trend": "stable"
             }
         except Exception as e:
-            logger.error(f"❌ Error analyzing trends: {str(e)}")
+            logger.error(f" Error analyzing trends: {str(e)}")
             return {"error": str(e)}
     
     def _generate_alerts(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Generate inventory and sales alerts"""
         try:
-            logger.info("🚨 Generating alerts")
+            logger.info(" Generating alerts")
             alerts = []
             
             if 'quantity' in df.columns:
@@ -435,14 +435,14 @@ class InventoryAnalyzer:
                 "performance_alerts": 0
             }
             
-            logger.info(f"🚨 Generated {len(alerts)} alerts")
+            logger.info(f" Generated {len(alerts)} alerts")
             return {
                 "alerts": alerts[:20],
                 "summary_counts": alert_counts
             }
             
         except Exception as e:
-            logger.error(f"❌ Error generating alerts: {str(e)}")
+            logger.error(f" Error generating alerts: {str(e)}")
             return {"error": str(e), "alerts": []}
     
     def _generate_recommendations(self, df: pd.DataFrame) -> List[str]:
@@ -472,7 +472,7 @@ class InventoryAnalyzer:
             return recommendations[:5]
             
         except Exception as e:
-            logger.error(f"❌ Error generating recommendations: {str(e)}")
+            logger.error(f" Error generating recommendations: {str(e)}")
             return ["Unable to generate recommendations due to data processing error"]
     
     def _get_empty_analytics(self) -> Dict[str, Any]:

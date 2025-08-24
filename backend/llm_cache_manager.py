@@ -24,8 +24,8 @@ class LLMCacheManager:
     def _calculate_data_hash(self, client_data: Dict[str, Any]) -> str:
         """Calculate SHA256 hash of client data to detect changes (excludes volatile fields)"""
         try:
-            # 🔍 DEBUG: Log the structure of client_data to understand what's changing
-            logger.info(f"🔍 DEBUG: client_data keys: {list(client_data.keys()) if isinstance(client_data, dict) else type(client_data)}")
+            #  DEBUG: Log the structure of client_data to understand what's changing
+            logger.info(f" DEBUG: client_data keys: {list(client_data.keys()) if isinstance(client_data, dict) else type(client_data)}")
             
             # Create a copy of client_data excluding volatile fields that change frequently
             stable_data = {}
@@ -40,22 +40,22 @@ class LLMCacheManager:
                         stable_data[key] = value
                     else:
                         excluded_count += 1
-                        logger.info(f"🔍 DEBUG: Excluded volatile field '{key}': {str(value)[:100]}...")
+                        logger.info(f" DEBUG: Excluded volatile field '{key}': {str(value)[:100]}...")
             else:
                 stable_data = client_data
             
-            # 🔍 DEBUG: Log what we're actually hashing
-            logger.info(f"🔍 DEBUG: stable_data keys: {list(stable_data.keys()) if isinstance(stable_data, dict) else type(stable_data)}")
-            logger.info(f"🔍 DEBUG: Excluded {excluded_count} volatile fields")
+            #  DEBUG: Log what we're actually hashing
+            logger.info(f" DEBUG: stable_data keys: {list(stable_data.keys()) if isinstance(stable_data, dict) else type(stable_data)}")
+            logger.info(f" DEBUG: Excluded {excluded_count} volatile fields")
             
             # Convert to sorted JSON string for consistent hashing  
             data_str = json.dumps(stable_data, sort_keys=True, default=str)
             hash_result = hashlib.sha256(data_str.encode('utf-8')).hexdigest()
             
-            logger.info(f"🔍 Calculated data hash: {hash_result[:12]}... from {len(data_str)} chars (excluded {excluded_count} volatile fields)")
+            logger.info(f" Calculated data hash: {hash_result[:12]}... from {len(data_str)} chars (excluded {excluded_count} volatile fields)")
             return hash_result
         except Exception as e:
-            logger.error(f"❌ Failed to calculate data hash: {e}")
+            logger.error(f" Failed to calculate data hash: {e}")
             return "unknown"
     
     async def get_cached_llm_response(self, client_id: str, client_data: Dict[str, Any], dashboard_type: str = "default") -> Optional[Dict[str, Any]]:
@@ -94,15 +94,15 @@ class LLMCacheManager:
                 created_at = cached_record.get("created_at")
                 
                 # Check if data hash matches (data hasn't changed)
-                logger.info(f"🔍 Hash comparison for client {client_id} ({dashboard_type}): cached={cached_hash[:12]}... vs current={current_hash[:12]}...")
+                logger.info(f" Hash comparison for client {client_id} ({dashboard_type}): cached={cached_hash[:12]}... vs current={current_hash[:12]}...")
                 
-                # 🚀 DISABLE CACHE FOR PLATFORM SWITCHING - FORCE FRESH DATA
-                logger.info(f"🚀 FORCING fresh data - no cache for platform switching")
+                #  DISABLE CACHE FOR PLATFORM SWITCHING - FORCE FRESH DATA
+                logger.info(f" FORCING fresh data - no cache for platform switching")
                 return None
                 
                 # Old cache logic (disabled)
                 if False and cached_responses_json:
-                    logger.info(f"🚀 TEMP: Using cache regardless of hash for debugging purposes")
+                    logger.info(f" TEMP: Using cache regardless of hash for debugging purposes")
                     try:
                         # Parse cached payload (string or dict) and normalize shapes
                         if isinstance(cached_responses_json, str):
@@ -110,7 +110,7 @@ class LLMCacheManager:
                                 cached_payload = json.loads(cached_responses_json)
                             except Exception:
                                 # If it's already a JSON-like string of the final object
-                                logger.warning("⚠️ Failed to json.loads llm_response string; treating as raw text")
+                                logger.warning(" Failed to json.loads llm_response string; treating as raw text")
                                 cached_payload = cached_responses_json
                         else:
                             cached_payload = cached_responses_json
@@ -131,7 +131,7 @@ class LLMCacheManager:
                             dashboard_response = None
                         
                         if dashboard_response:
-                            logger.info(f"✅ Cache HIT for client {client_id} ({dashboard_type}) - data unchanged")
+                            logger.info(f" Cache HIT for client {client_id} ({dashboard_type}) - data unchanged")
                             
                             # Check if cache is still valid (not too old)
                             try:
@@ -154,27 +154,27 @@ class LLMCacheManager:
                                 if cache_age.days < 7:  # Cache valid for 7 days
                                     return dashboard_response
                                 else:
-                                    logger.info(f"⚠️ Cache expired for client {client_id} ({dashboard_type}) (age: {cache_age.days} days)")
+                                    logger.info(f" Cache expired for client {client_id} ({dashboard_type}) (age: {cache_age.days} days)")
                                     return None
                             except Exception as time_error:
-                                logger.warning(f"⚠️ Failed to parse cache timestamp for client {client_id} ({dashboard_type}): {time_error}")
+                                logger.warning(f" Failed to parse cache timestamp for client {client_id} ({dashboard_type}): {time_error}")
                                 # If we can't parse the timestamp, assume cache is valid
                                 return dashboard_response
                         else:
-                            logger.info(f"🔄 No {dashboard_type} cache found for client {client_id}")
+                            logger.info(f" No {dashboard_type} cache found for client {client_id}")
                             return None
                     except Exception as parse_error:
-                        logger.warning(f"⚠️ Failed to parse cached responses for client {client_id}: {parse_error}")
+                        logger.warning(f" Failed to parse cached responses for client {client_id}: {parse_error}")
                         return None
                 else:
-                    logger.info(f"🔄 Cache MISS for client {client_id} ({dashboard_type}) - data changed or no cache")
+                    logger.info(f" Cache MISS for client {client_id} ({dashboard_type}) - data changed or no cache")
                     return None
             else:
-                logger.info(f"🔄 No cache found for client {client_id} ({dashboard_type})")
+                logger.info(f" No cache found for client {client_id} ({dashboard_type})")
                 return None
                 
         except Exception as e:
-            logger.error(f"❌ Error checking cache for client {client_id} ({dashboard_type}): {e}")
+            logger.error(f" Error checking cache for client {client_id} ({dashboard_type}): {e}")
             return None
     
     async def get_most_recent_analysis(self, client_id: str, dashboard_type: str) -> Optional[Dict[str, Any]]:
@@ -208,16 +208,16 @@ class LLMCacheManager:
                         cached_data = None
                 if isinstance(cached_data, dict):
                     if dashboard_type in cached_data:
-                        logger.info(f"📦 Retrieved most recent analysis for {dashboard_type}")
+                        logger.info(f" Retrieved most recent analysis for {dashboard_type}")
                         return cached_data[dashboard_type]
                     if 'llm_analysis' in cached_data:
-                        logger.info(f"📦 Retrieved most recent llm_analysis for {dashboard_type}")
+                        logger.info(f" Retrieved most recent llm_analysis for {dashboard_type}")
                         return cached_data['llm_analysis']
                     
             return None
             
         except Exception as e:
-            logger.error(f"❌ Failed to get most recent analysis: {e}")
+            logger.error(f" Failed to get most recent analysis: {e}")
             return None
 
     async def get_data_snapshot_for_period(self, client_id: str, start_date: str, end_date: str) -> Optional[str]:
@@ -234,13 +234,13 @@ class LLMCacheManager:
                     entry_date = datetime.fromisoformat(entry['created_at'].replace('Z', '+00:00'))
                     if entry_date <= end_dt:
                         snapshot_date = entry['created_at']
-                        logger.info(f"📅 Found data snapshot {snapshot_date} for period {start_date} to {end_date}")
+                        logger.info(f" Found data snapshot {snapshot_date} for period {start_date} to {end_date}")
                         return snapshot_date
                     
             return None
             
         except Exception as e:
-            logger.error(f"❌ Failed to find data snapshot for period: {e}")
+            logger.error(f" Failed to find data snapshot for period: {e}")
             return None
 
     async def get_analysis_by_snapshot_date(self, client_id: str, snapshot_date: str, dashboard_type: str) -> Optional[Dict[str, Any]]:
@@ -272,17 +272,17 @@ class LLMCacheManager:
                                 cached_data = None
                         if isinstance(cached_data, dict):
                             if dashboard_type in cached_data:
-                                logger.info(f"📦 Retrieved cached analysis for snapshot {snapshot_date}")
+                                logger.info(f" Retrieved cached analysis for snapshot {snapshot_date}")
                                 return cached_data[dashboard_type]
                             if 'llm_analysis' in cached_data:
-                                logger.info(f"📦 Retrieved cached llm_analysis for snapshot {snapshot_date}")
+                                logger.info(f" Retrieved cached llm_analysis for snapshot {snapshot_date}")
                                 return cached_data['llm_analysis']
                         break
                     
             return None
             
         except Exception as e:
-            logger.error(f"❌ Failed to get analysis by snapshot date: {e}")
+            logger.error(f" Failed to get analysis by snapshot date: {e}")
             return None
 
     async def store_cached_llm_response(self, client_id: str, client_data: Dict[str, Any], llm_response: Dict[str, Any], dashboard_type: str = "default", data_snapshot_date: Optional[str] = None) -> bool:
@@ -331,16 +331,16 @@ class LLMCacheManager:
                 response = self.db_client.table("llm_response_cache").insert(cache_record).execute()
                 if response.data:
                     logger.info(
-                        f"✅ Cached daily LLM response for client {client_id} ({dashboard_type}) (hash: {data_hash[:8]}...)"
+                        f" Cached daily LLM response for client {client_id} ({dashboard_type}) (hash: {data_hash[:8]}...)"
                     )
                     return True
                 logger.error(
-                    f"❌ Failed to cache LLM response for client {client_id} ({dashboard_type})"
+                    f" Failed to cache LLM response for client {client_id} ({dashboard_type})"
                 )
                 return False
             except Exception as insert_error:
                 # If insert fails due to schema issues, try with minimal record
-                logger.warning(f"⚠️ Cache insert failed, trying minimal record: {insert_error}")
+                logger.warning(f" Cache insert failed, trying minimal record: {insert_error}")
                 try:
                     minimal_record = {
                         "client_id": client_id,
@@ -351,14 +351,14 @@ class LLMCacheManager:
                     }
                     response = self.db_client.table("llm_response_cache").insert(minimal_record).execute()
                     if response.data:
-                        logger.info(f"✅ Cached minimal LLM response for client {client_id} ({dashboard_type})")
+                        logger.info(f" Cached minimal LLM response for client {client_id} ({dashboard_type})")
                         return True
                 except Exception as minimal_error:
-                    logger.error(f"❌ Even minimal cache failed: {minimal_error}")
+                    logger.error(f" Even minimal cache failed: {minimal_error}")
                 return False
         except Exception as e:
             logger.error(
-                f"❌ Error storing daily cache for client {client_id} ({dashboard_type}): {e}"
+                f" Error storing daily cache for client {client_id} ({dashboard_type}): {e}"
             )
             return False
 
@@ -388,7 +388,7 @@ class LLMCacheManager:
 
             return [latest_by_day[k] for k in sorted(latest_by_day.keys())]
         except Exception as e:
-            logger.error(f"❌ Failed to get daily latest in range: {e}")
+            logger.error(f" Failed to get daily latest in range: {e}")
             return []
     
     async def invalidate_cache(self, client_id: str, dashboard_type: Optional[str] = None) -> bool:
@@ -426,25 +426,25 @@ class LLMCacheManager:
                                     "updated_at": datetime.now().isoformat()
                                 }
                                 response = self.db_client.table("llm_response_cache").update(update_record).eq("client_id", client_id).execute()
-                                logger.info(f"🗑️ Invalidated {dashboard_type} cache for client {client_id}")
+                                logger.info(f"️ Invalidated {dashboard_type} cache for client {client_id}")
                             else:
                                 # No dashboard types left, delete the entire record
                                 response = self.db_client.table("llm_response_cache").delete().eq("client_id", client_id).execute()
-                                logger.info(f"🗑️ Invalidated {dashboard_type} cache (last one) for client {client_id}")
+                                logger.info(f"️ Invalidated {dashboard_type} cache (last one) for client {client_id}")
                         else:
                             logger.info(f"ℹ️ No {dashboard_type} cache found to invalidate for client {client_id}")
                     except Exception as parse_error:
-                        logger.warning(f"⚠️ Failed to parse cache for invalidation, deleting entire record for client {client_id}: {parse_error}")
+                        logger.warning(f" Failed to parse cache for invalidation, deleting entire record for client {client_id}: {parse_error}")
                         response = self.db_client.table("llm_response_cache").delete().eq("client_id", client_id).execute()
                 else:
                     logger.info(f"ℹ️ No cache found to invalidate for client {client_id}")
             else:
                 # Invalidate all dashboard types for this client - delete entire record
                 response = self.db_client.table("llm_response_cache").delete().eq("client_id", client_id).execute()
-                logger.info(f"🗑️ Invalidated ALL dashboard caches for client {client_id}")
+                logger.info(f"️ Invalidated ALL dashboard caches for client {client_id}")
             return True
         except Exception as e:
-            logger.error(f"❌ Error invalidating cache for client {client_id} ({dashboard_type}): {e}")
+            logger.error(f" Error invalidating cache for client {client_id} ({dashboard_type}): {e}")
             return False
     
     async def invalidate_all_cache(self) -> bool:
@@ -457,10 +457,10 @@ class LLMCacheManager:
         """
         try:
             response = self.db_client.table("llm_response_cache").delete().neq("client_id", "").execute()
-            logger.info(f"🗑️ Invalidated ALL cached responses")
+            logger.info(f"️ Invalidated ALL cached responses")
             return True
         except Exception as e:
-            logger.error(f"❌ Error invalidating all cache: {e}")
+            logger.error(f" Error invalidating all cache: {e}")
             return False
     
     async def get_cache_stats(self) -> Dict[str, Any]:
@@ -518,7 +518,7 @@ class LLMCacheManager:
                     age = (current_time - created_at).days
                     ages.append(age)
                 except Exception as parse_error:
-                    logger.warning(f"⚠️ Failed to parse created_at: {parse_error}")
+                    logger.warning(f" Failed to parse created_at: {parse_error}")
                     continue
             
             oldest_cache = max(ages) if ages else 0
@@ -535,7 +535,7 @@ class LLMCacheManager:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error getting cache stats: {e}")
+            logger.error(f" Error getting cache stats: {e}")
             return {"error": str(e)}
     
     async def cleanup_expired_cache(self, max_age_days: int = 7) -> int:
@@ -566,7 +566,7 @@ class LLMCacheManager:
                 return 0
                 
         except Exception as e:
-            logger.error(f"❌ Error cleaning up expired cache: {e}")
+            logger.error(f" Error cleaning up expired cache: {e}")
             return 0
 
 # Global instance

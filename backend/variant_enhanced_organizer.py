@@ -36,7 +36,7 @@ class VariantEnhancedOrganizer(DataOrganizer):
                     elif isinstance(record, dict):
                         data = record
                     else:
-                        logger.warning(f"⚠️ Unexpected data format: {type(record)}")
+                        logger.warning(f" Unexpected data format: {type(record)}")
                         continue
                     
                     # Determine platform and type
@@ -86,21 +86,21 @@ class VariantEnhancedOrganizer(DataOrganizer):
                         elif 'customer_email' in data and 'financial_status' in data:
                             categorized['shopify_orders'].append(data)
                         else:
-                            logger.warning(f"⚠️ Could not categorize record: {data}")
+                            logger.warning(f" Could not categorize record: {data}")
                 
                 except Exception as e:
-                    logger.warning(f"⚠️ Error processing record: {e}")
+                    logger.warning(f" Error processing record: {e}")
                     continue
             
             # Log categorization results
             for category, items in categorized.items():
                 if items:
-                    logger.info(f"📋 {category}: {len(items)} records")
+                    logger.info(f" {category}: {len(items)} records")
             
             return categorized
             
         except Exception as e:
-            logger.error(f"❌ Failed to categorize data: {e}")
+            logger.error(f" Failed to categorize data: {e}")
             return {}
     
     def transform_shopify_product(self, data: Dict[str, Any], client_id: str) -> Dict[str, Any]:
@@ -121,7 +121,7 @@ class VariantEnhancedOrganizer(DataOrganizer):
                 'raw_data': json.dumps(data)
             }
         except Exception as e:
-            logger.warning(f"⚠️ Error transforming Shopify product: {e}")
+            logger.warning(f" Error transforming Shopify product: {e}")
             return None
     
     def transform_shopify_variant(self, data: Dict[str, Any], client_id: str) -> Dict[str, Any]:
@@ -162,7 +162,7 @@ class VariantEnhancedOrganizer(DataOrganizer):
                 'updated_at': self._safe_datetime(data.get('updated_at'))
             }
         except Exception as e:
-            logger.warning(f"⚠️ Error transforming Shopify variant: {e}")
+            logger.warning(f" Error transforming Shopify variant: {e}")
             return None
     
     async def insert_organized_data(self, client_id: str, categorized_data: Dict[str, List[Dict[str, Any]]]) -> Dict[str, int]:
@@ -176,7 +176,7 @@ class VariantEnhancedOrganizer(DataOrganizer):
                     results[data_type] = 0
                     continue
                 
-                logger.info(f"🔄 Processing {len(records)} {data_type} records into separate table")
+                logger.info(f" Processing {len(records)} {data_type} records into separate table")
                 
                 # Transform records based on type
                 transformed_records = []
@@ -199,7 +199,7 @@ class VariantEnhancedOrganizer(DataOrganizer):
                             transformed_records.append(transformed)
                     
                     except Exception as e:
-                        logger.warning(f"⚠️ Error transforming {data_type} record: {e}")
+                        logger.warning(f" Error transforming {data_type} record: {e}")
                         continue
                 
                 if not transformed_records:
@@ -213,17 +213,17 @@ class VariantEnhancedOrganizer(DataOrganizer):
                     # Insert directly into the separate table
                     response = self.admin_client.table(table_name).insert(transformed_records).execute()
                     results[data_type] = len(response.data) if response.data else 0
-                    logger.info(f"✅ Inserted {results[data_type]} records into {table_name}")
+                    logger.info(f" Inserted {results[data_type]} records into {table_name}")
                 
                 except Exception as e:
-                    logger.error(f"❌ Failed to insert into {table_name}: {e}")
-                    logger.info(f"💡 Make sure the table {table_name} exists in Supabase")
+                    logger.error(f" Failed to insert into {table_name}: {e}")
+                    logger.info(f" Make sure the table {table_name} exists in Supabase")
                     results[data_type] = 0
             
             return results
             
         except Exception as e:
-            logger.error(f"❌ Failed to insert organized data: {e}")
+            logger.error(f" Failed to insert organized data: {e}")
             return {}
 
 async def main():
@@ -231,14 +231,14 @@ async def main():
     client_id = "3b619a14-3cd8-49fa-9c24-d8df5e54c452"
     
     try:
-        logger.info("🚀 Testing Variant-Enhanced Data Organizer")
+        logger.info(" Testing Variant-Enhanced Data Organizer")
         
         organizer = VariantEnhancedOrganizer()
         result = await organizer.organize_client_data(client_id)
         
         if result.get('success'):
-            print("✅ Variant-enhanced data organization successful!")
-            print(f"📊 Results:")
+            print(" Variant-enhanced data organization successful!")
+            print(f" Results:")
             print(f"   - Processing time: {result.get('processing_time_seconds'):.2f}s")
             print(f"   - Total raw records: {result.get('total_raw_records')}")
             print(f"   - Total organized: {result.get('total_organized')}")
@@ -247,10 +247,10 @@ async def main():
                 if count > 0:
                     print(f"     * {data_type}: {count} records")
         else:
-            print(f"❌ Variant-enhanced organization failed: {result.get('error')}")
+            print(f" Variant-enhanced organization failed: {result.get('error')}")
     
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f" Error: {e}")
         import traceback
         traceback.print_exc()
 

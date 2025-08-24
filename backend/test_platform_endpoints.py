@@ -11,11 +11,11 @@ async def test_platform_endpoints():
     # Test client ID
     client_id = "3b619a14-3cd8-49fa-9c24-d8df5e54c452"
     
-    print(f"🧪 Testing platform endpoints for client: {client_id}")
+    print(f" Testing platform endpoints for client: {client_id}")
     
     try:
         # Test Shopify platform
-        print("\n📦 Testing Shopify platform...")
+        print("\n Testing Shopify platform...")
         shopify_result = await dashboard_inventory_analyzer.get_dashboard_inventory_analytics(
             client_id=client_id,
             platform="shopify"
@@ -23,7 +23,7 @@ async def test_platform_endpoints():
         
         if shopify_result.get('success'):
             data_summary = shopify_result.get('data_summary', {})
-            print(f"✅ Shopify Analytics:")
+            print(f" Shopify Analytics:")
             print(f"   Platform: {data_summary.get('platform')}")
             print(f"   Shopify products: {data_summary.get('shopify_products', 0)}")
             print(f"   Shopify orders: {data_summary.get('shopify_orders', 0)}")
@@ -42,10 +42,10 @@ async def test_platform_endpoints():
             alerts = shopify_result.get('alerts_summary', {})
             print(f"   Alerts available: {len(alerts)} alert categories")
         else:
-            print(f"❌ Shopify Analytics failed: {shopify_result.get('error')}")
+            print(f" Shopify Analytics failed: {shopify_result.get('error')}")
         
         # Test Amazon platform
-        print("\n🛒 Testing Amazon platform...")
+        print("\n Testing Amazon platform...")
         amazon_result = await dashboard_inventory_analyzer.get_dashboard_inventory_analytics(
             client_id=client_id,
             platform="amazon"
@@ -53,7 +53,7 @@ async def test_platform_endpoints():
         
         if amazon_result.get('success'):
             data_summary = amazon_result.get('data_summary', {})
-            print(f"✅ Amazon Analytics:")
+            print(f" Amazon Analytics:")
             print(f"   Platform: {data_summary.get('platform')}")
             print(f"   Amazon products: {data_summary.get('amazon_products', 0)}")
             print(f"   Amazon orders: {data_summary.get('amazon_orders', 0)}")
@@ -72,15 +72,15 @@ async def test_platform_endpoints():
             alerts = amazon_result.get('alerts_summary', {})
             print(f"   Alerts available: {len(alerts)} alert categories")
         else:
-            print(f"❌ Amazon Analytics failed: {amazon_result.get('error')}")
+            print(f" Amazon Analytics failed: {amazon_result.get('error')}")
         
-        print("\n🎯 Platform Isolation Test:")
-        print("✅ Shopify platform should only show Shopify data")
-        print("✅ Amazon platform should only show Amazon data")
-        print("✅ Both should have identical response structure")
+        print("\n Platform Isolation Test:")
+        print(" Shopify platform should only show Shopify data")
+        print(" Amazon platform should only show Amazon data")
+        print(" Both should have identical response structure")
         
     except Exception as e:
-        print(f"❌ Test failed with error: {e}")
+        print(f" Test failed with error: {e}")
         import traceback
         traceback.print_exc()
 

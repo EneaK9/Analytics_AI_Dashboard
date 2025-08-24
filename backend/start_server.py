@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 def main():
     """Start the FastAPI server"""
     try:
-        logger.info("🚀 Starting AI Dashboard FastAPI Server...")
-        logger.info("📊 Server will be available at: http://localhost:8000")
-        logger.info("📋 API docs available at: http://localhost:8000/docs")
+        logger.info(" Starting AI Dashboard FastAPI Server...")
+        logger.info(" Server will be available at: http://localhost:8000")
+        logger.info(" API docs available at: http://localhost:8000/docs")
         logger.info("🤖 Health check at: http://localhost:8000/health")
         
         # Import the FastAPI app
@@ -36,11 +36,11 @@ def main():
         )
         
     except ImportError as e:
-        logger.error(f"❌ Failed to import app: {e}")
+        logger.error(f" Failed to import app: {e}")
         logger.error("Make sure you're in the backend directory and dependencies are installed")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"❌ Server startup failed: {e}")
+        logger.error(f" Server startup failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

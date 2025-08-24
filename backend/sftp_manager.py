@@ -48,7 +48,7 @@ class SFTPManager:
             ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
             # Connect
-            logger.info(f"🔄 Testing SFTP connection to {credentials.host}:{credentials.port}")
+            logger.info(f" Testing SFTP connection to {credentials.host}:{credentials.port}")
             ssh_client.connect(
                 hostname=credentials.host,
                 port=credentials.port,
@@ -82,23 +82,23 @@ class SFTPManager:
                 sftp.close()
                 ssh_client.close()
                 
-                logger.info(f"✅ SFTP connection successful. Found {len(files)} files")
+                logger.info(f" SFTP connection successful. Found {len(files)} files")
                 return True, f"Connection successful. Found {len(files)} files.", files
                 
             except Exception as path_error:
                 sftp.close()
                 ssh_client.close()
-                logger.error(f"❌ Path error: {path_error}")
+                logger.error(f" Path error: {path_error}")
                 return False, f"Could not access path '{credentials.remote_path}': {str(path_error)}", []
                 
         except paramiko.AuthenticationException:
-            logger.error(f"❌ SFTP authentication failed for {credentials.username}")
+            logger.error(f" SFTP authentication failed for {credentials.username}")
             return False, "Authentication failed. Please check username and password.", []
         except paramiko.SSHException as ssh_error:
-            logger.error(f"❌ SSH error: {ssh_error}")
+            logger.error(f" SSH error: {ssh_error}")
             return False, f"SSH connection error: {str(ssh_error)}", []
         except Exception as e:
-            logger.error(f"❌ SFTP connection failed: {e}")
+            logger.error(f" SFTP connection failed: {e}")
             return False, f"Connection failed: {str(e)}", []
     
     def download_file(self, credentials: SFTPCredentials, filename: str) -> Tuple[bool, bytes, str]:
@@ -127,22 +127,22 @@ class SFTPManager:
             remote_file_path = os.path.join(credentials.remote_path, filename).replace('\\', '/')
             file_buffer = io.BytesIO()
             
-            logger.info(f"🔄 Downloading {remote_file_path}")
+            logger.info(f" Downloading {remote_file_path}")
             sftp.getfo(remote_file_path, file_buffer)
             
             sftp.close()
             ssh_client.close()
             
             file_content = file_buffer.getvalue()
-            logger.info(f"✅ Downloaded {filename}: {len(file_content)} bytes")
+            logger.info(f" Downloaded {filename}: {len(file_content)} bytes")
             
             return True, file_content, ""
             
         except FileNotFoundError:
-            logger.error(f"❌ File not found: {filename}")
+            logger.error(f" File not found: {filename}")
             return False, b"", f"File '{filename}' not found on server"
         except Exception as e:
-            logger.error(f"❌ Download failed for {filename}: {e}")
+            logger.error(f" Download failed for {filename}: {e}")
             return False, b"", f"Download failed: {str(e)}"
     
     def download_multiple_files(self, credentials: SFTPCredentials, filenames: List[str]) -> Dict[str, Any]:
@@ -181,26 +181,26 @@ class SFTPManager:
                     remote_file_path = os.path.join(credentials.remote_path, filename).replace('\\', '/')
                     file_buffer = io.BytesIO()
                     
-                    logger.info(f"🔄 Downloading {remote_file_path}")
+                    logger.info(f" Downloading {remote_file_path}")
                     sftp.getfo(remote_file_path, file_buffer)
                     
                     result["files"][filename] = file_buffer.getvalue()
                     result["downloaded_count"] += 1
-                    logger.info(f"✅ Downloaded {filename}")
+                    logger.info(f" Downloaded {filename}")
                     
                 except Exception as file_error:
-                    logger.error(f"❌ Failed to download {filename}: {file_error}")
+                    logger.error(f" Failed to download {filename}: {file_error}")
                     result["errors"][filename] = str(file_error)
                     result["success"] = False
             
             sftp.close()
             ssh_client.close()
             
-            logger.info(f"✅ Batch download complete: {result['downloaded_count']}/{result['total_files']} files")
+            logger.info(f" Batch download complete: {result['downloaded_count']}/{result['total_files']} files")
             return result
             
         except Exception as e:
-            logger.error(f"❌ Batch download failed: {e}")
+            logger.error(f" Batch download failed: {e}")
             result["success"] = False
             result["errors"]["connection"] = str(e)
             return result
@@ -214,7 +214,7 @@ class SFTPManager:
             success, message, files = self.test_connection(credentials)
             return success, files, message if not success else ""
         except Exception as e:
-            logger.error(f"❌ File listing failed: {e}")
+            logger.error(f" File listing failed: {e}")
             return False, [], str(e)
 
 # Global SFTP manager instance

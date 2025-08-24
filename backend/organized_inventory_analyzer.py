@@ -25,7 +25,7 @@ class OrganizedInventoryAnalyzer:
             self.admin_client = get_admin_client()
             self._client_initialized = True
             if not self.admin_client:
-                raise Exception("❌ No admin database client available")
+                raise Exception(" No admin database client available")
         return self.admin_client
 
     async def analyze_client_inventory(self, client_id: str) -> Dict[str, Any]:
@@ -34,7 +34,7 @@ class OrganizedInventoryAnalyzer:
             # Ensure database client is available
             self._ensure_client()
             
-            logger.info(f"🔍 Starting organized inventory analysis for client {client_id}")
+            logger.info(f" Starting organized inventory analysis for client {client_id}")
             
             # Get data from organized tables
             shopify_data = await self._get_shopify_data(client_id)
@@ -59,11 +59,11 @@ class OrganizedInventoryAnalyzer:
                 "low_stock_alerts": await self._get_low_stock_alerts(client_id, shopify_data, amazon_data)
             }
             
-            logger.info(f"✅ Organized inventory analysis completed successfully")
+            logger.info(f" Organized inventory analysis completed successfully")
             return analytics
             
         except Exception as e:
-            logger.error(f"❌ Error in organized inventory analysis: {str(e)}")
+            logger.error(f" Error in organized inventory analysis: {str(e)}")
             return {
                 "success": False,
                 "timestamp": datetime.now().isoformat(),
@@ -92,12 +92,12 @@ class OrganizedInventoryAnalyzer:
             except Exception:
                 orders = []
             
-            logger.info(f"📦 Found {len(products)} Shopify product variants, {len(orders)} Shopify orders")
+            logger.info(f" Found {len(products)} Shopify product variants, {len(orders)} Shopify orders")
             
             return {"products": products, "orders": orders}
             
         except Exception as e:
-            logger.warning(f"⚠️ Could not get Shopify data: {e}")
+            logger.warning(f" Could not get Shopify data: {e}")
             return {"products": [], "orders": []}
     
     async def _get_amazon_data(self, client_id: str) -> Dict[str, Any]:
@@ -120,12 +120,12 @@ class OrganizedInventoryAnalyzer:
             except Exception:
                 products = []
             
-            logger.info(f"📦 Found {len(orders)} Amazon orders, {len(products)} Amazon products")
+            logger.info(f" Found {len(orders)} Amazon orders, {len(products)} Amazon products")
             
             return {"orders": orders, "products": products}
             
         except Exception as e:
-            logger.warning(f"⚠️ Could not get Amazon data: {e}")
+            logger.warning(f" Could not get Amazon data: {e}")
             return {"orders": [], "products": []}
     
     async def _calculate_inventory_kpis(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> Dict[str, Any]:
@@ -180,7 +180,7 @@ class OrganizedInventoryAnalyzer:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error calculating inventory KPIs: {e}")
+            logger.error(f" Error calculating inventory KPIs: {e}")
             return {"error": str(e)}
     
     async def _calculate_sales_kpis(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> Dict[str, Any]:
@@ -280,7 +280,7 @@ class OrganizedInventoryAnalyzer:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error calculating sales KPIs: {e}")
+            logger.error(f" Error calculating sales KPIs: {e}")
             return {"error": str(e)}
     
     async def _analyze_trends(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> Dict[str, Any]:
@@ -381,7 +381,7 @@ class OrganizedInventoryAnalyzer:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error analyzing trends: {e}")
+            logger.error(f" Error analyzing trends: {e}")
             return {"error": str(e)}
     
     async def _generate_alerts(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> List[Dict[str, Any]]:
@@ -437,7 +437,7 @@ class OrganizedInventoryAnalyzer:
             return alerts
             
         except Exception as e:
-            logger.error(f"❌ Error generating alerts: {e}")
+            logger.error(f" Error generating alerts: {e}")
             return [{"type": "error", "message": f"Error generating alerts: {str(e)}"}]
     
     async def _get_top_products(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> Dict[str, Any]:
@@ -484,7 +484,7 @@ class OrganizedInventoryAnalyzer:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error getting top products: {e}")
+            logger.error(f" Error getting top products: {e}")
             return {"error": str(e)}
     
     async def _get_low_stock_alerts(self, client_id: str, shopify_data: Dict, amazon_data: Dict) -> List[Dict[str, Any]]:
@@ -530,7 +530,7 @@ class OrganizedInventoryAnalyzer:
             return low_stock
             
         except Exception as e:
-            logger.error(f"❌ Error getting low stock alerts: {e}")
+            logger.error(f" Error getting low stock alerts: {e}")
             return []
 
 # Global instance

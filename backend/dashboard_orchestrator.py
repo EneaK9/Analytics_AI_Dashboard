@@ -399,7 +399,7 @@ class DashboardOrchestrator:
 
 
 
-            raise Exception("❌ OpenAI API key REQUIRED - no fallbacks allowed")
+            raise Exception(" OpenAI API key REQUIRED - no fallbacks allowed")
 
 
 
@@ -447,11 +447,11 @@ class DashboardOrchestrator:
 
 
 
-        logger.info("✅ OpenAI API key configured for Dashboard Orchestrator")
+        logger.info(" OpenAI API key configured for Dashboard Orchestrator")
 
 
 
-        logger.info("🚀 Custom template system initialized")
+        logger.info(" Custom template system initialized")
 
 
 
@@ -471,7 +471,7 @@ class DashboardOrchestrator:
 
 
 
-        # 💾 SIMPLE IN-MEMORY CACHE FOR LLM ANALYSIS (NO DB CHANGES NEEDED)
+        #  SIMPLE IN-MEMORY CACHE FOR LLM ANALYSIS (NO DB CHANGES NEEDED)
 
 
 
@@ -483,7 +483,7 @@ class DashboardOrchestrator:
 
 
 
-        # 🔒 PROPER ASYNC LOCKS TO PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT
+        #  PROPER ASYNC LOCKS TO PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT
 
 
 
@@ -895,7 +895,7 @@ class DashboardOrchestrator:
 
 
 
-                    f"✅ Generation tracking initialized for client {client_id}: {generation_id}"
+                    f" Generation tracking initialized for client {client_id}: {generation_id}"
 
 
 
@@ -923,7 +923,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Failed to initialize generation tracking: {e}")
+            logger.error(f" Failed to initialize generation tracking: {e}")
 
 
 
@@ -1103,7 +1103,7 @@ class DashboardOrchestrator:
 
 
 
-                f"📊 Generation tracking updated: {generation_id} -> {status.value}"
+                f" Generation tracking updated: {generation_id} -> {status.value}"
 
 
 
@@ -1119,7 +1119,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Failed to update generation tracking: {e}")
+            logger.error(f" Failed to update generation tracking: {e}")
 
 
 
@@ -1163,7 +1163,7 @@ class DashboardOrchestrator:
 
 
 
-        logger.info(f"🎨 Starting dashboard generation for client {request.client_id}")
+        logger.info(f" Starting dashboard generation for client {request.client_id}")
 
 
 
@@ -1199,7 +1199,7 @@ class DashboardOrchestrator:
 
 
 
-                    f"🔄 Dashboard generation attempt {retry_count} for client {request.client_id}"
+                    f" Dashboard generation attempt {retry_count} for client {request.client_id}"
 
 
 
@@ -1259,7 +1259,7 @@ class DashboardOrchestrator:
 
 
 
-                            f"📊 Dashboard already exists for client {request.client_id}"
+                            f" Dashboard already exists for client {request.client_id}"
 
 
 
@@ -1367,7 +1367,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"✅ Dashboard generated successfully for client {request.client_id}"
+                        f" Dashboard generated successfully for client {request.client_id}"
 
 
 
@@ -1395,7 +1395,7 @@ class DashboardOrchestrator:
 
 
 
-                    f"⚠️  Dashboard generation attempt {retry_count} failed: {e}"
+                    f"  Dashboard generation attempt {retry_count} failed: {e}"
 
 
 
@@ -1443,7 +1443,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"❌ Dashboard generation failed after {max_retries} attempts: {e}"
+                        f" Dashboard generation failed after {max_retries} attempts: {e}"
 
 
 
@@ -1491,7 +1491,7 @@ class DashboardOrchestrator:
 
 
 
-                logger.info(f"🔄 Retrying in {wait_time} seconds...")
+                logger.info(f" Retrying in {wait_time} seconds...")
 
 
 
@@ -1543,7 +1543,7 @@ class DashboardOrchestrator:
 
 
 
-            f"⚡ TURBO dashboard generation for {client_id} (concurrent processing)"
+            f" TURBO dashboard generation for {client_id} (concurrent processing)"
 
 
 
@@ -1583,7 +1583,7 @@ class DashboardOrchestrator:
 
 
 
-        logger.info("🚀 Running parallel AI analysis for maximum speed")
+        logger.info(" Running parallel AI analysis for maximum speed")
 
 
 
@@ -1891,7 +1891,7 @@ class DashboardOrchestrator:
 
 
 
-            f"🚀 TURBO dashboard generation completed in {generation_time:.3f}s - {metrics_generated} metrics"
+            f" TURBO dashboard generation completed in {generation_time:.3f}s - {metrics_generated} metrics"
 
 
 
@@ -1959,7 +1959,7 @@ class DashboardOrchestrator:
 
 
 
-        # 🔧 FIX: Handle nested data structures (lists, dicts) from API integrations
+        #  FIX: Handle nested data structures (lists, dicts) from API integrations
 
 
 
@@ -2115,7 +2115,7 @@ class DashboardOrchestrator:
 
 
 
-        logger.info(f"📊 Analyzing {len(df)} rows of REAL data for client {client_id}")
+        logger.info(f" Analyzing {len(df)} rows of REAL data for client {client_id}")
 
 
 
@@ -2199,7 +2199,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.info(f"✅ Converted column '{col}' to numeric")
+                    logger.info(f" Converted column '{col}' to numeric")
 
 
 
@@ -2287,7 +2287,7 @@ class DashboardOrchestrator:
 
 
 
-                        logger.info(f"✅ Detected date column: '{col}'")
+                        logger.info(f" Detected date column: '{col}'")
 
 
 
@@ -2395,7 +2395,7 @@ class DashboardOrchestrator:
 
 
 
-                            logger.info(f"🔧 Force-converted column '{col}' to numeric")
+                            logger.info(f" Force-converted column '{col}' to numeric")
 
 
 
@@ -2419,7 +2419,7 @@ class DashboardOrchestrator:
 
 
 
-            f"🔍 Column detection results: {len(numeric_columns)} numeric, {len(categorical_columns)} categorical, {len(date_columns)} date"
+            f" Column detection results: {len(numeric_columns)} numeric, {len(categorical_columns)} categorical, {len(date_columns)} date"
 
 
 
@@ -2623,7 +2623,7 @@ class DashboardOrchestrator:
 
 
 
-        # 🎲 Add randomization factor to ensure diversity even with same data
+        #  Add randomization factor to ensure diversity even with same data
 
 
 
@@ -2907,11 +2907,11 @@ class DashboardOrchestrator:
 
 
 
-                📊 AREA CHARTS: LineChartOne, LineChartOne, LineChartOne, LineChartOne, LineChartOne
+                 AREA CHARTS: LineChartOne, LineChartOne, LineChartOne, LineChartOne, LineChartOne
 
 
 
-                📈 BAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
+                 BAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
 
 
 
@@ -2919,11 +2919,11 @@ class DashboardOrchestrator:
 
 
 
-                🎯 RADAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
+                 RADAR CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
 
 
 
-                📉 RADIAL CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
+                 RADIAL CHARTS: BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne, BarChartOne
 
 
 
@@ -3007,11 +3007,11 @@ class DashboardOrchestrator:
 
 
 
-            ✅ GOOD: "Sales", "Growth", "Performance", "Analytics", "Insights", "Trends", "Distribution"
+             GOOD: "Sales", "Growth", "Performance", "Analytics", "Insights", "Trends", "Distribution"
 
 
 
-            ❌ BAD: "Sales Performance Dashboard", "Monthly Revenue Analysis Chart", "Customer Data Visualization"
+             BAD: "Sales Performance Dashboard", "Monthly Revenue Analysis Chart", "Customer Data Visualization"
 
 
 
@@ -3187,7 +3187,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"⚠️  Empty AI response received (attempt {retry_count})"
+                        f"  Empty AI response received (attempt {retry_count})"
 
 
 
@@ -3271,7 +3271,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"⚠️  No JSON structure in AI response: {clean_content[:100]}..."
+                        f"  No JSON structure in AI response: {clean_content[:100]}..."
 
 
 
@@ -3403,7 +3403,7 @@ class DashboardOrchestrator:
 
 
 
-                    f"✅ AI business context generated with batching: {ai_response.get('business_type', 'general')}"
+                    f" AI business context generated with batching: {ai_response.get('business_type', 'general')}"
 
 
 
@@ -3531,7 +3531,7 @@ class DashboardOrchestrator:
 
 
 
-                    f"⚠️  AI response parsing failed (attempt {retry_count}): {e}"
+                    f"  AI response parsing failed (attempt {retry_count}): {e}"
 
 
 
@@ -3555,7 +3555,7 @@ class DashboardOrchestrator:
 
 
 
-                logger.warning(f"⚠️  AI analysis failed (attempt {retry_count}): {e}")
+                logger.warning(f"  AI analysis failed (attempt {retry_count}): {e}")
 
 
 
@@ -3583,7 +3583,7 @@ class DashboardOrchestrator:
 
 
 
-            f"⚠️  AI analysis failed after {max_retries} attempts, using heuristic fallback"
+            f"  AI analysis failed after {max_retries} attempts, using heuristic fallback"
 
 
 
@@ -3623,7 +3623,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"🎨 Starting dashboard generation for client {client_id}")
+            logger.info(f" Starting dashboard generation for client {client_id}")
 
 
 
@@ -3647,7 +3647,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.info(f"📊 Dashboard already exists for client {client_id}")
+                    logger.info(f" Dashboard already exists for client {client_id}")
 
 
 
@@ -3951,7 +3951,7 @@ class DashboardOrchestrator:
 
 
 
-                f"✅ Dashboard generated successfully for client {client_id} in {generation_time:.2f}s"
+                f" Dashboard generated successfully for client {client_id} in {generation_time:.2f}s"
 
 
 
@@ -4003,7 +4003,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Dashboard generation failed for client {client_id}: {e}")
+            logger.error(f" Dashboard generation failed for client {client_id}: {e}")
 
 
 
@@ -4319,7 +4319,7 @@ class DashboardOrchestrator:
 
 
 
-                        "⚠️  Empty response from OpenAI, falling back to heuristic analysis"
+                        "  Empty response from OpenAI, falling back to heuristic analysis"
 
 
 
@@ -4395,7 +4395,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"⚠️  Invalid JSON from OpenAI: {json_error}. Response: {response_content[:200]}..."
+                        f"  Invalid JSON from OpenAI: {json_error}. Response: {response_content[:200]}..."
 
 
 
@@ -4403,7 +4403,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.warning("🔄 Falling back to heuristic analysis")
+                    logger.warning(" Falling back to heuristic analysis")
 
 
 
@@ -4427,7 +4427,7 @@ class DashboardOrchestrator:
 
 
 
-                        "⚠️  OpenAI response is not a dictionary, falling back to heuristic analysis"
+                        "  OpenAI response is not a dictionary, falling back to heuristic analysis"
 
 
 
@@ -4547,7 +4547,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ AI business context analysis failed: {e}")
+            logger.error(f" AI business context analysis failed: {e}")
 
 
 
@@ -5499,7 +5499,7 @@ class DashboardOrchestrator:
 
 
 
-                f"⚡ Fast dashboard config save for client {dashboard_config.client_id}"
+                f" Fast dashboard config save for client {dashboard_config.client_id}"
 
 
 
@@ -5563,7 +5563,7 @@ class DashboardOrchestrator:
 
 
 
-                logger.info(f"✅ Dashboard config saved with high performance")
+                logger.info(f" Dashboard config saved with high performance")
 
 
 
@@ -5583,7 +5583,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Failed to save dashboard config: {e}")
+            logger.error(f" Failed to save dashboard config: {e}")
 
 
 
@@ -5855,7 +5855,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Failed to generate and save metrics: {e}")
+            logger.error(f" Failed to generate and save metrics: {e}")
 
 
 
@@ -6295,7 +6295,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"⚡ Fast dashboard lookup for client {client_id}")
+            logger.info(f" Fast dashboard lookup for client {client_id}")
 
 
 
@@ -6383,7 +6383,7 @@ class DashboardOrchestrator:
 
 
 
-                logger.info(f"✅ Dashboard config retrieved from cache")
+                logger.info(f" Dashboard config retrieved from cache")
 
 
 
@@ -6407,7 +6407,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Failed to get existing dashboard: {e}")
+            logger.error(f" Failed to get existing dashboard: {e}")
 
 
 
@@ -6479,7 +6479,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"🔄 Processing {len(response.data)} pending dashboard retries")
+            logger.info(f" Processing {len(response.data)} pending dashboard retries")
 
 
 
@@ -6511,7 +6511,7 @@ class DashboardOrchestrator:
 
 
 
-                    f"🔄 Retrying dashboard generation for client {client_id} (attempt {attempt_count})"
+                    f" Retrying dashboard generation for client {client_id} (attempt {attempt_count})"
 
 
 
@@ -6583,7 +6583,7 @@ class DashboardOrchestrator:
 
 
 
-                        logger.info(f"✅ Retry successful for client {client_id}")
+                        logger.info(f" Retry successful for client {client_id}")
 
 
 
@@ -6603,7 +6603,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.error(f"❌ Retry failed for client {client_id}: {e}")
+                    logger.error(f" Retry failed for client {client_id}: {e}")
 
 
 
@@ -6679,7 +6679,7 @@ class DashboardOrchestrator:
 
 
 
-                            f"🔄 Will retry again for client {client_id} in {retry_info.retry_delay_seconds//60} minutes"
+                            f" Will retry again for client {client_id} in {retry_info.retry_delay_seconds//60} minutes"
 
 
 
@@ -6723,7 +6723,7 @@ class DashboardOrchestrator:
 
 
 
-                            f"❌ Giving up on client {client_id}: {retry_info.reason}"
+                            f" Giving up on client {client_id}: {retry_info.reason}"
 
 
 
@@ -6799,7 +6799,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Failed to process pending retries: {e}")
+            logger.error(f" Failed to process pending retries: {e}")
 
 
 
@@ -6863,7 +6863,7 @@ class DashboardOrchestrator:
 
 
 
-            f"🔢 Generating KPIs from {len(numeric_columns)} numeric columns in REAL data"
+            f" Generating KPIs from {len(numeric_columns)} numeric columns in REAL data"
 
 
 
@@ -8151,7 +8151,7 @@ class DashboardOrchestrator:
 
 
 
-                logger.warning(f"❌ No real data available for charts")
+                logger.warning(f" No real data available for charts")
 
 
 
@@ -8179,7 +8179,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"🔍 Smart column analysis: {smart_columns}")
+            logger.info(f" Smart column analysis: {smart_columns}")
 
 
 
@@ -8199,7 +8199,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🎯 USE AI RECOMMENDATIONS: Generate charts based on AI's diverse selections!
+            #  USE AI RECOMMENDATIONS: Generate charts based on AI's diverse selections!
 
 
 
@@ -8223,7 +8223,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🎲 CREATIVE & RANDOMIZED CHART GENERATION - Each client gets unique dashboard
+            #  CREATIVE & RANDOMIZED CHART GENERATION - Each client gets unique dashboard
 
 
 
@@ -8255,7 +8255,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🎲 FORCE MINIMUM 12 CHARTS - Be creative even with limited data!
+            #  FORCE MINIMUM 12 CHARTS - Be creative even with limited data!
 
 
 
@@ -8271,7 +8271,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🔥 CREATIVE CHART TYPE SELECTION - Mix AI recommendations with forced variety
+            #  CREATIVE CHART TYPE SELECTION - Mix AI recommendations with forced variety
 
 
 
@@ -8307,7 +8307,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🎨 FORCE VARIETY: Add different chart types if we don't have enough
+            #  FORCE VARIETY: Add different chart types if we don't have enough
 
 
 
@@ -8495,7 +8495,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🎲 Add more random charts to reach minimum
+            #  Add more random charts to reach minimum
 
 
 
@@ -8531,7 +8531,7 @@ class DashboardOrchestrator:
 
 
 
-                f"🎨 CREATIVE DASHBOARD: Generating {len(selected_chart_types)} diverse charts for client {client_id}"
+                f" CREATIVE DASHBOARD: Generating {len(selected_chart_types)} diverse charts for client {client_id}"
 
 
 
@@ -8771,7 +8771,7 @@ class DashboardOrchestrator:
 
 
 
-                # 🎨 CREATIVE DATA COLUMN SELECTION - Each chart gets unique data perspective!
+                #  CREATIVE DATA COLUMN SELECTION - Each chart gets unique data perspective!
 
 
 
@@ -8791,7 +8791,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.warning(f"❌ No real data columns available for chart {i+1}")
+                    logger.warning(f" No real data columns available for chart {i+1}")
 
 
 
@@ -8803,7 +8803,7 @@ class DashboardOrchestrator:
 
 
 
-                # 🎲 CREATIVE DATA COMBINATIONS - Different approaches for each chart
+                #  CREATIVE DATA COMBINATIONS - Different approaches for each chart
 
 
 
@@ -8915,7 +8915,7 @@ class DashboardOrchestrator:
 
 
 
-                # 🎯 SELECT UNIQUE COMBINATION for this chart
+                #  SELECT UNIQUE COMBINATION for this chart
 
 
 
@@ -9027,7 +9027,7 @@ class DashboardOrchestrator:
 
 
 
-                    f"🎨 Chart {i+1} ({recommended_chart}): Using creative data combo [{data_cols[0]} x {data_cols[1]}]"
+                    f" Chart {i+1} ({recommended_chart}): Using creative data combo [{data_cols[0]} x {data_cols[1]}]"
 
 
 
@@ -9051,7 +9051,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"❌ Could not determine real data columns for chart {i+1}"
+                        f" Could not determine real data columns for chart {i+1}"
 
 
 
@@ -9211,7 +9211,7 @@ class DashboardOrchestrator:
 
 
 
-            # ✅ All charts generated using AI recommendations above
+            #  All charts generated using AI recommendations above
 
 
 
@@ -9219,7 +9219,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"🎨 Generated {len(chart_widgets)} AI-recommended charts")
+            logger.info(f" Generated {len(chart_widgets)} AI-recommended charts")
 
 
 
@@ -9227,7 +9227,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🚨 EMERGENCY FALLBACK: If we have NO charts after validation, create guaranteed working charts
+            #  EMERGENCY FALLBACK: If we have NO charts after validation, create guaranteed working charts
 
 
 
@@ -9239,7 +9239,7 @@ class DashboardOrchestrator:
 
 
 
-                    "🚨 NO CHARTS PASSED VALIDATION! Creating emergency fallback charts..."
+                    " NO CHARTS PASSED VALIDATION! Creating emergency fallback charts..."
 
 
 
@@ -9379,7 +9379,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.info("🚨 Created emergency bar chart for data distribution")
+                    logger.info(" Created emergency bar chart for data distribution")
 
 
 
@@ -9403,7 +9403,7 @@ class DashboardOrchestrator:
 
 
 
-                        title="📈 Numeric Overview",
+                        title=" Numeric Overview",
 
 
 
@@ -9475,7 +9475,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.info("🚨 Created emergency line chart for numeric data")
+                    logger.info(" Created emergency line chart for numeric data")
 
 
 
@@ -9491,7 +9491,7 @@ class DashboardOrchestrator:
 
 
 
-                        "🚨 CRITICAL: Could not create any charts even with emergency fallbacks!"
+                        " CRITICAL: Could not create any charts even with emergency fallbacks!"
 
 
 
@@ -9507,7 +9507,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"🚨 Created {len(chart_widgets)} emergency fallback charts"
+                        f" Created {len(chart_widgets)} emergency fallback charts"
 
 
 
@@ -9531,7 +9531,7 @@ class DashboardOrchestrator:
 
 
 
-                f"✅ Generated {len(chart_widgets)} beautiful charts in {generation_time:.2f}s"
+                f" Generated {len(chart_widgets)} beautiful charts in {generation_time:.2f}s"
 
 
 
@@ -9543,7 +9543,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🔍 FINAL VALIDATION: Ensure all charts have valid data columns and remove any problematic ones
+            #  FINAL VALIDATION: Ensure all charts have valid data columns and remove any problematic ones
 
 
 
@@ -9619,7 +9619,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"⚠️ Removing chart '{chart.title}' - missing columns: {missing_cols}"
+                        f" Removing chart '{chart.title}' - missing columns: {missing_cols}"
 
 
 
@@ -9727,7 +9727,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"⚠️ Removing chart '{chart.title}' - no meaningful data in columns: {required_cols}"
+                        f" Removing chart '{chart.title}' - no meaningful data in columns: {required_cols}"
 
 
 
@@ -9755,7 +9755,7 @@ class DashboardOrchestrator:
 
 
 
-                    f"✅ Chart validated: '{chart.title}' with columns {required_cols}"
+                    f" Chart validated: '{chart.title}' with columns {required_cols}"
 
 
 
@@ -9775,7 +9775,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🚨 EMERGENCY FALLBACK: If we have NO charts after validation, create guaranteed working charts
+            #  EMERGENCY FALLBACK: If we have NO charts after validation, create guaranteed working charts
 
 
 
@@ -9787,7 +9787,7 @@ class DashboardOrchestrator:
 
 
 
-                    "🚨 NO CHARTS PASSED VALIDATION! Creating emergency fallback charts..."
+                    " NO CHARTS PASSED VALIDATION! Creating emergency fallback charts..."
 
 
 
@@ -9815,7 +9815,7 @@ class DashboardOrchestrator:
 
 
 
-                        title="📊 Data Distribution",
+                        title=" Data Distribution",
 
 
 
@@ -9887,7 +9887,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.info("🚨 Created emergency bar chart for data distribution")
+                    logger.info(" Created emergency bar chart for data distribution")
 
 
 
@@ -9911,7 +9911,7 @@ class DashboardOrchestrator:
 
 
 
-                        title="📈 Numeric Overview",
+                        title=" Numeric Overview",
 
 
 
@@ -9983,7 +9983,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.info("🚨 Created emergency line chart for numeric data")
+                    logger.info(" Created emergency line chart for numeric data")
 
 
 
@@ -9999,7 +9999,7 @@ class DashboardOrchestrator:
 
 
 
-                        "🚨 CRITICAL: Could not create any charts even with emergency fallbacks!"
+                        " CRITICAL: Could not create any charts even with emergency fallbacks!"
 
 
 
@@ -10015,7 +10015,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"🚨 Created {len(chart_widgets)} emergency fallback charts"
+                        f" Created {len(chart_widgets)} emergency fallback charts"
 
 
 
@@ -10039,7 +10039,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Failed to generate chart widgets: {e}")
+            logger.error(f" Failed to generate chart widgets: {e}")
 
 
 
@@ -10607,7 +10607,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"✅ Generated {len(chart_titles)} AI-powered chart titles")
+            logger.info(f" Generated {len(chart_titles)} AI-powered chart titles")
 
 
 
@@ -10623,7 +10623,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ AI title generation failed: {e}")
+            logger.error(f" AI title generation failed: {e}")
 
 
 
@@ -11027,7 +11027,7 @@ class DashboardOrchestrator:
 
 
 
-                logger.warning(f"🔍 No sample data available for column analysis")
+                logger.warning(f" No sample data available for column analysis")
 
 
 
@@ -11063,7 +11063,7 @@ class DashboardOrchestrator:
 
 
 
-                logger.warning(f"🔍 No sample records available for analysis")
+                logger.warning(f" No sample records available for analysis")
 
 
 
@@ -11363,7 +11363,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Column analysis failed: {e}")
+            logger.error(f" Column analysis failed: {e}")
 
 
 
@@ -11411,7 +11411,7 @@ class DashboardOrchestrator:
 
 
 
-                f"⚡ High-performance metrics generation for client {client_id}"
+                f" High-performance metrics generation for client {client_id}"
 
 
 
@@ -11459,7 +11459,7 @@ class DashboardOrchestrator:
 
 
 
-                        "metric_name": kpi.title,  # ✅ USE TITLE, NOT ID!
+                        "metric_name": kpi.title,  #  USE TITLE, NOT ID!
 
 
 
@@ -11695,7 +11695,7 @@ class DashboardOrchestrator:
 
 
 
-                f"✅ Generated {metrics_generated} metrics with high performance"
+                f" Generated {metrics_generated} metrics with high performance"
 
 
 
@@ -11715,7 +11715,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Failed to generate and save real metrics: {e}")
+            logger.error(f" Failed to generate and save real metrics: {e}")
 
 
 
@@ -11739,7 +11739,7 @@ class DashboardOrchestrator:
 
 
 
-        """💎 Generate PERFECT chart data from REAL financial trading data with DROPDOWN OPTIONS"""
+        """ Generate PERFECT chart data from REAL financial trading data with DROPDOWN OPTIONS"""
 
 
 
@@ -11763,15 +11763,15 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"🔍 Generating FINANCIAL chart data for {chart_widget.title}")
+            logger.info(f" Generating FINANCIAL chart data for {chart_widget.title}")
 
 
 
-            logger.info(f"📊 Real data columns: {real_data_columns}")
+            logger.info(f" Real data columns: {real_data_columns}")
 
 
 
-            logger.info(f"📊 Sample data length: {len(sample_data)}")
+            logger.info(f" Sample data length: {len(sample_data)}")
 
 
 
@@ -11791,7 +11791,7 @@ class DashboardOrchestrator:
 
 
 
-                    f"❌ No real data columns available for {chart_widget.title}"
+                    f" No real data columns available for {chart_widget.title}"
 
 
 
@@ -11811,7 +11811,7 @@ class DashboardOrchestrator:
 
 
 
-                logger.warning(f"❌ No sample data available for {chart_widget.title}")
+                logger.warning(f" No sample data available for {chart_widget.title}")
 
 
 
@@ -11823,7 +11823,7 @@ class DashboardOrchestrator:
 
 
 
-            # 💰 FINANCIAL DATA PROCESSING - Smart handling for trading data
+            #  FINANCIAL DATA PROCESSING - Smart handling for trading data
 
 
 
@@ -11855,7 +11855,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"💼 Processing FINANCIAL data: {name_key} x {data_key}")
+            logger.info(f" Processing FINANCIAL data: {name_key} x {data_key}")
 
 
 
@@ -11875,7 +11875,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🎯 GENERATE DROPDOWN OPTIONS FROM REAL DATA
+            #  GENERATE DROPDOWN OPTIONS FROM REAL DATA
 
 
 
@@ -12135,7 +12135,7 @@ class DashboardOrchestrator:
 
 
 
-                f"🎛️ Generated {len(dropdown_options)} dropdown options for {chart_widget.title}"
+                f"️ Generated {len(dropdown_options)} dropdown options for {chart_widget.title}"
 
 
 
@@ -12583,7 +12583,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"✅ Generated {len(valid_result)} REAL financial data points for {chart_widget.title}"
+                        f" Generated {len(valid_result)} REAL financial data points for {chart_widget.title}"
 
 
 
@@ -12595,7 +12595,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"📈 Sample data: {valid_result[0] if valid_result else 'None'}"
+                        f" Sample data: {valid_result[0] if valid_result else 'None'}"
 
 
 
@@ -12655,7 +12655,7 @@ class DashboardOrchestrator:
 
 
 
-                f"❌ No valid financial data generated for {chart_widget.title}"
+                f" No valid financial data generated for {chart_widget.title}"
 
 
 
@@ -12679,7 +12679,7 @@ class DashboardOrchestrator:
 
 
 
-                f"❌ Failed to generate financial chart data for {chart_widget.title}: {str(e)}"
+                f" Failed to generate financial chart data for {chart_widget.title}: {str(e)}"
 
 
 
@@ -13015,7 +13015,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Heuristic fallback failed: {e}")
+            logger.error(f" Heuristic fallback failed: {e}")
 
 
 
@@ -13155,7 +13155,7 @@ class DashboardOrchestrator:
 
 
 
-                f"🏗️ Starting template-based dashboard generation for client {client_id}"
+                f"️ Starting template-based dashboard generation for client {client_id}"
 
 
 
@@ -13231,7 +13231,7 @@ class DashboardOrchestrator:
 
 
 
-                logger.info(f"🎯 Auto-detected template type: {template_type.value}")
+                logger.info(f" Auto-detected template type: {template_type.value}")
 
 
 
@@ -13259,7 +13259,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"📋 Using template: {template.title}")
+            logger.info(f" Using template: {template.title}")
 
 
 
@@ -13423,7 +13423,7 @@ class DashboardOrchestrator:
 
 
 
-                f"✅ Template dashboard generated successfully for client {client_id} in {generation_time:.2f}s"
+                f" Template dashboard generated successfully for client {client_id} in {generation_time:.2f}s"
 
 
 
@@ -13479,7 +13479,7 @@ class DashboardOrchestrator:
 
 
 
-                f"❌ Template dashboard generation failed for client {client_id}: {e}"
+                f" Template dashboard generation failed for client {client_id}: {e}"
 
 
 
@@ -13583,7 +13583,7 @@ class DashboardOrchestrator:
 
 
 
-        logger.info(f"🔢 Generating {len(kpi_components)} template KPI widgets")
+        logger.info(f" Generating {len(kpi_components)} template KPI widgets")
 
 
 
@@ -13963,7 +13963,7 @@ class DashboardOrchestrator:
 
 
 
-        logger.info(f"📊 Generating {len(chart_components)} template chart widgets")
+        logger.info(f" Generating {len(chart_components)} template chart widgets")
 
 
 
@@ -14695,7 +14695,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Failed to generate and save template metrics: {e}")
+            logger.error(f" Failed to generate and save template metrics: {e}")
 
 
 
@@ -14851,7 +14851,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Failed to generate template chart data: {e}")
+            logger.error(f" Failed to generate template chart data: {e}")
 
 
 
@@ -14987,7 +14987,7 @@ class DashboardOrchestrator:
 
 
 
-                f"🔄 Generating standardized dashboard data for client {client_id}"
+                f" Generating standardized dashboard data for client {client_id}"
 
 
 
@@ -15243,7 +15243,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.info(f"🔄 Processing table: {table.get('id', 'unknown')}")
+                    logger.info(f" Processing table: {table.get('id', 'unknown')}")
 
 
 
@@ -15295,7 +15295,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"✅ Successfully created StandardizedTable: {table['id']}"
+                        f" Successfully created StandardizedTable: {table['id']}"
 
 
 
@@ -15315,7 +15315,7 @@ class DashboardOrchestrator:
 
 
 
-                        f"❌ Failed to process table {table.get('id', 'unknown')}: {e}"
+                        f" Failed to process table {table.get('id', 'unknown')}: {e}"
 
 
 
@@ -15323,7 +15323,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.error(f"❌ Table data: {table}")
+                    logger.error(f" Table data: {table}")
 
 
 
@@ -15527,7 +15527,7 @@ class DashboardOrchestrator:
 
 
 
-                f"✅ Generated standardized dashboard with {len(standardized_kpis)} KPIs, {len(standardized_charts)} charts, and {len(standardized_tables)} tables"
+                f" Generated standardized dashboard with {len(standardized_kpis)} KPIs, {len(standardized_charts)} charts, and {len(standardized_tables)} tables"
 
 
 
@@ -15547,7 +15547,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Failed to generate standardized dashboard data: {e}")
+            logger.error(f" Failed to generate standardized dashboard data: {e}")
 
 
 
@@ -15643,7 +15643,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"🔍 Extracting business insights from client data")
+            logger.info(f" Extracting business insights from client data")
 
 
 
@@ -15671,7 +15671,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🚀 CHECK IF CLIENT DATA HAS CHANGED - ONLY USE CACHE IF DATA UNCHANGED
+            #  CHECK IF CLIENT DATA HAS CHANGED - ONLY USE CACHE IF DATA UNCHANGED
 
 
 
@@ -15715,7 +15715,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.info(f"✅ Using cached LLM response for client {client_id} - data unchanged")
+                    logger.info(f" Using cached LLM response for client {client_id} - data unchanged")
 
 
 
@@ -15727,7 +15727,7 @@ class DashboardOrchestrator:
 
 
 
-                    logger.info(f"🔄 Client data changed for {client_id} - generating fresh LLM analysis")
+                    logger.info(f" Client data changed for {client_id} - generating fresh LLM analysis")
 
 
 
@@ -15735,7 +15735,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🔒 PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT with proper async locks
+            #  PREVENT CONCURRENT LLM CALLS FOR SAME CLIENT with proper async locks
 
 
 
@@ -15787,7 +15787,7 @@ class DashboardOrchestrator:
 
 
 
-                        logger.info(f"✅ Using cached LLM response for client {client_id} (after lock)")
+                        logger.info(f" Using cached LLM response for client {client_id} (after lock)")
 
 
 
@@ -15831,7 +15831,7 @@ class DashboardOrchestrator:
 
 
 
-                    # 💾 CACHE THE RESULTS FOR FUTURE USE
+                    #  CACHE THE RESULTS FOR FUTURE USE
 
 
 
@@ -15855,7 +15855,7 @@ class DashboardOrchestrator:
 
 
 
-                            logger.info(f"💾 Cached LLM response in database for client {client_id}")
+                            logger.info(f" Cached LLM response in database for client {client_id}")
 
 
 
@@ -15863,7 +15863,7 @@ class DashboardOrchestrator:
 
 
 
-                            logger.warning(f"⚠️ Failed to cache LLM response for client {client_id}")
+                            logger.warning(f" Failed to cache LLM response for client {client_id}")
 
 
 
@@ -15899,7 +15899,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Failed to extract business insights: {e}")
+            logger.error(f" Failed to extract business insights: {e}")
 
 
 
@@ -15963,7 +15963,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"📊 Data type: {data_type}, Schema type: {schema_type}")
+            logger.info(f" Data type: {data_type}, Schema type: {schema_type}")
 
 
 
@@ -15971,7 +15971,7 @@ class DashboardOrchestrator:
 
 
 
-            # 🔧 CRITICAL FIX: Extract business entities from nested data structures
+            #  CRITICAL FIX: Extract business entities from nested data structures
 
 
 
@@ -15979,7 +15979,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"📊 Extracted {len(flattened_data)} business entity records from {len(data_records)} complex structures for LLM analysis")
+            logger.info(f" Extracted {len(flattened_data)} business entity records from {len(data_records)} complex structures for LLM analysis")
 
 
 
@@ -16003,7 +16003,7 @@ class DashboardOrchestrator:
 
 
 
-                f"📊 Sample data keys: {list(sample_data[0].keys()) if sample_data else 'No data'}"
+                f" Sample data keys: {list(sample_data[0].keys()) if sample_data else 'No data'}"
 
 
 
@@ -16035,7 +16035,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"📝 LLM prompt length: {len(llm_prompt)} characters")
+            logger.info(f" LLM prompt length: {len(llm_prompt)} characters")
 
 
 
@@ -16079,7 +16079,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"✅ LLM analysis completed successfully")
+            logger.info(f" LLM analysis completed successfully")
 
 
 
@@ -16095,11 +16095,11 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ LLM analysis failed: {e}")
+            logger.error(f" LLM analysis failed: {e}")
 
 
 
-            logger.error(f"❌ Error traceback: {traceback.format_exc()}")
+            logger.error(f" Error traceback: {traceback.format_exc()}")
 
 
 
@@ -16195,7 +16195,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"🔧 Extracted {len(all_entities)} total business entities for LLM analysis")
+            logger.info(f" Extracted {len(all_entities)} total business entities for LLM analysis")
 
 
 
@@ -16211,7 +16211,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Business entity extraction failed: {e}")
+            logger.error(f" Business entity extraction failed: {e}")
 
 
 
@@ -16547,7 +16547,7 @@ class DashboardOrchestrator:
 
 
 
-        logger.info(f"🔧 Extracted {len(entities)} entities from business structure")
+        logger.info(f" Extracted {len(entities)} entities from business structure")
 
 
 
@@ -16883,7 +16883,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.info(f"🔧 Flattened {len(data_records)} records: {len(flattened_records[0].keys()) if flattened_records else 0} total fields")
+            logger.info(f" Flattened {len(data_records)} records: {len(flattened_records[0].keys()) if flattened_records else 0} total fields")
 
 
 
@@ -16899,7 +16899,7 @@ class DashboardOrchestrator:
 
 
 
-            logger.error(f"❌ Data flattening failed: {e}")
+            logger.error(f" Data flattening failed: {e}")
 
 
 
@@ -17395,7 +17395,7 @@ First, analyze the data to determine the business type, then generate comprehens
 
 
 
-🚨 CRITICAL REQUIREMENTS FOR MAXIMUM INSIGHT EXTRACTION:
+ CRITICAL REQUIREMENTS FOR MAXIMUM INSIGHT EXTRACTION:
 
 
 
@@ -17403,11 +17403,11 @@ First, analyze the data to determine the business type, then generate comprehens
 
 
 
-⚡ MANDATORY: Extract EVERY possible meaningful metric from the data provided
+ MANDATORY: Extract EVERY possible meaningful metric from the data provided
 
-⚡ REQUIRED: Generate the MAXIMUM number of KPIs, charts, and tables possible
+ REQUIRED: Generate the MAXIMUM number of KPIs, charts, and tables possible
 
-⚡ FORBIDDEN: Settling for basic analysis - use ALL data patterns available
+ FORBIDDEN: Settling for basic analysis - use ALL data patterns available
 
 
 
@@ -17973,11 +17973,11 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                logger.error("❌ OpenAI API key not found in environment variables")
+                logger.error(" OpenAI API key not found in environment variables")
 
 
 
-                logger.error("❌ Available env vars: " + str(list(os.environ.keys())[:10]))
+                logger.error(" Available env vars: " + str(list(os.environ.keys())[:10]))
 
 
 
@@ -18001,13 +18001,13 @@ Return ONLY the JSON response, no additional text or explanations.
 
             if not api_key.startswith("sk-"):
 
-                logger.error(f"❌ Invalid API key format - doesn't start with 'sk-': {api_key[:20]}...")
+                logger.error(f" Invalid API key format - doesn't start with 'sk-': {api_key[:20]}...")
 
                 raise Exception("Invalid OpenAI API key format")
 
 
 
-            logger.info(f"🔑 Using OpenAI API key: {api_key[:20]}... (length: {len(api_key)})")
+            logger.info(f" Using OpenAI API key: {api_key[:20]}... (length: {len(api_key)})")
 
 
 
@@ -18029,7 +18029,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
             logger.info(f"🤖 Using model: gpt-4o")
 
-            logger.info(f"📏 Prompt length: {len(prompt)} characters")
+            logger.info(f" Prompt length: {len(prompt)} characters")
 
 
 
@@ -18037,7 +18037,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
             if len(prompt) > 50000:  # Rough character limit to avoid token issues
 
-                logger.warning(f"⚠️ Prompt is very large ({len(prompt)} chars), truncating...")
+                logger.warning(f" Prompt is very large ({len(prompt)} chars), truncating...")
 
                 prompt = prompt[:45000] + "\n\n[Truncated due to size limits]"
 
@@ -18105,11 +18105,11 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-            logger.info(f"✅ LLM response received: {len(llm_response)} characters")
+            logger.info(f" LLM response received: {len(llm_response)} characters")
 
 
 
-            logger.info(f"🔍 LLM response preview: {llm_response[:500]}...")
+            logger.info(f" LLM response preview: {llm_response[:500]}...")
 
 
 
@@ -18129,9 +18129,9 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-            logger.error(f"❌ OpenAI authentication failed: {e}")
+            logger.error(f" OpenAI authentication failed: {e}")
 
-            logger.error(f"❌ API key preview: {api_key[:20] if api_key else 'None'}...")
+            logger.error(f" API key preview: {api_key[:20] if api_key else 'None'}...")
 
             raise Exception(f"OpenAI authentication failed - check API key: {str(e)}")
 
@@ -18139,7 +18139,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-            logger.error(f"❌ OpenAI rate limit exceeded: {e}")
+            logger.error(f" OpenAI rate limit exceeded: {e}")
 
             raise Exception(f"OpenAI rate limit exceeded: {str(e)}")
 
@@ -18147,7 +18147,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-            logger.error(f"❌ OpenAI API error: {e}")
+            logger.error(f" OpenAI API error: {e}")
 
             raise Exception(f"OpenAI API error: {str(e)}")
 
@@ -18155,17 +18155,17 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-            logger.error(f"❌ LLM analysis failed: {e}")
+            logger.error(f" LLM analysis failed: {e}")
 
 
 
-            logger.error(f"❌ Error type: {type(e).__name__}")
+            logger.error(f" Error type: {type(e).__name__}")
 
-            logger.error(f"❌ API key status: {'exists' if api_key else 'missing'}")
+            logger.error(f" API key status: {'exists' if api_key else 'missing'}")
 
             if api_key:
 
-                logger.error(f"❌ API key preview: {api_key[:20]}...")
+                logger.error(f" API key preview: {api_key[:20]}...")
 
             raise e
 
@@ -18207,7 +18207,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-            logger.info(f"🔍 Raw LLM response starts with: {repr(llm_response[:50])}")
+            logger.info(f" Raw LLM response starts with: {repr(llm_response[:50])}")
 
 
 
@@ -18227,7 +18227,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                logger.info(f"🔧 Removed ```json wrapper")
+                logger.info(f" Removed ```json wrapper")
 
 
 
@@ -18239,7 +18239,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                logger.info(f"🔧 Removed ``` wrapper")
+                logger.info(f" Removed ``` wrapper")
 
 
 
@@ -18247,7 +18247,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                logger.info(f"🔍 No markdown wrapper found")
+                logger.info(f" No markdown wrapper found")
 
 
 
@@ -18255,7 +18255,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-            logger.info(f"🔍 Cleaned response starts with: {repr(cleaned_response[:50])}")
+            logger.info(f" Cleaned response starts with: {repr(cleaned_response[:50])}")
 
 
 
@@ -18319,7 +18319,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                # 🔧 Fix unsupported chart types and clean data format
+                #  Fix unsupported chart types and clean data format
 
                 for chart in charts:
 
@@ -18327,11 +18327,11 @@ Return ONLY the JSON response, no additional text or explanations.
 
                         chart["chart_type"] = "bar"
 
-                        logger.info(f"🔧 Converted histogram to bar chart: {chart.get('display_name')}")
+                        logger.info(f" Converted histogram to bar chart: {chart.get('display_name')}")
 
                     
 
-                    # 🔧 Detect array string format in chart data (validation will reject these)
+                    #  Detect array string format in chart data (validation will reject these)
 
                     if chart.get("data") and isinstance(chart["data"], list):
 
@@ -18345,7 +18345,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
                                     if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
 
-                                        logger.warning(f"⚠️ Invalid chart data format detected: {key}: {value} - should be separate objects!")
+                                        logger.warning(f" Invalid chart data format detected: {key}: {value} - should be separate objects!")
 
 
 
@@ -18353,7 +18353,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                    f"📊 Parsed standardized LLM insights: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables"
+                    f" Parsed standardized LLM insights: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables"
 
 
 
@@ -18365,7 +18365,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                    f"🏢 Business type detected: {business_analysis.get('business_type', 'unknown')}"
+                    f" Business type detected: {business_analysis.get('business_type', 'unknown')}"
 
 
 
@@ -18377,11 +18377,11 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                # 🚨 VALIDATE MINIMUM REQUIREMENTS FOR COMPREHENSIVE ANALYSIS
+                #  VALIDATE MINIMUM REQUIREMENTS FOR COMPREHENSIVE ANALYSIS
 
                 if len(kpis) < 10:
 
-                    logger.warning(f"⚠️ INSUFFICIENT KPIs: Got {len(kpis)}, need minimum 10. Response rejected.")
+                    logger.warning(f" INSUFFICIENT KPIs: Got {len(kpis)}, need minimum 10. Response rejected.")
 
                     return {"error": f"Insufficient KPIs: {len(kpis)}/10 minimum required"}
 
@@ -18389,7 +18389,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
                 if len(charts) < 5:
 
-                    logger.warning(f"⚠️ INSUFFICIENT CHARTS: Got {len(charts)}, need minimum 5. Response rejected.")
+                    logger.warning(f" INSUFFICIENT CHARTS: Got {len(charts)}, need minimum 5. Response rejected.")
 
                     return {"error": f"Insufficient charts: {len(charts)}/5 minimum required"}
 
@@ -18397,13 +18397,13 @@ Return ONLY the JSON response, no additional text or explanations.
 
                 if len(tables) < 5:
 
-                    logger.warning(f"⚠️ INSUFFICIENT TABLES: Got {len(tables)}, need minimum 5. Response rejected.")
+                    logger.warning(f" INSUFFICIENT TABLES: Got {len(tables)}, need minimum 5. Response rejected.")
 
                     return {"error": f"Insufficient tables: {len(tables)}/5 minimum required"}
 
 
 
-                # 🚨 VALIDATE CHART DATA FORMAT - reject array strings
+                #  VALIDATE CHART DATA FORMAT - reject array strings
 
                 for chart in charts:
 
@@ -18417,13 +18417,13 @@ Return ONLY the JSON response, no additional text or explanations.
 
                                     if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
 
-                                        logger.warning(f"⚠️ INVALID CHART DATA FORMAT: Array strings detected in {chart.get('display_name')}")
+                                        logger.warning(f" INVALID CHART DATA FORMAT: Array strings detected in {chart.get('display_name')}")
 
                                         return {"error": f"Invalid chart data format: {key}: {value} - use separate objects, not array strings"}
 
 
 
-                # 🚨 VALIDATE TABLE DATA - smart validation for optimal display
+                #  VALIDATE TABLE DATA - smart validation for optimal display
 
                 total_data_records = len(flattened_data)
 
@@ -18435,31 +18435,31 @@ Return ONLY the JSON response, no additional text or explanations.
 
                         if table_row_count < 3:  # Only reject if extremely low (< 3 rows)
 
-                            logger.warning(f"⚠️ TABLE TOO SMALL: {table.get('display_name')} has {table_row_count} rows, minimum 3 required")
+                            logger.warning(f" TABLE TOO SMALL: {table.get('display_name')} has {table_row_count} rows, minimum 3 required")
 
                             return {"error": f"Table too small: {table.get('display_name')} has {table_row_count}/3 minimum required rows"}
 
                         elif table_row_count >= 15:  # Good range for display
 
-                            logger.info(f"✅ TABLE OPTIMAL SIZE: {table.get('display_name')} has {table_row_count} rows")
+                            logger.info(f" TABLE OPTIMAL SIZE: {table.get('display_name')} has {table_row_count} rows")
 
                         elif table_row_count >= 5:  # Acceptable
 
-                            logger.info(f"✅ TABLE ACCEPTABLE: {table.get('display_name')} has {table_row_count} rows")
+                            logger.info(f" TABLE ACCEPTABLE: {table.get('display_name')} has {table_row_count} rows")
 
                         else:  # Warn but don't reject
 
-                            logger.warning(f"⚠️ TABLE SMALL: {table.get('display_name')} has {table_row_count} rows, ideally 15-25 rows")
+                            logger.warning(f" TABLE SMALL: {table.get('display_name')} has {table_row_count} rows, ideally 15-25 rows")
 
                             # Continue processing - don't reject
 
 
 
-                logger.info(f"✅ COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
+                logger.info(f" COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
 
 
 
-                # 🔧 CRITICAL FIX: Return flattened structure for dashboard/metrics compatibility
+                #  CRITICAL FIX: Return flattened structure for dashboard/metrics compatibility
 
 
 
@@ -18519,7 +18519,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
                 
 
-                # 🔧 Fix unsupported chart types and clean data format
+                #  Fix unsupported chart types and clean data format
 
                 for chart in charts:
 
@@ -18527,11 +18527,11 @@ Return ONLY the JSON response, no additional text or explanations.
 
                         chart["chart_type"] = "bar"
 
-                        logger.info(f"🔧 Converted histogram to bar chart: {chart.get('display_name')}")
+                        logger.info(f" Converted histogram to bar chart: {chart.get('display_name')}")
 
                     
 
-                    # 🔧 Ensure chart data has proper string labels, not objects
+                    #  Ensure chart data has proper string labels, not objects
 
                     if chart.get("data") and isinstance(chart["data"], list):
 
@@ -18563,7 +18563,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
                         chart["data"] = cleaned_data
 
-                        logger.info(f"🔧 Cleaned chart data format: {chart.get('display_name')}")
+                        logger.info(f" Cleaned chart data format: {chart.get('display_name')}")
 
 
 
@@ -18583,7 +18583,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                    f"📊 Parsed legacy LLM insights: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables"
+                    f" Parsed legacy LLM insights: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables"
 
 
 
@@ -18611,11 +18611,11 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                    logger.info(f"🏢 Business analysis found: {insights_count} insights, {recommendations_count} recommendations")
+                    logger.info(f" Business analysis found: {insights_count} insights, {recommendations_count} recommendations")
 
 
 
-                    logger.info(f"🏢 Business type: {business_analysis.get('business_type', 'unknown')}")
+                    logger.info(f" Business type: {business_analysis.get('business_type', 'unknown')}")
 
 
 
@@ -18623,7 +18623,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                    logger.warning(f"⚠️ No business_analysis found in LLM response!")
+                    logger.warning(f" No business_analysis found in LLM response!")
 
 
 
@@ -18639,7 +18639,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                    logger.info(f"🔍 Sample KPI values: {[(kpi.get('display_name'), kpi.get('value'), type(kpi.get('value'))) for kpi in kpis[:3]]}")
+                    logger.info(f" Sample KPI values: {[(kpi.get('display_name'), kpi.get('value'), type(kpi.get('value'))) for kpi in kpis[:3]]}")
 
 
 
@@ -18663,15 +18663,15 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                    logger.info(f"🔍 Sample chart data: {[(item.get('name'), item.get('value'), type(item.get('value'))) for item in sample_data if isinstance(item, dict)]}")
+                    logger.info(f" Sample chart data: {[(item.get('name'), item.get('value'), type(item.get('value'))) for item in sample_data if isinstance(item, dict)]}")
 
 
 
-                # 🚨 VALIDATE MINIMUM REQUIREMENTS FOR COMPREHENSIVE ANALYSIS
+                #  VALIDATE MINIMUM REQUIREMENTS FOR COMPREHENSIVE ANALYSIS
 
                 if len(kpis) < 10:
 
-                    logger.warning(f"⚠️ INSUFFICIENT KPIs: Got {len(kpis)}, need minimum 10. Response rejected.")
+                    logger.warning(f" INSUFFICIENT KPIs: Got {len(kpis)}, need minimum 10. Response rejected.")
 
                     return {"error": f"Insufficient KPIs: {len(kpis)}/10 minimum required"}
 
@@ -18679,7 +18679,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
                 if len(charts) < 5:
 
-                    logger.warning(f"⚠️ INSUFFICIENT CHARTS: Got {len(charts)}, need minimum 5. Response rejected.")
+                    logger.warning(f" INSUFFICIENT CHARTS: Got {len(charts)}, need minimum 5. Response rejected.")
 
                     return {"error": f"Insufficient charts: {len(charts)}/5 minimum required"}
 
@@ -18687,13 +18687,13 @@ Return ONLY the JSON response, no additional text or explanations.
 
                 if len(tables) < 5:
 
-                    logger.warning(f"⚠️ INSUFFICIENT TABLES: Got {len(tables)}, need minimum 5. Response rejected.")
+                    logger.warning(f" INSUFFICIENT TABLES: Got {len(tables)}, need minimum 5. Response rejected.")
 
                     return {"error": f"Insufficient tables: {len(tables)}/5 minimum required"}
 
 
 
-                # 🚨 VALIDATE CHART DATA FORMAT - reject array strings
+                #  VALIDATE CHART DATA FORMAT - reject array strings
 
                 for chart in charts:
 
@@ -18707,13 +18707,13 @@ Return ONLY the JSON response, no additional text or explanations.
 
                                     if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
 
-                                        logger.warning(f"⚠️ INVALID CHART DATA FORMAT: Array strings detected in {chart.get('display_name')}")
+                                        logger.warning(f" INVALID CHART DATA FORMAT: Array strings detected in {chart.get('display_name')}")
 
                                         return {"error": f"Invalid chart data format: {key}: {value} - use separate objects, not array strings"}
 
 
 
-                # 🚨 VALIDATE TABLE DATA - warn about low rows but don't reject
+                #  VALIDATE TABLE DATA - warn about low rows but don't reject
 
                 total_data_records = len(data_records)
 
@@ -18725,19 +18725,19 @@ Return ONLY the JSON response, no additional text or explanations.
 
                         if table_row_count < 3:  # Only reject if extremely low (< 3 rows)
 
-                            logger.warning(f"⚠️ TABLE TOO SMALL: {table.get('display_name')} has {table_row_count} rows, minimum 3 required")
+                            logger.warning(f" TABLE TOO SMALL: {table.get('display_name')} has {table_row_count} rows, minimum 3 required")
 
                             return {"error": f"Table too small: {table.get('display_name')} has {table_row_count}/3 minimum required rows"}
 
                         elif table_row_count < min(total_data_records, 20):  # Warn but don't reject
 
-                            logger.warning(f"⚠️ TABLE HAS FEW ROWS: {table.get('display_name')} has {table_row_count} rows, ideally {total_data_records} rows")
+                            logger.warning(f" TABLE HAS FEW ROWS: {table.get('display_name')} has {table_row_count} rows, ideally {total_data_records} rows")
 
                             # Continue processing - don't reject
 
 
 
-                logger.info(f"✅ COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
+                logger.info(f" COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
 
 
 
@@ -18745,7 +18745,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                    "business_analysis": business_analysis,  # ✅ NOW EXTRACTING BUSINESS INSIGHTS!
+                    "business_analysis": business_analysis,  #  NOW EXTRACTING BUSINESS INSIGHTS!
 
 
 
@@ -18779,9 +18779,9 @@ Return ONLY the JSON response, no additional text or explanations.
 
         except json.JSONDecodeError as e:
 
-            logger.warning(f"⚠️ LLM JSON parsing failed, trying to fix: {e}")
+            logger.warning(f" LLM JSON parsing failed, trying to fix: {e}")
 
-            logger.warning(f"⚠️ JSON error details: line {getattr(e, 'lineno', '?')}, col {getattr(e, 'colno', '?')}")
+            logger.warning(f" JSON error details: line {getattr(e, 'lineno', '?')}, col {getattr(e, 'colno', '?')}")
 
             error_pos = getattr(e, 'pos', 0)
 
@@ -18789,19 +18789,19 @@ Return ONLY the JSON response, no additional text or explanations.
 
             snippet_end = min(len(cleaned_response), error_pos + 100)
 
-            logger.warning(f"⚠️ Problematic JSON snippet: {cleaned_response[snippet_start:snippet_end]}")
+            logger.warning(f" Problematic JSON snippet: {cleaned_response[snippet_start:snippet_end]}")
 
-            logger.warning(f"⚠️ Character at error position: '{cleaned_response[error_pos] if error_pos < len(cleaned_response) else 'END_OF_STRING'}'")
+            logger.warning(f" Character at error position: '{cleaned_response[error_pos] if error_pos < len(cleaned_response) else 'END_OF_STRING'}'")
 
-            logger.warning(f"⚠️ Total response length: {len(cleaned_response)} characters")
+            logger.warning(f" Total response length: {len(cleaned_response)} characters")
 
 
 
-            # 🔧 TRY TO FIX MALFORMED JSON
+            #  TRY TO FIX MALFORMED JSON
 
             try:
 
-                logger.info("🔧 Attempting to fix malformed JSON...")
+                logger.info(" Attempting to fix malformed JSON...")
 
                 fixed_json = self._fix_malformed_json(cleaned_response)
 
@@ -18811,7 +18811,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
                 parsed_data = json.loads(fixed_json)
 
-                logger.info(f"✅ Successfully fixed and parsed LLM JSON")
+                logger.info(f" Successfully fixed and parsed LLM JSON")
 
 
 
@@ -18825,7 +18825,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
                 
 
-                # 🔧 Fix unsupported chart types and clean data format
+                #  Fix unsupported chart types and clean data format
 
                 for chart in charts:
 
@@ -18833,11 +18833,11 @@ Return ONLY the JSON response, no additional text or explanations.
 
                         chart["chart_type"] = "bar"
 
-                        logger.info(f"🔧 Converted histogram to bar chart: {chart.get('display_name')}")
+                        logger.info(f" Converted histogram to bar chart: {chart.get('display_name')}")
 
                     
 
-                    # 🔧 Ensure chart data has proper string labels, not objects
+                    #  Ensure chart data has proper string labels, not objects
 
                     if chart.get("data") and isinstance(chart["data"], list):
 
@@ -18869,7 +18869,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
                         chart["data"] = cleaned_data
 
-                        logger.info(f"🔧 Cleaned chart data format: {chart.get('display_name')}")
+                        logger.info(f" Cleaned chart data format: {chart.get('display_name')}")
 
 
 
@@ -18877,11 +18877,11 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-                # 🚨 VALIDATE MINIMUM REQUIREMENTS FOR COMPREHENSIVE ANALYSIS
+                #  VALIDATE MINIMUM REQUIREMENTS FOR COMPREHENSIVE ANALYSIS
 
                 if len(kpis) < 10:
 
-                    logger.warning(f"⚠️ INSUFFICIENT KPIs: Got {len(kpis)}, need minimum 10. Response rejected.")
+                    logger.warning(f" INSUFFICIENT KPIs: Got {len(kpis)}, need minimum 10. Response rejected.")
 
                     return {"error": f"Insufficient KPIs: {len(kpis)}/10 minimum required"}
 
@@ -18889,7 +18889,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
                 if len(charts) < 5:
 
-                    logger.warning(f"⚠️ INSUFFICIENT CHARTS: Got {len(charts)}, need minimum 5. Response rejected.")
+                    logger.warning(f" INSUFFICIENT CHARTS: Got {len(charts)}, need minimum 5. Response rejected.")
 
                     return {"error": f"Insufficient charts: {len(charts)}/5 minimum required"}
 
@@ -18897,13 +18897,13 @@ Return ONLY the JSON response, no additional text or explanations.
 
                 if len(tables) < 5:
 
-                    logger.warning(f"⚠️ INSUFFICIENT TABLES: Got {len(tables)}, need minimum 5. Response rejected.")
+                    logger.warning(f" INSUFFICIENT TABLES: Got {len(tables)}, need minimum 5. Response rejected.")
 
                     return {"error": f"Insufficient tables: {len(tables)}/5 minimum required"}
 
 
 
-                # 🚨 VALIDATE CHART DATA FORMAT - reject array strings
+                #  VALIDATE CHART DATA FORMAT - reject array strings
 
                 for chart in charts:
 
@@ -18917,13 +18917,13 @@ Return ONLY the JSON response, no additional text or explanations.
 
                                     if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
 
-                                        logger.warning(f"⚠️ INVALID CHART DATA FORMAT: Array strings detected in {chart.get('display_name')}")
+                                        logger.warning(f" INVALID CHART DATA FORMAT: Array strings detected in {chart.get('display_name')}")
 
                                         return {"error": f"Invalid chart data format: {key}: {value} - use separate objects, not array strings"}
 
 
 
-                # 🚨 VALIDATE TABLE DATA - warn about low rows but don't reject
+                #  VALIDATE TABLE DATA - warn about low rows but don't reject
 
                 total_data_records = len(data_records)
 
@@ -18935,19 +18935,19 @@ Return ONLY the JSON response, no additional text or explanations.
 
                         if table_row_count < 3:  # Only reject if extremely low (< 3 rows)
 
-                            logger.warning(f"⚠️ TABLE TOO SMALL: {table.get('display_name')} has {table_row_count} rows, minimum 3 required")
+                            logger.warning(f" TABLE TOO SMALL: {table.get('display_name')} has {table_row_count} rows, minimum 3 required")
 
                             return {"error": f"Table too small: {table.get('display_name')} has {table_row_count}/3 minimum required rows"}
 
                         elif table_row_count < min(total_data_records, 20):  # Warn but don't reject
 
-                            logger.warning(f"⚠️ TABLE HAS FEW ROWS: {table.get('display_name')} has {table_row_count} rows, ideally {total_data_records} rows")
+                            logger.warning(f" TABLE HAS FEW ROWS: {table.get('display_name')} has {table_row_count} rows, ideally {total_data_records} rows")
 
                             # Continue processing - don't reject
 
 
 
-                logger.info(f"✅ COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
+                logger.info(f" COMPREHENSIVE ANALYSIS VALIDATED: {len(kpis)} KPIs, {len(charts)} charts, {len(tables)} tables")
 
 
 
@@ -18969,9 +18969,9 @@ Return ONLY the JSON response, no additional text or explanations.
 
             except json.JSONDecodeError as fix_json_error:
 
-                logger.warning(f"⚠️ JSON fix also failed with parse error: {fix_json_error}")
+                logger.warning(f" JSON fix also failed with parse error: {fix_json_error}")
 
-                logger.warning(f"⚠️ Fixed JSON snippet: {fixed_json[max(0, getattr(fix_json_error, 'pos', 0) - 100):getattr(fix_json_error, 'pos', 0) + 100]}")
+                logger.warning(f" Fixed JSON snippet: {fixed_json[max(0, getattr(fix_json_error, 'pos', 0) - 100):getattr(fix_json_error, 'pos', 0) + 100]}")
 
                 # Fall through to trigger fallback analysis
 
@@ -18979,7 +18979,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
             except Exception as fix_error:
 
-                logger.warning(f"⚠️ JSON fix also failed: {fix_error}")
+                logger.warning(f" JSON fix also failed: {fix_error}")
 
                 # Fall through to trigger fallback analysis
 
@@ -18987,7 +18987,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
             # If all fixes failed, create a basic analytical fallback instead of empty response
 
-            logger.warning("⚠️ All JSON parsing and fixing attempts failed. Generating basic fallback analysis.")
+            logger.warning(" All JSON parsing and fixing attempts failed. Generating basic fallback analysis.")
 
             
 
@@ -18997,7 +18997,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
             fallback_result["error"] = f"LLM JSON parsing failed: {str(e)} - Using fallback analysis"
 
-            fallback_result["business_analysis"]["business_insights"].append("⚠️ This is a basic fallback analysis due to LLM parsing error")
+            fallback_result["business_analysis"]["business_insights"].append(" This is a basic fallback analysis due to LLM parsing error")
 
             fallback_result["business_analysis"]["recommendations"].append("Please refresh to retry LLM analysis")
 
@@ -19015,7 +19015,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-            logger.error(f"❌ Failed to parse LLM insights: {e}")
+            logger.error(f" Failed to parse LLM insights: {e}")
 
 
 
@@ -19075,7 +19075,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-            logger.info("🏠 Generating MAIN dashboard insights with LLM")
+            logger.info(" Generating MAIN dashboard insights with LLM")
 
 
 
@@ -19099,7 +19099,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-            logger.info(f"🔄 FORCING fresh LLM analysis for MAIN dashboard (improved prompts) - client {client_id}")
+            logger.info(f" FORCING fresh LLM analysis for MAIN dashboard (improved prompts) - client {client_id}")
 
 
 
@@ -19117,7 +19117,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
             logger.info(
 
-                f"📊 Prepared dataset summary from {len(flattened_data)} records: "
+                f" Prepared dataset summary from {len(flattened_data)} records: "
 
                 f"{len(dataset_summary.get('numeric_fields', {}))} numeric, "
 
@@ -19141,7 +19141,7 @@ Return ONLY the JSON response, no additional text or explanations.
 
 You are a senior data scientist and business intelligence expert specializing in quantitative analysis. Create a MAIN DASHBOARD with COMPREHENSIVE numeric-based insights that extract maximum analytical value from ALL records in the complete dataset.
 
-🎯 PRIMARY FOCUS: NUMERIC-DRIVEN BUSINESS INTELLIGENCE FOR MAIN DASHBOARD
+ PRIMARY FOCUS: NUMERIC-DRIVEN BUSINESS INTELLIGENCE FOR MAIN DASHBOARD
 
 MANDATORY ANALYTICAL REQUIREMENTS:
 - Generate MATHEMATICAL KPIs based on actual data calculations (averages, sums, percentages, ratios)
@@ -19157,7 +19157,7 @@ Total Records: """ + str(len(data_records)) + """
 
 Data Fields: """ + fields_json + """
 
-🔢 ENHANCED NUMERIC ANALYSIS STEPS:
+ ENHANCED NUMERIC ANALYSIS STEPS:
 
 1. STATISTICAL FOUNDATION: Calculate descriptive statistics (mean, median, mode, std dev) for all numeric fields
 2. BUSINESS METRICS CALCULATION: Derive meaningful business KPIs using mathematical formulas
@@ -19170,7 +19170,7 @@ Data Fields: """ + fields_json + """
 
 
 
-🚨🚨🚨 CRITICAL REQUIREMENT - RESPONSE WILL BE REJECTED IF NOT MET 🚨🚨🚨
+ CRITICAL REQUIREMENT - RESPONSE WILL BE REJECTED IF NOT MET 
 
 YOU MUST GENERATE EXACTLY:
 
@@ -19318,7 +19318,7 @@ Return JSON with this structure, using ONLY insights derived from the actual dat
 
 
 
-🚨🚨🚨 CRITICAL JSON FORMAT REQUIREMENT 🚨🚨🚨
+ CRITICAL JSON FORMAT REQUIREMENT 
 
 RESPOND WITH PURE JSON ONLY - NO COMMENTS ALLOWED!
 
@@ -19332,40 +19332,40 @@ Example of CORRECT: {"key": "value"}
 
 
 
-🚨 CRITICAL REQUIREMENTS FOR MAXIMUM INSIGHT EXTRACTION:
+ CRITICAL REQUIREMENTS FOR MAXIMUM INSIGHT EXTRACTION:
 
 
 
-⚡ MANDATORY: Extract EVERY possible meaningful metric from ALL records in the complete dataset
+ MANDATORY: Extract EVERY possible meaningful metric from ALL records in the complete dataset
 
-⚡ REQUIRED: Generate the MAXIMUM number of KPIs, charts, and tables possible from the FULL dataset
+ REQUIRED: Generate the MAXIMUM number of KPIs, charts, and tables possible from the FULL dataset
 
-⚡ FORBIDDEN: Settling for basic analysis - use ALL data patterns from ALL records available
+ FORBIDDEN: Settling for basic analysis - use ALL data patterns from ALL records available
 
-⚡ CRITICAL: You have access to the COMPLETE dataset - analyze every single record for comprehensive insights
+ CRITICAL: You have access to the COMPLETE dataset - analyze every single record for comprehensive insights
 
 
 
-🔢 MATHEMATICAL RIGOR REQUIREMENTS - NON-NEGOTIABLE MINIMUMS:
+ MATHEMATICAL RIGOR REQUIREMENTS - NON-NEGOTIABLE MINIMUMS:
 
-📊 KPI REQUIREMENTS (MINIMUM 12 NUMERIC KPIs):
+ KPI REQUIREMENTS (MINIMUM 12 NUMERIC KPIs):
 - Generate MINIMUM 12 QUANTITATIVE KPIs (NO FEWER THAN 12) with mathematical calculations
 - Each KPI MUST include: calculated numeric value, formula used, statistical confidence, benchmark comparison
 - KPI Categories REQUIRED: Financial (revenue, costs, profit), Operational (efficiency, throughput), Quality (accuracy, completion rates), Growth (trends, projections)
 
-📈 CHART REQUIREMENTS (MINIMUM 6 DATA-DRIVEN CHARTS):
+ CHART REQUIREMENTS (MINIMUM 6 DATA-DRIVEN CHARTS):
 - Generate MINIMUM 6 charts (NO FEWER THAN 6) showing NUMERICAL relationships and trends
 - Each chart MUST use real calculated values from the dataset with proper aggregations
 - Chart Types MUST be: Distribution analysis, Trend analysis, Correlation analysis, Comparative analysis, Time-series analysis
 - ALL chart data points MUST be mathematically derived from actual dataset records
 
-📋 TABLE REQUIREMENTS (MINIMUM 5 ANALYTICAL TABLES):
+ TABLE REQUIREMENTS (MINIMUM 5 ANALYTICAL TABLES):
 - Generate MINIMUM 5 tables (NO FEWER THAN 5) with deep STATISTICAL insights
 - TABLES MUST show calculated metrics, not just raw data
 - Include aggregated views: Top/Bottom performers, Statistical summaries, Trend analysis, Comparative analysis
 - TABLES SHOULD CONTAIN OPTIMAL DATA ROWS (15-25 rows for large datasets, more for smaller ones)
 
-⚡ CALCULATION INTEGRITY REQUIREMENTS:
+ CALCULATION INTEGRITY REQUIREMENTS:
 - ALL numbers MUST be mathematically derived from actual dataset
 - SHOW calculation methods for transparency and trust
 - USE proper statistical measures (mean, median, standard deviation, percentiles)
@@ -19373,7 +19373,7 @@ Example of CORRECT: {"key": "value"}
 - PROVIDE comparative benchmarks where applicable
 - NO placeholder or example values - everything must be calculated from real data
 
-🎯 BUSINESS INTELLIGENCE FOCUS:
+ BUSINESS INTELLIGENCE FOCUS:
 - DERIVE KPIs that directly impact business decisions
 - CALCULATE performance metrics that can be tracked over time
 - IDENTIFY numeric patterns that reveal business opportunities
@@ -19382,7 +19382,7 @@ Example of CORRECT: {"key": "value"}
 
 
 
-🚨 SMART TABLE DATA STRATEGY 🚨
+ SMART TABLE DATA STRATEGY 
 
 GENERATE TABLES WITH OPTIMAL ROW COUNTS TO PREVENT JSON TRUNCATION:
 
@@ -19432,37 +19432,37 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
 
 
-            # 🔍 Monitor response size for truncation issues and detect incomplete JSON
+            #  Monitor response size for truncation issues and detect incomplete JSON
 
             if len(llm_response) > 25000:
 
-                logger.warning(f"⚠️ VERY LARGE RESPONSE: {len(llm_response)} chars - high risk of truncation")
+                logger.warning(f" VERY LARGE RESPONSE: {len(llm_response)} chars - high risk of truncation")
 
             elif len(llm_response) > 20000:
 
-                logger.warning(f"⚠️ LARGE RESPONSE: {len(llm_response)} chars - risk of truncation")
+                logger.warning(f" LARGE RESPONSE: {len(llm_response)} chars - risk of truncation")
 
             elif len(llm_response) > 15000:
 
-                logger.info(f"📊 SUBSTANTIAL RESPONSE: {len(llm_response)} chars - good detail level")
+                logger.info(f" SUBSTANTIAL RESPONSE: {len(llm_response)} chars - good detail level")
 
             else:
 
-                logger.info(f"📝 COMPACT RESPONSE: {len(llm_response)} chars")
+                logger.info(f" COMPACT RESPONSE: {len(llm_response)} chars")
 
             
 
-            # 🔍 Early detection of truncated responses
+            #  Early detection of truncated responses
 
             if not llm_response.rstrip().endswith(('}', ']')):
 
-                logger.warning(f"⚠️ RESPONSE APPEARS TRUNCATED: Does not end with }} or ]")
+                logger.warning(f" RESPONSE APPEARS TRUNCATED: Does not end with }} or ]")
 
-                logger.warning(f"⚠️ Last 200 chars: ...{llm_response[-200:]}")
+                logger.warning(f" Last 200 chars: ...{llm_response[-200:]}")
 
             
 
-            # 🔍 Check for incomplete JSON structures
+            #  Check for incomplete JSON structures
 
             open_braces = llm_response.count('{') - llm_response.count('}')
 
@@ -19470,7 +19470,7 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
             if open_braces > 0 or open_brackets > 0:
 
-                logger.warning(f"⚠️ UNBALANCED JSON DETECTED: {open_braces} unclosed braces, {open_brackets} unclosed brackets")
+                logger.warning(f" UNBALANCED JSON DETECTED: {open_braces} unclosed braces, {open_brackets} unclosed brackets")
 
 
 
@@ -19492,7 +19492,7 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
                 try:
 
-                    # 💾 SMART CACHING: Only store new analysis, don't clear existing cache unnecessarily
+                    #  SMART CACHING: Only store new analysis, don't clear existing cache unnecessarily
 
                     await llm_cache_manager.store_cached_llm_response(
 
@@ -19506,15 +19506,15 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
                     )
 
-                    logger.info(f"💾 Cached MAIN dashboard response for client {client_id}")
+                    logger.info(f" Cached MAIN dashboard response for client {client_id}")
 
 
 
                 except Exception as cache_error:
 
-                    logger.warning(f"⚠️ Cache operations failed: {cache_error}")
+                    logger.warning(f" Cache operations failed: {cache_error}")
 
-                    logger.info("✅ Continuing without caching - analysis result still valid")
+                    logger.info(" Continuing without caching - analysis result still valid")
 
 
 
@@ -19534,7 +19534,7 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
 
 
-            logger.error(f"❌ Main dashboard LLM analysis failed: {e}")
+            logger.error(f" Main dashboard LLM analysis failed: {e}")
 
 
 
@@ -19654,7 +19654,7 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
 
 
-            # 🔢 ENHANCED: Calculate comprehensive statistical measures for numeric fields
+            #  ENHANCED: Calculate comprehensive statistical measures for numeric fields
 
             numeric_final: Dict[str, Dict[str, float]] = {}
 
@@ -19752,7 +19752,7 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
 
 
-            # 📊 ENHANCED: Calculate comprehensive categorical insights
+            #  ENHANCED: Calculate comprehensive categorical insights
 
             categorical_final: Dict[str, Dict[str, Any]] = {}
 
@@ -19820,7 +19820,7 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
 
 
-            # 🎯 ENHANCED: Add comprehensive analytical summary
+            #  ENHANCED: Add comprehensive analytical summary
 
             total_numeric_fields = len(numeric_final)
 
@@ -19882,7 +19882,7 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
         except Exception as e:
 
-            logger.warning(f"⚠️ Failed to summarize flattened records: {e}")
+            logger.warning(f" Failed to summarize flattened records: {e}")
 
             return {"record_count": len(records), "all_fields": [], "numeric_fields": {}, "categorical_fields": {}}
 
@@ -19924,7 +19924,7 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
 
 
-            logger.info(f"🔄 FORCING fresh LLM analysis for BUSINESS dashboard (improved prompts) - client {client_id}")
+            logger.info(f" FORCING fresh LLM analysis for BUSINESS dashboard (improved prompts) - client {client_id}")
 
 
 
@@ -19944,15 +19944,15 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
 
 
-            logger.info(f"📊 Sending {len(sample_data)} sample records to LLM for BUSINESS dashboard analysis")
+            logger.info(f" Sending {len(sample_data)} sample records to LLM for BUSINESS dashboard analysis")
 
 
 
-            logger.info(f"📊 Business data fields: {list(sample_data[0].keys()) if sample_data else 'No data'}")
+            logger.info(f" Business data fields: {list(sample_data[0].keys()) if sample_data else 'No data'}")
 
 
 
-            logger.info(f"📊 Business sample record: {sample_data[0] if sample_data else 'No data'}")
+            logger.info(f" Business sample record: {sample_data[0] if sample_data else 'No data'}")
 
 
 
@@ -19968,7 +19968,7 @@ ADAPT YOUR ANALYSIS TO THE ACTUAL DATA TYPE YOU RECEIVE:
 
 
 
-🎯 EXECUTIVE BUSINESS INTELLIGENCE ANALYST
+ EXECUTIVE BUSINESS INTELLIGENCE ANALYST
 
 
 
@@ -19980,7 +19980,7 @@ You are a SENIOR BUSINESS STRATEGY CONSULTANT creating an EXECUTIVE DASHBOARD fo
 
 
 
-⚠️ CRITICAL: This dashboard must be COMPLETELY DIFFERENT from general/technical analytics. Focus on HIGH-LEVEL BUSINESS STRATEGY.
+ CRITICAL: This dashboard must be COMPLETELY DIFFERENT from general/technical analytics. Focus on HIGH-LEVEL BUSINESS STRATEGY.
 
 
 
@@ -19988,7 +19988,7 @@ You are a SENIOR BUSINESS STRATEGY CONSULTANT creating an EXECUTIVE DASHBOARD fo
 
 
 
-📊 DATA CONTEXT:
+ DATA CONTEXT:
 
 
 
@@ -20008,7 +20008,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-🎯 EXECUTIVE FOCUS AREAS (analyze and choose most relevant):
+ EXECUTIVE FOCUS AREAS (analyze and choose most relevant):
 
 
 
@@ -20044,7 +20044,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-🚀 GENERATE STRATEGIC BUSINESS INTELLIGENCE:
+ GENERATE STRATEGIC BUSINESS INTELLIGENCE:
 
 
 
@@ -20096,23 +20096,23 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            "🎯 Market opportunity: [specific untapped market potential identified from data]",
+            " Market opportunity: [specific untapped market potential identified from data]",
 
 
 
-            "💰 Revenue optimization: [specific revenue enhancement strategy from customer patterns]", 
+            " Revenue optimization: [specific revenue enhancement strategy from customer patterns]", 
 
 
 
-            "🏆 Competitive advantage: [unique positioning strength discovered in data]",
+            " Competitive advantage: [unique positioning strength discovered in data]",
 
 
 
-            "📈 Growth catalyst: [key driver for business expansion from trends]",
+            " Growth catalyst: [key driver for business expansion from trends]",
 
 
 
-            "⚠️ Strategic risk: [business threat requiring executive attention]"
+            " Strategic risk: [business threat requiring executive attention]"
 
 
 
@@ -20124,19 +20124,19 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            "💼 Strategic initiative: [C-level decision recommendation with business impact]",
+            " Strategic initiative: [C-level decision recommendation with business impact]",
 
 
 
-            "💵 Investment priority: [resource allocation advice with ROI projection]",
+            " Investment priority: [resource allocation advice with ROI projection]",
 
 
 
-            "🌍 Market expansion: [geographic/demographic growth strategy]",
+            " Market expansion: [geographic/demographic growth strategy]",
 
 
 
-            "⚡ Operational excellence: [efficiency improvement with cost savings]"
+            " Operational excellence: [efficiency improvement with cost savings]"
 
 
 
@@ -20800,7 +20800,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-🎯 EXECUTIVE REQUIREMENTS:
+ EXECUTIVE REQUIREMENTS:
 
 
 
@@ -20872,7 +20872,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-                logger.info(f"💾 Cached BUSINESS dashboard response for client {client_id}")
+                logger.info(f" Cached BUSINESS dashboard response for client {client_id}")
 
 
 
@@ -20892,7 +20892,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.error(f"❌ Business insights LLM analysis failed: {e}")
+            logger.error(f" Business insights LLM analysis failed: {e}")
 
 
 
@@ -20916,7 +20916,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.info("⚡ Generating PERFORMANCE-FOCUSED insights with LLM")
+            logger.info(" Generating PERFORMANCE-FOCUSED insights with LLM")
 
 
 
@@ -20940,7 +20940,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.info(f"🔄 FORCING fresh LLM analysis for PERFORMANCE dashboard (improved prompts) - client {client_id}")
+            logger.info(f" FORCING fresh LLM analysis for PERFORMANCE dashboard (improved prompts) - client {client_id}")
 
 
 
@@ -20960,15 +20960,15 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.info(f"📊 Sending {len(sample_data)} sample records to LLM for PERFORMANCE dashboard analysis")
+            logger.info(f" Sending {len(sample_data)} sample records to LLM for PERFORMANCE dashboard analysis")
 
 
 
-            logger.info(f"📊 Performance data fields: {list(sample_data[0].keys()) if sample_data else 'No data'}")
+            logger.info(f" Performance data fields: {list(sample_data[0].keys()) if sample_data else 'No data'}")
 
 
 
-            logger.info(f"📊 Performance sample record: {sample_data[0] if sample_data else 'No data'}")
+            logger.info(f" Performance sample record: {sample_data[0] if sample_data else 'No data'}")
 
 
 
@@ -20984,7 +20984,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-⚡ OPERATIONAL EXCELLENCE CONSULTANT
+ OPERATIONAL EXCELLENCE CONSULTANT
 
 
 
@@ -20996,7 +20996,7 @@ You are a SENIOR OPERATIONS DIRECTOR creating a PERFORMANCE OPTIMIZATION DASHBOA
 
 
 
-🚨 CRITICAL: This dashboard must be COMPLETELY DIFFERENT from general analytics and business strategy. Focus on OPERATIONAL EXCELLENCE and PROCESS OPTIMIZATION.
+ CRITICAL: This dashboard must be COMPLETELY DIFFERENT from general analytics and business strategy. Focus on OPERATIONAL EXCELLENCE and PROCESS OPTIMIZATION.
 
 
 
@@ -21004,7 +21004,7 @@ You are a SENIOR OPERATIONS DIRECTOR creating a PERFORMANCE OPTIMIZATION DASHBOA
 
 
 
-📊 OPERATIONAL DATA CONTEXT:
+ OPERATIONAL DATA CONTEXT:
 
 
 
@@ -21024,7 +21024,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-⚡ OPERATIONAL EXCELLENCE FOCUS AREAS (analyze and choose most relevant):
+ OPERATIONAL EXCELLENCE FOCUS AREAS (analyze and choose most relevant):
 
 
 
@@ -21060,7 +21060,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-🎯 GENERATE OPERATIONAL PERFORMANCE INTELLIGENCE:
+ GENERATE OPERATIONAL PERFORMANCE INTELLIGENCE:
 
 
 
@@ -21112,23 +21112,23 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            "⚡ Process bottleneck: [specific operational constraint identified from data patterns]",
+            " Process bottleneck: [specific operational constraint identified from data patterns]",
 
 
 
-            "🎯 Quality opportunity: [defect reduction or quality improvement potential]", 
+            " Quality opportunity: [defect reduction or quality improvement potential]", 
 
 
 
-            "📈 Efficiency gain: [process optimization opportunity with measurable impact]",
+            " Efficiency gain: [process optimization opportunity with measurable impact]",
 
 
 
-            "🔧 Resource optimization: [capacity or resource allocation improvement]",
+            " Resource optimization: [capacity or resource allocation improvement]",
 
 
 
-            "⚠️ Operational risk: [reliability or performance threat requiring attention]"
+            " Operational risk: [reliability or performance threat requiring attention]"
 
 
 
@@ -21140,19 +21140,19 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            "🏭 Process improvement: [specific operational change with efficiency impact]",
+            " Process improvement: [specific operational change with efficiency impact]",
 
 
 
-            "🎯 Quality initiative: [quality enhancement program with measurable outcomes]",
+            " Quality initiative: [quality enhancement program with measurable outcomes]",
 
 
 
-            "⚡ Efficiency optimization: [process streamlining with time/cost savings]",
+            " Efficiency optimization: [process streamlining with time/cost savings]",
 
 
 
-            "📊 Performance monitoring: [KPI tracking system for continuous improvement]"
+            " Performance monitoring: [KPI tracking system for continuous improvement]"
 
 
 
@@ -21816,7 +21816,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-⚡ OPERATIONAL EXCELLENCE REQUIREMENTS:
+ OPERATIONAL EXCELLENCE REQUIREMENTS:
 
 
 
@@ -21888,7 +21888,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-                logger.info(f"💾 Cached PERFORMANCE dashboard response for client {client_id}")
+                logger.info(f" Cached PERFORMANCE dashboard response for client {client_id}")
 
 
 
@@ -21908,7 +21908,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.error(f"❌ Performance insights LLM analysis failed: {e}")
+            logger.error(f" Performance insights LLM analysis failed: {e}")
 
 
 
@@ -21932,7 +21932,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.info(f"🔄 Using business fallback analysis for {data_type} data")
+            logger.info(f" Using business fallback analysis for {data_type} data")
 
 
 
@@ -22120,7 +22120,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.error(f"❌ Business fallback analysis failed: {e}")
+            logger.error(f" Business fallback analysis failed: {e}")
 
 
 
@@ -22144,7 +22144,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.info(f"🔄 Using performance fallback analysis for {data_type} data")
+            logger.info(f" Using performance fallback analysis for {data_type} data")
 
 
 
@@ -22332,7 +22332,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.error(f"❌ Performance fallback analysis failed: {e}")
+            logger.error(f" Performance fallback analysis failed: {e}")
 
 
 
@@ -22372,7 +22372,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.info(f"🔄 Using fallback analysis for {data_type} data")
+            logger.info(f" Using fallback analysis for {data_type} data")
 
 
 
@@ -22788,7 +22788,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.error(f"❌ Fallback analysis failed: {e}")
+            logger.error(f" Fallback analysis failed: {e}")
 
 
 
@@ -23057,7 +23057,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
         except Exception as e:
 
-            logger.error(f"❌ JSON fixing failed: {e}")
+            logger.error(f" JSON fixing failed: {e}")
 
             # If all else fails, try to extract just the structure without problematic content
 
@@ -23101,7 +23101,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
                 '''
 
-                logger.info("🔧 Using minimal fallback JSON structure")
+                logger.info(" Using minimal fallback JSON structure")
 
                 return minimal_json.strip()
 
@@ -23223,7 +23223,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.warning(f"⚠️ Failed to calculate data hash: {e}")
+            logger.warning(f" Failed to calculate data hash: {e}")
 
 
 
@@ -23263,7 +23263,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-                logger.info(f"📝 No cached analysis found for client {client_id}")
+                logger.info(f" No cached analysis found for client {client_id}")
 
 
 
@@ -23307,7 +23307,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-                    f"📊 Data changed for client {client_id}: {cached_record_count} -> {current_record_count}, re-analysis needed"
+                    f" Data changed for client {client_id}: {cached_record_count} -> {current_record_count}, re-analysis needed"
 
 
 
@@ -23379,7 +23379,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.info(f"✅ Using cached analysis from memory for client {client_id}")
+            logger.info(f" Using cached analysis from memory for client {client_id}")
 
 
 
@@ -23395,7 +23395,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.warning(f"⚠️ Failed to get cached analysis: {e}")
+            logger.warning(f" Failed to get cached analysis: {e}")
 
 
 
@@ -23471,7 +23471,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-                f"💾 Successfully cached LLM analysis in memory for client {client_id}"
+                f" Successfully cached LLM analysis in memory for client {client_id}"
 
 
 
@@ -23487,7 +23487,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.warning(f"⚠️ Failed to cache LLM analysis: {e}")
+            logger.warning(f" Failed to cache LLM analysis: {e}")
 
 
 
@@ -23523,7 +23523,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.info(f"🎨 Starting custom template generation for client {request.client_id}")
+            logger.info(f" Starting custom template generation for client {request.client_id}")
 
 
 
@@ -23615,11 +23615,11 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            # 🚀 CRITICAL FIX: Save custom templates to database
+            #  CRITICAL FIX: Save custom templates to database
 
 
 
-            logger.info(f"💾 Saving {len(template_configs)} custom templates to database")
+            logger.info(f" Saving {len(template_configs)} custom templates to database")
 
 
 
@@ -23635,7 +23635,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.info(f"✅ Custom templates generated and SAVED successfully for client {request.client_id} in {generation_time:.2f}s")
+            logger.info(f" Custom templates generated and SAVED successfully for client {request.client_id} in {generation_time:.2f}s")
 
 
 
@@ -23719,7 +23719,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.error(f"❌ Custom template generation failed for client {request.client_id}: {e}")
+            logger.error(f" Custom template generation failed for client {request.client_id}: {e}")
 
 
 
@@ -23871,7 +23871,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            # 🚀 NEW: Get custom templates from single record format
+            #  NEW: Get custom templates from single record format
 
 
 
@@ -23887,7 +23887,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-                logger.info(f"🔍 No custom templates found for client {client_id}")
+                logger.info(f" No custom templates found for client {client_id}")
 
 
 
@@ -23935,7 +23935,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-                logger.info(f"🔍 No custom AI templates found for client {client_id}")
+                logger.info(f" No custom AI templates found for client {client_id}")
 
 
 
@@ -23967,7 +23967,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-                logger.info(f"🔍 No custom templates found in dashboard_config for client {client_id}")
+                logger.info(f" No custom templates found in dashboard_config for client {client_id}")
 
 
 
@@ -24295,7 +24295,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.info(f"✅ Retrieved {len(enhanced_configs)} custom templates for client {client_id}")
+            logger.info(f" Retrieved {len(enhanced_configs)} custom templates for client {client_id}")
 
 
 
@@ -24311,7 +24311,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.error(f"❌ Failed to get custom templates for client {client_id}: {e}")
+            logger.error(f" Failed to get custom templates for client {client_id}: {e}")
 
 
 
@@ -24447,7 +24447,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.info(f"💾 Business DNA saved for client {client_id}")
+            logger.info(f" Business DNA saved for client {client_id}")
 
 
 
@@ -24455,7 +24455,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            # 🚀 NEW: Store all 3 templates in a SINGLE record as an array
+            #  NEW: Store all 3 templates in a SINGLE record as an array
 
 
 
@@ -24743,7 +24743,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.info(f"💾 Saved {len(template_configs)} custom templates as single record for client {client_id}")
+            logger.info(f" Saved {len(template_configs)} custom templates as single record for client {client_id}")
 
 
 
@@ -24755,7 +24755,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
 
 
-            logger.error(f"❌ Failed to save custom templates to database: {e}")
+            logger.error(f" Failed to save custom templates to database: {e}")
 
 
 
@@ -25027,7 +25027,7 @@ Data Fields: {list(sample_data[0].keys()) if sample_data else []}
 
         except Exception as e:
 
-            logger.error(f"❌ Failed to create fallback analysis: {e}")
+            logger.error(f" Failed to create fallback analysis: {e}")
 
             # Return absolute minimal response
 

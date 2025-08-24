@@ -112,7 +112,7 @@ class DynamicTemplateOrchestrator:
         self.theme_generator = self._initialize_theme_generator()
         self.naming_engine = self._initialize_naming_engine()
         
-        logger.info("✅ Dynamic Template Orchestrator initialized with LangGraph")
+        logger.info(" Dynamic Template Orchestrator initialized with LangGraph")
     
     def _create_workflow_graph(self) -> StateGraph:
         """Create LangGraph workflow for template generation pipeline"""
@@ -145,10 +145,10 @@ class DynamicTemplateOrchestrator:
     async def generate_custom_templates(self, client_id: str, data_analysis: Dict[str, Any]) -> List[DashboardConfig]:
         """Generate custom templates using AI workflow with fallback to simplified generation"""
         try:
-            logger.info(f"🎨 Starting custom template generation for client {client_id}")
+            logger.info(f" Starting custom template generation for client {client_id}")
             
-            # 🚀 NEW: Generate REAL data-driven templates instead of fallbacks
-            logger.info("⚡ Generating data-driven custom templates based on real client data")
+            #  NEW: Generate REAL data-driven templates instead of fallbacks
+            logger.info(" Generating data-driven custom templates based on real client data")
             return await self._generate_data_driven_templates(client_id, data_analysis)
             
             # Keep the old LangGraph workflow for future use (currently disabled)
@@ -195,11 +195,11 @@ class DynamicTemplateOrchestrator:
                     )
                     dashboard_configs.append(secondary_config)
             
-            logger.info(f"✅ Generated {len(dashboard_configs)} custom templates for client {client_id}")
+            logger.info(f" Generated {len(dashboard_configs)} custom templates for client {client_id}")
             return dashboard_configs
             
         except Exception as e:
-            logger.error(f"❌ Custom template generation failed: {e}")
+            logger.error(f" Custom template generation failed: {e}")
             # Fall back to data-driven templates instead of generic fallbacks
             return await self._generate_data_driven_templates(client_id, data_analysis)
     
@@ -218,7 +218,7 @@ class DynamicTemplateOrchestrator:
             logger.info(f"🧬 Business DNA complete: {business_dna.business_model.value}")
             
         except Exception as e:
-            logger.error(f"❌ Business DNA analysis failed: {e}")
+            logger.error(f" Business DNA analysis failed: {e}")
             state["error_messages"].append(f"DNA analysis error: {str(e)}")
         
         return state
@@ -226,7 +226,7 @@ class DynamicTemplateOrchestrator:
     async def _design_template_architecture_node(self, state: TemplateGenerationState) -> TemplateGenerationState:
         """LangGraph node for template architecture design"""
         try:
-            logger.info("🏗️ Designing template architectures")
+            logger.info("️ Designing template architectures")
             state["current_step"] = "template_architecture_design"
             
             business_dna = state["business_dna"]
@@ -248,10 +248,10 @@ class DynamicTemplateOrchestrator:
             architectures.append(performance_arch)
             
             state["template_architectures"] = architectures
-            logger.info(f"🏗️ Designed {len(architectures)} template architectures")
+            logger.info(f"️ Designed {len(architectures)} template architectures")
             
         except Exception as e:
-            logger.error(f"❌ Template architecture design failed: {e}")
+            logger.error(f" Template architecture design failed: {e}")
             state["error_messages"].append(f"Architecture design error: {str(e)}")
         
         return state
@@ -427,7 +427,7 @@ class DynamicTemplateOrchestrator:
     async def _select_components_node(self, state: TemplateGenerationState) -> TemplateGenerationState:
         """LangGraph node for intelligent component selection"""
         try:
-            logger.info("🔧 Selecting optimal components for templates")
+            logger.info(" Selecting optimal components for templates")
             state["current_step"] = "component_selection"
             
             all_components = []
@@ -441,10 +441,10 @@ class DynamicTemplateOrchestrator:
                 all_components.extend(components)
             
             state["selected_components"] = all_components
-            logger.info(f"🔧 Selected {len(all_components)} components across all templates")
+            logger.info(f" Selected {len(all_components)} components across all templates")
             
         except Exception as e:
-            logger.error(f"❌ Component selection failed: {e}")
+            logger.error(f" Component selection failed: {e}")
             state["error_messages"].append(f"Component selection error: {str(e)}")
         
         return state
@@ -506,7 +506,7 @@ class DynamicTemplateOrchestrator:
     async def _optimize_layout_node(self, state: TemplateGenerationState) -> TemplateGenerationState:
         """LangGraph node for layout optimization"""
         try:
-            logger.info("📐 Optimizing template layouts")
+            logger.info(" Optimizing template layouts")
             state["current_step"] = "layout_optimization"
             
             for architecture in state["template_architectures"]:
@@ -517,10 +517,10 @@ class DynamicTemplateOrchestrator:
                 )
                 architecture.layout_config = optimized_layout
             
-            logger.info("📐 Layout optimization complete")
+            logger.info(" Layout optimization complete")
             
         except Exception as e:
-            logger.error(f"❌ Layout optimization failed: {e}")
+            logger.error(f" Layout optimization failed: {e}")
             state["error_messages"].append(f"Layout optimization error: {str(e)}")
         
         return state
@@ -528,7 +528,7 @@ class DynamicTemplateOrchestrator:
     async def _generate_themes_node(self, state: TemplateGenerationState) -> TemplateGenerationState:
         """LangGraph node for theme generation"""
         try:
-            logger.info("🎨 Generating custom visual themes")
+            logger.info(" Generating custom visual themes")
             state["current_step"] = "theme_generation"
             
             themes = await self._generate_custom_themes(
@@ -537,10 +537,10 @@ class DynamicTemplateOrchestrator:
             )
             
             state["visual_themes"] = themes
-            logger.info(f"🎨 Generated {len(themes)} custom themes")
+            logger.info(f" Generated {len(themes)} custom themes")
             
         except Exception as e:
-            logger.error(f"❌ Theme generation failed: {e}")
+            logger.error(f" Theme generation failed: {e}")
             state["error_messages"].append(f"Theme generation error: {str(e)}")
         
         return state
@@ -548,7 +548,7 @@ class DynamicTemplateOrchestrator:
     async def _create_smart_names_node(self, state: TemplateGenerationState) -> TemplateGenerationState:
         """LangGraph node for smart naming generation"""
         try:
-            logger.info("🏷️ Generating smart template names")
+            logger.info("️ Generating smart template names")
             state["current_step"] = "smart_naming"
             
             smart_names = await self._generate_smart_names(
@@ -562,10 +562,10 @@ class DynamicTemplateOrchestrator:
                     architecture.name = smart_names[i]
             
             state["template_names"] = smart_names
-            logger.info(f"🏷️ Generated {len(smart_names)} smart names")
+            logger.info(f"️ Generated {len(smart_names)} smart names")
             
         except Exception as e:
-            logger.error(f"❌ Smart naming failed: {e}")
+            logger.error(f" Smart naming failed: {e}")
             state["error_messages"].append(f"Smart naming error: {str(e)}")
         
         return state
@@ -573,7 +573,7 @@ class DynamicTemplateOrchestrator:
     async def _build_ecosystem_node(self, state: TemplateGenerationState) -> TemplateGenerationState:
         """LangGraph node for ecosystem building"""
         try:
-            logger.info("🌐 Building template ecosystem")
+            logger.info(" Building template ecosystem")
             state["current_step"] = "ecosystem_building"
             
             ecosystem = await self._build_template_ecosystem(
@@ -582,10 +582,10 @@ class DynamicTemplateOrchestrator:
             )
             
             state["ecosystem"] = ecosystem
-            logger.info("🌐 Template ecosystem complete")
+            logger.info(" Template ecosystem complete")
             
         except Exception as e:
-            logger.error(f"❌ Ecosystem building failed: {e}")
+            logger.error(f" Ecosystem building failed: {e}")
             state["error_messages"].append(f"Ecosystem building error: {str(e)}")
         
         return state
@@ -593,7 +593,7 @@ class DynamicTemplateOrchestrator:
     async def _finalize_templates_node(self, state: TemplateGenerationState) -> TemplateGenerationState:
         """LangGraph node for template finalization"""
         try:
-            logger.info("✅ Finalizing custom templates")
+            logger.info(" Finalizing custom templates")
             state["current_step"] = "finalization"
             
             # Apply final optimizations
@@ -604,10 +604,10 @@ class DynamicTemplateOrchestrator:
             state["generation_metadata"]["completed_at"] = datetime.now().isoformat()
             state["generation_metadata"]["total_templates"] = len(state["template_architectures"])
             
-            logger.info("✅ Template finalization complete")
+            logger.info(" Template finalization complete")
             
         except Exception as e:
-            logger.error(f"❌ Template finalization failed: {e}")
+            logger.error(f" Template finalization failed: {e}")
             state["error_messages"].append(f"Finalization error: {str(e)}")
         
         return state
@@ -908,7 +908,7 @@ class DynamicTemplateOrchestrator:
     async def _generate_data_driven_templates(self, client_id: str, data_analysis: Dict[str, Any]) -> List[DashboardConfig]:
         """Generate data-driven custom templates based on the actual client data analysis."""
         try:
-            logger.info(f"🎯 Generating data-driven custom templates for client {client_id}")
+            logger.info(f" Generating data-driven custom templates for client {client_id}")
             
             # Convert client_id to UUID - handle both UUID strings and regular strings
             try:
@@ -926,7 +926,7 @@ class DynamicTemplateOrchestrator:
             business_model = data_analysis.get('business_model', 'b2c_ecommerce')
             industry_sector = data_analysis.get('industry_sector', 'Technology')
             
-            logger.info(f"📊 Analyzing REAL data: {len(columns)} columns, {len(numeric_columns)} numeric, {len(categorical_columns)} categorical")
+            logger.info(f" Analyzing REAL data: {len(columns)} columns, {len(numeric_columns)} numeric, {len(categorical_columns)} categorical")
             
             # Categorize columns by business function to create DIFFERENT templates
             revenue_columns = [col for col in columns if any(keyword in col.lower() for keyword in ['price', 'cost', 'revenue', 'amount', 'total', 'value', 'fee'])]
@@ -934,7 +934,7 @@ class DynamicTemplateOrchestrator:
             time_columns = [col for col in columns if any(keyword in col.lower() for keyword in ['date', 'time', 'created', 'updated', 'published', 'timestamp'])]
             performance_columns = [col for col in columns if any(keyword in col.lower() for keyword in ['count', 'number', 'quantity', 'rate', 'score', 'rating', 'rank'])]
             
-            logger.info(f"🔍 Column analysis: {len(revenue_columns)} revenue, {len(process_columns)} process, {len(time_columns)} time, {len(performance_columns)} performance")
+            logger.info(f" Column analysis: {len(revenue_columns)} revenue, {len(process_columns)} process, {len(time_columns)} time, {len(performance_columns)} performance")
             
             templates = []
             
@@ -959,11 +959,11 @@ class DynamicTemplateOrchestrator:
             )
             templates.append(performance_template)
             
-            logger.info(f"✅ Generated {len(templates)} unique data-driven custom templates for client {client_id}")
+            logger.info(f" Generated {len(templates)} unique data-driven custom templates for client {client_id}")
             return templates
             
         except Exception as e:
-            logger.error(f"❌ Data-driven template generation failed: {e}")
+            logger.error(f" Data-driven template generation failed: {e}")
             # Return absolute minimal template
             try:
                 client_uuid = uuid.UUID(client_id)
@@ -1000,7 +1000,7 @@ class DynamicTemplateOrchestrator:
         sample_data: List[Dict[str, Any]]
     ) -> DashboardConfig:
         """Generate a revenue-focused template based on actual revenue data."""
-        logger.info("💰 Creating revenue-focused template")
+        logger.info(" Creating revenue-focused template")
         
         # Determine primary revenue metric
         primary_revenue_metric = "Total Revenue"
@@ -1081,7 +1081,7 @@ class DynamicTemplateOrchestrator:
         sample_data: List[Dict[str, Any]]
     ) -> DashboardConfig:
         """Generate an operations-focused template based on actual process data."""
-        logger.info("⚙️ Creating operations-focused template")
+        logger.info("️ Creating operations-focused template")
         
         # Determine primary process metric
         primary_process_metric = "Process Efficiency"
@@ -1163,7 +1163,7 @@ class DynamicTemplateOrchestrator:
         sample_data: List[Dict[str, Any]]
     ) -> DashboardConfig:
         """Generate a performance-focused template based on actual time-series and performance data."""
-        logger.info("📈 Creating performance-focused template")
+        logger.info(" Creating performance-focused template")
         
         # Determine primary performance metric
         primary_performance_metric = "Performance Score"

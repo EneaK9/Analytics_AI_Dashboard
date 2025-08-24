@@ -25,20 +25,20 @@ async def test_enhanced_inventory_analytics():
         
         for client_name, client_id in clients.items():
             print(f"\n{'='*60}")
-            print(f"🧪 Testing Enhanced Analytics for {client_name}")
+            print(f" Testing Enhanced Analytics for {client_name}")
             print(f"Client ID: {client_id}")
             print("="*60)
             
             # Test the enhanced analyzer
-            logger.info(f"🚀 Running enhanced inventory analysis for {client_name}")
+            logger.info(f" Running enhanced inventory analysis for {client_name}")
             result = await organized_inventory_analyzer.analyze_client_inventory(client_id)
             
             if result.get('success'):
-                print("✅ Enhanced inventory analytics successful!")
+                print(" Enhanced inventory analytics successful!")
                 
                 # Print data sources
                 data_sources = result.get("data_sources", {})
-                print(f"\n📦 Data Sources:")
+                print(f"\n Data Sources:")
                 for source, count in data_sources.items():
                     print(f"   - {source}: {count} records")
                 
@@ -48,7 +48,7 @@ async def test_enhanced_inventory_analytics():
                 # Print inventory KPIs
                 inventory_kpis = result.get("inventory_kpis", {})
                 if inventory_kpis and not inventory_kpis.get("error"):
-                    print(f"\n💰 Inventory KPIs:")
+                    print(f"\n Inventory KPIs:")
                     print(f"   - Total inventory units: {inventory_kpis.get('total_inventory_units'):,}")
                     print(f"   - Total inventory value: ${inventory_kpis.get('total_inventory_value'):,.2f}")
                     print(f"   - Total unique SKUs: {inventory_kpis.get('total_unique_skus')}")
@@ -66,7 +66,7 @@ async def test_enhanced_inventory_analytics():
                 # Print sales KPIs
                 sales_kpis = result.get("sales_kpis", {})
                 if sales_kpis and not sales_kpis.get("error"):
-                    print(f"\n📈 Sales KPIs:")
+                    print(f"\n Sales KPIs:")
                     print(f"   - Total orders: {sales_kpis.get('total_orders'):,}")
                     print(f"   - Total revenue: ${sales_kpis.get('total_revenue'):,.2f}")
                     print(f"   - Avg order value: ${sales_kpis.get('avg_order_value'):,.2f}")
@@ -90,7 +90,7 @@ async def test_enhanced_inventory_analytics():
                 trends = result.get("trend_analysis", {})
                 monthly_trends = trends.get("monthly_trends", [])
                 if monthly_trends:
-                    print(f"\n📊 Recent Trends:")
+                    print(f"\n Recent Trends:")
                     for trend in monthly_trends[-3:]:  # Show last 3 months
                         print(f"   - {trend.get('month')}: {trend.get('total_orders')} orders, ${trend.get('total_revenue'):,.2f} revenue")
                         if trend.get('shopify_orders', 0) > 0:
@@ -102,7 +102,7 @@ async def test_enhanced_inventory_analytics():
                 # Print alerts summary
                 alerts = result.get("alerts", [])
                 if alerts:
-                    print(f"\n🚨 Alerts ({len(alerts)}):")
+                    print(f"\n Alerts ({len(alerts)}):")
                     for alert in alerts[:5]:  # Show first 5 alerts
                         severity = alert.get('severity', 'info').upper()
                         platform = alert.get('platform', 'unknown').upper()
@@ -114,12 +114,12 @@ async def test_enhanced_inventory_analytics():
                 amazon_top = top_products.get("amazon_top_by_price", [])
                 
                 if shopify_top:
-                    print(f"\n🏆 Top Shopify Products (by inventory value):")
+                    print(f"\n Top Shopify Products (by inventory value):")
                     for i, product in enumerate(shopify_top[:3], 1):
                         print(f"   {i}. {product.get('title')} - ${product.get('total_value'):,.2f} ({product.get('inventory')} units)")
                 
                 if amazon_top:
-                    print(f"\n🏆 Top Amazon Products (by price):")
+                    print(f"\n Top Amazon Products (by price):")
                     for i, product in enumerate(amazon_top[:3], 1):
                         print(f"   {i}. {product.get('title')} - ${product.get('price'):,.2f}")
                 
@@ -129,24 +129,24 @@ async def test_enhanced_inventory_analytics():
                     critical_items = [item for item in low_stock if item.get('urgency') == 'critical']
                     high_items = [item for item in low_stock if item.get('urgency') == 'high']
                     
-                    print(f"\n⚠️  Low Stock Summary:")
+                    print(f"\n  Low Stock Summary:")
                     print(f"   - Critical (0 units): {len(critical_items)} items")
                     print(f"   - High priority (<3 units): {len(high_items)} items")
                     print(f"   - Total low stock: {len(low_stock)} items")
                 
             else:
-                print(f"❌ Enhanced inventory analytics failed for {client_name}")
+                print(f" Enhanced inventory analytics failed for {client_name}")
                 print(f"Error: {result.get('error')}")
     
     except Exception as e:
-        print(f"❌ Test failed with exception: {e}")
+        print(f" Test failed with exception: {e}")
         import traceback
         traceback.print_exc()
 
 async def test_data_population():
     """Test populating Shopify orders data"""
     print("\n" + "="*60)
-    print("🔧 Testing Shopify Orders Population")
+    print(" Testing Shopify Orders Population")
     print("="*60)
     
     try:
@@ -158,21 +158,21 @@ async def test_data_population():
         result = await populator.populate_shopify_orders(client_id)
         
         if result.get('success'):
-            print("✅ Shopify orders population successful!")
-            print(f"📊 Results:")
+            print(" Shopify orders population successful!")
+            print(f" Results:")
             print(f"   - Raw records processed: {result['raw_records_processed']}")
             print(f"   - Shopify orders found: {result['shopify_orders_found']}")
             print(f"   - Orders inserted: {result['orders_inserted']}")
             print(f"   - Processing time: {result['processing_time_seconds']:.2f}s")
         else:
-            print(f"❌ Shopify orders population failed: {result.get('error')}")
+            print(f" Shopify orders population failed: {result.get('error')}")
     
     except Exception as e:
-        print(f"❌ Population test failed: {e}")
+        print(f" Population test failed: {e}")
 
 async def main():
     """Main test function"""
-    print("🧪 Enhanced Inventory Analytics Test Suite")
+    print(" Enhanced Inventory Analytics Test Suite")
     print("=" * 80)
     
     print("\nChoose test mode:")
@@ -188,7 +188,7 @@ async def main():
         elif choice == "2":
             await test_data_population()
         elif choice == "3":
-            print("\n🔧 Running full test suite...")
+            print("\n Running full test suite...")
             await test_data_population()
             await test_enhanced_inventory_analytics()
         else:
@@ -196,9 +196,9 @@ async def main():
             await test_enhanced_inventory_analytics()
     
     except KeyboardInterrupt:
-        print("\n⚠️ Test interrupted by user")
+        print("\n Test interrupted by user")
     except Exception as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\n Test failed: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())

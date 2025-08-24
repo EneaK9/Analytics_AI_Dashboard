@@ -42,7 +42,7 @@ class DataOrganizer:
         self.admin_client = get_admin_client()
         
         if not self.admin_client:
-            raise Exception("❌ No admin database client available")
+            raise Exception(" No admin database client available")
         
         # Define table schemas for different data types
         self.schemas = self._define_table_schemas()
@@ -163,7 +163,7 @@ class DataOrganizer:
     async def create_organized_tables(self, client_id: str) -> bool:
         """Create organized tables for the specific client"""
         try:
-            logger.info(f"🏗️ Creating organized tables for client {client_id}")
+            logger.info(f"️ Creating organized tables for client {client_id}")
             
             # Create tables with client_id prefix
             for data_type, schema in self.schemas.items():
@@ -191,25 +191,25 @@ class DataOrganizer:
                 # Execute table creation
                 try:
                     # Use raw SQL execution via Supabase RPC function or direct SQL
-                    logger.info(f"📊 Creating table: {table_name}")
+                    logger.info(f" Creating table: {table_name}")
                     # Note: Supabase client doesn't directly support DDL, 
                     # so we'll need to handle this differently
-                    logger.info(f"✅ Table schema defined: {table_name}")
+                    logger.info(f" Table schema defined: {table_name}")
                 except Exception as e:
-                    logger.error(f"❌ Failed to create table {table_name}: {e}")
+                    logger.error(f" Failed to create table {table_name}: {e}")
                     return False
             
-            logger.info(f"✅ All organized tables created for client {client_id}")
+            logger.info(f" All organized tables created for client {client_id}")
             return True
             
         except Exception as e:
-            logger.error(f"❌ Failed to create organized tables: {e}")
+            logger.error(f" Failed to create organized tables: {e}")
             return False
     
     async def fetch_client_data(self, client_id: str) -> List[Dict[str, Any]]:
         """Fetch all data for a specific client from client_data table"""
         try:
-            logger.info(f"📊 Fetching data for client {client_id}")
+            logger.info(f" Fetching data for client {client_id}")
             
             # Use the optimized data lookup
             result = await self.db_manager.fast_client_data_lookup(
@@ -218,16 +218,16 @@ class DataOrganizer:
             )
             
             if not result or not result.get('data'):
-                logger.warning(f"⚠️ No data found for client {client_id}")
+                logger.warning(f" No data found for client {client_id}")
                 return []
             
             raw_data = result['data']
-            logger.info(f"📦 Found {len(raw_data)} records for client {client_id}")
+            logger.info(f" Found {len(raw_data)} records for client {client_id}")
             
             return raw_data
             
         except Exception as e:
-            logger.error(f"❌ Failed to fetch client data: {e}")
+            logger.error(f" Failed to fetch client data: {e}")
             return []
     
     def categorize_data(self, raw_data: List[Any]) -> Dict[str, List[Dict[str, Any]]]:
@@ -248,7 +248,7 @@ class DataOrganizer:
                     elif isinstance(record, dict):
                         data = record
                     else:
-                        logger.warning(f"⚠️ Unexpected data format: {type(record)}")
+                        logger.warning(f" Unexpected data format: {type(record)}")
                         continue
                     
                     # Determine platform and type
@@ -279,21 +279,21 @@ class DataOrganizer:
                             # Likely Shopify order
                             categorized['shopify_orders'].append(data)
                         else:
-                            logger.warning(f"⚠️ Could not categorize record: {data}")
+                            logger.warning(f" Could not categorize record: {data}")
                 
                 except Exception as e:
-                    logger.warning(f"⚠️ Error processing record: {e}")
+                    logger.warning(f" Error processing record: {e}")
                     continue
             
             # Log categorization results
             for category, items in categorized.items():
                 if items:
-                    logger.info(f"📋 {category}: {len(items)} records")
+                    logger.info(f" {category}: {len(items)} records")
             
             return categorized
             
         except Exception as e:
-            logger.error(f"❌ Failed to categorize data: {e}")
+            logger.error(f" Failed to categorize data: {e}")
             return {}
     
     def transform_shopify_order(self, data: Dict[str, Any], client_id: str) -> Dict[str, Any]:
@@ -323,7 +323,7 @@ class DataOrganizer:
                 'raw_data': json.dumps(data)
             }
         except Exception as e:
-            logger.warning(f"⚠️ Error transforming Shopify order: {e}")
+            logger.warning(f" Error transforming Shopify order: {e}")
             return None
     
     def transform_shopify_product(self, data: Dict[str, Any], client_id: str) -> Dict[str, Any]:
@@ -344,7 +344,7 @@ class DataOrganizer:
                 'raw_data': json.dumps(data)
             }
         except Exception as e:
-            logger.warning(f"⚠️ Error transforming Shopify product: {e}")
+            logger.warning(f" Error transforming Shopify product: {e}")
             return None
     
     def transform_amazon_order(self, data: Dict[str, Any], client_id: str) -> Dict[str, Any]:
@@ -371,7 +371,7 @@ class DataOrganizer:
                 'raw_data': json.dumps(data)
             }
         except Exception as e:
-            logger.warning(f"⚠️ Error transforming Amazon order: {e}")
+            logger.warning(f" Error transforming Amazon order: {e}")
             return None
     
     def transform_amazon_product(self, data: Dict[str, Any], client_id: str) -> Dict[str, Any]:
@@ -392,7 +392,7 @@ class DataOrganizer:
                 'raw_data': json.dumps(data)
             }
         except Exception as e:
-            logger.warning(f"⚠️ Error transforming Amazon product: {e}")
+            logger.warning(f" Error transforming Amazon product: {e}")
             return None
     
     def _safe_decimal(self, value) -> Optional[float]:
@@ -428,7 +428,7 @@ class DataOrganizer:
                     results[data_type] = 0
                     continue
                 
-                logger.info(f"🔄 Processing {len(records)} {data_type} records")
+                logger.info(f" Processing {len(records)} {data_type} records")
                 
                 # Transform records based on type
                 transformed_records = []
@@ -449,7 +449,7 @@ class DataOrganizer:
                             transformed_records.append(transformed)
                     
                     except Exception as e:
-                        logger.warning(f"⚠️ Error transforming {data_type} record: {e}")
+                        logger.warning(f" Error transforming {data_type} record: {e}")
                         continue
                 
                 if not transformed_records:
@@ -475,24 +475,24 @@ class DataOrganizer:
                     if organized_records:
                         response = self.admin_client.table("client_data").insert(organized_records).execute()
                         results[data_type] = len(response.data) if response.data else 0
-                        logger.info(f"✅ Inserted {results[data_type]} {data_type} records")
+                        logger.info(f" Inserted {results[data_type]} {data_type} records")
                     else:
                         results[data_type] = 0
                 
                 except Exception as e:
-                    logger.error(f"❌ Failed to insert {data_type} data: {e}")
+                    logger.error(f" Failed to insert {data_type} data: {e}")
                     results[data_type] = 0
             
             return results
             
         except Exception as e:
-            logger.error(f"❌ Failed to insert organized data: {e}")
+            logger.error(f" Failed to insert organized data: {e}")
             return {}
     
     async def organize_client_data(self, client_id: str) -> Dict[str, Any]:
         """Main method to organize all client data"""
         try:
-            logger.info(f"🚀 Starting data organization for client {client_id}")
+            logger.info(f" Starting data organization for client {client_id}")
             start_time = datetime.now()
             
             # Step 1: Fetch raw data
@@ -523,13 +523,13 @@ class DataOrganizer:
                 "success": True
             }
             
-            logger.info(f"✅ Data organization completed in {processing_time:.2f}s")
-            logger.info(f"📊 Summary: {summary}")
+            logger.info(f" Data organization completed in {processing_time:.2f}s")
+            logger.info(f" Summary: {summary}")
             
             return summary
             
         except Exception as e:
-            logger.error(f"❌ Data organization failed: {e}")
+            logger.error(f" Data organization failed: {e}")
             return {"error": str(e), "success": False}
 
 async def main():
@@ -545,16 +545,16 @@ async def main():
         result = await organizer.organize_client_data(args.client_id)
         
         if result.get('success'):
-            print(f"✅ Data organization successful!")
-            print(f"📊 Organized {result['total_organized']} records in {result['processing_time_seconds']:.2f}s")
+            print(f" Data organization successful!")
+            print(f" Organized {result['total_organized']} records in {result['processing_time_seconds']:.2f}s")
             for data_type, count in result['organized_records'].items():
                 if count > 0:
                     print(f"   - {data_type}: {count} records")
         else:
-            print(f"❌ Data organization failed: {result.get('error')}")
+            print(f" Data organization failed: {result.get('error')}")
     
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f" Error: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())

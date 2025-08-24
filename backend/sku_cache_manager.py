@@ -41,7 +41,7 @@ class SKUCacheManager:
                     
                     total_pages = (total_count + page_size - 1) // page_size
                     
-                    logger.info(f"✅ Cache hit for client {client_id} - page {page}/{total_pages}")
+                    logger.info(f" Cache hit for client {client_id} - page {page}/{total_pages}")
                     
                     # Calculate summary stats for frontend
                     summary_stats = {
@@ -76,7 +76,7 @@ class SKUCacheManager:
             return {"success": False, "cached": False, "message": "No valid cache found - analysis runs via cron job every 8 hours"}
             
         except Exception as e:
-            logger.error(f"❌ Error retrieving cached SKUs: {e}")
+            logger.error(f" Error retrieving cached SKUs: {e}")
             return {"success": False, "cached": False, "error": str(e)}
     
     async def cache_skus(self, client_id: str, sku_data: List[Dict[str, Any]]) -> bool:
@@ -98,11 +98,11 @@ class SKUCacheManager:
             
             self.admin_client.table(self.cache_table).insert(cache_record).execute()
             
-            logger.info(f"✅ Cached {len(sku_data)} SKUs for client {client_id}")
+            logger.info(f" Cached {len(sku_data)} SKUs for client {client_id}")
             return True
             
         except Exception as e:
-            logger.error(f"❌ Error caching SKUs: {e}")
+            logger.error(f" Error caching SKUs: {e}")
             return False
     
     async def get_sku_summary_stats(self, client_id: str) -> Dict[str, Any]:
@@ -136,7 +136,7 @@ class SKUCacheManager:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error calculating summary stats: {e}")
+            logger.error(f" Error calculating summary stats: {e}")
             return {"success": False, "error": str(e)}
     
 
@@ -148,11 +148,11 @@ class SKUCacheManager:
                 "client_id", client_id
             ).eq("data_type", "sku_list").execute()
             
-            logger.info(f"🗑️ Invalidated SKU cache for client {client_id}")
+            logger.info(f"️ Invalidated SKU cache for client {client_id}")
             return True
             
         except Exception as e:
-            logger.error(f"❌ Error invalidating cache: {e}")
+            logger.error(f" Error invalidating cache: {e}")
             return False
 
     async def setup_cache_table(self):
@@ -160,10 +160,10 @@ class SKUCacheManager:
         try:
             # This would be run once to create the table
             # In practice, you'd use a migration script
-            logger.info("🔧 Cache table setup would be handled by database migrations")
+            logger.info(" Cache table setup would be handled by database migrations")
             return True
         except Exception as e:
-            logger.error(f"❌ Error setting up cache table: {e}")
+            logger.error(f" Error setting up cache table: {e}")
             return False
 
 # Global instance

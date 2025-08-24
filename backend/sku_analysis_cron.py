@@ -28,23 +28,23 @@ class SKUAnalysisCronJob:
     
     def __init__(self):
         self.platforms = ["shopify", "amazon"]
-        logger.info("🕐 SKU Analysis Cron Job initialized - USING OLD WORKING LOGIC")
+        logger.info("SKU Analysis Cron Job initialized - USING OLD WORKING LOGIC")
     
     async def get_specific_client(self, target_client_id: str = None) -> List[str]:
         """Get specific client ID or default to main client"""
         if target_client_id:
-            logger.info(f"🎯 Targeting specific client: {target_client_id}")
+            logger.info(f" Targeting specific client: {target_client_id}")
             return [target_client_id]
         
         # Default to the main active client (the one with most data)
         main_client = "3b619a14-3cd8-49fa-9c24-d8df5e54c452"  # Your current client
-        logger.info(f"🎯 Using main client: {main_client}")
+        logger.info(f" Using main client: {main_client}")
         return [main_client]
     
     async def refresh_client_sku_analysis(self, client_id: str, platform: str) -> Dict[str, Any]:
         """Refresh SKU analysis for a specific client and platform - OLD WORKING SYSTEM"""
         try:
-            logger.info(f"🔄 Starting SKU analysis for client {client_id} (platform: {platform}) - OLD WORKING SYSTEM")
+            logger.info(f" Starting SKU analysis for client {client_id} (platform: {platform}) - OLD WORKING SYSTEM")
             
             # USE THE EXACT SAME dashboard_inventory_analyzer as the old working system
             from dashboard_inventory_analyzer import dashboard_inventory_analyzer
@@ -53,18 +53,18 @@ class SKUAnalysisCronJob:
             # PLATFORM-SPECIFIC ANALYSIS - USE CORRECT APPROACH FOR EACH
             if platform.lower() == "shopify":
                 # SHOPIFY: Use dashboard analyzer (organized product data)
-                logger.info(f"🛍️ Using dashboard analyzer for Shopify (organized product data)")
+                logger.info(f"️ Using dashboard analyzer for Shopify (organized product data)")
                 sku_result = await dashboard_inventory_analyzer.get_sku_list(client_id, 1, 10000, use_cache=False, platform=platform)
                 
                 if not sku_result.get("success"):
                     return {"success": False, "error": f"Shopify dashboard analyzer failed: {sku_result.get('error', 'Unknown error')}"}
                 
                 skus = sku_result.get("skus", [])
-                logger.info(f"✅ Dashboard analyzer returned {len(skus)} Shopify SKUs")
+                logger.info(f" Dashboard analyzer returned {len(skus)} Shopify SKUs")
                 
             elif platform.lower() == "amazon":
                 # AMAZON: Use legacy inventory analyzer (generates SKUs from 10000 orders like old working system)
-                logger.info(f"📦 Using legacy inventory analyzer for Amazon (SKU generation from 10000 orders like old system)")
+                logger.info(f" Using legacy inventory analyzer for Amazon (SKU generation from 10000 orders like old system)")
                 
                 from database import get_admin_client
                 from inventory_analyzer import inventory_analyzer
@@ -100,11 +100,11 @@ class SKUAnalysisCronJob:
                     return {"success": False, "error": "No valid data for Amazon analysis"}
                 
                 # Run legacy analysis (same as old working system that generated AMZ-ORDER-xxxxx)
-                logger.info(f"🔄 Running legacy inventory analysis on {len(client_data_for_analysis['data'])} records")
+                logger.info(f" Running legacy inventory analysis on {len(client_data_for_analysis['data'])} records")
                 analytics = inventory_analyzer.analyze_inventory_data(client_data_for_analysis)
                 skus = analytics.get("sku_inventory", {}).get("skus", [])
                 
-                logger.info(f"✅ Legacy analyzer returned {len(skus)} Amazon SKUs (same as old working system)")
+                logger.info(f" Legacy analyzer returned {len(skus)} Amazon SKUs (same as old working system)")
                 
             else:
                 return {"success": False, "error": f"Unsupported platform: {platform}"}
@@ -133,7 +133,7 @@ class SKUAnalysisCronJob:
                 }
                 admin_client.table("sku_cache").insert(cache_record).execute()
                 
-                logger.info(f"✅ Successfully cached {len(skus)} SKUs for client {client_id} ({platform}) - OLD WORKING SYSTEM")
+                logger.info(f" Successfully cached {len(skus)} SKUs for client {client_id} ({platform}) - OLD WORKING SYSTEM")
                 
                 return {
                     "success": True,
@@ -144,17 +144,17 @@ class SKUAnalysisCronJob:
                 }
                 
             except Exception as e:
-                logger.error(f"❌ Error caching SKU data: {e}")
+                logger.error(f" Error caching SKU data: {e}")
                 return {"success": False, "error": f"Failed to cache data: {str(e)}"}
                 
         except Exception as e:
-            logger.error(f"❌ Error in SKU analysis: {e}")
+            logger.error(f" Error in SKU analysis: {e}")
             return {"success": False, "error": str(e)}
     
     async def run_full_analysis(self) -> Dict[str, Any]:
         """Run SKU analysis for all clients and platforms"""
         start_time = datetime.now()
-        logger.info("🚀 Starting full SKU analysis cron job - OLD WORKING SYSTEM")
+        logger.info(" Starting full SKU analysis cron job - OLD WORKING SYSTEM")
         
         results = {
             "success": True,
@@ -169,7 +169,7 @@ class SKUAnalysisCronJob:
         active_clients = await self.get_specific_client()
         
         if not active_clients:
-            logger.warning("⚠️ No active clients found for SKU analysis")
+            logger.warning(" No active clients found for SKU analysis")
             return {
                 "success": True,  # Not really an error if no clients exist yet
                 "message": "No active clients found",
@@ -180,7 +180,7 @@ class SKUAnalysisCronJob:
                 "failed_jobs": 0
             }
         
-        logger.info(f"📋 Processing {len(active_clients)} clients with {len(self.platforms)} platforms each")
+        logger.info(f" Processing {len(active_clients)} clients with {len(self.platforms)} platforms each")
         results["total_jobs"] = len(active_clients) * len(self.platforms)
         
         # Process each client with proper platform separation
@@ -194,13 +194,13 @@ class SKUAnalysisCronJob:
                     
                     if result.get("success"):
                         results["successful_jobs"] += 1
-                        logger.info(f"✅ SUCCESS - Client {client_id} ({platform}): {result.get('skus_cached', 0)} SKUs cached")
+                        logger.info(f" SUCCESS - Client {client_id} ({platform}): {result.get('skus_cached', 0)} SKUs cached")
                     else:
                         results["failed_jobs"] += 1
-                        logger.warning(f"⚠️ FAILED - Client {client_id} ({platform}): {result.get('error')}")
+                        logger.warning(f" FAILED - Client {client_id} ({platform}): {result.get('error')}")
                         
                 except Exception as e:
-                    logger.error(f"❌ Failed to process client {client_id} ({platform}): {e}")
+                    logger.error(f" Failed to process client {client_id} ({platform}): {e}")
                     client_results[platform] = {"success": False, "error": str(e)}
                     results["failed_jobs"] += 1
             
@@ -210,10 +210,10 @@ class SKUAnalysisCronJob:
         duration = (datetime.now() - start_time).total_seconds()
         results["duration_seconds"] = duration
         
-        logger.info(f"🏁 SKU analysis cron job completed in {duration:.2f} seconds")
+        logger.info(f" SKU analysis cron job completed in {duration:.2f} seconds")
         
         if results['successful_jobs'] > 0:
-            logger.info(f"✅ Results: {results['successful_jobs']} successful, {results['failed_jobs']} failed out of {results['total_jobs']} total jobs")
+            logger.info(f" Results: {results['successful_jobs']} successful, {results['failed_jobs']} failed out of {results['total_jobs']} total jobs")
         else:
             logger.info(f"ℹ️ Results: No SKUs cached - this may indicate organized data tables don't exist yet")
         
@@ -225,9 +225,9 @@ sku_cron_job = SKUAnalysisCronJob()
 if __name__ == "__main__":
     async def main():
         results = await sku_cron_job.run_full_analysis()
-        print(f"\n🎯 Cron Job Results:")
-        print(f"✅ Successful: {results.get('successful_jobs', 0)}")
-        print(f"❌ Failed: {results.get('failed_jobs', 0)}")
+        print(f"\n Cron Job Results:")
+        print(f" Successful: {results.get('successful_jobs', 0)}")
+        print(f" Failed: {results.get('failed_jobs', 0)}")
         print(f"⏱️ Duration: {results.get('duration_seconds', 0):.2f} seconds")
     
     asyncio.run(main())

@@ -145,7 +145,7 @@ class EnhancedDataParser:
     def parse_data(self, file_content: bytes, filename: str, data_format: str = None) -> ParsedDataResult:
         """
         Parse data from various formats and ALWAYS return standardized JSON structure
-        🔧 NEW: All formats converted to JSON for uniform processing
+         NEW: All formats converted to JSON for uniform processing
         """
         try:
             if data_format:
@@ -153,7 +153,7 @@ class EnhancedDataParser:
             else:
                 format_type = self._detect_format(file_content, filename)
             
-            logger.info(f"📁 Parsing {format_type.upper()} data from {filename}")
+            logger.info(f" Parsing {format_type.upper()} data from {filename}")
             
             # Parse based on format
             if format_type == 'json':
@@ -167,9 +167,9 @@ class EnhancedDataParser:
             else:
                 raise ValueError(f"Unsupported format: {format_type}")
             
-            # 🔥 CRITICAL: Convert ALL data to standardized JSON format
+            #  CRITICAL: Convert ALL data to standardized JSON format
             standardized_data = self._standardize_to_json(data, columns_info, format_type)
-            logger.info(f"✅ Converted {format_type.upper()} to JSON: {len(standardized_data)} records")
+            logger.info(f" Converted {format_type.upper()} to JSON: {len(standardized_data)} records")
             
             # Analyze the standardized JSON data 
             data_analysis = self._analyze_standardized_data(standardized_data, columns_info)
@@ -186,24 +186,24 @@ class EnhancedDataParser:
             )
             
         except Exception as e:
-            logger.error(f"❌ Error parsing {filename}: {str(e)}")
+            logger.error(f" Error parsing {filename}: {str(e)}")
             raise ValueError(f"Failed to parse data: {str(e)}")
     
     def _standardize_to_json(self, data: List[Dict], columns_info: List[Dict], source_format: str) -> List[Dict]:
         """
-        🔥 NEW: Convert ALL formats to standardized JSON structure
+         NEW: Convert ALL formats to standardized JSON structure
         This ensures uniform processing regardless of source format
         """
         try:
             standardized_records = []
             
-            logger.info(f"🔄 Standardizing {len(data)} records from {source_format.upper()} to JSON...")
+            logger.info(f" Standardizing {len(data)} records from {source_format.upper()} to JSON...")
             
             for i, record in enumerate(data):
                 try:
                     # Ensure record is a dictionary
                     if not isinstance(record, dict):
-                        logger.warning(f"⚠️  Record {i} is not a dict: {type(record)}, converting...")
+                        logger.warning(f"  Record {i} is not a dict: {type(record)}, converting...")
                         if isinstance(record, (list, tuple)):
                             # Convert list/tuple to dict using column names
                             record_dict = {}
@@ -250,19 +250,19 @@ class EnhancedDataParser:
                     standardized_records.append(clean_record)
                     
                 except Exception as record_error:
-                    logger.warning(f"⚠️  Failed to standardize record {i}: {record_error}")
+                    logger.warning(f"  Failed to standardize record {i}: {record_error}")
                     continue
             
-            logger.info(f"✅ Successfully standardized {len(standardized_records)}/{len(data)} records to JSON")
+            logger.info(f" Successfully standardized {len(standardized_records)}/{len(data)} records to JSON")
             return standardized_records
             
         except Exception as e:
-            logger.error(f"❌ Failed to standardize data to JSON: {e}")
+            logger.error(f" Failed to standardize data to JSON: {e}")
             raise ValueError(f"Data standardization failed: {e}")
     
     def _analyze_standardized_data(self, standardized_data: List[Dict], columns_info: List[Dict]) -> Dict:
         """
-        🔥 NEW: Analyze the standardized JSON data uniformly
+         NEW: Analyze the standardized JSON data uniformly
         """
         try:
             if not standardized_data:
@@ -325,7 +325,7 @@ class EnhancedDataParser:
             }
             
         except Exception as e:
-            logger.error(f"❌ Failed to analyze standardized data: {e}")
+            logger.error(f" Failed to analyze standardized data: {e}")
             return {
                 'quality_score': 50.0,
                 'data_types': {},
@@ -341,7 +341,7 @@ class EnhancedDataParser:
             try:
                 data = json.loads(json_str)
             except json.JSONDecodeError as e:
-                logger.error(f"❌ JSON decode error: {e}")
+                logger.error(f" JSON decode error: {e}")
                 raise ValueError(f"Invalid JSON format: {e}")
             
             # Handle different JSON structures
@@ -368,11 +368,11 @@ class EnhancedDataParser:
                         'nullable': any(record.get(key) is None for record in records[:100])
                     })
             
-            logger.info(f"✅ JSON parsed: {len(records)} records, {len(columns_info)} columns")
+            logger.info(f" JSON parsed: {len(records)} records, {len(columns_info)} columns")
             return records, columns_info
             
         except Exception as e:
-            logger.error(f"❌ JSON parsing failed: {e}")
+            logger.error(f" JSON parsing failed: {e}")
             raise ValueError(f"Failed to parse JSON: {e}")
 
     def _parse_csv(self, file_content: bytes) -> tuple[List[Dict], List[Dict]]:
@@ -412,11 +412,11 @@ class EnhancedDataParser:
                     'nullable': df[col_name].isnull().any()
                 })
             
-            logger.info(f"✅ CSV parsed: {len(records)} records, {len(columns_info)} columns")
+            logger.info(f" CSV parsed: {len(records)} records, {len(columns_info)} columns")
             return records, columns_info
             
         except Exception as e:
-            logger.error(f"❌ CSV parsing failed: {e}")
+            logger.error(f" CSV parsing failed: {e}")
             raise ValueError(f"Failed to parse CSV: {e}")
 
     def _enhance_csv_data_types(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -499,11 +499,11 @@ class EnhancedDataParser:
                     'nullable': df[col_name].isnull().any()
                 })
             
-            logger.info(f"✅ Excel parsed: {len(records)} records, {len(columns_info)} columns")
+            logger.info(f" Excel parsed: {len(records)} records, {len(columns_info)} columns")
             return records, columns_info
             
         except Exception as e:
-            logger.error(f"❌ Excel parsing failed: {e}")
+            logger.error(f" Excel parsing failed: {e}")
             raise ValueError(f"Failed to parse Excel: {e}")
 
     def _detect_format(self, file_content: bytes, filename: str) -> str:
