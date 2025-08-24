@@ -234,11 +234,18 @@ async def pre_calculate_dashboard_data(client_id: str):
         tasks = [
             refresh_analytics_background(client_id, "shopify"),
             refresh_analytics_background(client_id, "amazon"),
-            refresh_sku_background(client_id, "shopify"),
-            refresh_sku_background(client_id, "amazon"),
+            refresh_sku_background(client_id, "shopify", 1, 50),
+            refresh_sku_background(client_id, "amazon", 1, 50),
         ]
 
-        await asyncio.gather(*tasks, return_exceptions=True)
+        # Wait for all background tasks to complete
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Log any exceptions
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                task_name = ["shopify analytics", "amazon analytics", "shopify sku", "amazon sku"][i]
+                logger.error(f"PRE-CALCULATION failed for {client_id}: {task_name} - {result}")
 
         logger.info(f" PRE-CALCULATION completed for {client_id}")
 
@@ -669,7 +676,7 @@ logger.info(f" Starting Analytics AI Dashboard API in {ENVIRONMENT} mode")
 
 
 async def create_client_cache_table(client_id: str):
-    """Create a persistent cache table for a client if it doesn't exist"""
+    """Check if cache table exists - assume tables are pre-created via SQL"""
 
     try:
 
@@ -683,71 +690,27 @@ async def create_client_cache_table(client_id: str):
 
         if not db_client:
 
-            logger.error(" Database not configured for cache table creation")
+            logger.error(" Database not configured for cache table access")
 
             return False
 
-        # Create table if it doesn't exist
-
-        create_table_sql = f"""
-
-        CREATE TABLE IF NOT EXISTS "{table_name}" (
-
-            id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-
-            client_id uuid NOT NULL,
-
-            endpoint_url text NOT NULL,
-
-            cache_key text NOT NULL,
-
-            response_data jsonb NOT NULL,
-
-            created_at timestamptz DEFAULT now(),
-
-            expires_at timestamptz,
-
-            UNIQUE(cache_key)
-
-        );
-
-        
-
-        CREATE INDEX IF NOT EXISTS "idx_{clean_client_id}_cached_responses_cache_key" ON "{table_name}" (cache_key);
-
-        CREATE INDEX IF NOT EXISTS "idx_{clean_client_id}_cached_responses_client_id" ON "{table_name}" (client_id);
-
-        """
-
-        # Execute using raw SQL
-
-        from database import get_db_manager
-
-        db_manager = get_db_manager()
-
-        # Use Supabase's SQL execution if available
+        # Try to access the table to verify it exists
 
         try:
-
-            # Create table using admin client
-
-            db_client.rpc("exec_sql", {"sql": create_table_sql}).execute()
-
-            logger.info(f" Created cache table: {table_name}")
-
+            # Simple test query to check if table exists
+            db_client.table(table_name).select("id").limit(1).execute()
+            logger.info(f" Cache table verified: {table_name}")
             return True
 
         except Exception as e:
 
-            # Alternative: Use PostgREST direct table creation (might not work for CREATE TABLE)
-
-            logger.warning(f" Could not create cache table via RPC: {e}")
-
+            logger.warning(f" Cache table {table_name} may not exist: {e}")
+            logger.warning(f" Please create the table manually using SQL: CREATE TABLE IF NOT EXISTS \"{table_name}\" (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, client_id uuid NOT NULL, endpoint_url text NOT NULL, cache_key text NOT NULL, response_data jsonb NOT NULL, created_at timestamptz DEFAULT now(), expires_at timestamptz, UNIQUE(cache_key));")
             return False
 
     except Exception as e:
 
-        logger.error(f" Failed to create cache table for client {client_id}: {e}")
+        logger.error(f" Failed to verify cache table for client {client_id}: {e}")
 
         return False
 
@@ -848,9 +811,13 @@ async def save_cached_response(
 
             return False
 
-        # Ensure cache table exists
+        # Check if cache table exists
 
-        await create_client_cache_table(client_id)
+        table_exists = await create_client_cache_table(client_id)
+        
+        if not table_exists:
+            logger.warning(f" Cache table doesn't exist for client {client_id}, skipping cache save")
+            return False
 
         try:
 
@@ -877,6 +844,7 @@ async def save_cached_response(
         except Exception as e:
 
             logger.error(f" Failed to save cached response: {e}")
+            logger.warning(f" This may be due to missing cache table: {table_name}")
 
             return False
 
@@ -5881,7 +5849,16 @@ async def get_paginated_sku_inventory(
         if use_cache and not force_refresh:
             try:
                 from sku_cache_manager import get_sku_cache_manager
-                cache_manager = get_sku_cache_manager(get_admin_client())
+                admin_client = get_admin_client()
+                if admin_client is None:
+                    logger.error("Admin client is None - cannot access SKU cache")
+                    return {
+                        "success": False,
+                        "error": "Database connection error - admin client unavailable",
+                        "cached": False
+                    }
+                
+                cache_manager = get_sku_cache_manager(admin_client)
                 cache_key = f"{client_id}_{platform}"
                 
                 cached_result = await cache_manager.get_cached_skus(
@@ -8572,7 +8549,7 @@ async def upload_data_enhanced(
         )
 
         # Store data using optimized database manager
-
+        from database import get_db_manager
         manager = get_db_manager()
 
         # Convert DataFrame to records for storage

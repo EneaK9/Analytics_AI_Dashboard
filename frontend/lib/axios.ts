@@ -83,13 +83,15 @@ api.interceptors.response.use(
 		return response;
 	},
 	(error) => {
-		// Handle session expiration (401 Unauthorized)
-		if (error.response?.status === 401) {
+		// Handle authentication errors (401 Unauthorized or 403 Forbidden)
+		if (error.response?.status === 401 || error.response?.status === 403) {
 			// Only handle automatic logout if we're in the browser
 			if (typeof window !== "undefined") {
-				console.warn("Session expired - redirecting to login");
+				console.warn(
+					`Authentication failed (${error.response?.status}) - redirecting to login`
+				);
 				logout();
-				return Promise.reject(new Error("Session expired"));
+				return Promise.reject(new Error("Authentication failed"));
 			}
 		}
 

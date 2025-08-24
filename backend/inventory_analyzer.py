@@ -38,6 +38,8 @@ class InventoryAnalyzer:
                 
             if not data_records:
                 logger.warning(" No data records found for analysis")
+                logger.warning(f"Client data type: {type(client_data)}")
+                logger.warning(f"Client data keys (if dict): {list(client_data.keys()) if isinstance(client_data, dict) else 'Not a dict'}")
                 return self._get_empty_analytics()
             
             # Prepare and analyze dataframe
@@ -210,7 +212,10 @@ class InventoryAnalyzer:
             
         except Exception as e:
             logger.error(f" Error standardizing dataframe: {str(e)}")
-            return df
+            logger.error(f"Dataframe columns: {list(df.columns) if not df.empty else 'Empty dataframe'}")
+            logger.error(f"Dataframe shape: {df.shape if not df.empty else 'Empty'}")
+            # Return an empty dataframe if standardization fails
+            return pd.DataFrame()
     
     def _analyze_data_summary(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Analyze data summary with key metrics"""
@@ -256,6 +261,8 @@ class InventoryAnalyzer:
             
             if group_field not in df.columns:
                 logger.warning("  No SKU or product name field found")
+                logger.warning(f"Available columns: {list(df.columns)}")
+                logger.warning(f"Sample data (first 3 rows): {df.head(3).to_dict('records') if not df.empty else 'Empty dataframe'}")
                 return self._get_empty_sku_inventory()
             
             grouped = df.groupby(group_field)
