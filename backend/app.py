@@ -891,6 +891,34 @@ async def debug_jwt_config():
         "timestamp": datetime.utcnow().isoformat()
     }
 
+@app.post("/debug/test-token")
+async def debug_test_token(test_data: dict):
+    """Debug endpoint to test token creation and verification"""
+    try:
+        # Create a test token
+        token = create_access_token(data=test_data)
+        
+        # Try to verify it immediately
+        verified_data = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        
+        return {
+            "success": True,
+            "token_created": True,
+            "token_verified": True,
+            "token_first_20": token[:20] + "...",
+            "jwt_secret_first_10": JWT_SECRET_KEY[:10],
+            "original_data": test_data,
+            "verified_data": verified_data,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "jwt_secret_first_10": JWT_SECRET_KEY[:10],
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
 
 @app.get("/api/health")
 async def api_health_check():
@@ -6069,8 +6097,11 @@ async def get_paginated_sku_inventory(
         # If force refresh, clear cache first
         if force_refresh:
             from sku_cache_manager import get_sku_cache_manager
-            cache_manager = get_sku_cache_manager(db_client)
-            await cache_manager.invalidate_cache(client_id)
+            if db_client:
+                cache_manager = get_sku_cache_manager(db_client)
+                await cache_manager.invalidate_cache(client_id)
+            else:
+                logger.error("Cannot clear cache - db_client is None")
 
         # Get paginated SKU data using organized approach
         sku_result = await dashboard_inventory_analyzer.get_sku_list(

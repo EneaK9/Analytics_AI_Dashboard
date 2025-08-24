@@ -404,6 +404,20 @@ class DashboardInventoryAnalyzer:
         try:
             # Import cache manager
             from sku_cache_manager import get_sku_cache_manager
+            
+            if not self.admin_client:
+                logger.error("Admin client is None - cannot access SKU cache in dashboard_inventory_analyzer")
+                return {
+                    "success": False,
+                    "error": "Database connection error - admin client unavailable",
+                    "cached": False,
+                    "items": [],
+                    "page": page,
+                    "page_size": page_size,
+                    "total_items": 0,
+                    "total_pages": 0
+                }
+            
             cache_manager = get_sku_cache_manager(self.admin_client)
             
             # Create a unique cache key that includes platform

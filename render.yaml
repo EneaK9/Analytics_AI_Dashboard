@@ -3,7 +3,7 @@ services:
   - type: web
     name: analytics-ai-backend
     env: python
-    plan: pro
+    plan: pro plus
     buildCommand: |
       cd backend
       pip install -r requirements.txt
@@ -27,7 +27,7 @@ services:
   - type: web
     name: analytics-ai-frontend
     env: node
-    plan: pro
+    plan: pro plus
     buildCommand: |
       cd frontend
       npm ci

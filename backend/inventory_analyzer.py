@@ -187,7 +187,7 @@ class InventoryAnalyzer:
     def _standardize_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Standardize dataframe with consistent data types and cleanup"""
         try:
-            logger.info(f"🧹 Standardizing dataframe with {len(df)} rows")
+            logger.info(f" Standardizing dataframe with {len(df)} rows")
             
             # Handle missing values
             df = df.fillna(0)

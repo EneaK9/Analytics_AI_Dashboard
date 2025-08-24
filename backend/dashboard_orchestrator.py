@@ -18047,77 +18047,42 @@ Return ONLY the JSON response, no additional text or explanations.
 
 
 
-            # Call OpenAI API with enhanced settings for detailed analysis
+            # Call OpenAI API with enhanced settings for detailed analysis and retry logic
+            max_retries = 3
+            retry_count = 0
+            
+            while retry_count <= max_retries:
+                try:
+                    response = await client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are an expert business intelligence analyst with deep expertise in data analysis. Analyze the provided data thoroughly and generate meaningful, diverse insights based on actual data patterns. Never use dummy or placeholder data - always calculate real metrics from the actual dataset provided.",
+                            },
+                            {"role": "user", "content": prompt},
+                        ],
+                        temperature=0.2,  # Slightly higher for more creative analysis while staying accurate
+                        max_tokens=6000,  # Increased for more detailed analysis
+                    )
 
+                    llm_response = response.choices[0].message.content.strip()
+                    logger.info(f" LLM response received: {len(llm_response)} characters")
+                    logger.info(f" LLM response preview: {llm_response[:500]}...")
 
-
-            response = await client.chat.completions.create(
-
-
-
-                model="gpt-4o",
-
-
-
-                messages=[
-
-
-
-                    {
-
-
-
-                        "role": "system",
-
-
-
-                        "content": "You are an expert business intelligence analyst with deep expertise in data analysis. Analyze the provided data thoroughly and generate meaningful, diverse insights based on actual data patterns. Never use dummy or placeholder data - always calculate real metrics from the actual dataset provided.",
-
-
-
-                    },
-
-
-
-                    {"role": "user", "content": prompt},
-
-
-
-                ],
-
-
-
-                temperature=0.2,  # Slightly higher for more creative analysis while staying accurate
-
-
-
-                max_tokens=6000,  # Increased for more detailed analysis
-
-            )
-
-
-
-
-
-
-
-            llm_response = response.choices[0].message.content.strip()
-
-
-
-            logger.info(f" LLM response received: {len(llm_response)} characters")
-
-
-
-            logger.info(f" LLM response preview: {llm_response[:500]}...")
-
-
-
-
-
-
-
-            return llm_response
+                    return llm_response
+                    
+                except openai.RateLimitError as e:
+                    retry_count += 1
+                    if retry_count > max_retries:
+                        logger.error(f" OpenAI rate limit exceeded after {max_retries} retries: {e}")
+                        raise Exception(f"OpenAI rate limit exceeded after retries: {str(e)}")
+                    
+                    wait_time = min(2 ** retry_count * 10, 120)  # Exponential backoff, max 2 minutes
+                    logger.warning(f" OpenAI rate limit hit, retrying in {wait_time}s (attempt {retry_count}/{max_retries})")
+                    
+                    import asyncio
+                    await asyncio.sleep(wait_time)
 
 
 
@@ -18134,14 +18099,6 @@ Return ONLY the JSON response, no additional text or explanations.
             logger.error(f" API key preview: {api_key[:20] if api_key else 'None'}...")
 
             raise Exception(f"OpenAI authentication failed - check API key: {str(e)}")
-
-        except openai.RateLimitError as e:
-
-
-
-            logger.error(f" OpenAI rate limit exceeded: {e}")
-
-            raise Exception(f"OpenAI rate limit exceeded: {str(e)}")
 
         except openai.APIError as e:
 

@@ -87,6 +87,17 @@ api.interceptors.response.use(
 		if (error.response?.status === 401 || error.response?.status === 403) {
 			// Only handle automatic logout if we're in the browser
 			if (typeof window !== "undefined") {
+				// Check if auto-redirect is disabled (for debugging)
+				const disableRedirect = localStorage.getItem("disable_auth_redirect");
+				if (disableRedirect === "true") {
+					console.warn(
+						`Authentication failed (${error.response?.status}) - auto-redirect disabled`
+					);
+					return Promise.reject(
+						new Error("Authentication failed - auto-redirect disabled")
+					);
+				}
+
 				console.warn(
 					`Authentication failed (${error.response?.status}) - redirecting to login`
 				);
