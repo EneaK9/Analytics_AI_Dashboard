@@ -27,7 +27,7 @@ services:
   - type: web
     name: analytics-ai-frontend
     env: node
-    plan: starter
+    plan: pro
     buildCommand: |
       cd frontend
       npm ci

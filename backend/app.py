@@ -881,6 +881,17 @@ async def health_check():
     }
 
 
+@app.get("/debug/jwt-config")
+async def debug_jwt_config():
+    """Debug endpoint to check JWT configuration (REMOVE IN PRODUCTION)"""
+    return {
+        "jwt_algorithm": JWT_ALGORITHM,
+        "jwt_secret_first_10": JWT_SECRET_KEY[:10] if JWT_SECRET_KEY else "NOT_SET",
+        "environment": os.getenv("ENVIRONMENT", "development"),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
 @app.get("/api/health")
 async def api_health_check():
     """API health check endpoint"""
