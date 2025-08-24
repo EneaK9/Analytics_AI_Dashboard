@@ -19,14 +19,21 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import api_sync_cron
 import sku_analysis_cron
 
-# Set up logging
+# Set up logging with safe file handling
+handlers = [logging.StreamHandler(sys.stdout)]
+
+# Try to add file handler, but don't fail if logs directory doesn't exist
+try:
+    os.makedirs('logs', exist_ok=True)
+    handlers.append(logging.FileHandler('logs/internal_scheduler.log', encoding='utf-8'))
+except (OSError, PermissionError) as e:
+    # Fall back to stdout-only logging in deployment environments
+    print(f"Warning: Could not create scheduler log file, using stdout only: {e}")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('logs/internal_scheduler.log', encoding='utf-8')
-    ]
+    handlers=handlers
 )
 logger = logging.getLogger(__name__)
 

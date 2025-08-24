@@ -13,14 +13,21 @@ import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
-# Setup comprehensive logging
+# Setup comprehensive logging with safe file handling
+handlers = [logging.StreamHandler(sys.stdout)]
+
+# Try to add file handler, but don't fail if logs directory doesn't exist
+try:
+    os.makedirs('logs', exist_ok=True)
+    handlers.append(logging.FileHandler('logs/api_sync_cron.log', mode='a'))
+except (OSError, PermissionError) as e:
+    # Fall back to stdout-only logging in deployment environments
+    print(f"Warning: Could not create log file, using stdout only: {e}")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('logs/api_sync_cron.log', mode='a')
-    ]
+    handlers=handlers
 )
 logger = logging.getLogger(__name__)
 

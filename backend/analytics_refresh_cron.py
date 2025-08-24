@@ -15,14 +15,21 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 
-# Setup comprehensive logging
+# Setup comprehensive logging with safe file handling
+handlers = [logging.StreamHandler(sys.stdout)]
+
+# Try to add file handler, but don't fail if logs directory doesn't exist
+try:
+    os.makedirs('logs', exist_ok=True)
+    handlers.append(logging.FileHandler('logs/analytics_refresh_cron.log', mode='a'))
+except (OSError, PermissionError) as e:
+    # Fall back to stdout-only logging in deployment environments
+    print(f"Warning: Could not create analytics log file, using stdout only: {e}")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('logs/analytics_refresh_cron.log', mode='a')
-    ]
+    handlers=handlers
 )
 logger = logging.getLogger(__name__)
 
