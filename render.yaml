@@ -46,7 +46,7 @@ services:
   - type: cron
     name: api-sync-cron
     env: python
-    plan: starter
+    plan: pro
     buildCommand: |
       cd backend
       pip install -r requirements.txt
@@ -65,7 +65,7 @@ services:
   - type: cron
     name: sku-analysis-cron
     env: python
-    plan: starter
+    plan: pro
     buildCommand: |
       cd backend
       pip install -r requirements.txt
@@ -84,7 +84,7 @@ services:
   - type: cron
     name: analytics-refresh-cron
     env: python
-    plan: starter
+    plan: pro
     buildCommand: |
       cd backend
       pip install -r requirements.txt

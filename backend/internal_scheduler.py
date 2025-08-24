@@ -7,6 +7,7 @@ Perfect for deployment on any platform (Heroku, Render, etc.)
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime, timedelta
 import asyncio
 import sys
@@ -50,45 +51,44 @@ class InternalScheduler:
             logger.info(f"Current process ID: {os.getpid()}")
             logger.info(f"Current working directory: {os.getcwd()}")
             
-            # API Sync Job - Every 2 hours
-            next_api_sync = datetime.now()
-            logger.info(f"Scheduling API sync job to run at: {next_api_sync}")
+            # API Sync Job - Daily at 6 AM
+            logger.info("Scheduling API sync job to run daily at 6:00 AM")
             
             self.scheduler.add_job(
                 func=self._run_api_sync,
-                trigger=IntervalTrigger(hours=2),
+                trigger=CronTrigger(hour=6, minute=0),  # Daily at 6 AM
                 id='api_sync_job',
-                name='API Sync Job (Every 2 hours)',
+                name='API Sync Job (Daily at 6:00 AM)',
                 replace_existing=True,
                 max_instances=1,  # Only one instance at a time
-                next_run_time=next_api_sync  # Start immediately
+                next_run_time=None  # Let scheduler determine next run
             )
             logger.info("API sync job scheduled successfully")
             
-            # SKU Analysis Job - Every 2 hours (offset by 30 minutes)  
-            next_sku_analysis = datetime.now().replace(minute=30, second=0, microsecond=0)
-            logger.info(f"Scheduling SKU analysis job to run at: {next_sku_analysis}")
+            # SKU Analysis Job - Every 10 minutes  
+            next_sku_analysis = datetime.now() + timedelta(minutes=2)  # Start in 2 minutes
+            logger.info(f"Scheduling SKU analysis job to run every 10 minutes, starting at: {next_sku_analysis}")
             
             self.scheduler.add_job(
                 func=self._run_sku_analysis,
-                trigger=IntervalTrigger(hours=2, minutes=30),  # Offset by 30 minutes
+                trigger=IntervalTrigger(minutes=10),  # Every 10 minutes
                 id='sku_analysis_job', 
-                name='SKU Analysis Job (Every 2 hours + 30min offset)',
+                name='SKU Analysis Job (Every 10 minutes)',
                 replace_existing=True,
                 max_instances=1,
                 next_run_time=next_sku_analysis
             )
             logger.info("SKU analysis job scheduled successfully")
             
-            # Analytics Refresh Job - Every 2 hours (offset by 1 hour)
-            next_analytics_refresh = datetime.now().replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-            logger.info(f"Scheduling analytics refresh job to run at: {next_analytics_refresh}")
+            # Analytics Refresh Job - Every 10 minutes
+            next_analytics_refresh = datetime.now() + timedelta(minutes=5)  # Start in 5 minutes
+            logger.info(f"Scheduling analytics refresh job to run every 10 minutes, starting at: {next_analytics_refresh}")
             
             self.scheduler.add_job(
                 func=self._run_analytics_refresh,
-                trigger=IntervalTrigger(hours=2),
+                trigger=IntervalTrigger(minutes=10),  # Every 10 minutes
                 id='analytics_refresh_job',
-                name='Analytics Refresh Job (Every 2 hours + 1hr offset)', 
+                name='Analytics Refresh Job (Every 10 minutes)', 
                 replace_existing=True,
                 max_instances=1,
                 next_run_time=next_analytics_refresh
@@ -107,9 +107,9 @@ class InternalScheduler:
                 logger.info(f"Job: {job.name} | Next run: {job.next_run_time}")
             
             logger.info("INTERNAL SCHEDULER FULLY OPERATIONAL!")
-            logger.info("API Sync: Every 2 hours (starting now)")
-            logger.info("SKU Analysis: Every 2 hours (starting in 30 minutes)")
-            logger.info("Analytics Refresh: Every 2 hours (starting in 1 hour)")
+            logger.info("API Sync: Daily at 6:00 AM")
+            logger.info("SKU Analysis: Every 10 minutes (starting in 2 minutes)")
+            logger.info("Analytics Refresh: Every 10 minutes (starting in 5 minutes)")
             logger.info("All jobs will run automatically - NO EXTERNAL CRON NEEDED!")
             
         except Exception as e:
