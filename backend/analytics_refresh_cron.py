@@ -145,28 +145,42 @@ class AnalyticsRefreshCronJob:
             
             if self.use_direct_calls:
                 # Use DIRECT CALLS instead of HTTP - fixes deployment connection issues
-                logger.info(f"🔧 DIRECT: Calling dashboard orchestrator for {client_id} ({platform})")
+                logger.info(f"🔧 DIRECT: Calling get_inventory_analytics for {client_id} ({platform})")
                 
-                # Import dashboard orchestrator directly
-                from dashboard_orchestrator import dashboard_orchestrator
+                # Import the inventory analytics function directly from app.py
+                import sys
+                import os
+                
+                # Add backend to path if needed
+                if '/opt/render/project/src/backend' not in sys.path:
+                    sys.path.append('/opt/render/project/src/backend')
+                if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
+                    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+                
+                # Import required modules
                 from fastapi import BackgroundTasks
+                from fastapi.security import HTTPBearer
                 
-                # Create a mock token data object
-                class MockTokenData:
-                    def __init__(self, client_id):
-                        self.client_id = client_id
-                        self.email = f"system@{client_id}"
-                        self.role = "client"
+                # Create a mock HTTPBearer token
+                class MockHTTPAuthorizationCredentials:
+                    def __init__(self, token):
+                        self.scheme = "Bearer"
+                        self.credentials = token
                 
-                token_data = MockTokenData(client_id)
+                mock_token = MockHTTPAuthorizationCredentials(token)
                 background_tasks = BackgroundTasks()
                 
-                # Call the dashboard orchestrator directly
-                result = await dashboard_orchestrator.generate_main_dashboard(
-                    client_id=client_id,
-                    force_refresh=True,
+                # Import the function from app.py
+                from app import get_inventory_analytics
+                
+                # Call the inventory analytics function directly
+                result = await get_inventory_analytics(
+                    token=mock_token,
                     fast_mode=True,
+                    force_refresh=True,
                     platform=platform,
+                    start_date=None,
+                    end_date=None,
                     background_tasks=background_tasks
                 )
                 
@@ -175,7 +189,7 @@ class AnalyticsRefreshCronJob:
                     platforms_count = len(analytics_data.get("platforms", {}))
                     total_skus = len(analytics_data.get("sku_inventory", {}).get("skus", []))
                     
-                    logger.info(f"✅ DIRECT SUCCESS - {client_id} ({platform}): {platforms_count} platforms, {total_skus} SKUs")
+                    logger.info(f"✅ DIRECT SUCCESS - {client_id} ({platform}): {platforms_count} platforms, {total_skus} SKUs (via get_inventory_analytics)")
                     
                     return {
                         "success": True,
@@ -187,7 +201,7 @@ class AnalyticsRefreshCronJob:
                         "timestamp": datetime.now().isoformat()
                     }
                 else:
-                    logger.warning(f"⚠️ DIRECT PARTIAL - {client_id} ({platform}): No analytics data returned")
+                    logger.warning(f"⚠️ DIRECT PARTIAL - {client_id} ({platform}): get_inventory_analytics returned no data")
                     return {"success": False, "error": "No analytics data from direct call"}
             
             else:
@@ -226,8 +240,8 @@ class AnalyticsRefreshCronJob:
                         return {"success": False, "error": error_msg}
                     
         except Exception as e:
-            logger.error(f"❌ Error refreshing analytics for {client_id} ({platform}): {e}")
-            return {"success": False, "error": str(e)}
+            logger.error(f"❌ DIRECT CALL ERROR for {client_id} ({platform}): {e}")
+            return {"success": False, "error": f"Direct call failed: {str(e)}"}
     
     # REMOVED: cache_analytics_response() method - endpoint handles all caching
     
