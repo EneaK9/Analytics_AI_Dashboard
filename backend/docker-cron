@@ -7,9 +7,13 @@
 # SKU Analysis - Runs every 2 hours (even hours)
 0 */2 * * * root cd /app && python3 sku_analysis_cron.py >> /app/logs/sku_analysis_cron.log 2>&1
 
+# Analytics Refresh - Runs every 5 minutes (TESTING ONLY - change back to 2 hours for production)
+*/5 * * * * root cd /app && python3 analytics_refresh_cron.py >> /app/logs/analytics_refresh_cron.log 2>&1
+
 # Cleanup old logs weekly (keep last 30 days)
 0 2 * * 0 root find /app/logs -name "*_cron.log.*" -mtime +30 -delete
 
 # Log rotation to prevent disk space issues
 0 3 * * * root if [ -f /app/logs/api_sync_cron.log ] && [ $(stat -c%s /app/logs/api_sync_cron.log) -gt 10485760 ]; then mv /app/logs/api_sync_cron.log /app/logs/api_sync_cron.log.$(date +%Y%m%d); fi
 0 4 * * * root if [ -f /app/logs/sku_analysis_cron.log ] && [ $(stat -c%s /app/logs/sku_analysis_cron.log) -gt 10485760 ]; then mv /app/logs/sku_analysis_cron.log /app/logs/sku_analysis_cron.log.$(date +%Y%m%d); fi
+0 5 * * * root if [ -f /app/logs/analytics_refresh_cron.log ] && [ $(stat -c%s /app/logs/analytics_refresh_cron.log) -gt 10485760 ]; then mv /app/logs/analytics_refresh_cron.log /app/logs/analytics_refresh_cron.log.$(date +%Y%m%d); fi

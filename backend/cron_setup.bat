@@ -16,6 +16,7 @@ echo 📝 Creating Windows scheduled tasks...
 REM Delete existing tasks if they exist
 schtasks /Delete /TN "API_Sync_Cron" /F >nul 2>&1
 schtasks /Delete /TN "SKU_Analysis_Cron" /F >nul 2>&1
+schtasks /Delete /TN "Analytics_Refresh_Cron" /F >nul 2>&1
 
 REM Create API Sync task (checks every hour for 2-hour sync intervals - THE MAIN ONE!)
 echo 🔄 Creating API Sync task (checks every hour for 2-hour intervals)...
@@ -43,6 +44,19 @@ if %ERRORLEVEL% EQU 0 (
     exit /b 1
 )
 
+REM Create Analytics Refresh task (runs every 5 minutes - TESTING)
+echo 📈 Creating Analytics Refresh task (every 5 minutes - TESTING)...
+schtasks /Create /TN "Analytics_Refresh_Cron" /TR "%PYTHON_PATH% %SCRIPT_DIR%analytics_refresh_cron.py" /SC MINUTE /MO 5 /F
+
+if %ERRORLEVEL% EQU 0 (
+    echo ✅ Analytics Refresh scheduled task created successfully!
+    echo 📋 Task "Analytics_Refresh_Cron" will run every 5 minutes - FOR TESTING ONLY
+) else (
+    echo ❌ Failed to create analytics refresh task. Make sure you run this as Administrator.
+    pause
+    exit /b 1
+)
+
 echo.
 echo 📊 Task details:
 echo.
@@ -51,11 +65,15 @@ schtasks /Query /TN "API_Sync_Cron" /V /FO LIST
 echo.
 echo === SKU ANALYSIS TASK ===
 schtasks /Query /TN "SKU_Analysis_Cron" /V /FO LIST
+echo.
+echo === ANALYTICS REFRESH TASK ===
+schtasks /Query /TN "Analytics_Refresh_Cron" /V /FO LIST
 
 echo.
 echo 🔍 Management commands:
 echo   Check API sync status: schtasks /Query /TN "API_Sync_Cron"
 echo   Check SKU analysis status: schtasks /Query /TN "SKU_Analysis_Cron"
+echo   Check analytics refresh status: schtasks /Query /TN "Analytics_Refresh_Cron"
 echo   Remove API sync task: schtasks /Delete /TN "API_Sync_Cron" /F
 echo   Remove SKU analysis task: schtasks /Delete /TN "SKU_Analysis_Cron" /F
 echo.

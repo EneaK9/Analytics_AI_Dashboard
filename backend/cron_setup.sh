@@ -22,8 +22,10 @@ crontab -l 2>/dev/null > "$TEMP_CRON" || echo "# New crontab" > "$TEMP_CRON"
 # Remove existing Analytics AI cron jobs
 sed -i.bak '/# Analytics AI API Sync/d' "$TEMP_CRON"
 sed -i.bak '/# Analytics AI SKU Analysis/d' "$TEMP_CRON"
+sed -i.bak '/# Analytics AI Cache Refresh/d' "$TEMP_CRON"
 sed -i.bak '/api_sync_cron.py/d' "$TEMP_CRON"
 sed -i.bak '/sku_analysis_cron.py/d' "$TEMP_CRON"
+sed -i.bak '/analytics_refresh_cron.py/d' "$TEMP_CRON"
 
 # Add header comment
 echo "" >> "$TEMP_CRON"
@@ -36,6 +38,10 @@ echo "0 * * * * cd $SCRIPT_DIR && $PYTHON_PATH api_sync_cron.py >> $SCRIPT_DIR/l
 # Add SKU Analysis cron job (runs every 2 hours)
 echo "📊 Adding SKU Analysis cron job (every 2 hours)..."
 echo "0 */2 * * * cd $SCRIPT_DIR && $PYTHON_PATH sku_analysis_cron.py >> $SCRIPT_DIR/logs/sku_analysis_cron.log 2>&1 # Analytics AI SKU Analysis" >> "$TEMP_CRON"
+
+# Add Analytics Refresh cron job (runs every 5 minutes - TESTING)
+echo "📈 Adding Analytics Refresh cron job (every 5 minutes - TESTING)..."
+echo "*/5 * * * * cd $SCRIPT_DIR && $PYTHON_PATH analytics_refresh_cron.py >> $SCRIPT_DIR/logs/analytics_refresh_cron.log 2>&1 # Analytics AI Cache Refresh - TESTING" >> "$TEMP_CRON"
 
 # Add log cleanup job (weekly)
 echo "🧹 Adding log cleanup job (weekly)..."
