@@ -49,7 +49,8 @@ class AnalyticsRefreshCronJob:
         self.platforms = ["shopify", "amazon", "all"]
         self.base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
         self.timeout = 300  # 5 minutes timeout
-        logger.info("📊 Analytics Refresh Cron Job initialized - TESTING MODE (5 minutes)")
+        self.use_direct_calls = True  # Use direct function calls instead of HTTP
+        logger.info("📊 Analytics Refresh Cron Job initialized - DIRECT CALLS MODE (no HTTP)")
     
     def _get_admin_client(self):
         """Get Supabase admin client"""
@@ -123,7 +124,7 @@ class AnalyticsRefreshCronJob:
     async def refresh_analytics_for_client(self, client_id: str, platform: str) -> Dict[str, Any]:
         """Refresh analytics for a specific client and platform"""
         try:
-            logger.info(f"🔄 Refreshing analytics for client {client_id} (platform: {platform})")
+            logger.info(f"🔄 DIRECT REFRESH: analytics for client {client_id} (platform: {platform})")
             
             # Generate token for this client
             token = await self.generate_client_token(client_id)
@@ -142,43 +143,87 @@ class AnalyticsRefreshCronJob:
                 "fast_mode": "true"       # Use optimized processing
             }
             
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                logger.info(f"📡 Calling {url} for {client_id} ({platform})")
-                response = await client.get(url, headers=headers, params=params)
+            if self.use_direct_calls:
+                # Use DIRECT CALLS instead of HTTP - fixes deployment connection issues
+                logger.info(f"🔧 DIRECT: Calling dashboard orchestrator for {client_id} ({platform})")
                 
-                if response.status_code == 200:
-                    data = response.json()
+                # Import dashboard orchestrator directly
+                from dashboard_orchestrator import dashboard_orchestrator
+                from fastapi import BackgroundTasks
+                
+                # Create a mock token data object
+                class MockTokenData:
+                    def __init__(self, client_id):
+                        self.client_id = client_id
+                        self.email = f"system@{client_id}"
+                        self.role = "client"
+                
+                token_data = MockTokenData(client_id)
+                background_tasks = BackgroundTasks()
+                
+                # Call the dashboard orchestrator directly
+                result = await dashboard_orchestrator.generate_main_dashboard(
+                    client_id=client_id,
+                    force_refresh=True,
+                    fast_mode=True,
+                    platform=platform,
+                    background_tasks=background_tasks
+                )
+                
+                if result and result.get("success"):
+                    analytics_data = result.get("inventory_analytics", {})
+                    platforms_count = len(analytics_data.get("platforms", {}))
+                    total_skus = len(analytics_data.get("sku_inventory", {}).get("skus", []))
                     
-                    # Verify we got valid analytics data
-                    if data.get("success") and data.get("inventory_analytics"):
-                        analytics_data = data["inventory_analytics"]
-                        
-                        # NO ADDITIONAL CACHING - endpoint already handles cache removal and storage
-                        
-                        # Extract key metrics for logging
-                        platforms_count = len(analytics_data.get("platforms", {}))
-                        total_skus = len(analytics_data.get("sku_inventory", {}).get("skus", []))
-                        
-                        logger.info(f"✅ SUCCESS - {client_id} ({platform}): {platforms_count} platforms, {total_skus} SKUs - Endpoint handled caching")
-                        
-                        return {
-                            "success": True,
-                            "client_id": client_id,
-                            "platform": platform,
-                            "platforms_analyzed": platforms_count,
-                            "skus_found": total_skus,
-                            "endpoint_cached": True,  # Indicate endpoint did the caching
-                            "timestamp": datetime.now().isoformat()
-                        }
-                    else:
-                        error_msg = data.get("error", "No analytics data returned")
-                        logger.error(f"❌ Invalid response for {client_id} ({platform}): {error_msg}")
-                        return {"success": False, "error": error_msg}
-                
+                    logger.info(f"✅ DIRECT SUCCESS - {client_id} ({platform}): {platforms_count} platforms, {total_skus} SKUs")
+                    
+                    return {
+                        "success": True,
+                        "client_id": client_id,
+                        "platform": platform,
+                        "platforms_analyzed": platforms_count,
+                        "skus_found": total_skus,
+                        "direct_call": True,
+                        "timestamp": datetime.now().isoformat()
+                    }
                 else:
-                    error_msg = f"HTTP {response.status_code}: {response.text}"
-                    logger.error(f"❌ API call failed for {client_id} ({platform}): {error_msg}")
-                    return {"success": False, "error": error_msg}
+                    logger.warning(f"⚠️ DIRECT PARTIAL - {client_id} ({platform}): No analytics data returned")
+                    return {"success": False, "error": "No analytics data from direct call"}
+            
+            else:
+                # Fallback HTTP method
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    logger.info(f"📡 HTTP FALLBACK: Calling {url} for {client_id} ({platform})")
+                    response = await client.get(url, headers=headers, params=params)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        if data.get("success") and data.get("inventory_analytics"):
+                            analytics_data = data["inventory_analytics"]
+                            platforms_count = len(analytics_data.get("platforms", {}))
+                            total_skus = len(analytics_data.get("sku_inventory", {}).get("skus", []))
+                            
+                            logger.info(f"✅ HTTP SUCCESS - {client_id} ({platform}): {platforms_count} platforms, {total_skus} SKUs")
+                            
+                            return {
+                                "success": True,
+                                "client_id": client_id,
+                                "platform": platform,
+                                "platforms_analyzed": platforms_count,
+                                "skus_found": total_skus,
+                                "endpoint_cached": True,
+                                "timestamp": datetime.now().isoformat()
+                            }
+                        else:
+                            error_msg = data.get("error", "No analytics data returned")
+                            logger.error(f"❌ HTTP Invalid response for {client_id} ({platform}): {error_msg}")
+                            return {"success": False, "error": error_msg}
+                    
+                    else:
+                        error_msg = f"HTTP {response.status_code}: {response.text}"
+                        logger.error(f"❌ HTTP call failed for {client_id} ({platform}): {error_msg}")
+                        return {"success": False, "error": error_msg}
                     
         except Exception as e:
             logger.error(f"❌ Error refreshing analytics for {client_id} ({platform}): {e}")
@@ -189,7 +234,7 @@ class AnalyticsRefreshCronJob:
     async def run_full_analytics_refresh(self) -> Dict[str, Any]:
         """Run full analytics refresh for all active clients and platforms"""
         start_time = datetime.now()
-        logger.info("🚀 Starting analytics refresh cron job - TESTING MODE (5 minutes)")
+        logger.info("🚀 Starting analytics refresh cron job - DIRECT CALLS (no HTTP failures)")
         
         results = {
             "success": True,
