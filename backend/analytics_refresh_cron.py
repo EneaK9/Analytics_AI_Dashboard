@@ -13,7 +13,12 @@ import os
 import httpx
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from dotenv import load_dotenv
+# Optional dotenv import for local development
+try:
+    from dotenv import load_dotenv
+    load_dotenv_available = True
+except ImportError:
+    load_dotenv_available = False
 
 # Setup comprehensive logging with safe file handling
 handlers = [logging.StreamHandler(sys.stdout)]
@@ -33,8 +38,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (optional for local development)
+if load_dotenv_available:
+    load_dotenv()
 
 class AnalyticsRefreshCronJob:
     """Automated analytics refresh cron job - keeps dashboard data fresh"""

@@ -7,7 +7,7 @@ Perfect for deployment on any platform (Heroku, Render, etc.)
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 import sys
 import os
@@ -18,6 +18,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Import our cron job modules
 import api_sync_cron
 import sku_analysis_cron
+import analytics_refresh_cron
 
 # Set up logging with safe file handling
 handlers = [logging.StreamHandler(sys.stdout)]
@@ -79,6 +80,21 @@ class InternalScheduler:
             )
             logger.info("SKU analysis job scheduled successfully")
             
+            # Analytics Refresh Job - Every 2 hours (offset by 1 hour)
+            next_analytics_refresh = datetime.now().replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+            logger.info(f"Scheduling analytics refresh job to run at: {next_analytics_refresh}")
+            
+            self.scheduler.add_job(
+                func=self._run_analytics_refresh,
+                trigger=IntervalTrigger(hours=2),
+                id='analytics_refresh_job',
+                name='Analytics Refresh Job (Every 2 hours + 1hr offset)', 
+                replace_existing=True,
+                max_instances=1,
+                next_run_time=next_analytics_refresh
+            )
+            logger.info("Analytics refresh job scheduled successfully")
+            
             # Start the scheduler
             logger.info("Starting APScheduler...")
             self.scheduler.start()
@@ -92,7 +108,8 @@ class InternalScheduler:
             
             logger.info("INTERNAL SCHEDULER FULLY OPERATIONAL!")
             logger.info("API Sync: Every 2 hours (starting now)")
-            logger.info("SKU Analysis: Every 2 hours (starting in 30 minutes)")  
+            logger.info("SKU Analysis: Every 2 hours (starting in 30 minutes)")
+            logger.info("Analytics Refresh: Every 2 hours (starting in 1 hour)")
             logger.info("All jobs will run automatically - NO EXTERNAL CRON NEEDED!")
             
         except Exception as e:
@@ -175,6 +192,22 @@ class InternalScheduler:
             
         except Exception as e:
             logger.error(f"SKU Analysis job failed: {str(e)}")
+    
+    async def _run_analytics_refresh(self):
+        """Wrapper to run analytics refresh job"""
+        try:
+            logger.info("STARTING SCHEDULED ANALYTICS REFRESH JOB...")
+            
+            # Create and run the analytics refresh cron job
+            analytics_cron = analytics_refresh_cron.AnalyticsRefreshCronJob()
+            results = await analytics_cron.run_full_analytics_refresh()
+            
+            logger.info(f"Analytics Refresh results: {results}")
+            
+            logger.info("Analytics Refresh completed")
+            
+        except Exception as e:
+            logger.error(f"Analytics Refresh job failed: {str(e)}")
 
 # Global scheduler instance
 scheduler_instance = InternalScheduler()
