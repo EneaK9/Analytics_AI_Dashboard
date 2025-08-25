@@ -1108,14 +1108,14 @@ class ComponentDataManager:
                 )
                 
                 result = {
-                    'inventory_turnover_ratio': round(turnover_rate, 2),
+                    'inventory_turnover_ratio': round(turnover_rate, 3),  # Set to 3 decimal places for optimal precision
                     'avg_days_to_sell': round(avg_days_to_sell, 1),
                     'total_revenue': total_sales_revenue,
                     'total_inventory_value': total_inventory,
                     'fast_moving_items': 0,  # TODO: Calculate based on individual SKU performance
                     'turnover_comparison': {
-                        'first_half_turnover_rate': round(first_half_turnover, 2),
-                        'second_half_turnover_rate': round(second_half_turnover, 2),
+                        'first_half_turnover_rate': round(first_half_turnover, 3),  # Set to 3 decimal places
+                        'second_half_turnover_rate': round(second_half_turnover, 3),  # Set to 3 decimal places
                         'growth_rate': ((second_half_turnover - first_half_turnover) / first_half_turnover) * 100 if first_half_turnover > 0 else 0
                     },
                     'period_info': {
@@ -1193,14 +1193,14 @@ class ComponentDataManager:
                 )
                 
                 result = {
-                    'inventory_turnover_ratio': round(turnover_rate, 2),
+                    'inventory_turnover_ratio': round(turnover_rate, 3),  # Set to 3 decimal places for optimal precision
                     'avg_days_to_sell': round(avg_days_to_sell, 1),
                     'total_revenue': sales_revenue,
                     'total_inventory_value': inventory,
                     'fast_moving_items': 0,
                     'turnover_comparison': {
-                        'first_half_turnover_rate': round(first_half_turnover, 2),
-                        'second_half_turnover_rate': round(second_half_turnover, 2),
+                        'first_half_turnover_rate': round(first_half_turnover, 3),  # Set to 3 decimal places
+                        'second_half_turnover_rate': round(second_half_turnover, 3),  # Set to 3 decimal places
                         'growth_rate': ((second_half_turnover - first_half_turnover) / first_half_turnover) * 100 if first_half_turnover > 0 else 0
                     },
                     'period_info': {
