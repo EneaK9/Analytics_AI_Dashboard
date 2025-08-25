@@ -4704,16 +4704,30 @@ async def get_raw_data_tables(
 
                 elif "orders" in table_key:
 
-                    search_fields = [
-                        "order_number",
-                        "customer_email",
-                        "financial_status",
-                        "order_status",
-                        "source_name",
-                        "tags",
-                        "sales_channel",
-                        "marketplace_id",
-                    ]
+                    # Order tables: search fields based on platform
+                    if "shopify" in table_key:
+                        # Shopify order tables: search in order_number, customer_email, financial_status, fulfillment_status, source_name, tags
+                        search_fields = [
+                            "order_number",
+                            "customer_email",
+                            "financial_status",
+                            "fulfillment_status",
+                            "source_name",
+                            "tags",
+                        ]
+                    elif "amazon" in table_key:
+                        # Amazon order tables: search in order_number, order_status, sales_channel, marketplace_id
+                        search_fields = [
+                            "order_number",
+                            "order_status",
+                            "sales_channel",
+                            "marketplace_id",
+                        ]
+                    else:
+                        # Fallback for other order tables
+                        search_fields = [
+                            "order_number",
+                        ]
 
                 for field in search_fields:
 
