@@ -97,29 +97,77 @@ class ShopifyOrdersPopulator:
         return has_order_id and (shopify_fields >= 2 or has_shopify_structure)
     
     def transform_shopify_order(self, data: Dict[str, Any], client_id: str) -> Dict[str, Any]:
-        """Transform Shopify order data to match table schema"""
+        """Transform Shopify order data to match table schema INCLUDING LINE ITEMS"""
         try:
+            # Calculate total items quantity from line items
+            line_items = data.get('line_items', [])
+            total_items_quantity = sum(item.get('quantity', 0) for item in line_items)
+            
             return {
                 'client_id': client_id,
                 'order_id': data.get('order_id'),
                 'order_number': data.get('order_number'),
+                'name': data.get('name'),  # Order name like "#1001"
                 'platform': 'shopify',
                 'currency': data.get('currency'),
                 'total_price': self._safe_decimal(data.get('total_price')),
                 'subtotal_price': self._safe_decimal(data.get('subtotal_price')),
+                'total_weight': data.get('total_weight'),
                 'total_tax': self._safe_decimal(data.get('total_tax')),
+                'total_discounts': self._safe_decimal(data.get('total_discounts')),
+                'total_line_items_price': self._safe_decimal(data.get('total_line_items_price')),
+                'taxes_included': data.get('taxes_included'),
                 'financial_status': data.get('financial_status'),
+                'confirmed': data.get('confirmed'),
+                'total_price_usd': self._safe_decimal(data.get('total_price_usd')),
                 'fulfillment_status': data.get('fulfillment_status'),
                 'customer_id': data.get('customer_id'),
                 'customer_email': data.get('customer_email'),
                 'created_at': self._safe_datetime(data.get('created_at')),
                 'updated_at': self._safe_datetime(data.get('updated_at')),
+                'closed_at': self._safe_datetime(data.get('closed_at')),
+                'cancelled_at': self._safe_datetime(data.get('cancelled_at')),
+                'cancel_reason': data.get('cancel_reason'),
+                'processed_at': self._safe_datetime(data.get('processed_at')),
+                'checkout_id': data.get('checkout_id'),
+                'reference': data.get('reference'),
+                'user_id': data.get('user_id'),
+                'location_id': data.get('location_id'),
+                'source_identifier': data.get('source_identifier'),
+                'source_url': data.get('source_url'),
                 'source_name': data.get('source_name'),
+                'device_id': data.get('device_id'),
+                'phone': data.get('phone'),
+                'customer_locale': data.get('customer_locale'),
+                'app_id': data.get('app_id'),
+                'browser_ip': data.get('browser_ip'),
+                'landing_site': data.get('landing_site'),
+                'referring_site': data.get('referring_site'),
+                'order_status_url': data.get('order_status_url'),
                 'line_items_count': data.get('line_items_count'),
+                'total_items_quantity': total_items_quantity,  # ✅ Total quantity from line items
+                'line_items': json.dumps(line_items),  # ✅ Enhanced line items with ALL fields
+                'customer_data': json.dumps(data.get('customer_data', {})),  # ✅ Complete customer info
+                'fulfillments': json.dumps(data.get('fulfillments', [])),  # ✅ All fulfillment data
+                'refunds': json.dumps(data.get('refunds', [])),  # ✅ All refund data
+                'transactions': json.dumps(data.get('transactions', [])),  # ✅ All transaction data
+                'shipping_lines': json.dumps(data.get('shipping_lines', [])),  # ✅ Enhanced shipping data
                 'tags': data.get('tags', ''),
                 'billing_address': json.dumps(data.get('billing_address', {})),
                 'shipping_address': json.dumps(data.get('shipping_address', {})),
                 'discount_codes': json.dumps(data.get('discount_codes', [])),
+                'discount_applications': json.dumps(data.get('discount_applications', [])),
+                'note': data.get('note', ''),
+                'note_attributes': json.dumps(data.get('note_attributes', [])),
+                'processing_method': data.get('processing_method'),
+                'checkout_token': data.get('checkout_token'),
+                'token': data.get('token'),
+                'cart_token': data.get('cart_token'),
+                'tax_lines': json.dumps(data.get('tax_lines', [])),
+                'order_adjustments': json.dumps(data.get('order_adjustments', [])),
+                'client_details': json.dumps(data.get('client_details', {})),
+                'payment_gateway_names': json.dumps(data.get('payment_gateway_names', [])),
+                'payment_details': json.dumps(data.get('payment_details', {})),
                 'raw_data': json.dumps(data)
             }
         except Exception as e:

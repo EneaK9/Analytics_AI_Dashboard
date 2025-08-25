@@ -52,10 +52,11 @@ class AmazonDataPopulator:
             return []
     
     def extract_amazon_data(self, raw_data: List[Any]) -> Dict[str, List[Dict[str, Any]]]:
-        """Extract Amazon orders and products from raw data"""
+        """Extract Amazon orders, products, and incoming inventory from raw data"""
         amazon_data = {
             'orders': [],
-            'products': []
+            'products': [],
+            'incoming_inventory': []  # ✅ NEW: Support for FBA incoming inventory
         }
         
         for record in raw_data:
@@ -75,12 +76,16 @@ class AmazonDataPopulator:
                         amazon_data['orders'].append(data)
                     elif self._is_amazon_product(data):
                         amazon_data['products'].append(data)
+                    elif self._is_amazon_incoming_inventory(data):
+                        amazon_data['incoming_inventory'].append(data)
                 elif not platform:
                     # Try to infer Amazon data from structure
                     if self._is_amazon_order(data):
                         amazon_data['orders'].append(data)
                     elif self._is_amazon_product(data):
                         amazon_data['products'].append(data)
+                    elif self._is_amazon_incoming_inventory(data):
+                        amazon_data['incoming_inventory'].append(data)
                         
             except Exception as e:
                 logger.warning(f" Error processing record: {e}")
@@ -88,6 +93,7 @@ class AmazonDataPopulator:
         
         logger.info(f" Found {len(amazon_data['orders'])} Amazon orders")
         logger.info(f" Found {len(amazon_data['products'])} Amazon products")
+        logger.info(f" Found {len(amazon_data['incoming_inventory'])} Amazon incoming inventory items")
         
         return amazon_data
     
@@ -117,27 +123,78 @@ class AmazonDataPopulator:
         
         return (has_asin or has_sku) and amazon_fields >= 1
     
+    def _is_amazon_incoming_inventory(self, data: Dict[str, Any]) -> bool:
+        """Check if data looks like Amazon incoming inventory/FBA shipment"""
+        fba_indicators = [
+            'shipment_id', 'shipment_name', 'shipment_status',
+            'destination_fulfillment_center_id', 'label_prep_preference'
+        ]
+        
+        has_shipment_id = 'shipment_id' in data and data.get('shipment_id')
+        fba_fields = sum(1 for field in fba_indicators if field in data)
+        
+        return has_shipment_id and fba_fields >= 2
+    
     def transform_amazon_order(self, data: Dict[str, Any], client_id: str) -> Dict[str, Any]:
-        """Transform Amazon order data to match table schema"""
+        """Transform Amazon order data to match table schema INCLUDING LINE ITEMS"""
         try:
+            # Calculate total items quantity from line items
+            line_items = data.get('line_items', [])
+            total_items_quantity = sum(item.get('quantity', 0) for item in line_items)
+            
             return {
                 'client_id': client_id,
                 'order_id': data.get('order_id'),
                 'order_number': data.get('order_number') or data.get('order_id'),
+                'seller_order_id': data.get('seller_order_id'),
                 'platform': 'amazon',
                 'currency': data.get('currency'),
                 'total_price': self._safe_decimal(data.get('total_price')),
                 'order_status': data.get('order_status'),
                 'sales_channel': data.get('sales_channel'),
+                'order_channel': data.get('order_channel'),
+                'url': data.get('url'),
+                'ship_service_level': data.get('ship_service_level'),
+                'shipment_service_level_category': data.get('shipment_service_level_category'),
+                'cba_displayable_shipping_label': data.get('cba_displayable_shipping_label'),
+                'order_type': data.get('order_type'),
                 'marketplace_id': data.get('marketplace_id'),
                 'payment_method': data.get('payment_method'),
                 'fulfillment_channel': data.get('fulfillment_channel'),
                 'is_premium_order': data.get('is_premium_order', False),
                 'is_business_order': data.get('is_business_order', False),
+                'is_prime': data.get('is_prime', False),
+                'is_global_express_enabled': data.get('is_global_express_enabled', False),
+                'is_replacement_order': data.get('is_replacement_order', False),
+                'is_estimated_ship_date_set': data.get('is_estimated_ship_date_set', False),
+                'is_sold_by_ab': data.get('is_sold_by_ab', False),
+                'is_iba': data.get('is_iba', False),
+                'is_ispu': data.get('is_ispu', False),
+                'is_access_point_order': data.get('is_access_point_order', False),
+                'replaced_order_id': data.get('replaced_order_id'),
+                'buyer_invoice_preference': data.get('buyer_invoice_preference'),
+                'seller_display_name': data.get('seller_display_name'),
                 'number_of_items_shipped': data.get('number_of_items_shipped'),
                 'number_of_items_unshipped': data.get('number_of_items_unshipped'),
-                'created_at': self._safe_datetime(data.get('created_at')),
-                'updated_at': self._safe_datetime(data.get('updated_at')),
+                'total_items_quantity': total_items_quantity,  # ✅ Total quantity from line items
+                'purchase_date': self._safe_datetime(data.get('purchase_date')),
+                'created_at': self._safe_datetime(data.get('created_at') or data.get('purchase_date')),
+                'last_update_date': self._safe_datetime(data.get('last_update_date')),
+                'updated_at': self._safe_datetime(data.get('updated_at') or data.get('last_update_date')),
+                'earliest_ship_date': self._safe_datetime(data.get('earliest_ship_date')),
+                'latest_ship_date': self._safe_datetime(data.get('latest_ship_date')),
+                'earliest_delivery_date': self._safe_datetime(data.get('earliest_delivery_date')),
+                'latest_delivery_date': self._safe_datetime(data.get('latest_delivery_date')),
+                'promise_response_due_date': self._safe_datetime(data.get('promise_response_due_date')),
+                'line_items': json.dumps(line_items),  # ✅ Enhanced line items with ALL fields
+                'shipping_address': json.dumps(data.get('shipping_address', {})),
+                'buyer_info': json.dumps(data.get('buyer_info', {})),
+                'payment_execution_detail': json.dumps(data.get('payment_execution_detail', [])),
+                'payment_method_details': json.dumps(data.get('payment_method_details', [])),
+                'default_ship_from_location_address': json.dumps(data.get('default_ship_from_location_address', {})),
+                'buyer_tax_information': json.dumps(data.get('buyer_tax_information', {})),
+                'fulfillment_instruction': json.dumps(data.get('fulfillment_instruction', {})),
+                'marketplace_tax_info': json.dumps(data.get('marketplace_tax_info', {})),
                 'raw_data': json.dumps(data)
             }
         except Exception as e:
@@ -145,8 +202,14 @@ class AmazonDataPopulator:
             return None
     
     def transform_amazon_product(self, data: Dict[str, Any], client_id: str) -> Dict[str, Any]:
-        """Transform Amazon product data to match table schema"""
+        """Transform Amazon product data to match table schema - ENHANCED with catalog data"""
         try:
+            # Handle enhanced catalog data format
+            marketplace_ids = data.get('marketplace_ids', [])
+            images = data.get('images', [])
+            sales_rank = data.get('sales_rank', [])
+            relationships = data.get('relationships', [])
+            
             return {
                 'client_id': client_id,
                 'asin': data.get('asin'),
@@ -154,18 +217,46 @@ class AmazonDataPopulator:
                 'title': data.get('title') or data.get('name'),
                 'platform': 'amazon',
                 'brand': data.get('brand'),
+                'manufacturer': data.get('manufacturer'),  # ✅ From enhanced catalog API
                 'category': data.get('category'),
                 'price': self._safe_decimal(data.get('price')),
                 'quantity': data.get('quantity') or data.get('inventory_quantity'),
                 'status': data.get('status'),
-                'marketplace_id': data.get('marketplace_id'),
+                'marketplace_id': marketplace_ids[0] if marketplace_ids else data.get('marketplace_id'),
+                'marketplace_ids': json.dumps(marketplace_ids),  # ✅ All marketplace IDs
                 'product_type': data.get('product_type'),
                 'fulfillment_channel': data.get('fulfillment_channel'),
                 'condition_type': data.get('condition_type') or data.get('condition'),
+                'images': json.dumps(images),  # ✅ Complete product images from catalog
+                'sales_rank': json.dumps(sales_rank),  # ✅ Sales ranking data across categories
+                'relationships': json.dumps(relationships),  # ✅ Product relationships & variations
+                'created_at': self._safe_datetime(data.get('created_at')),
                 'raw_data': json.dumps(data)
             }
         except Exception as e:
             logger.warning(f" Error transforming Amazon product: {e}")
+            return None
+    
+    def transform_amazon_incoming_inventory(self, data: Dict[str, Any], client_id: str) -> Dict[str, Any]:
+        """Transform Amazon incoming inventory/FBA shipment data to match table schema"""
+        try:
+            return {
+                'client_id': client_id,
+                'shipment_id': data.get('shipment_id'),
+                'shipment_name': data.get('shipment_name'),
+                'shipment_status': data.get('shipment_status'),
+                'platform': 'amazon',
+                'destination_fulfillment_center_id': data.get('destination_fulfillment_center_id'),
+                'label_prep_preference': data.get('label_prep_preference'),
+                'are_cases_required': data.get('are_cases_required', False),
+                'confirmed_need_by_date': self._safe_datetime(data.get('confirmed_need_by_date')),
+                'box_contents_source': data.get('box_contents_source'),
+                'estimated_box_contents_fee': self._safe_decimal(data.get('estimated_box_contents_fee')),
+                'created_at': self._safe_datetime(data.get('created_at')),
+                'raw_data': json.dumps(data)
+            }
+        except Exception as e:
+            logger.warning(f" Error transforming Amazon incoming inventory: {e}")
             return None
     
     def _safe_decimal(self, value) -> Optional[float]:
@@ -219,7 +310,7 @@ class AmazonDataPopulator:
             return False
     
     async def insert_amazon_data(self, client_id: str, amazon_data: Dict[str, List[Dict[str, Any]]]) -> Dict[str, int]:
-        """Insert Amazon orders and products into their respective tables"""
+        """Insert Amazon orders, products, and incoming inventory into their respective tables"""
         results = {}
         
         # Insert orders
@@ -233,6 +324,12 @@ class AmazonDataPopulator:
             results['products'] = await self._insert_products(client_id, amazon_data['products'])
         else:
             results['products'] = 0
+        
+        # Insert incoming inventory (FBA shipments)
+        if amazon_data.get('incoming_inventory'):
+            results['incoming_inventory'] = await self._insert_incoming_inventory(client_id, amazon_data['incoming_inventory'])
+        else:
+            results['incoming_inventory'] = 0
         
         return results
     
@@ -322,6 +419,49 @@ class AmazonDataPopulator:
             logger.error(f" Failed to insert Amazon products: {e}")
             return 0
     
+    async def _insert_incoming_inventory(self, client_id: str, incoming_inventory: List[Dict[str, Any]]) -> int:
+        """Insert Amazon incoming inventory/FBA shipments"""
+        try:
+            table_name = f"{client_id.replace('-', '_')}_amazon_incoming_inventory"
+            
+            # Transform data
+            transformed_inventory = []
+            for item in incoming_inventory:
+                transformed = self.transform_amazon_incoming_inventory(item, client_id)
+                if transformed:
+                    transformed_inventory.append(transformed)
+            
+            if not transformed_inventory:
+                return 0
+            
+            logger.info(f" Inserting {len(transformed_inventory)} Amazon incoming inventory items into {table_name}")
+            
+            # Insert in batches
+            batch_size = 100
+            total_inserted = 0
+            
+            for i in range(0, len(transformed_inventory), batch_size):
+                batch = transformed_inventory[i:i + batch_size]
+                
+                try:
+                    response = self.admin_client.table(table_name).insert(batch).execute()
+                    
+                    if response.data:
+                        batch_inserted = len(response.data)
+                        total_inserted += batch_inserted
+                        logger.info(f" Inserted incoming inventory batch {i//batch_size + 1}: {batch_inserted} rows")
+                
+                except Exception as e:
+                    logger.error(f" Failed to insert incoming inventory batch {i//batch_size + 1}: {e}")
+                    continue
+            
+            logger.info(f" Total Amazon incoming inventory inserted: {total_inserted}")
+            return total_inserted
+            
+        except Exception as e:
+            logger.error(f" Failed to insert Amazon incoming inventory: {e}")
+            return 0
+    
     async def populate_amazon_data(self, client_id: str) -> Dict[str, Any]:
         """Main method to populate Amazon data tables"""
         try:
@@ -353,9 +493,11 @@ class AmazonDataPopulator:
                 "raw_records_processed": len(raw_data),
                 "amazon_orders_found": len(amazon_data['orders']),
                 "amazon_products_found": len(amazon_data['products']),
+                "amazon_incoming_inventory_found": len(amazon_data.get('incoming_inventory', [])),
                 "orders_inserted": insert_results.get('orders', 0),
                 "products_inserted": insert_results.get('products', 0),
-                "total_inserted": insert_results.get('orders', 0) + insert_results.get('products', 0),
+                "incoming_inventory_inserted": insert_results.get('incoming_inventory', 0),
+                "total_inserted": insert_results.get('orders', 0) + insert_results.get('products', 0) + insert_results.get('incoming_inventory', 0),
                 "success": True
             }
             

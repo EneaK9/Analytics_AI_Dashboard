@@ -57,7 +57,7 @@ class ShopifyConnector:
             return False, f"Connection error: {str(e)}"
     
     async def fetch_orders(self, days_back: int = None) -> List[Dict]:
-        """Fetch ALL orders from Shopify with pagination"""
+        """Fetch ALL orders from Shopify with pagination INCLUDING LINE ITEMS (SKUs, quantities)"""
         try:
             all_orders = []
             page_info = None
@@ -96,40 +96,202 @@ class ShopifyConnector:
                             data = await response.json()
                             orders = data.get('orders', [])
                             
-                            # Transform to standard format
+                            # Transform to standard format INCLUDING ALL POSSIBLE FIELDS
                             page_orders = []
                             for order in orders:
+                                # Process line items to extract ALL SKU and product data
+                                line_items = []
+                                for item in order.get('line_items', []):
+                                    line_items.append({
+                                        'line_item_id': item.get('id'),
+                                        'product_id': item.get('product_id'),
+                                        'variant_id': item.get('variant_id'),
+                                        'title': item.get('title'),
+                                        'name': item.get('name'),
+                                        'sku': item.get('sku'),
+                                        'quantity': item.get('quantity', 0),
+                                        'price': float(item.get('price', 0)),
+                                        'total_discount': float(item.get('total_discount', 0)),
+                                        'fulfillment_status': item.get('fulfillment_status'),
+                                        'fulfillable_quantity': item.get('fulfillable_quantity', 0),
+                                        'fulfillment_service': item.get('fulfillment_service'),
+                                        'grams': item.get('grams', 0),
+                                        'vendor': item.get('vendor'),
+                                        'product_exists': item.get('product_exists'),
+                                        'requires_shipping': item.get('requires_shipping'),
+                                        'taxable': item.get('taxable'),
+                                        'gift_card': item.get('gift_card'),
+                                        'properties': item.get('properties', []),
+                                        'variant_title': item.get('variant_title'),
+                                        'variant_inventory_management': item.get('variant_inventory_management'),
+                                        'pre_tax_price': float(item.get('pre_tax_price', 0)),
+                                        'duties': item.get('duties', []),
+                                        'discount_allocations': item.get('discount_allocations', []),
+                                        'tax_lines': item.get('tax_lines', [])
+                                    })
+                                
+                                # Process fulfillments
+                                fulfillments = []
+                                for fulfillment in order.get('fulfillments', []):
+                                    fulfillments.append({
+                                        'fulfillment_id': fulfillment.get('id'),
+                                        'status': fulfillment.get('status'),
+                                        'created_at': fulfillment.get('created_at'),
+                                        'service': fulfillment.get('service'),
+                                        'tracking_company': fulfillment.get('tracking_company'),
+                                        'tracking_number': fulfillment.get('tracking_number'),
+                                        'tracking_numbers': fulfillment.get('tracking_numbers', []),
+                                        'tracking_urls': fulfillment.get('tracking_urls', []),
+                                        'receipt': fulfillment.get('receipt', {}),
+                                        'line_items': fulfillment.get('line_items', [])
+                                    })
+                                
+                                # Process refunds
+                                refunds = []
+                                for refund in order.get('refunds', []):
+                                    refunds.append({
+                                        'refund_id': refund.get('id'),
+                                        'created_at': refund.get('created_at'),
+                                        'note': refund.get('note'),
+                                        'restock': refund.get('restock'),
+                                        'refund_line_items': refund.get('refund_line_items', []),
+                                        'transactions': refund.get('transactions', [])
+                                    })
+                                
+                                # Process transactions
+                                transactions = []
+                                for transaction in order.get('transactions', []):
+                                    transactions.append({
+                                        'transaction_id': transaction.get('id'),
+                                        'kind': transaction.get('kind'),
+                                        'gateway': transaction.get('gateway'),
+                                        'status': transaction.get('status'),
+                                        'message': transaction.get('message'),
+                                        'created_at': transaction.get('created_at'),
+                                        'amount': float(transaction.get('amount', 0)),
+                                        'currency': transaction.get('currency'),
+                                        'authorization': transaction.get('authorization'),
+                                        'test': transaction.get('test'),
+                                        'parent_id': transaction.get('parent_id')
+                                    })
+                                
+                                # Process shipping lines
+                                shipping_lines = []
+                                for shipping in order.get('shipping_lines', []):
+                                    shipping_lines.append({
+                                        'shipping_line_id': shipping.get('id'),
+                                        'title': shipping.get('title'),
+                                        'price': float(shipping.get('price', 0)),
+                                        'code': shipping.get('code'),
+                                        'source': shipping.get('source'),
+                                        'carrier_identifier': shipping.get('carrier_identifier'),
+                                        'requested_fulfillment_service_id': shipping.get('requested_fulfillment_service_id'),
+                                        'tax_lines': shipping.get('tax_lines', []),
+                                        'discount_allocations': shipping.get('discount_allocations', [])
+                                    })
+                                
+                                # Process customer data
+                                customer = order.get('customer', {})
+                                customer_data = {
+                                    'customer_id': customer.get('id'),
+                                    'email': customer.get('email'),
+                                    'accepts_marketing': customer.get('accepts_marketing'),
+                                    'created_at': customer.get('created_at'),
+                                    'updated_at': customer.get('updated_at'),
+                                    'first_name': customer.get('first_name'),
+                                    'last_name': customer.get('last_name'),
+                                    'orders_count': customer.get('orders_count', 0),
+                                    'state': customer.get('state'),
+                                    'total_spent': float(customer.get('total_spent', 0)),
+                                    'last_order_id': customer.get('last_order_id'),
+                                    'note': customer.get('note'),
+                                    'verified_email': customer.get('verified_email'),
+                                    'multipass_identifier': customer.get('multipass_identifier'),
+                                    'tax_exempt': customer.get('tax_exempt'),
+                                    'phone': customer.get('phone'),
+                                    'tags': customer.get('tags'),
+                                    'currency': customer.get('currency'),
+                                    'default_address': customer.get('default_address', {})
+                                }
+                                
+                                # Calculate total items quantity
+                                total_items_quantity = sum(item.get('quantity', 0) for item in order.get('line_items', []))
+                                
                                 page_orders.append({
                                     'order_id': order.get('id'),
                                     'order_number': order.get('order_number'),
+                                    'name': order.get('name'),  # Order name like "#1001"
                                     'created_at': order.get('created_at'),
                                     'updated_at': order.get('updated_at'),
+                                    'closed_at': order.get('closed_at'),
+                                    'cancelled_at': order.get('cancelled_at'),
+                                    'cancel_reason': order.get('cancel_reason'),
                                     'total_price': float(order.get('total_price', 0)),
                                     'subtotal_price': float(order.get('subtotal_price', 0)),
+                                    'total_weight': order.get('total_weight', 0),
                                     'total_tax': float(order.get('total_tax', 0)),
+                                    'total_discounts': float(order.get('total_discounts', 0)),
+                                    'total_line_items_price': float(order.get('total_line_items_price', 0)),
+                                    'taxes_included': order.get('taxes_included'),
                                     'currency': order.get('currency'),
                                     'financial_status': order.get('financial_status'),
+                                    'confirmed': order.get('confirmed'),
+                                    'total_price_usd': float(order.get('total_price_usd', 0)),
+                                    'checkout_id': order.get('checkout_id'),
+                                    'reference': order.get('reference'),
+                                    'user_id': order.get('user_id'),
+                                    'location_id': order.get('location_id'),
+                                    'source_identifier': order.get('source_identifier'),
+                                    'source_url': order.get('source_url'),
+                                    'processed_at': order.get('processed_at'),
+                                    'device_id': order.get('device_id'),
+                                    'phone': order.get('phone'),
+                                    'customer_locale': order.get('customer_locale'),
+                                    'app_id': order.get('app_id'),
+                                    'browser_ip': order.get('browser_ip'),
+                                    'landing_site': order.get('landing_site'),
+                                    'referring_site': order.get('referring_site'),
+                                    'order_status_url': order.get('order_status_url'),
                                     'fulfillment_status': order.get('fulfillment_status'),
                                     'customer_email': order.get('email'),
-                                    'customer_id': order.get('customer', {}).get('id'),
+                                    'customer_data': customer_data,
                                     'line_items_count': len(order.get('line_items', [])),
+                                    'total_items_quantity': total_items_quantity,
+                                    'line_items': line_items,  # ✅ COMPLETE LINE ITEMS
+                                    'fulfillments': fulfillments,  # ✅ ALL FULFILLMENT DATA
+                                    'refunds': refunds,  # ✅ ALL REFUND DATA  
+                                    'transactions': transactions,  # ✅ ALL TRANSACTION DATA
+                                    'shipping_lines': shipping_lines,  # ✅ ALL SHIPPING DATA
                                     'shipping_address': order.get('shipping_address'),
                                     'billing_address': order.get('billing_address'),
                                     'gateway': order.get('gateway'),
                                     'source_name': order.get('source_name'),
                                     'tags': order.get('tags'),
                                     'discount_codes': order.get('discount_codes', []),
-                                    'platform': 'shopify'
+                                    'discount_applications': order.get('discount_applications', []),
+                                    'note': order.get('note'),
+                                    'note_attributes': order.get('note_attributes', []),
+                                    'processing_method': order.get('processing_method'),
+                                    'checkout_token': order.get('checkout_token'),
+                                    'token': order.get('token'),
+                                    'cart_token': order.get('cart_token'),
+                                    'tax_lines': order.get('tax_lines', []),
+                                    'order_adjustments': order.get('order_adjustments', []),
+                                    'client_details': order.get('client_details', {}),
+                                    'payment_gateway_names': order.get('payment_gateway_names', []),
+                                    'payment_details': order.get('payment_details', {}),
+                                    'platform': 'shopify',
+                                    'raw_data': order  # Keep full raw data for reference
                                 })
                             
                             all_orders.extend(page_orders)
-                            logger.info(f" Fetched page with {len(page_orders)} orders (Total: {len(all_orders)})")
+                            total_line_items = sum(len(order.get('line_items', [])) for order in page_orders)
+                            logger.info(f" Fetched page with {len(page_orders)} orders, {total_line_items} line items (Total: {len(all_orders)} orders)")
                             
                             # Check if there are more pages
                             link_header = response.headers.get('Link', '')
                             if 'rel="next"' in link_header:
                                 # Extract page_info from Link header
-
                                 next_match = re.search(r'<[^>]*[?&]page_info=([^&>]+)[^>]*>;\s*rel="next"', link_header)
                                 if next_match:
                                     # URL decode the page_info parameter
@@ -151,7 +313,8 @@ class ShopifyConnector:
                             logger.error(f" Shopify orders API error {response.status}: {error_text[:200]}")
                             raise APIConnectorError(f"Failed to fetch orders: HTTP {response.status} - {error_text[:100]}")
                 
-                logger.info(f" Fetched ALL {len(all_orders)} Shopify orders")
+                total_line_items_all = sum(len(order.get('line_items', [])) for order in all_orders)
+                logger.info(f" ✅ Fetched ALL {len(all_orders)} Shopify orders with {total_line_items_all} total line items")
                 return all_orders
                         
         except Exception as e:
@@ -189,37 +352,94 @@ class ShopifyConnector:
                             data = await response.json()
                             products = data.get('products', [])
                             
-                            # Transform to standard format
+                            # Transform to standard format INCLUDING ALL PRODUCT DATA
                             page_products = []
                             for product in products:
-                                # Process variants
+                                # Process ALL variant data
                                 variants = []
                                 for variant in product.get('variants', []):
                                     variants.append({
                                         'variant_id': variant.get('id'),
+                                        'product_id': variant.get('product_id'),
                                         'title': variant.get('title'),
                                         'price': float(variant.get('price', 0)),
                                         'sku': variant.get('sku'),
-                                        'inventory_quantity': variant.get('inventory_quantity', 0),
+                                        'position': variant.get('position'),
+                                        'inventory_policy': variant.get('inventory_policy'),
+                                        'compare_at_price': float(variant.get('compare_at_price', 0)) if variant.get('compare_at_price') else None,
+                                        'fulfillment_service': variant.get('fulfillment_service'),
+                                        'inventory_management': variant.get('inventory_management'),
+                                        'option1': variant.get('option1'),
+                                        'option2': variant.get('option2'),
+                                        'option3': variant.get('option3'),
+                                        'created_at': variant.get('created_at'),
+                                        'updated_at': variant.get('updated_at'),
+                                        'taxable': variant.get('taxable'),
+                                        'barcode': variant.get('barcode'),
+                                        'grams': variant.get('grams', 0),
+                                        'image_id': variant.get('image_id'),
                                         'weight': variant.get('weight'),
-                                        'requires_shipping': variant.get('requires_shipping')
+                                        'weight_unit': variant.get('weight_unit'),
+                                        'inventory_item_id': variant.get('inventory_item_id'),
+                                        'inventory_quantity': variant.get('inventory_quantity', 0),
+                                        'old_inventory_quantity': variant.get('old_inventory_quantity', 0),
+                                        'requires_shipping': variant.get('requires_shipping'),
+                                        'admin_graphql_api_id': variant.get('admin_graphql_api_id')
+                                    })
+                                
+                                # Process ALL image data
+                                images = []
+                                for image in product.get('images', []):
+                                    images.append({
+                                        'image_id': image.get('id'),
+                                        'product_id': image.get('product_id'),
+                                        'position': image.get('position'),
+                                        'created_at': image.get('created_at'),
+                                        'updated_at': image.get('updated_at'),
+                                        'alt': image.get('alt'),
+                                        'width': image.get('width'),
+                                        'height': image.get('height'),
+                                        'src': image.get('src'),
+                                        'variant_ids': image.get('variant_ids', [])
+                                    })
+                                
+                                # Process ALL option data
+                                options = []
+                                for option in product.get('options', []):
+                                    options.append({
+                                        'option_id': option.get('id'),
+                                        'product_id': option.get('product_id'),
+                                        'name': option.get('name'),
+                                        'position': option.get('position'),
+                                        'values': option.get('values', [])
                                     })
                                 
                                 page_products.append({
                                     'product_id': product.get('id'),
                                     'title': product.get('title'),
-                                    'handle': product.get('handle'),
-                                    'product_type': product.get('product_type'),
+                                    'body_html': product.get('body_html'),
                                     'vendor': product.get('vendor'),
+                                    'product_type': product.get('product_type'),
                                     'created_at': product.get('created_at'),
+                                    'handle': product.get('handle'),
                                     'updated_at': product.get('updated_at'),
                                     'published_at': product.get('published_at'),
+                                    'template_suffix': product.get('template_suffix'),
                                     'status': product.get('status'),
+                                    'published_scope': product.get('published_scope'),
                                     'tags': product.get('tags'),
+                                    'admin_graphql_api_id': product.get('admin_graphql_api_id'),
+                                    'seo_title': product.get('seo_title'),
+                                    'seo_description': product.get('seo_description'),
                                     'variants': variants,
+                                    'options': options,
+                                    'images': images,
+                                    'image': product.get('image', {}),
                                     'variants_count': len(variants),
-                                    'images_count': len(product.get('images', [])),
-                                    'platform': 'shopify'
+                                    'images_count': len(images),
+                                    'options_count': len(options),
+                                    'platform': 'shopify',
+                                    'raw_data': product  # Keep full raw data
                                 })
                             
                             all_products.extend(page_products)
@@ -364,7 +584,7 @@ class AmazonConnector:
             return False, f"Connection error: {str(e)}"
     
     async def fetch_orders(self, days_back: int = None) -> List[Dict]:
-        """Fetch ALL orders from Amazon SP-API with pagination"""
+        """Fetch ALL orders from Amazon SP-API with pagination INCLUDING ORDER ITEMS (SKUs, quantities)"""
         try:
             all_orders = []
             next_token = None
@@ -407,33 +627,113 @@ class AmazonConnector:
                             payload = data.get('payload', {})
                             orders = payload.get('Orders', [])
                             
-                            # Transform to standard format
+                            # Transform to standard format INCLUDING ALL AMAZON ORDER FIELDS
                             page_orders = []
                             for order in orders:
                                 # Amazon order structure
                                 order_total = order.get('OrderTotal', {})
+                                order_id = order.get('AmazonOrderId')
+                                
+                                # Fetch order items (SKUs and quantities) for this order
+                                order_items = await self._fetch_order_items(session, headers, order_id)
+                                
+                                # Calculate total items quantity
+                                total_items_quantity = sum(item.get('quantity', 0) for item in order_items)
+                                
+                                # Process shipping address
+                                shipping_address = order.get('ShippingAddress', {})
+                                shipping_address_data = {
+                                    'name': shipping_address.get('Name'),
+                                    'address_line1': shipping_address.get('AddressLine1'),
+                                    'address_line2': shipping_address.get('AddressLine2'),
+                                    'address_line3': shipping_address.get('AddressLine3'),
+                                    'city': shipping_address.get('City'),
+                                    'county': shipping_address.get('County'),
+                                    'district': shipping_address.get('District'),
+                                    'state_or_region': shipping_address.get('StateOrRegion'),
+                                    'municipality': shipping_address.get('Municipality'),
+                                    'postal_code': shipping_address.get('PostalCode'),
+                                    'country_code': shipping_address.get('CountryCode'),
+                                    'phone': shipping_address.get('Phone'),
+                                    'address_type': shipping_address.get('AddressType')
+                                }
+                                
+                                # Process buyer info
+                                buyer_info = order.get('BuyerInfo', {})
+                                buyer_data = {
+                                    'buyer_email': buyer_info.get('BuyerEmail'),
+                                    'buyer_name': buyer_info.get('BuyerName'),
+                                    'buyer_county': buyer_info.get('BuyerCounty'),
+                                    'buyer_tax_info': buyer_info.get('BuyerTaxInfo', {})
+                                }
+                                
+                                # Process payment execution details
+                                payment_execution_detail = order.get('PaymentExecutionDetail', [])
+                                payment_details = []
+                                for payment in payment_execution_detail:
+                                    payment_details.append({
+                                        'payment_method': payment.get('PaymentMethod'),
+                                        'payment_method_details': payment.get('PaymentMethodDetails', [])
+                                    })
                                 
                                 page_orders.append({
-                                    'order_id': order.get('AmazonOrderId'),
-                                    'order_number': order.get('AmazonOrderId'),
+                                    'order_id': order_id,
+                                    'order_number': order_id,
+                                    'seller_order_id': order.get('SellerOrderId'),
+                                    'purchase_date': order.get('PurchaseDate'),
                                     'created_at': order.get('PurchaseDate'),
+                                    'last_update_date': order.get('LastUpdateDate'),
                                     'updated_at': order.get('LastUpdateDate'),
-                                    'total_price': float(order_total.get('Amount', 0)),
-                                    'currency': order_total.get('CurrencyCode', 'USD'),
                                     'order_status': order.get('OrderStatus'),
                                     'fulfillment_channel': order.get('FulfillmentChannel'),
                                     'sales_channel': order.get('SalesChannel'),
-                                    'marketplace_id': order.get('MarketplaceId'),
+                                    'order_channel': order.get('OrderChannel'),
+                                    'url': order.get('Url'),
+                                    'ship_service_level': order.get('ShipServiceLevel'),
+                                    'total_price': float(order_total.get('Amount', 0)),
+                                    'currency': order_total.get('CurrencyCode', 'USD'),
                                     'number_of_items_shipped': order.get('NumberOfItemsShipped', 0),
                                     'number_of_items_unshipped': order.get('NumberOfItemsUnshipped', 0),
+                                    'total_items_quantity': total_items_quantity,
+                                    'payment_execution_detail': payment_details,
                                     'payment_method': order.get('PaymentMethod'),
+                                    'payment_method_details': order.get('PaymentMethodDetails', []),
+                                    'marketplace_id': order.get('MarketplaceId'),
+                                    'shipment_service_level_category': order.get('ShipmentServiceLevelCategory'),
+                                    'cba_displayable_shipping_label': order.get('CbaDisplayableShippingLabel'),
+                                    'order_type': order.get('OrderType'),
+                                    'earliest_ship_date': order.get('EarliestShipDate'),
+                                    'latest_ship_date': order.get('LatestShipDate'),
+                                    'earliest_delivery_date': order.get('EarliestDeliveryDate'),
+                                    'latest_delivery_date': order.get('LatestDeliveryDate'),
                                     'is_business_order': order.get('IsBusinessOrder', False),
+                                    'is_prime': order.get('IsPrime', False),
                                     'is_premium_order': order.get('IsPremiumOrder', False),
-                                    'platform': 'amazon'
+                                    'is_global_express_enabled': order.get('IsGlobalExpressEnabled', False),
+                                    'replaced_order_id': order.get('ReplacedOrderId'),
+                                    'is_replacement_order': order.get('IsReplacementOrder', False),
+                                    'promise_response_due_date': order.get('PromiseResponseDueDate'),
+                                    'is_estimated_ship_date_set': order.get('IsEstimatedShipDateSet', False),
+                                    'is_sold_by_ab': order.get('IsSoldByAB', False),
+                                    'is_iba': order.get('IsIBA', False),
+                                    'default_ship_from_location_address': order.get('DefaultShipFromLocationAddress', {}),
+                                    'buyer_invoice_preference': order.get('BuyerInvoicePreference'),
+                                    'buyer_tax_information': order.get('BuyerTaxInformation', {}),
+                                    'fulfillment_instruction': order.get('FulfillmentInstruction', {}),
+                                    'is_ispu': order.get('IsISPU', False),
+                                    'is_access_point_order': order.get('IsAccessPointOrder', False),
+                                    'marketplace_tax_info': order.get('MarketplaceTaxInfo', {}),
+                                    'seller_display_name': order.get('SellerDisplayName'),
+                                    'shipping_address': shipping_address_data,
+                                    'buyer_info': buyer_data,
+                                    'line_items': order_items,  # ✅ ALL ORDER ITEMS WITH SKUs
+                                    'platform': 'amazon',
+                                    'raw_data': order  # Keep full raw data for reference
                                 })
                             
                             all_orders.extend(page_orders)
-                            logger.info(f" Fetched page with {len(page_orders)} Amazon orders (Total: {len(all_orders)})")
+                            total_line_items = sum(len(order.get('line_items', [])) for order in page_orders)
+                            logger.info(f" Fetched page with {len(page_orders)} Amazon orders, {total_line_items} line items (Total: {len(all_orders)} orders)")
                             
                             # Check for next page
                             next_token = payload.get('NextToken')
@@ -451,12 +751,314 @@ class AmazonConnector:
                         else:
                             raise APIConnectorError(f"Failed to fetch orders: HTTP {response.status}")
                 
-                logger.info(f" Fetched ALL {len(all_orders)} Amazon orders")
+                total_line_items_all = sum(len(order.get('line_items', [])) for order in all_orders)
+                logger.info(f" ✅ Fetched ALL {len(all_orders)} Amazon orders with {total_line_items_all} total line items")
                 return all_orders
                         
         except Exception as e:
             logger.error(f" Failed to fetch Amazon orders: {e}")
             raise APIConnectorError(f"Amazon orders fetch failed: {str(e)}")
+    
+    async def _fetch_order_items(self, session, headers, order_id: str) -> List[Dict]:
+        """Fetch order items (SKUs, quantities) for a specific Amazon order"""
+        try:
+            async with session.get(
+                f"{self.base_url}/orders/v0/orders/{order_id}/orderItems",
+                headers=headers
+            ) as response:
+                
+                if response.status == 200:
+                    data = await response.json()
+                    payload = data.get('payload', {})
+                    order_items = payload.get('OrderItems', [])
+                    
+                    # Transform order items to standard format INCLUDING ALL ITEM FIELDS
+                    line_items = []
+                    for item in order_items:
+                        # Handle complex pricing structures
+                        item_price = item.get('ItemPrice', {})
+                        shipping_price = item.get('ShippingPrice', {})
+                        gift_wrap_price = item.get('GiftWrapPrice', {})
+                        item_tax = item.get('ItemTax', {})
+                        shipping_tax = item.get('ShippingTax', {})
+                        shipping_discount = item.get('ShippingDiscount', {})
+                        shipping_discount_tax = item.get('ShippingDiscountTax', {})
+                        promotion_discount = item.get('PromotionDiscount', {})
+                        promotion_discount_tax = item.get('PromotionDiscountTax', {})
+                        cod_fee = item.get('CODFee', {})
+                        cod_fee_discount = item.get('CODFeeDiscount', {})
+                        
+                        # Handle product info complex structure
+                        product_info = item.get('ProductInfo', {})
+                        
+                        # Handle points granted
+                        points_granted = item.get('PointsGranted', {})
+                        
+                        line_items.append({
+                            'line_item_id': item.get('OrderItemId'),
+                            'asin': item.get('ASIN'),
+                            'seller_sku': item.get('SellerSKU'),
+                            'sku': item.get('SellerSKU'),  # Use SellerSKU as primary SKU
+                            'buyer_product_identifier': item.get('BuyerProductIdentifier'),
+                            'title': item.get('Title'),
+                            'quantity_ordered': int(item.get('QuantityOrdered', 0)),
+                            'quantity_shipped': int(item.get('QuantityShipped', 0)),
+                            'quantity': int(item.get('QuantityOrdered', 0)),  # Alias for consistency
+                            'points_granted': {
+                                'points_number': points_granted.get('PointsNumber', 0),
+                                'points_monetary_value': points_granted.get('PointsMonetaryValue', {})
+                            },
+                            # Pricing information
+                            'item_price': {
+                                'amount': float(item_price.get('Amount', 0)),
+                                'currency_code': item_price.get('CurrencyCode', 'USD')
+                            },
+                            'price': float(item_price.get('Amount', 0)),  # Simplified price
+                            'currency': item_price.get('CurrencyCode', 'USD'),
+                            'shipping_price': {
+                                'amount': float(shipping_price.get('Amount', 0)),
+                                'currency_code': shipping_price.get('CurrencyCode', 'USD')
+                            },
+                            'gift_wrap_price': {
+                                'amount': float(gift_wrap_price.get('Amount', 0)),
+                                'currency_code': gift_wrap_price.get('CurrencyCode', 'USD')
+                            },
+                            'item_tax': {
+                                'amount': float(item_tax.get('Amount', 0)),
+                                'currency_code': item_tax.get('CurrencyCode', 'USD')
+                            },
+                            'shipping_tax': {
+                                'amount': float(shipping_tax.get('Amount', 0)),
+                                'currency_code': shipping_tax.get('CurrencyCode', 'USD')
+                            },
+                            'shipping_discount': {
+                                'amount': float(shipping_discount.get('Amount', 0)),
+                                'currency_code': shipping_discount.get('CurrencyCode', 'USD')
+                            },
+                            'shipping_discount_tax': {
+                                'amount': float(shipping_discount_tax.get('Amount', 0)),
+                                'currency_code': shipping_discount_tax.get('CurrencyCode', 'USD')
+                            },
+                            'promotion_discount': {
+                                'amount': float(promotion_discount.get('Amount', 0)),
+                                'currency_code': promotion_discount.get('CurrencyCode', 'USD')
+                            },
+                            'promotion_discount_tax': {
+                                'amount': float(promotion_discount_tax.get('Amount', 0)),
+                                'currency_code': promotion_discount_tax.get('CurrencyCode', 'USD')
+                            },
+                            'cod_fee': {
+                                'amount': float(cod_fee.get('Amount', 0)),
+                                'currency_code': cod_fee.get('CurrencyCode', 'USD')
+                            },
+                            'cod_fee_discount': {
+                                'amount': float(cod_fee_discount.get('Amount', 0)),
+                                'currency_code': cod_fee_discount.get('CurrencyCode', 'USD')
+                            },
+                            # Product information
+                            'product_info': {
+                                'number_of_items': product_info.get('NumberOfItems', 1)
+                            },
+                            'condition_id': item.get('ConditionId'),
+                            'condition_subtype_id': item.get('ConditionSubtypeId'),
+                            'condition_note': item.get('ConditionNote'),
+                            'scheduled_delivery_start_date': item.get('ScheduledDeliveryStartDate'),
+                            'scheduled_delivery_end_date': item.get('ScheduledDeliveryEndDate'),
+                            'price_designation': item.get('PriceDesignation'),
+                            'tax_collection': item.get('TaxCollection', {}),
+                            'serial_number_required': item.get('SerialNumberRequired', False),
+                            'is_gift': item.get('IsGift', False),
+                            'condition_note': item.get('ConditionNote'),
+                            'condition_id': item.get('ConditionId'),
+                            'condition_subtype_id': item.get('ConditionSubtypeId'),
+                            'is_transparency': item.get('IsTransparency', False),
+                            'buyer_requested_cancel': item.get('BuyerRequestedCancel', {}),
+                            'substitution_preferences': item.get('SubstitutionPreferences', {}),
+                            'measurement': item.get('Measurement', {})
+                        })
+                    
+                    return line_items
+                    
+                elif response.status == 429:
+                    # Rate limited - wait and retry
+                    logger.warning(f" Rate limited when fetching order items for {order_id}, waiting 2 seconds...")
+                    await asyncio.sleep(2)
+                    return await self._fetch_order_items(session, headers, order_id)  # Retry
+                else:
+                    logger.warning(f" Failed to fetch order items for {order_id}: HTTP {response.status}")
+                    return []  # Return empty list if can't fetch items
+                    
+        except Exception as e:
+            logger.warning(f" Failed to fetch order items for {order_id}: {e}")
+            return []  # Return empty list on error
+    
+    async def fetch_products(self) -> List[Dict]:
+        """Fetch ALL products from Amazon SP-API Catalog"""
+        try:
+            all_products = []
+            next_token = None
+            
+            access_token = await self._get_access_token()
+            
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'x-amz-access-token': access_token,
+                'Content-Type': 'application/json'
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                while True:
+                    params = {
+                        'marketplaceIds': ','.join(self.credentials.marketplace_ids),
+                        'includedData': 'attributes,images,productTypes,relationships,salesRanks',
+                        'pageSize': 20  # Amazon catalog API max is 20
+                    }
+                    
+                    if next_token:
+                        params['pageToken'] = next_token
+                    
+                    async with session.get(
+                        f"{self.base_url}/catalog/2022-04-01/items",
+                        headers=headers,
+                        params=params
+                    ) as response:
+                        
+                        if response.status == 200:
+                            data = await response.json()
+                            items = data.get('items', [])
+                            
+                            # Transform to standard format
+                            page_products = []
+                            for item in items:
+                                # Extract attributes
+                                attributes = item.get('attributes', {})
+                                
+                                page_products.append({
+                                    'asin': item.get('asin'),
+                                    'title': attributes.get('item_name', [{}])[0].get('value', 'Unknown'),
+                                    'brand': attributes.get('brand', [{}])[0].get('value', 'Unknown'),
+                                    'manufacturer': attributes.get('manufacturer', [{}])[0].get('value', 'Unknown'),
+                                    'product_type': ', '.join([pt.get('displayName', '') for pt in item.get('productTypes', [])]),
+                                    'images': [img.get('link') for img in item.get('images', [])],
+                                    'sales_rank': item.get('salesRanks', []),
+                                    'relationships': item.get('relationships', []),
+                                    'marketplace_ids': [mp_id for mp_id in self.credentials.marketplace_ids],
+                                    'created_at': datetime.now().isoformat(),
+                                    'platform': 'amazon',
+                                    'raw_data': item
+                                })
+                            
+                            all_products.extend(page_products)
+                            logger.info(f" Fetched page with {len(page_products)} Amazon catalog products (Total: {len(all_products)})")
+                            
+                            # Check for next page
+                            pagination = data.get('pagination', {})
+                            next_token = pagination.get('nextToken')
+                            if not next_token:
+                                break
+                                
+                            # Add delay to respect rate limits
+                            await asyncio.sleep(0.5)  # Be conservative with catalog API
+                        
+                        elif response.status == 429:
+                            # Rate limited - wait and retry
+                            logger.warning(" Rate limited by Amazon Catalog API, waiting 15 seconds...")
+                            await asyncio.sleep(15)
+                            continue
+                        else:
+                            error_text = await response.text()
+                            logger.error(f" Amazon Catalog API error {response.status}: {error_text[:200]}")
+                            raise APIConnectorError(f"Failed to fetch products: HTTP {response.status}")
+                
+                logger.info(f" ✅ Fetched ALL {len(all_products)} Amazon catalog products")
+                return all_products
+                        
+        except Exception as e:
+            logger.error(f" Failed to fetch Amazon products: {e}")
+            raise APIConnectorError(f"Amazon products fetch failed: {str(e)}")
+    
+    async def fetch_incoming_inventory(self) -> List[Dict]:
+        """Fetch incoming inventory from Amazon FBA"""
+        try:
+            all_inventory = []
+            next_token = None
+            
+            access_token = await self._get_access_token()
+            
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'x-amz-access-token': access_token,
+                'Content-Type': 'application/json'
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                while True:
+                    params = {
+                        'marketplaceIds': ','.join(self.credentials.marketplace_ids),
+                        'maxResultsPerPage': 50  # FBA Inventory API max
+                    }
+                    
+                    if next_token:
+                        params['nextToken'] = next_token
+                    
+                    async with session.get(
+                        f"{self.base_url}/fba/inbound/v0/shipments",
+                        headers=headers,
+                        params=params
+                    ) as response:
+                        
+                        if response.status == 200:
+                            data = await response.json()
+                            payload = data.get('payload', {})
+                            shipments = payload.get('ShipmentData', [])
+                            
+                            # Transform to standard format
+                            page_inventory = []
+                            for shipment in shipments:
+                                page_inventory.append({
+                                    'shipment_id': shipment.get('ShipmentId'),
+                                    'shipment_name': shipment.get('ShipmentName'),
+                                    'shipment_status': shipment.get('ShipmentStatus'),
+                                    'destination_fulfillment_center_id': shipment.get('DestinationFulfillmentCenterId'),
+                                    'label_prep_preference': shipment.get('LabelPrepPreference'),
+                                    'are_cases_required': shipment.get('AreCasesRequired'),
+                                    'confirmed_need_by_date': shipment.get('ConfirmedNeedByDate'),
+                                    'box_contents_source': shipment.get('BoxContentsSource'),
+                                    'estimated_box_contents_fee': shipment.get('EstimatedBoxContentsFee'),
+                                    'created_at': datetime.now().isoformat(),
+                                    'platform': 'amazon',
+                                    'raw_data': shipment
+                                })
+                            
+                            all_inventory.extend(page_inventory)
+                            logger.info(f" Fetched page with {len(page_inventory)} Amazon FBA shipments (Total: {len(all_inventory)})")
+                            
+                            # Check for next page
+                            next_token = payload.get('NextToken')
+                            if not next_token:
+                                break
+                                
+                            # Add delay to respect rate limits
+                            await asyncio.sleep(1)  # Be conservative with FBA API
+                        
+                        elif response.status == 429:
+                            # Rate limited - wait and retry
+                            logger.warning(" Rate limited by Amazon FBA API, waiting 15 seconds...")
+                            await asyncio.sleep(15)
+                            continue
+                        else:
+                            error_text = await response.text()
+                            logger.warning(f" Amazon FBA API error {response.status}: {error_text[:200]}")
+                            # FBA API might not be accessible for all sellers, so don't fail completely
+                            logger.info(" FBA Inbound API might not be available for this seller account")
+                            break
+                
+                logger.info(f" ✅ Fetched {len(all_inventory)} Amazon FBA incoming inventory items")
+                return all_inventory
+                        
+        except Exception as e:
+            logger.warning(f" Failed to fetch Amazon incoming inventory (this is normal if FBA not enabled): {e}")
+            return []  # Return empty list instead of failing
 
 class WooCommerceConnector:
     """WooCommerce REST API Connector"""
@@ -523,7 +1125,7 @@ class APIDataFetcher:
             return False, f"Connection test failed: {str(e)}"
     
     async def fetch_all_data(self, platform_type: PlatformType, credentials: Dict[str, Any]) -> Dict[str, List[Dict]]:
-        """Fetch all available data from a platform"""
+        """Fetch all available data from a platform INCLUDING ALL MISSING DATA"""
         try:
             connector = APIConnectorFactory.create_connector(platform_type, credentials)
             
@@ -532,21 +1134,34 @@ class APIDataFetcher:
             # Fetch different data types based on platform capabilities
             if hasattr(connector, 'fetch_orders'):
                 try:
-                    orders = await connector.fetch_orders()  # No limit parameters - fetch ALL
+                    orders = await connector.fetch_orders()  # Now includes line items with SKUs/quantities
                     all_data['orders'] = orders
-                    logger.info(f" Fetched {len(orders)} orders from {platform_type}")
+                    
+                    # Count total line items for logging
+                    total_line_items = sum(len(order.get('line_items', [])) for order in orders)
+                    logger.info(f" ✅ Fetched {len(orders)} orders with {total_line_items} line items from {platform_type}")
                 except Exception as e:
                     logger.warning(f" Failed to fetch orders from {platform_type}: {e}")
                     all_data['orders'] = []
             
             if hasattr(connector, 'fetch_products'):
                 try:
-                    products = await connector.fetch_products()  # No limit parameters - fetch ALL
+                    products = await connector.fetch_products()  # Now enhanced for Amazon
                     all_data['products'] = products
-                    logger.info(f"️ Fetched {len(products)} products from {platform_type}")
+                    logger.info(f"️ ✅ Fetched {len(products)} products from {platform_type}")
                 except Exception as e:
                     logger.warning(f" Failed to fetch products from {platform_type}: {e}")
                     all_data['products'] = []
+            
+            # NEW: Fetch incoming inventory (Amazon FBA)
+            if hasattr(connector, 'fetch_incoming_inventory'):
+                try:
+                    incoming_inventory = await connector.fetch_incoming_inventory()
+                    all_data['incoming_inventory'] = incoming_inventory
+                    logger.info(f" ✅ Fetched {len(incoming_inventory)} incoming inventory items from {platform_type}")
+                except Exception as e:
+                    logger.warning(f" Failed to fetch incoming inventory from {platform_type}: {e}")
+                    all_data['incoming_inventory'] = []
             
             if hasattr(connector, 'fetch_customers'):
                 try:
@@ -556,6 +1171,18 @@ class APIDataFetcher:
                 except Exception as e:
                     logger.warning(f" Failed to fetch customers from {platform_type}: {e}")
                     all_data['customers'] = []
+            
+            # Log summary of what was fetched
+            summary = []
+            for data_type, data_list in all_data.items():
+                if data_list:
+                    if data_type == 'orders':
+                        total_line_items = sum(len(order.get('line_items', [])) for order in data_list)
+                        summary.append(f"{len(data_list)} {data_type} ({total_line_items} line items)")
+                    else:
+                        summary.append(f"{len(data_list)} {data_type}")
+            
+            logger.info(f" 🎉 ENHANCED API FETCH COMPLETE for {platform_type}: {', '.join(summary)}")
             
             return all_data
             

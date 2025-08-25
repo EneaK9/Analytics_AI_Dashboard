@@ -1205,11 +1205,11 @@ async def login(
 
         logger.info(f" Client logged in: {client['email']}")
 
-        #  PRE-CALCULATE DATA IN BACKGROUND - USER DOESN'T WAIT!
-
-        client_id = client["client_id"]
-
-        background_tasks.add_task(pre_calculate_dashboard_data, client_id)
+        #  TEMPORARILY DISABLED PRE-CALCULATION FOR FAST LOGIN
+        # TODO: Re-enable after optimizing background calculations
+        
+        # client_id = client["client_id"]
+        # background_tasks.add_task(pre_calculate_dashboard_data, client_id)
 
         return Token(
             access_token=access_token,

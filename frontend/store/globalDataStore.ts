@@ -6,6 +6,7 @@
 import React from "react";
 import { create } from "zustand";
 import api from "../lib/axios";
+import { isAuthenticated } from "../lib/auth";
 
 // Cache duration (5 minutes)
 const CACHE_DURATION = 5 * 60 * 1000;
@@ -268,6 +269,12 @@ export const useGlobalDataStore = create<GlobalDataState>()((set, get) => ({
     },
     
     fetchInventoryData: async (forceRefresh = false) => {
+      // Check authentication before making API calls
+      if (!isAuthenticated()) {
+        console.log('🔒 User not authenticated, skipping inventory data fetch');
+        return;
+      }
+      
       const state = get();
       const requestKey = 'inventoryData';
       
@@ -311,6 +318,12 @@ export const useGlobalDataStore = create<GlobalDataState>()((set, get) => ({
     },
     
     fetchSKUData: async (page = 1, forceRefresh = false) => {
+		// Check authentication before making API calls
+		if (!isAuthenticated()) {
+			console.log('🔒 User not authenticated, skipping SKU data fetch');
+			return;
+		}
+		
 		const state = get();
 		const requestKey = `skuData-${page}`;
 
@@ -370,6 +383,12 @@ export const useGlobalDataStore = create<GlobalDataState>()((set, get) => ({
 	},
     
     fetchDashboardAnalytics: async (forceRefresh = false) => {
+      // Check authentication before making API calls
+      if (!isAuthenticated()) {
+        console.log('🔒 User not authenticated, skipping dashboard analytics fetch');
+        return;
+      }
+      
       const state = get();
       const requestKey = 'dashboardAnalytics';
       

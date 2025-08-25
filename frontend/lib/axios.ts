@@ -87,11 +87,19 @@ api.interceptors.response.use(
 		if (error.response?.status === 401 || error.response?.status === 403) {
 			// Only handle automatic logout if we're in the browser
 			if (typeof window !== "undefined") {
+				// Clear invalid token immediately
+				const isSuperadmin = window.location.pathname.startsWith("/superadmin");
+				if (isSuperadmin) {
+					localStorage.removeItem("superadmin_token");
+				} else {
+					localStorage.removeItem("access_token");
+				}
+				
 				// Check if auto-redirect is disabled (for debugging)
 				const disableRedirect = localStorage.getItem("disable_auth_redirect");
 				if (disableRedirect === "true") {
 					console.warn(
-						`Authentication failed (${error.response?.status}) - auto-redirect disabled`
+						`Authentication failed (${error.response?.status}) - auto-redirect disabled, token cleared`
 					);
 					return Promise.reject(
 						new Error("Authentication failed - auto-redirect disabled")
@@ -99,7 +107,7 @@ api.interceptors.response.use(
 				}
 
 				console.warn(
-					`Authentication failed (${error.response?.status}) - redirecting to login`
+					`Authentication failed (${error.response?.status}) - token cleared, redirecting to login`
 				);
 				logout();
 				return Promise.reject(new Error("Authentication failed"));
