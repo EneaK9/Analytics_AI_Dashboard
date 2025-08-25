@@ -62,7 +62,7 @@ const DashboardPage: React.FC = () => {
 	const loadAIAnalysisData = async () => {
 		console.log("🚫 Dashboard metrics loading is disabled");
 		return;
-		
+
 		// COMMENTED OUT: MainGrid.tsx now handles all data loading with intelligent caching
 		// try {
 		// 	setDashboardData((prev) => ({ ...prev, isAnalyzing: true, error: null }));
@@ -71,171 +71,171 @@ const DashboardPage: React.FC = () => {
 
 		// 	// First, try to get dashboard metrics
 		// 	const response = await api.get("/dashboard/metrics");
-			// console.log("📊 Backend metrics response:", response.data);
+		// console.log("📊 Backend metrics response:", response.data);
 
-			// if (response.data && response.data.length > 0) {
-			// 	// Extract REAL data from backend metrics
-			// 	const metrics = response.data;
-			// 	const extractedData: Partial<DashboardData> = {};
+		// if (response.data && response.data.length > 0) {
+		// 	// Extract REAL data from backend metrics
+		// 	const metrics = response.data;
+		// 	const extractedData: Partial<DashboardData> = {};
 
-				// console.log(
-				// 	"📈 Processing",
-				// 	metrics.length,
-				// 	"real metrics from backend"
-				// );
+		// console.log(
+		// 	"📈 Processing",
+		// 	metrics.length,
+		// 	"real metrics from backend"
+		// );
 
-				// // Map real AI metrics to dashboard data
-				// metrics.forEach((metric: any) => {
-				// 	console.log(
-				// 		"🔍 Processing metric:",
-				// 		metric.metric_type,
-				// 		metric.metric_name,
-				// 		metric.metric_value
-				// 	);
+		// // Map real AI metrics to dashboard data
+		// metrics.forEach((metric: any) => {
+		// 	console.log(
+		// 		"🔍 Processing metric:",
+		// 		metric.metric_type,
+		// 		metric.metric_name,
+		// 		metric.metric_value
+		// 	);
 
-				// 	if (metric.metric_type === "kpi" && metric.metric_value) {
-				// 		const value = metric.metric_value;
+		// 	if (metric.metric_type === "kpi" && metric.metric_value) {
+		// 		const value = metric.metric_value;
 
-				// 		// Handle different metric value formats
-				// 		let numValue = 0;
-				// 		if (typeof value === "object" && value.value) {
-				// 			numValue =
-				// 				parseInt(value.value.toString().replace(/[^\d]/g, "")) || 0;
-				// 		} else if (typeof value === "number") {
-				// 			numValue = value;
-				// 		} else if (typeof value === "string") {
-				// 			numValue = parseInt(value.replace(/[^\d]/g, "")) || 0;
-				// 		}
+		// 		// Handle different metric value formats
+		// 		let numValue = 0;
+		// 		if (typeof value === "object" && value.value) {
+		// 			numValue =
+		// 				parseInt(value.value.toString().replace(/[^\d]/g, "")) || 0;
+		// 		} else if (typeof value === "number") {
+		// 			numValue = value;
+		// 		} else if (typeof value === "string") {
+		// 			numValue = parseInt(value.replace(/[^\d]/g, "")) || 0;
+		// 		}
 
-				// 		const name = (metric.metric_name || "").toLowerCase();
-				// 		const title = (value.title || "").toLowerCase();
+		// 		const name = (metric.metric_name || "").toLowerCase();
+		// 		const title = (value.title || "").toLowerCase();
 
-				// 		// Map to dashboard metrics
-				// 		if (
-				// 			name.includes("user") ||
-				// 			title.includes("user") ||
-				// 			name.includes("client")
-				// 		) {
-				// 			extractedData.users = numValue;
-				// 		} else if (
-				// 			name.includes("conversion") ||
-				// 			title.includes("conversion")
-				// 		) {
-				// 			extractedData.conversions = numValue;
-				// 		} else if (
-				// 			name.includes("event") ||
-				// 			title.includes("event") ||
-				// 			name.includes("record")
-				// 		) {
-				// 			extractedData.eventCount = numValue;
-				// 		} else if (name.includes("session") || title.includes("session")) {
-				// 			extractedData.sessions = numValue;
-				// 		} else if (
-				// 			name.includes("view") ||
-				// 			title.includes("page") ||
-				// 			name.includes("total")
-				// 		) {
-				// 			extractedData.pageViews = numValue;
-				// 		}
-				// 	}
-				// });
+		// 		// Map to dashboard metrics
+		// 		if (
+		// 			name.includes("user") ||
+		// 			title.includes("user") ||
+		// 			name.includes("client")
+		// 		) {
+		// 			extractedData.users = numValue;
+		// 		} else if (
+		// 			name.includes("conversion") ||
+		// 			title.includes("conversion")
+		// 		) {
+		// 			extractedData.conversions = numValue;
+		// 		} else if (
+		// 			name.includes("event") ||
+		// 			title.includes("event") ||
+		// 			name.includes("record")
+		// 		) {
+		// 			extractedData.eventCount = numValue;
+		// 		} else if (name.includes("session") || title.includes("session")) {
+		// 			extractedData.sessions = numValue;
+		// 		} else if (
+		// 			name.includes("view") ||
+		// 			title.includes("page") ||
+		// 			name.includes("total")
+		// 		) {
+		// 			extractedData.pageViews = numValue;
+		// 		}
+		// 	}
+		// });
 
-				// console.log("✅ Extracted real data:", extractedData);
+		// console.log("✅ Extracted real data:", extractedData);
 
-				// // If we got real data, use it
-				// if (Object.keys(extractedData).length > 0) {
-				// 	setDashboardData((prev) => ({
-				// 		...prev,
-				// 		...extractedData,
-				// 		isAnalyzing: false,
-				// 		lastAnalysis: isClient ? new Date() : null,
-				// 		error: null,
-				// 	}));
+		// // If we got real data, use it
+		// if (Object.keys(extractedData).length > 0) {
+		// 	setDashboardData((prev) => ({
+		// 		...prev,
+		// 		...extractedData,
+		// 		isAnalyzing: false,
+		// 		lastAnalysis: isClient ? new Date() : null,
+		// 		error: null,
+		// 	}));
 
-				// 	console.log("🎯 Using REAL backend data:", extractedData);
-			// 	return;
-			// }
+		// 	console.log("🎯 Using REAL backend data:", extractedData);
+		// 	return;
+		// }
 		// }
 
 		// // Fallback: Try to get raw client data and calculate metrics
-			// console.log("📊 No processed metrics found, trying raw client data...");
+		// console.log("📊 No processed metrics found, trying raw client data...");
 
-			// const clientId = user?.client_id;
-			// if (clientId && clientId !== "fallback-user") {
-			// 	try {
-			// 		const rawDataResponse = await api.get(`/data/${clientId}`);
-			// 		console.log("📈 Raw data response:", rawDataResponse.data);
+		// const clientId = user?.client_id;
+		// if (clientId && clientId !== "fallback-user") {
+		// 	try {
+		// 		const rawDataResponse = await api.get(`/data/${clientId}`);
+		// 		console.log("📈 Raw data response:", rawDataResponse.data);
 
-			// 		if (
-			// 			rawDataResponse.data &&
-			// 			rawDataResponse.data.data &&
-			// 			rawDataResponse.data.data.length > 0
-			// 		) {
-			// 			const rawData = rawDataResponse.data.data;
-			// 			console.log(
-			// 				"💎 Calculating metrics from",
-			// 				rawData.length,
-			// 				"raw data records"
-			// 			);
+		// 		if (
+		// 			rawDataResponse.data &&
+		// 			rawDataResponse.data.data &&
+		// 			rawDataResponse.data.data.length > 0
+		// 		) {
+		// 			const rawData = rawDataResponse.data.data;
+		// 			console.log(
+		// 				"💎 Calculating metrics from",
+		// 				rawData.length,
+		// 				"raw data records"
+		// 			);
 
-			// 			// Calculate realistic metrics from raw data
-			// 			const calculatedData = {
-			// 				users: Math.floor(rawData.length * 0.8), // Assume 80% are unique users
-			// 				conversions: Math.floor(rawData.length * 0.12), // 12% conversion rate
-			// 				eventCount: rawData.length,
-			// 				sessions: Math.floor(rawData.length * 0.9), // 90% sessions
-			// 				pageViews: Math.floor(rawData.length * 1.3), // 1.3 pages per record
-			// 			};
+		// 			// Calculate realistic metrics from raw data
+		// 			const calculatedData = {
+		// 				users: Math.floor(rawData.length * 0.8), // Assume 80% are unique users
+		// 				conversions: Math.floor(rawData.length * 0.12), // 12% conversion rate
+		// 				eventCount: rawData.length,
+		// 				sessions: Math.floor(rawData.length * 0.9), // 90% sessions
+		// 				pageViews: Math.floor(rawData.length * 1.3), // 1.3 pages per record
+		// 			};
 
-			// 			setDashboardData((prev) => ({
-			// 				...prev,
-			// 				...calculatedData,
-			// 				isAnalyzing: false,
-			// 				lastAnalysis: isClient ? new Date() : null,
-			// 				error: null,
-			// 			}));
+		// 			setDashboardData((prev) => ({
+		// 				...prev,
+		// 				...calculatedData,
+		// 				isAnalyzing: false,
+		// 				lastAnalysis: isClient ? new Date() : null,
+		// 				error: null,
+		// 			}));
 
-			// 			console.log(
-			// 				"🎯 Using calculated data from raw records:",
-			// 				calculatedData
-			// 			);
-			// 			return;
-			// 		}
-			// 	} catch (rawDataError) {
-			// 		console.log(
-			// 			"Could not fetch raw data:",
-			// 			rawDataError instanceof Error
-			// 				? rawDataError.message
-			// 				: "Unknown error"
-			// 		);
-			// 	}
-			// }
+		// 			console.log(
+		// 				"🎯 Using calculated data from raw records:",
+		// 				calculatedData
+		// 			);
+		// 			return;
+		// 		}
+		// 	} catch (rawDataError) {
+		// 		console.log(
+		// 			"Could not fetch raw data:",
+		// 			rawDataError instanceof Error
+		// 				? rawDataError.message
+		// 				: "Unknown error"
+		// 		);
+		// 	}
+		// }
 
-			// // Final fallback: Use dynamic defaults based on user (client-side only)
-			// console.log("⚠️ Using intelligent defaults...");
-			// const smartDefaults = isClient ? {
-			// 	users: Math.floor(Math.random() * 2000) + 13000,
-			// 	conversions: Math.floor(Math.random() * 50) + 300,
-			// 	eventCount: Math.floor(Math.random() * 20000) + 190000,
-			// 	sessions: Math.floor(Math.random() * 1000) + 12500,
-			// 	pageViews: Math.floor(Math.random() * 100000) + 1250000,
-			// } : {
-			// 	users: 14000,
-			// 	conversions: 325,
-			// 	eventCount: 200000,
-			// 	sessions: 13277,
-			// 	pageViews: 1300000,
-			// };
+		// // Final fallback: Use dynamic defaults based on user (client-side only)
+		// console.log("⚠️ Using intelligent defaults...");
+		// const smartDefaults = isClient ? {
+		// 	users: Math.floor(Math.random() * 2000) + 13000,
+		// 	conversions: Math.floor(Math.random() * 50) + 300,
+		// 	eventCount: Math.floor(Math.random() * 20000) + 190000,
+		// 	sessions: Math.floor(Math.random() * 1000) + 12500,
+		// 	pageViews: Math.floor(Math.random() * 100000) + 1250000,
+		// } : {
+		// 	users: 14000,
+		// 	conversions: 325,
+		// 	eventCount: 200000,
+		// 	sessions: 13277,
+		// 	pageViews: 1300000,
+		// };
 
-			// setDashboardData((prev) => ({
-			// 	...prev,
-			// 	...smartDefaults,
-			// 	isAnalyzing: false,
-			// 	lastAnalysis: isClient ? new Date() : null,
-			// 	error: null,
-			// }));
+		// setDashboardData((prev) => ({
+		// 	...prev,
+		// 	...smartDefaults,
+		// 	isAnalyzing: false,
+		// 	lastAnalysis: isClient ? new Date() : null,
+		// 	error: null,
+		// }));
 
-			// console.log("✅ Using smart defaults:", smartDefaults);
+		// console.log("✅ Using smart defaults:", smartDefaults);
 		// } catch (error) {
 		// 	console.error("❌ Failed to load AI analysis data:", error);
 
@@ -308,7 +308,9 @@ const DashboardPage: React.FC = () => {
 	// MainGrid.tsx now handles all data loading with intelligent caching
 	useEffect(() => {
 		// No need for redundant API calls - MainGrid handles everything with cache
-		console.log("✅ Dashboard ready - MainGrid will handle data loading with cache");
+		console.log(
+			"✅ Dashboard ready - MainGrid will handle data loading with cache"
+		);
 	}, [user?.client_id]);
 
 	const handleLogout = () => {
@@ -342,45 +344,48 @@ const DashboardPage: React.FC = () => {
 				<title>AI Analytics Dashboard</title>
 				<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
-				<meta name="description" content="Your personalized analytics dashboard" />
+				<meta
+					name="description"
+					content="Your personalized analytics dashboard"
+				/>
 			</Head>
 			<div className="min-h-screen">
 				{/* Material UI Dashboard */}
 				<Dashboard
 					dashboardData={dashboardData}
 					user={user!}
-				onRefreshAIData={undefined} // MainGrid handles data loading with cache
-				onLogout={handleLogout}
-				dateRange={dateRange}
-				onDateRangeChange={handleDateRangeChange}
-			/>
+					onRefreshAIData={undefined} // MainGrid handles data loading with cache
+					onLogout={handleLogout}
+					dateRange={dateRange}
+					onDateRangeChange={handleDateRangeChange}
+				/>
 
-			{/* Error Display */}
-			{dashboardData.error && (
-				<div className="fixed bottom-4 right-4 z-50 max-w-md">
-					<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg shadow-lg">
-						<div className="flex">
-							<div className="flex-shrink-0">
-								<svg
-									className="h-5 w-5 text-red-400"
-									viewBox="0 0 20 20"
-									fill="currentColor">
-									<path
-										fillRule="evenodd"
-										d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-										clipRule="evenodd"
-									/>
-								</svg>
-							</div>
-							<div className="ml-3">
-								<h3 className="text-sm font-medium">Error</h3>
-								<div className="mt-1 text-sm">{dashboardData.error}</div>
+				{/* Error Display */}
+				{dashboardData.error && (
+					<div className="fixed bottom-4 right-4 z-50 max-w-md">
+						<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg shadow-lg">
+							<div className="flex">
+								<div className="flex-shrink-0">
+									<svg
+										className="h-5 w-5 text-red-400"
+										viewBox="0 0 20 20"
+										fill="currentColor">
+										<path
+											fillRule="evenodd"
+											d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+											clipRule="evenodd"
+										/>
+									</svg>
+								</div>
+								<div className="ml-3">
+									<h3 className="text-sm font-medium">Error</h3>
+									<div className="mt-1 text-sm">{dashboardData.error}</div>
+								</div>
 							</div>
 						</div>
 					</div>
-				</div>
-			)}
-		</div>
+				)}
+			</div>
 		</>
 	);
 };

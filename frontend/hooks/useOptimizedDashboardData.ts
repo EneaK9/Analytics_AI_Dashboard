@@ -172,6 +172,13 @@ export const useSalesMetrics = (filters: DashboardFilters) => {
 		},
 		staleTime: filters.refreshInterval || 5 * 60 * 1000, // 5 minutes default
 		enabled: Boolean(filters.platform && filters.dateRange),
+		retry: (failureCount, error: any) => {
+			// Don't retry on auth errors - let axios interceptor handle logout
+			if (error?.response?.status === 401 || error?.response?.status === 403) {
+				return false;
+			}
+			return failureCount < 3;
+		},
 	});
 };
 
@@ -214,6 +221,13 @@ export const useTrendAnalysis = (filters: DashboardFilters) => {
 		},
 		staleTime: filters.refreshInterval || 5 * 60 * 1000,
 		enabled: Boolean(filters.platform && filters.dateRange),
+		retry: (failureCount, error: any) => {
+			// Don't retry on auth errors - let axios interceptor handle logout
+			if (error?.response?.status === 401 || error?.response?.status === 403) {
+				return false;
+			}
+			return failureCount < 3;
+		},
 	});
 };
 
@@ -260,6 +274,13 @@ export const useAlertsData = (filters: DashboardFilters) => {
 		},
 		staleTime: filters.refreshInterval || 3 * 60 * 1000, // 3 minutes for alerts (more frequent)
 		enabled: Boolean(filters.platform && filters.dateRange),
+		retry: (failureCount, error: any) => {
+			// Don't retry on auth errors - let axios interceptor handle logout
+			if (error?.response?.status === 401 || error?.response?.status === 403) {
+				return false;
+			}
+			return failureCount < 3;
+		},
 	});
 };
 
@@ -299,6 +320,13 @@ export const useSKUData = (
 		},
 		staleTime: filters.refreshInterval || 10 * 60 * 1000, // 10 minutes for SKU data
 		enabled: Boolean(filters.platform),
+		retry: (failureCount, error: any) => {
+			// Don't retry on auth errors - let axios interceptor handle logout
+			if (error?.response?.status === 401 || error?.response?.status === 403) {
+				return false;
+			}
+			return failureCount < 3;
+		},
 	});
 };
 

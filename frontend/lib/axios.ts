@@ -87,22 +87,42 @@ api.interceptors.response.use(
 		if (error.response?.status === 401 || error.response?.status === 403) {
 			// Only handle automatic logout if we're in the browser
 			if (typeof window !== "undefined") {
-				// Check if auto-redirect is disabled (for debugging)
-				const disableRedirect = localStorage.getItem("disable_auth_redirect");
-				if (disableRedirect === "true") {
+				// 🚨 FIX: Don't logout immediately - let components handle 403s gracefully
+				// Only log auth errors if user is actually logged in
+				const hasToken =
+					localStorage.getItem("access_token") ||
+					localStorage.getItem("superadmin_token");
+				if (hasToken) {
 					console.warn(
-						`Authentication failed (${error.response?.status}) - auto-redirect disabled`
+						`⚠️ Authentication error (${error.response?.status}) on ${error.config?.url}`
 					);
-					return Promise.reject(
-						new Error("Authentication failed - auto-redirect disabled")
+					console.warn(
+						`📋 Response: ${error.response?.data?.detail || "No details"}`
 					);
 				}
 
-				console.warn(
-					`Authentication failed (${error.response?.status}) - redirecting to login`
-				);
-				logout();
-				return Promise.reject(new Error("Authentication failed"));
+				// Only logout on login/auth endpoints, not dashboard endpoints
+				const isAuthEndpoint =
+					error.config?.url?.includes("/auth/") ||
+					error.config?.url?.includes("/login");
+
+				if (isAuthEndpoint) {
+					if (hasToken) {
+						console.warn(`🔒 Auth endpoint failed - logging out`);
+					}
+					localStorage.removeItem("access_token");
+					localStorage.removeItem("superadmin_token");
+					localStorage.removeItem("disable_auth_redirect");
+					logout();
+					return Promise.reject(new Error("Authentication failed"));
+				} else {
+					// For dashboard endpoints, just log and let components handle it
+					if (hasToken) {
+						console.warn(
+							`📊 Dashboard endpoint failed - letting component handle gracefully`
+						);
+					}
+				}
 			}
 		}
 
