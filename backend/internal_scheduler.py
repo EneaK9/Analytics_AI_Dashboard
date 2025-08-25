@@ -51,47 +51,45 @@ class InternalScheduler:
             logger.info(f"Current process ID: {os.getpid()}")
             logger.info(f"Current working directory: {os.getcwd()}")
             
-            # API Sync Job - Daily at 6 AM
-            logger.info("Scheduling API sync job to run daily at 6:00 AM")
+            # API Sync Job - Daily at 4 AM
+            logger.info("Scheduling API sync job to run daily at 4:00 AM")
             
             self.scheduler.add_job(
                 func=self._run_api_sync,
-                trigger=CronTrigger(hour=6, minute=0),  # Daily at 6 AM
+                trigger=CronTrigger(hour=4, minute=0),  # Daily at 4 AM
                 id='api_sync_job',
-                name='API Sync Job (Daily at 6:00 AM)',
+                name='API Sync Job (Daily at 4:00 AM)',
                 replace_existing=True,
                 max_instances=1,  # Only one instance at a time
                 next_run_time=None  # Let scheduler determine next run
             )
             logger.info("API sync job scheduled successfully")
             
-            # SKU Analysis Job - Every 10 minutes  
-            next_sku_analysis = datetime.now() + timedelta(minutes=2)  # Start in 2 minutes
-            logger.info(f"Scheduling SKU analysis job to run every 10 minutes, starting at: {next_sku_analysis}")
+            # SKU Analysis Job - Daily at 4:15 AM
+            logger.info("Scheduling SKU analysis job to run daily at 4:15 AM")
             
             self.scheduler.add_job(
                 func=self._run_sku_analysis,
-                trigger=IntervalTrigger(minutes=10),  # Every 10 minutes
+                trigger=CronTrigger(hour=4, minute=15),  # Daily at 4:15 AM
                 id='sku_analysis_job', 
-                name='SKU Analysis Job (Every 10 minutes)',
+                name='SKU Analysis Job (Daily at 4:15 AM)',
                 replace_existing=True,
                 max_instances=1,
-                next_run_time=next_sku_analysis
+                next_run_time=None  # Let scheduler determine next run
             )
             logger.info("SKU analysis job scheduled successfully")
             
-            # Analytics Refresh Job - Every 10 minutes
-            next_analytics_refresh = datetime.now() + timedelta(minutes=5)  # Start in 5 minutes
-            logger.info(f"Scheduling analytics refresh job to run every 10 minutes, starting at: {next_analytics_refresh}")
+            # Analytics Refresh Job - Daily at 4:30 AM
+            logger.info("Scheduling analytics refresh job to run daily at 4:30 AM")
             
             self.scheduler.add_job(
                 func=self._run_analytics_refresh,
-                trigger=IntervalTrigger(minutes=10),  # Every 10 minutes
+                trigger=CronTrigger(hour=4, minute=30),  # Daily at 4:30 AM
                 id='analytics_refresh_job',
-                name='Analytics Refresh Job (Every 10 minutes)', 
+                name='Analytics Refresh Job (Daily at 4:30 AM)', 
                 replace_existing=True,
                 max_instances=1,
-                next_run_time=next_analytics_refresh
+                next_run_time=None  # Let scheduler determine next run
             )
             logger.info("Analytics refresh job scheduled successfully")
             
@@ -107,9 +105,9 @@ class InternalScheduler:
                 logger.info(f"Job: {job.name} | Next run: {job.next_run_time}")
             
             logger.info("INTERNAL SCHEDULER FULLY OPERATIONAL!")
-            logger.info("API Sync: Daily at 6:00 AM")
-            logger.info("SKU Analysis: Every 10 minutes (starting in 2 minutes)")
-            logger.info("Analytics Refresh: Every 10 minutes (starting in 5 minutes)")
+            logger.info("API Sync: Daily at 4:00 AM")
+            logger.info("SKU Analysis: Daily at 4:15 AM")
+            logger.info("Analytics Refresh: Daily at 4:30 AM")
             logger.info("All jobs will run automatically - NO EXTERNAL CRON NEEDED!")
             
         except Exception as e:
