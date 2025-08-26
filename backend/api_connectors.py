@@ -26,7 +26,7 @@ class ShopifyConnector:
     
     def __init__(self, credentials: ShopifyCredentials):
         self.credentials = credentials
-        self.base_url = f"https://{credentials.shop_domain}/admin/api/2024-01"
+        self.base_url = f"https://{credentials.shop_domain}/admin/api/2023-10"
         self.headers = {
             "X-Shopify-Access-Token": credentials.access_token,
             "Content-Type": "application/json"
@@ -475,6 +475,632 @@ class ShopifyConnector:
             logger.error(f" Failed to fetch Shopify products: {e}")
             raise APIConnectorError(f"Shopify products fetch failed: {str(e)}")
 
+    async def fetch_inventory_levels(self, inventory_item_ids: List[str] = None) -> List[Dict]:
+        """Fetch inventory levels (actual stock on hand) by location and inventory item IDs
+        
+        Shopify requires either inventory_item_ids OR location_ids parameter - can't fetch all without filter.
+        Enhanced to always include SKU data by cross-referencing with products.
+        """
+        try:
+            # First, get inventory item ID to SKU mapping from products
+            logger.info("📦 Getting SKU mapping from products for inventory levels...")
+            sku_mapping = await self._get_inventory_item_sku_mapping()
+            
+            all_inventory = []
+            
+            async with aiohttp.ClientSession() as session:
+                if inventory_item_ids:
+                    # Method 1: Fetch by specific inventory item IDs
+                    logger.info(f"📦 Fetching inventory levels for {len(inventory_item_ids)} specific items...")
+                    
+                    # Shopify allows up to 50 inventory_item_ids per request
+                    batch_size = 50
+                    for i in range(0, len(inventory_item_ids), batch_size):
+                        batch_ids = inventory_item_ids[i:i+batch_size]
+                        
+                        params = {
+                            "inventory_item_ids": ",".join(map(str, batch_ids)),
+                            "limit": 50  # Safer limit for inventory API
+                        }
+                        
+                        async with session.get(
+                            f"{self.base_url}/inventory_levels.json",
+                            headers=self.headers,
+                            params=params
+                        ) as response:
+                            
+                            if response.status == 200:
+                                data = await response.json()
+                                inventory_levels = data.get('inventory_levels', [])
+                                
+                                for level in inventory_levels:
+                                    inventory_item_id = str(level.get('inventory_item_id'))
+                                    sku_info = sku_mapping.get(inventory_item_id, {})
+                                    
+                                    all_inventory.append({
+                                        'inventory_item_id': level.get('inventory_item_id'),
+                                        'location_id': level.get('location_id'),
+                                        'available': level.get('available', 0),
+                                        'updated_at': level.get('updated_at'),
+                                        'inventory_level_id': f"{level.get('inventory_item_id')}_{level.get('location_id')}",
+                                        'sku': sku_info.get('sku'),  # ⭐ SKU from products mapping
+                                        'product_title': sku_info.get('product_title'),  # ⭐ Product name
+                                        'variant_title': sku_info.get('variant_title'),  # ⭐ Variant name
+                                        'price': sku_info.get('price'),  # ⭐ Current price
+                                        'barcode': sku_info.get('barcode'),  # ⭐ Barcode
+                                        'platform': 'shopify',
+                                        'data_source': 'inventory_api_enhanced',
+                                        'raw_data': level
+                                    })
+                                
+                                logger.info(f"📦 Fetched {len(inventory_levels)} inventory levels for batch {i//batch_size + 1}")
+                            
+                            elif response.status == 422:
+                                error_text = await response.text()
+                                logger.warning(f"📦 422 Error with inventory_item_ids: {error_text[:200]}")
+                                logger.info("📦 Falling back to location-based method...")
+                                return await self._fetch_inventory_via_locations_enhanced(sku_mapping)
+                            
+                            elif response.status == 429:
+                                logger.warning("📦 Rate limited, waiting 1 second...")
+                                await asyncio.sleep(1)
+                                continue
+                            else:
+                                error_text = await response.text()
+                                logger.warning(f"📦 API error {response.status}: {error_text[:200]}")
+                                break
+                    
+                    logger.info(f"📦 ✅ Fetched {len(all_inventory)} inventory levels via inventory_item_ids with SKU data")
+                    return all_inventory
+                
+                else:
+                    # Method 2: Since no specific inventory items requested, fetch by locations
+                    # This is the CORRECT way - Shopify requires either inventory_item_ids OR location_ids
+                    logger.info("📦 No specific inventory items requested, fetching by locations...")
+                    return await self._fetch_inventory_via_locations_enhanced(sku_mapping)
+                        
+        except Exception as e:
+            logger.error(f"📦 Failed to fetch Shopify inventory levels: {e}")
+            # Fallback to location-based method
+            logger.info("📦 Trying location-based fallback...")
+            sku_mapping = await self._get_inventory_item_sku_mapping()
+            return await self._fetch_inventory_via_locations_enhanced(sku_mapping)
+
+    async def _get_inventory_item_sku_mapping(self) -> Dict[str, Dict]:
+        """Create a mapping of inventory_item_id to SKU and product info"""
+        try:
+            logger.info("📦 Building inventory_item_id → SKU mapping...")
+            products = await self.fetch_products()
+            
+            mapping = {}
+            for product in products:
+                product_title = product.get('title')
+                for variant in product.get('variants', []):
+                    inventory_item_id = str(variant.get('inventory_item_id'))
+                    if inventory_item_id and inventory_item_id != 'None':
+                        mapping[inventory_item_id] = {
+                            'sku': variant.get('sku'),
+                            'product_title': product_title,
+                            'variant_title': variant.get('title'),
+                            'price': variant.get('price'),
+                            'barcode': variant.get('barcode'),
+                            'variant_id': variant.get('variant_id'),
+                            'product_id': product.get('product_id')
+                        }
+            
+            logger.info(f"📦 Created mapping for {len(mapping)} inventory items")
+            return mapping
+            
+        except Exception as e:
+            logger.warning(f"📦 Failed to create SKU mapping: {e}")
+            return {}
+
+    async def _fetch_inventory_via_locations(self) -> List[Dict]:
+        """Alternative method: Get inventory by fetching locations first, then inventory per location"""
+        # Get SKU mapping first
+        sku_mapping = await self._get_inventory_item_sku_mapping()
+        return await self._fetch_inventory_via_locations_enhanced(sku_mapping)
+
+    async def _fetch_inventory_via_locations_enhanced(self, sku_mapping: Dict[str, Dict]) -> List[Dict]:
+        """Enhanced method: Get inventory by locations with SKU data included"""
+        try:
+            all_inventory = []
+            
+            async with aiohttp.ClientSession() as session:
+                # First get all locations
+                async with session.get(
+                    f"{self.base_url}/locations.json",
+                    headers=self.headers
+                ) as response:
+                    
+                    if response.status == 200:
+                        data = await response.json()
+                        locations = data.get('locations', [])
+                        
+                        logger.info(f"📦 Found {len(locations)} locations, getting inventory for each...")
+                        
+                        # For each location, try to get inventory levels
+                        for location in locations:
+                            location_id = location.get('id')
+                            location_name = location.get('name', 'Unknown')
+                            
+                            try:
+                                # Try to get inventory levels for this location
+                                # Note: Use location_ids (plural) with correct limit
+                                params = {
+                                    "location_ids": str(location_id),  # Shopify expects location_ids parameter
+                                    "limit": 50  # Use safer limit for inventory API
+                                }
+                                
+                                async with session.get(
+                                    f"{self.base_url}/inventory_levels.json",
+                                    headers=self.headers,
+                                    params=params
+                                ) as inv_response:
+                                    
+                                    if inv_response.status == 200:
+                                        inv_data = await inv_response.json()
+                                        inventory_levels = inv_data.get('inventory_levels', [])
+                                        
+                                        for level in inventory_levels:
+                                            inventory_item_id = str(level.get('inventory_item_id'))
+                                            sku_info = sku_mapping.get(inventory_item_id, {})
+                                            
+                                            all_inventory.append({
+                                                'inventory_item_id': level.get('inventory_item_id'),
+                                                'location_id': location_id,
+                                                'location_name': location_name,
+                                                'available': level.get('available', 0),
+                                                'updated_at': level.get('updated_at'),
+                                                'inventory_level_id': f"{level.get('inventory_item_id')}_{location_id}",
+                                                'sku': sku_info.get('sku'),  # ⭐ SKU from products mapping
+                                                'product_title': sku_info.get('product_title'),  # ⭐ Product name
+                                                'variant_title': sku_info.get('variant_title'),  # ⭐ Variant name
+                                                'price': sku_info.get('price'),  # ⭐ Current price
+                                                'barcode': sku_info.get('barcode'),  # ⭐ Barcode
+                                                'platform': 'shopify',
+                                                'data_source': 'locations_api_enhanced',
+                                                'raw_data': level
+                                            })
+                                        
+                                        logger.info(f"📦 Found {len(inventory_levels)} items at location '{location_name}' with SKU data")
+                                    
+                                    elif inv_response.status == 422:
+                                        # Get detailed error message for debugging
+                                        error_text = await inv_response.text()
+                                        logger.warning(f"📦 422 Error for location '{location_name}' (ID: {location_id}): {error_text[:200]}")
+                                        logger.info(f"📦 Parameters used: {params}")
+                                        continue
+                                    else:
+                                        error_text = await inv_response.text()
+                                        logger.warning(f"📦 Failed to get inventory for location '{location_name}': {error_text[:100]}")
+                                
+                            except Exception as loc_e:
+                                logger.warning(f"📦 Error getting inventory for location '{location_name}': {loc_e}")
+                                continue
+                    
+                    else:
+                        # If we can't even get locations, try to extract from product variants
+                        logger.warning("📦 Cannot access locations API, extracting inventory from product variants...")
+                        return await self._extract_inventory_from_products_enhanced(sku_mapping)
+                
+                if all_inventory:
+                    logger.info(f"📦 ✅ Enhanced method found {len(all_inventory)} inventory records with SKU data")
+                else:
+                    logger.warning("📦 No inventory data found via locations, trying product variants...")
+                    return await self._extract_inventory_from_products_enhanced(sku_mapping)
+                
+                return all_inventory
+                        
+        except Exception as e:
+            logger.warning(f"📦 Enhanced inventory method failed: {e}")
+            return await self._extract_inventory_from_products_enhanced(sku_mapping)
+
+    async def _extract_inventory_from_products(self) -> List[Dict]:
+        """Last resort: Extract inventory quantities from product variants"""
+        # Get SKU mapping (though it's redundant here since we're getting from products)
+        sku_mapping = await self._get_inventory_item_sku_mapping()
+        return await self._extract_inventory_from_products_enhanced(sku_mapping)
+
+    async def _extract_inventory_from_products_enhanced(self, sku_mapping: Dict[str, Dict]) -> List[Dict]:
+        """Enhanced: Extract inventory quantities from product variants with full data"""
+        try:
+            logger.info("📦 Extracting inventory from product variants as fallback (enhanced)...")
+            
+            products = await self.fetch_products()
+            inventory_data = []
+            
+            for product in products:
+                product_title = product.get('title')
+                for variant in product.get('variants', []):
+                    if variant.get('inventory_quantity') is not None and variant.get('inventory_item_id'):
+                        inventory_data.append({
+                            'inventory_item_id': variant.get('inventory_item_id'),
+                            'location_id': 'default',  # Default location since we don't have specific location data
+                            'location_name': 'Default Location',
+                            'available': variant.get('inventory_quantity', 0),
+                            'updated_at': variant.get('updated_at'),
+                            'inventory_level_id': f"{variant.get('inventory_item_id')}_default",
+                            'sku': variant.get('sku'),  # ⭐ SKU directly from variant
+                            'product_title': product_title,  # ⭐ Product name
+                            'variant_title': variant.get('title'),  # ⭐ Variant name
+                            'price': variant.get('price'),  # ⭐ Current price
+                            'barcode': variant.get('barcode'),  # ⭐ Barcode
+                            'platform': 'shopify',
+                            'data_source': 'product_variant_enhanced',  # Mark the data source
+                            'raw_data': variant
+                        })
+            
+            logger.info(f"📦 ✅ Extracted {len(inventory_data)} inventory records from product variants with full SKU data")
+            return inventory_data
+            
+        except Exception as e:
+            logger.error(f"📦 Failed to extract inventory from products: {e}")
+            return []
+
+    async def fetch_inventory_items(self, inventory_item_ids: List[str] = None) -> List[Dict]:
+        """Fetch inventory items metadata (cost, country of origin, tracking status)"""
+        try:
+            all_items = []
+            
+            async with aiohttp.ClientSession() as session:
+                if inventory_item_ids:
+                    # Fetch specific inventory items by ID
+                    for item_id in inventory_item_ids:
+                        async with session.get(
+                            f"{self.base_url}/inventory_items/{item_id}.json",
+                            headers=self.headers
+                        ) as response:
+                            
+                            if response.status == 200:
+                                data = await response.json()
+                                item = data.get('inventory_item', {})
+                                
+                                all_items.append({
+                                    'inventory_item_id': item.get('id'),
+                                    'sku': item.get('sku'),
+                                    'created_at': item.get('created_at'),
+                                    'updated_at': item.get('updated_at'),
+                                    'requires_shipping': item.get('requires_shipping'),
+                                    'cost': float(item.get('cost', 0)) if item.get('cost') else None,
+                                    'country_code_of_origin': item.get('country_code_of_origin'),
+                                    'province_code_of_origin': item.get('province_code_of_origin'),
+                                    'harmonized_system_code': item.get('harmonized_system_code'),
+                                    'tracked': item.get('tracked', False),  # Critical tracking flag
+                                    'country_harmonized_system_codes': item.get('country_harmonized_system_codes', []),
+                                    'platform': 'shopify',
+                                    'raw_data': item
+                                })
+                                
+                                logger.info(f"🏷️ Fetched inventory item {item_id}")
+                            
+                            elif response.status == 429:
+                                logger.warning("🏷️ Rate limited by Shopify Inventory Items API, waiting 1 second...")
+                                await asyncio.sleep(1)
+                                continue
+                            else:
+                                error_text = await response.text()
+                                logger.warning(f"🏷️ Shopify Inventory Item API error {response.status} for item {item_id}: {error_text[:200]}")
+                
+                else:
+                    # If no specific IDs provided, we need to get inventory items from products first
+                    logger.info("🏷️ No specific inventory item IDs provided, fetching from product variants...")
+                    products = await self.fetch_products()
+                    inventory_item_ids_from_products = []
+                    
+                    for product in products:
+                        for variant in product.get('variants', []):
+                            if variant.get('inventory_item_id'):
+                                inventory_item_ids_from_products.append(str(variant['inventory_item_id']))
+                    
+                    # Remove duplicates and fetch inventory items
+                    unique_ids = list(set(inventory_item_ids_from_products))
+                    logger.info(f"🏷️ Found {len(unique_ids)} unique inventory item IDs from products")
+                    
+                    return await self.fetch_inventory_items(unique_ids)
+                
+                logger.info(f"🏷️ ✅ Fetched ALL {len(all_items)} Shopify inventory items")
+                return all_items
+                        
+        except Exception as e:
+            logger.error(f"🏷️ Failed to fetch Shopify inventory items: {e}")
+            raise APIConnectorError(f"Shopify inventory items fetch failed: {str(e)}")
+
+    async def fetch_fulfillment_orders(self, status: str = None) -> List[Dict]:
+        """Fetch fulfillment orders to track work in progress and incoming stock"""
+        try:
+            all_fulfillment_orders = []
+            page_info = None
+            
+            async with aiohttp.ClientSession() as session:
+                while True:
+                    params = {"limit": 50}  # Shopify default for fulfillment orders
+                    
+                    if page_info:
+                        params["page_info"] = page_info
+                    
+                    if status:
+                        params["status"] = status  # e.g., 'open', 'in_progress', 'cancelled', 'incomplete', 'closed'
+                    
+                    async with session.get(
+                        f"{self.base_url}/fulfillment_orders.json",
+                        headers=self.headers,
+                        params=params
+                    ) as response:
+                        
+                        if response.status == 200:
+                            data = await response.json()
+                            fulfillment_orders = data.get('fulfillment_orders', [])
+                            
+                            page_fulfillments = []
+                            for fulfillment_order in fulfillment_orders:
+                                # Process line items in fulfillment order
+                                line_items = []
+                                for item in fulfillment_order.get('line_items', []):
+                                    line_items.append({
+                                        'line_item_id': item.get('id'),
+                                        'variant_id': item.get('variant_id'),
+                                        'product_id': item.get('product_id'),
+                                        'inventory_item_id': item.get('inventory_item_id'),
+                                        'quantity': item.get('quantity', 0),
+                                        'fulfillable_quantity': item.get('fulfillable_quantity', 0),
+                                        'sku': item.get('sku'),
+                                        'title': item.get('title'),
+                                        'vendor': item.get('vendor'),
+                                        'properties': item.get('properties', [])
+                                    })
+                                
+                                page_fulfillments.append({
+                                    'fulfillment_order_id': fulfillment_order.get('id'),
+                                    'shop_id': fulfillment_order.get('shop_id'),
+                                    'order_id': fulfillment_order.get('order_id'),
+                                    'assigned_location_id': fulfillment_order.get('assigned_location_id'),
+                                    'request_status': fulfillment_order.get('request_status'),
+                                    'status': fulfillment_order.get('status'),
+                                    'supported_actions': fulfillment_order.get('supported_actions', []),
+                                    'destination': fulfillment_order.get('destination', {}),
+                                    'origin': fulfillment_order.get('origin', {}),
+                                    'line_items': line_items,
+                                    'outgoing_requests': fulfillment_order.get('outgoing_requests', []),
+                                    'fulfillment_holds': fulfillment_order.get('fulfillment_holds', []),
+                                    'created_at': fulfillment_order.get('created_at'),
+                                    'updated_at': fulfillment_order.get('updated_at'),
+                                    'fulfill_at': fulfillment_order.get('fulfill_at'),
+                                    'fulfill_by': fulfillment_order.get('fulfill_by'),
+                                    'international_duties': fulfillment_order.get('international_duties'),
+                                    'delivery_method': fulfillment_order.get('delivery_method'),
+                                    'platform': 'shopify',
+                                    'raw_data': fulfillment_order
+                                })
+                            
+                            all_fulfillment_orders.extend(page_fulfillments)
+                            logger.info(f"🚚 Fetched page with {len(page_fulfillments)} fulfillment orders (Total: {len(all_fulfillment_orders)})")
+                            
+                            # Check if there are more pages
+                            link_header = response.headers.get('Link', '')
+                            if 'rel="next"' in link_header:
+                                next_match = re.search(r'<[^>]*[?&]page_info=([^&>]+)[^>]*>;\s*rel="next"', link_header)
+                                if next_match:
+                                    page_info = unquote(next_match.group(1))
+                                    logger.info(f"🚚 Next page_info: {page_info[:50]}...")
+                                else:
+                                    break
+                            else:
+                                break
+                        
+                        elif response.status == 429:
+                            logger.warning("🚚 Rate limited by Shopify Fulfillment Orders API, waiting 1 second...")
+                            await asyncio.sleep(1)
+                            continue
+                        elif response.status == 404:
+                            # Fulfillment Orders API not available (common on basic Shopify plans)
+                            logger.info("🚚 Fulfillment Orders API not available (requires Shopify Plus or specific fulfillment setup)")
+                            return []
+                        else:
+                            error_text = await response.text()
+                            logger.warning(f"🚚 Shopify Fulfillment Orders API error {response.status}: {error_text[:200]}")
+                            break
+                
+                logger.info(f"🚚 ✅ Fetched ALL {len(all_fulfillment_orders)} Shopify fulfillment orders")
+                return all_fulfillment_orders
+                        
+        except Exception as e:
+            logger.error(f"🚚 Failed to fetch Shopify fulfillment orders: {e}")
+            # Return empty list instead of raising error to keep other endpoints working
+            return []
+
+    async def fetch_incoming_inventory(self, inventory_item_ids: List[str] = None) -> List[Dict]:
+        """Fetch incoming inventory (stock en route) via Shopify GraphQL API
+        
+        Incoming inventory = stock en route from transfers, purchase orders, or apps.
+        This is only available via GraphQL API, not REST API.
+        """
+        try:
+            all_incoming = []
+            
+            # If no specific inventory item IDs provided, get them from products
+            if not inventory_item_ids:
+                logger.info("🚛 Getting inventory item IDs from products for incoming inventory query...")
+                products = await self.fetch_products()
+                inventory_item_ids = []
+                
+                for product in products:
+                    for variant in product.get('variants', []):
+                        if variant.get('inventory_item_id'):
+                            inventory_item_ids.append(str(variant['inventory_item_id']))
+                
+                # Remove duplicates
+                inventory_item_ids = list(set(inventory_item_ids))
+                logger.info(f"🚛 Found {len(inventory_item_ids)} unique inventory items to check for incoming stock")
+            
+            if not inventory_item_ids:
+                logger.warning("🚛 No inventory item IDs available for incoming inventory query")
+                return []
+            
+            # GraphQL endpoint (different from REST)
+            graphql_url = f"https://{self.credentials.shop_domain}/admin/api/2023-10/graphql.json"
+            
+            # GraphQL headers
+            graphql_headers = {
+                "X-Shopify-Access-Token": self.credentials.access_token,
+                "Content-Type": "application/json"
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                # Process in batches to avoid query limits
+                batch_size = 20  # GraphQL can handle multiple items per query
+                
+                for i in range(0, len(inventory_item_ids), batch_size):
+                    batch_ids = inventory_item_ids[i:i+batch_size]
+                    
+                    # Build GraphQL query for multiple inventory items
+                    query_parts = []
+                    for idx, item_id in enumerate(batch_ids):
+                        query_parts.append(f'''
+                        item{idx}: inventoryItem(id: "gid://shopify/InventoryItem/{item_id}") {{
+                            id
+                            sku
+                            createdAt
+                            updatedAt
+                            inventoryLevels(first: 10) {{
+                                edges {{
+                                    node {{
+                                        id
+                                        createdAt
+                                        updatedAt
+                                        location {{
+                                            id
+                                            name
+                                        }}
+                                        quantities(names: ["incoming", "available", "committed", "on_hand"]) {{
+                                            name
+                                            quantity
+                                            updatedAt
+                                        }}
+                                    }}
+                                }}
+                            }}
+                        }}''')
+                    
+                    # Complete GraphQL query
+                    graphql_query = {
+                        "query": f'''
+                        query GetIncomingInventory {{
+                            {chr(10).join(query_parts)}
+                        }}
+                        '''
+                    }
+                    
+                    try:
+                        async with session.post(
+                            graphql_url,
+                            headers=graphql_headers,
+                            json=graphql_query
+                        ) as response:
+                            
+                            if response.status == 200:
+                                data = await response.json()
+                                
+                                if 'errors' in data:
+                                    logger.warning(f"🚛 GraphQL errors: {data['errors']}")
+                                    continue
+                                
+                                # Process the response
+                                query_data = data.get('data', {})
+                                batch_incoming = []
+                                
+                                for idx, item_id in enumerate(batch_ids):
+                                    item_key = f"item{idx}"
+                                    item_data = query_data.get(item_key)
+                                    
+                                    if not item_data:
+                                        continue
+                                    
+                                    sku = item_data.get('sku')
+                                    item_created_at = item_data.get('createdAt')
+                                    item_updated_at = item_data.get('updatedAt')
+                                    inventory_levels = item_data.get('inventoryLevels', {}).get('edges', [])
+                                    
+                                    for level_edge in inventory_levels:
+                                        level = level_edge.get('node', {})
+                                        location = level.get('location', {})
+                                        quantities = level.get('quantities', [])
+                                        level_created_at = level.get('createdAt')
+                                        level_updated_at = level.get('updatedAt')
+                                        
+                                        # Collect all inventory states for this location
+                                        inventory_states = {}
+                                        latest_update = None
+                                        
+                                        for quantity_info in quantities:
+                                            state_name = quantity_info.get('name')
+                                            state_qty = quantity_info.get('quantity', 0)
+                                            state_updated = quantity_info.get('updatedAt')
+                                            
+                                            inventory_states[state_name] = {
+                                                'quantity': state_qty,
+                                                'updated_at': state_updated
+                                            }
+                                            
+                                            # Track the most recent update
+                                            if state_updated and (not latest_update or state_updated > latest_update):
+                                                latest_update = state_updated
+                                        
+                                        # Only include if there's incoming inventory
+                                        incoming_info = inventory_states.get('incoming', {})
+                                        incoming_qty = incoming_info.get('quantity', 0)
+                                        
+                                        if incoming_qty > 0:  # Only include items with incoming stock
+                                            batch_incoming.append({
+                                                'inventory_item_id': item_id,
+                                                'sku': sku,
+                                                'location_id': location.get('id', '').replace('gid://shopify/Location/', ''),
+                                                'location_name': location.get('name'),
+                                                'incoming_quantity': incoming_qty,
+                                                'incoming_updated_at': incoming_info.get('updated_at'),  # When incoming was last updated
+                                                'available_quantity': inventory_states.get('available', {}).get('quantity', 0),
+                                                'committed_quantity': inventory_states.get('committed', {}).get('quantity', 0),
+                                                'on_hand_quantity': inventory_states.get('on_hand', {}).get('quantity', 0),
+                                                'inventory_level_id': level.get('id'),
+                                                'level_created_at': level_created_at,    # ⭐ When inventory level was created
+                                                'level_updated_at': level_updated_at,    # ⭐ When inventory level was last updated
+                                                'item_created_at': item_created_at,      # ⭐ When inventory item was created
+                                                'item_updated_at': item_updated_at,      # ⭐ When inventory item was last updated
+                                                'latest_activity': latest_update,        # ⭐ Most recent activity timestamp
+                                                'platform': 'shopify',
+                                                'data_source': 'graphql_incoming_enhanced',
+                                                'all_inventory_states': inventory_states,  # Complete inventory breakdown
+                                                'raw_data': level
+                                            })
+                                
+                                all_incoming.extend(batch_incoming)
+                                logger.info(f"🚛 Batch {i//batch_size + 1}: Found {len(batch_incoming)} items with incoming inventory")
+                            
+                            elif response.status == 429:
+                                logger.warning("🚛 Rate limited by Shopify GraphQL API, waiting 2 seconds...")
+                                await asyncio.sleep(2)
+                                continue
+                            
+                            else:
+                                error_text = await response.text()
+                                logger.warning(f"🚛 GraphQL API error {response.status}: {error_text[:200]}")
+                                break
+                    
+                    except Exception as batch_e:
+                        logger.warning(f"🚛 Error processing batch {i//batch_size + 1}: {batch_e}")
+                        continue
+                    
+                    # Small delay between batches to respect rate limits
+                    if i + batch_size < len(inventory_item_ids):
+                        await asyncio.sleep(0.5)
+                
+                logger.info(f"🚛 ✅ Found {len(all_incoming)} items with incoming inventory across all locations")
+                return all_incoming
+                        
+        except Exception as e:
+            logger.error(f"🚛 Failed to fetch Shopify incoming inventory: {e}")
+            return []
+
 class AmazonConnector:
     """Amazon SP-API Connector - Real-time marketplace data fetching"""
     
@@ -483,34 +1109,6 @@ class AmazonConnector:
         self.base_url = "https://sellingpartnerapi-na.amazon.com"  # North America endpoint
         self.access_token = None
         self.token_expires_at = None
-    
-    def _safe_get(self, data: dict, key: str, default=None, data_type=None):
-        """Safely extract data with type conversion and error handling"""
-        try:
-            value = data.get(key, default)
-            if data_type and value is not None:
-                if data_type == float:
-                    return float(value) if value != '' else 0.0
-                elif data_type == int:
-                    return int(value) if value != '' else 0
-            return value
-        except (ValueError, TypeError) as e:
-            logger.warning(f"Error converting {key}={value} to {data_type}: {e}")
-            return default if default is not None else (0.0 if data_type == float else 0 if data_type == int else None)
-    
-    def _safe_nested_get(self, data: dict, keys: list, default=None):
-        """Safely get nested dictionary values"""
-        try:
-            current = data
-            for key in keys:
-                if isinstance(current, dict):
-                    current = current.get(key, {})
-                else:
-                    return default
-            return current if current != {} else default
-        except Exception as e:
-            logger.warning(f"Error accessing nested path {keys}: {e}")
-            return default
     
     async def _get_access_token(self) -> str:
         """Get or refresh Amazon SP-API access token"""
@@ -610,6 +1208,162 @@ class AmazonConnector:
         except Exception as e:
             logger.error(f" Amazon connection test failed: {e}")
             return False, f"Connection error: {str(e)}"
+    
+    def _safe_get(self, data: dict, key: str, default=None, convert_type=None):
+        """Safely get value from dictionary with optional type conversion"""
+        try:
+            value = data.get(key, default)
+            if convert_type and value is not None:
+                return convert_type(value)
+            return value
+        except (ValueError, TypeError):
+            return default
+    
+    def _safe_nested_get(self, data: dict, keys: list, default=None):
+        """Safely get nested value from dictionary"""
+        try:
+            current = data
+            for key in keys:
+                current = current[key]
+            return current
+        except (KeyError, TypeError):
+            return default
+
+    async def fetch_inventory(self) -> List[Dict]:
+        """Fetch FBA inventory summaries from Amazon SP-API - Legacy method redirects to fetch_fba_inventory"""
+        return await self.fetch_fba_inventory()
+    
+    async def fetch_fba_inventory(self) -> List[Dict]:
+        """Fetch FBA on-hand inventory per SKU - Available, Reserved, Inbound quantities"""
+        try:
+            all_inventory = []
+            next_token = None
+            
+            access_token = await self._get_access_token()
+            
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'x-amz-access-token': access_token,
+                'Content-Type': 'application/json'
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                while True:
+                    params = {
+                        'granularityType': 'Marketplace',
+                        'granularityId': self.credentials.marketplace_ids[0],  # Use first marketplace
+                        'marketplaceIds': ','.join(self.credentials.marketplace_ids)
+                    }
+                    
+                    if next_token:
+                        params['nextToken'] = next_token
+                    
+                    async with session.get(
+                        f"{self.base_url}/fba/inventory/v1/summaries",
+                        headers=headers,
+                        params=params
+                    ) as response:
+                        
+                        if response.status == 200:
+                            data = await response.json()
+                            payload = data.get('payload', {})
+                            inventory_summaries = payload.get('inventorySummaries', [])
+                            
+                            # Transform to standard format with ALL FBA inventory details
+                            page_inventory = []
+                            for summary in inventory_summaries:
+                                # Get all inventory details for this SKU
+                                inventory_details = summary.get('inventoryDetails', {})
+                                
+                                # ✅ SAFE DATA EXTRACTION with error handling
+                                fulfillable_qty = self._safe_get(inventory_details, 'fulfillableQuantity', 0, int)
+                                inbound_working_qty = self._safe_get(inventory_details, 'inboundWorkingQuantity', 0, int)
+                                unfulfillable_qty = self._safe_get(inventory_details, 'unfulfillableQuantity', 0, int)
+                                researching_qty = self._safe_get(inventory_details, 'researchingQuantity', 0, int)
+                                
+                                # Handle reserved quantity (structure may vary)
+                                reserved_qty = inventory_details.get('reservedQuantity', {})
+                                if isinstance(reserved_qty, dict):
+                                    reserved_total = sum([
+                                        self._safe_get(reserved_qty, 'fcTransfers', 0, int),
+                                        self._safe_get(reserved_qty, 'fcProcessing', 0, int),
+                                        self._safe_get(reserved_qty, 'customerOrders', 0, int)
+                                    ])
+                                else:
+                                    reserved_total = self._safe_get({}, 'reservedQuantity', 0, int)
+                                
+                                page_inventory.append({
+                                    'sku': self._safe_get(summary, 'sellerSku'),
+                                    'seller_sku': self._safe_get(summary, 'sellerSku'),  # For compatibility
+                                    'asin': self._safe_get(summary, 'asin'),
+                                    'fnsku': self._safe_get(summary, 'fnSku'),
+                                    'condition': self._safe_get(summary, 'condition'),
+                                    'marketplace_id': self._safe_get(summary, 'marketplaceId'),
+                                    
+                                    # ✅ SAFE: Available inventory (ready to ship)
+                                    'fulfillable_quantity': fulfillable_qty,
+                                    'available_quantity': fulfillable_qty,  # Alias
+                                    
+                                    # ✅ SAFE: Working inventory (being processed)
+                                    'inbound_working_quantity': inbound_working_qty,
+                                    'inbound_shipped_quantity': self._safe_get(inventory_details, 'inboundShippedQuantity', 0, int),
+                                    'inbound_receiving_quantity': self._safe_get(inventory_details, 'inboundReceivingQuantity', 0, int),
+                                    
+                                    # ✅ SAFE: Reserved inventory (structure-agnostic)
+                                    'total_reserved_quantity': reserved_total,
+                                    'pending_customer_order_quantity': self._safe_get(reserved_qty, 'customerOrders', 0, int),
+                                    'fc_processing_quantity': self._safe_get(reserved_qty, 'fcProcessing', 0, int),
+                                    'fc_transfer_quantity': self._safe_get(reserved_qty, 'fcTransfers', 0, int),
+                                    'reserved_quantity_raw': reserved_qty,  # Keep raw for analysis
+                                    
+                                    # ✅ SAFE: Unfulfillable inventory
+                                    'unfulfillable_quantity': unfulfillable_qty,
+                                    'unsellable_quantity': unfulfillable_qty,  # Alias
+                                    
+                                    # ✅ SAFE: Research quantity
+                                    'researching_quantity': researching_qty,
+                                    
+                                    # ✅ SAFE: Total quantity calculations
+                                    'total_quantity': fulfillable_qty + inbound_working_qty + unfulfillable_qty + researching_qty,
+                                    
+                                    # Timestamps
+                                    'last_updated_time': self._safe_get(summary, 'lastUpdatedTime'),
+                                    'created_at': datetime.now().isoformat(),
+                                    'platform': 'amazon',
+                                    'inventory_type': 'fba_onhand',
+                                    'raw_data': summary  # ✅ ALWAYS keep raw data for debugging
+                                })
+                            
+                            all_inventory.extend(page_inventory)
+                            logger.info(f"📦 Fetched page with {len(page_inventory)} FBA inventory SKUs (Total: {len(all_inventory)})")
+                            
+                            # Check for next page
+                            pagination = payload.get('pagination', {})
+                            next_token = pagination.get('nextToken')
+                            if not next_token:
+                                break
+                                
+                            # Add delay to respect rate limits
+                            await asyncio.sleep(0.5)  # Be conservative with inventory API
+                        
+                        elif response.status == 429:
+                            # Rate limited - wait and retry
+                            logger.warning("📦 Rate limited by Amazon FBA Inventory API, waiting 15 seconds...")
+                            await asyncio.sleep(15)
+                            continue
+                        else:
+                            error_text = await response.text()
+                            logger.warning(f"📦 Amazon FBA Inventory API error {response.status}: {error_text[:200]}")
+                            # Inventory API might not be accessible for all sellers
+                            logger.info("📦 FBA Inventory API might not be available for this seller account")
+                            break
+                
+                logger.info(f"📦 ✅ Fetched {len(all_inventory)} FBA inventory items with quantities")
+                return all_inventory
+                        
+        except Exception as e:
+            logger.warning(f"📦 Failed to fetch FBA inventory (this is normal if FBA not enabled): {e}")
+            return []  # Return empty list instead of failing
     
     async def fetch_orders(self, days_back: int = None) -> List[Dict]:
         """Fetch ALL orders from Amazon SP-API with pagination INCLUDING ORDER ITEMS (SKUs, quantities)"""
@@ -921,10 +1675,22 @@ class AmazonConnector:
             return []  # Return empty list on error
     
     async def fetch_products(self) -> List[Dict]:
-        """Fetch ALL products from Amazon SP-API Catalog"""
+        """Fetch ALL products from Amazon SP-API Catalog with SKU cross-reference"""
         try:
             all_products = []
             next_token = None
+            
+            # First, get inventory data to map ASINs to seller_skus
+            logger.info("📦 Pre-fetching inventory for ASIN to SKU mapping...")
+            inventory_data = await self.fetch_inventory()
+            asin_to_sku = {}
+            for item in inventory_data:
+                asin = item.get('asin')
+                seller_sku = item.get('seller_sku')
+                if asin and seller_sku:
+                    asin_to_sku[asin] = seller_sku
+            
+            logger.info(f"📦 Built ASIN→SKU mapping for {len(asin_to_sku)} items")
             
             access_token = await self._get_access_token()
             
@@ -939,7 +1705,8 @@ class AmazonConnector:
                     params = {
                         'marketplaceIds': ','.join(self.credentials.marketplace_ids),
                         'includedData': 'attributes,images,productTypes,relationships,salesRanks',
-                        'pageSize': 20  # Amazon catalog API max is 20
+                        'pageSize': 20,  # Amazon catalog API max is 20
+                        'keywords': '*'  # Required parameter - use wildcard to get all products
                     }
                     
                     if next_token:
@@ -961,20 +1728,57 @@ class AmazonConnector:
                                 # Extract attributes
                                 attributes = item.get('attributes', {})
                                 
-                                page_products.append({
-                                    'asin': item.get('asin'),
-                                    'title': attributes.get('item_name', [{}])[0].get('value', 'Unknown'),
-                                    'brand': attributes.get('brand', [{}])[0].get('value', 'Unknown'),
-                                    'manufacturer': attributes.get('manufacturer', [{}])[0].get('value', 'Unknown'),
+                                # Helper function to extract attribute value
+                                def get_attr_value(attr_data):
+                                    if isinstance(attr_data, list) and attr_data:
+                                        if isinstance(attr_data[0], dict):
+                                            return attr_data[0].get('value', '')
+                                        return str(attr_data[0])
+                                    return ''
+                                
+                                # Extract key product attributes including variant options
+                                asin = item.get('asin')
+                                seller_sku = asin_to_sku.get(asin)  # ⭐ ADD SKU FROM MAPPING
+                                
+                                product_data = {
+                                    'asin': asin,
+                                    'seller_sku': seller_sku,          # ⭐ YOUR INTERNAL SKU
+                                    'sku': seller_sku,                 # ⭐ UNIFIED SKU FIELD  
+                                    'title': get_attr_value(attributes.get('item_name', [])) or 'Unknown',
+                                    'brand': get_attr_value(attributes.get('brand', [])) or 'Unknown',
+                                    'manufacturer': get_attr_value(attributes.get('manufacturer', [])) or 'Unknown',
                                     'product_type': ', '.join([pt.get('displayName', '') for pt in item.get('productTypes', [])]),
+                                    
+                                    # VARIANT OPTIONS - Color, Size, Style
+                                    'color': get_attr_value(attributes.get('color', [])) or get_attr_value(attributes.get('color_name', [])),
+                                    'size': get_attr_value(attributes.get('size', [])) or get_attr_value(attributes.get('size_name', [])),
+                                    'style': get_attr_value(attributes.get('style', [])) or get_attr_value(attributes.get('style_name', [])),
+                                    'material': get_attr_value(attributes.get('material', [])) or get_attr_value(attributes.get('fabric_type', [])),
+                                    'pattern': get_attr_value(attributes.get('pattern', [])),
+                                    'fit_type': get_attr_value(attributes.get('fit_type', [])),
+                                    'sleeve_length': get_attr_value(attributes.get('sleeve_length', [])),
+                                    'neckline': get_attr_value(attributes.get('neckline', [])),
+                                    'collar_style': get_attr_value(attributes.get('collar_style', [])),
+                                    
+                                    # PRODUCT SPECS
+                                    'weight': get_attr_value(attributes.get('item_weight', [])),
+                                    'dimensions': get_attr_value(attributes.get('item_dimensions', [])),
+                                    'care_instructions': get_attr_value(attributes.get('care_instructions', [])),
+                                    
+                                    # METADATA
                                     'images': [img.get('link') for img in item.get('images', [])],
                                     'sales_rank': item.get('salesRanks', []),
                                     'relationships': item.get('relationships', []),
                                     'marketplace_ids': [mp_id for mp_id in self.credentials.marketplace_ids],
                                     'created_at': datetime.now().isoformat(),
                                     'platform': 'amazon',
+                                    
+                                    # ALL ATTRIBUTES for advanced analytics
+                                    'all_attributes': {k: get_attr_value(v) for k, v in attributes.items()},
                                     'raw_data': item
-                                })
+                                }
+                                
+                                page_products.append(product_data)
                             
                             all_products.extend(page_products)
                             logger.info(f" Fetched page with {len(page_products)} Amazon catalog products (Total: {len(all_products)})")
@@ -1005,8 +1809,8 @@ class AmazonConnector:
             logger.error(f" Failed to fetch Amazon products: {e}")
             raise APIConnectorError(f"Amazon products fetch failed: {str(e)}")
     
-    async def fetch_fba_inventory(self) -> List[Dict]:
-        """Fetch FBA on-hand inventory per SKU - Available, Reserved, Inbound quantities"""
+    async def fetch_incoming_inventory(self) -> List[Dict]:
+        """Fetch incoming inventory from Amazon FBA"""
         try:
             all_inventory = []
             next_token = None
@@ -1022,139 +1826,12 @@ class AmazonConnector:
             async with aiohttp.ClientSession() as session:
                 while True:
                     params = {
-                        'granularityType': 'Marketplace',
-                        'granularityId': self.credentials.marketplace_ids[0],  # Use first marketplace
-                        'marketplaceIds': ','.join(self.credentials.marketplace_ids)
+                        'marketplaceIds': ','.join(self.credentials.marketplace_ids),
+                        'maxResultsPerPage': 50  # FBA Inventory API max
                     }
                     
                     if next_token:
                         params['nextToken'] = next_token
-                    
-                    async with session.get(
-                        f"{self.base_url}/fba/inventory/v1/summaries",
-                        headers=headers,
-                        params=params
-                    ) as response:
-                        
-                        if response.status == 200:
-                            data = await response.json()
-                            payload = data.get('payload', {})
-                            inventory_summaries = payload.get('inventorySummaries', [])
-                            
-                            # Transform to standard format with ALL FBA inventory details
-                            page_inventory = []
-                            for summary in inventory_summaries:
-                                # Get all inventory details for this SKU
-                                inventory_details = summary.get('inventoryDetails', {})
-                                
-                                # ✅ SAFE DATA EXTRACTION with error handling
-                                fulfillable_qty = self._safe_get(inventory_details, 'fulfillableQuantity', 0, int)
-                                inbound_working_qty = self._safe_get(inventory_details, 'inboundWorkingQuantity', 0, int)
-                                unfulfillable_qty = self._safe_get(inventory_details, 'unfulfillableQuantity', 0, int)
-                                researching_qty = self._safe_get(inventory_details, 'researchingQuantity', 0, int)
-                                
-                                # Handle reserved quantity (structure may vary)
-                                reserved_qty = inventory_details.get('reservedQuantity', {})
-                                if isinstance(reserved_qty, dict):
-                                    reserved_total = sum([
-                                        self._safe_get(reserved_qty, 'fcTransfers', 0, int),
-                                        self._safe_get(reserved_qty, 'fcProcessing', 0, int),
-                                        self._safe_get(reserved_qty, 'customerOrders', 0, int)
-                                    ])
-                                else:
-                                    reserved_total = self._safe_get({}, 'reservedQuantity', 0, int)
-                                
-                                page_inventory.append({
-                                    'sku': self._safe_get(summary, 'sellerSku'),
-                                    'asin': self._safe_get(summary, 'asin'),
-                                    'fnsku': self._safe_get(summary, 'fnSku'),
-                                    'condition': self._safe_get(summary, 'condition'),
-                                    'marketplace_id': self._safe_get(summary, 'marketplaceId'),
-                                    
-                                    # ✅ SAFE: Available inventory (ready to ship)
-                                    'fulfillable_quantity': fulfillable_qty,
-                                    'available_quantity': fulfillable_qty,  # Alias
-                                    
-                                    # ✅ SAFE: Working inventory (being processed)
-                                    'inbound_working_quantity': inbound_working_qty,
-                                    'inbound_shipped_quantity': self._safe_get(inventory_details, 'inboundShippedQuantity', 0, int),
-                                    'inbound_receiving_quantity': self._safe_get(inventory_details, 'inboundReceivingQuantity', 0, int),
-                                    
-                                    # ✅ SAFE: Reserved inventory (structure-agnostic)
-                                    'reserved_quantity_total': reserved_total,
-                                    'reserved_quantity_raw': reserved_qty,  # Keep raw for analysis
-                                    
-                                    # ✅ SAFE: Unfulfillable inventory
-                                    'unfulfillable_quantity': unfulfillable_qty,
-                                    'unsellable_quantity': unfulfillable_qty,  # Alias
-                                    
-                                    # ✅ SAFE: Research quantity
-                                    'researching_quantity': researching_qty,
-                                    
-                                    # ✅ SAFE: Total quantity calculations
-                                    'total_quantity': fulfillable_qty + inbound_working_qty + unfulfillable_qty + researching_qty,
-                                    
-                                    # Timestamps
-                                    'last_updated_time': self._safe_get(summary, 'lastUpdatedTime'),
-                                    'created_at': datetime.now().isoformat(),
-                                    'platform': 'amazon',
-                                    'inventory_type': 'fba_onhand',
-                                    'raw_data': summary  # ✅ ALWAYS keep raw data for debugging
-                                })
-                            
-                            all_inventory.extend(page_inventory)
-                            logger.info(f"📦 Fetched page with {len(page_inventory)} FBA inventory SKUs (Total: {len(all_inventory)})")
-                            
-                            # Check for next page
-                            pagination = payload.get('pagination', {})
-                            next_token = pagination.get('nextToken')
-                            if not next_token:
-                                break
-                                
-                            # Add delay to respect rate limits
-                            await asyncio.sleep(0.5)  # Be conservative with inventory API
-                        
-                        elif response.status == 429:
-                            # Rate limited - wait and retry
-                            logger.warning("📦 Rate limited by Amazon FBA Inventory API, waiting 15 seconds...")
-                            await asyncio.sleep(15)
-                            continue
-                        else:
-                            error_text = await response.text()
-                            logger.warning(f"📦 Amazon FBA Inventory API error {response.status}: {error_text[:200]}")
-                            # Inventory API might not be accessible for all sellers
-                            logger.info("📦 FBA Inventory API might not be available for this seller account")
-                            break
-                
-                logger.info(f"📦 ✅ Fetched {len(all_inventory)} FBA inventory items with quantities")
-                return all_inventory
-                        
-        except Exception as e:
-            logger.warning(f"📦 Failed to fetch FBA inventory (this is normal if FBA not enabled): {e}")
-            return []  # Return empty list instead of failing
-    
-    async def fetch_fba_inbound_shipments(self) -> List[Dict]:
-        """Fetch detailed FBA inbound shipments with SKU-level item data"""
-        try:
-            all_shipments = []
-            next_token = None
-            
-            access_token = await self._get_access_token()
-            
-            headers = {
-                'Authorization': f'Bearer {access_token}',
-                'x-amz-access-token': access_token,
-                'Content-Type': 'application/json'
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                # First get list of shipments with required parameters
-                while True:
-                    params = {
-                        'ShipmentStatusList': 'WORKING,SHIPPED,RECEIVING,CANCELLED,DELETED,CLOSED,ERROR'
-                    }
-                    if next_token:
-                        params['NextToken'] = next_token
                     
                     async with session.get(
                         f"{self.base_url}/fba/inbound/v0/shipments",
@@ -1167,33 +1844,35 @@ class AmazonConnector:
                             payload = data.get('payload', {})
                             shipments = payload.get('ShipmentData', [])
                             
-                            # For each shipment, get detailed items
+                            # Transform to standard format with shipment items
+                            page_inventory = []
                             for shipment in shipments:
                                 shipment_id = shipment.get('ShipmentId')
-                                if shipment_id:
-                                    shipment_items = await self._fetch_shipment_items(session, headers, shipment_id)
-                                    
-                                    all_shipments.append({
-                                        'shipment_id': shipment_id,
-                                        'shipment_name': shipment.get('ShipmentName'),
-                                        'shipment_status': shipment.get('ShipmentStatus'),
-                                        'destination_fulfillment_center_id': shipment.get('DestinationFulfillmentCenterId'),
-                                        'label_prep_preference': shipment.get('LabelPrepPreference'),
-                                        'are_cases_required': shipment.get('AreCasesRequired'),
-                                        'confirmed_need_by_date': shipment.get('ConfirmedNeedByDate'),
-                                        'box_contents_source': shipment.get('BoxContentsSource'),
-                                        'estimated_box_contents_fee': shipment.get('EstimatedBoxContentsFee'),
-                                        'ship_from_address': shipment.get('ShipFromAddress', {}),
-                                        'items': shipment_items,  # ✅ SKU-level item data
-                                        'items_count': len(shipment_items),
-                                        'total_units': sum(item.get('quantity_shipped', 0) for item in shipment_items),
-                                        'created_at': datetime.now().isoformat(),
-                                        'platform': 'amazon',
-                                        'inventory_type': 'fba_inbound',
-                                        'raw_data': shipment
-                                    })
+                                
+                                # Fetch shipment items for this specific shipment
+                                shipment_items = await self._fetch_shipment_items(session, headers, shipment_id)
+                                
+                                # Create record with shipment items
+                                shipment_record = {
+                                    'shipment_id': shipment_id,
+                                    'shipment_name': shipment.get('ShipmentName'),
+                                    'shipment_status': shipment.get('ShipmentStatus'),
+                                    'destination_fulfillment_center_id': shipment.get('DestinationFulfillmentCenterId'),
+                                    'label_prep_preference': shipment.get('LabelPrepPreference'),
+                                    'are_cases_required': shipment.get('AreCasesRequired'),
+                                    'confirmed_need_by_date': shipment.get('ConfirmedNeedByDate'),  # ⭐ EXPECTED DATE
+                                    'box_contents_source': shipment.get('BoxContentsSource'),
+                                    'estimated_box_contents_fee': shipment.get('EstimatedBoxContentsFee'),
+                                    'shipment_items': shipment_items,  # ⭐ ITEMS WITH SKUs AND DATES
+                                    'created_at': datetime.now().isoformat(),
+                                    'platform': 'amazon',
+                                    'raw_data': shipment
+                                }
+                                
+                                page_inventory.append(shipment_record)
                             
-                            logger.info(f"🚚 Fetched page with {len(shipments)} FBA inbound shipments")
+                            all_inventory.extend(page_inventory)
+                            logger.info(f" Fetched page with {len(page_inventory)} Amazon FBA shipments (Total: {len(all_inventory)})")
                             
                             # Check for next page
                             next_token = payload.get('NextToken')
@@ -1201,31 +1880,38 @@ class AmazonConnector:
                                 break
                                 
                             # Add delay to respect rate limits
-                            await asyncio.sleep(1)
+                            await asyncio.sleep(1)  # Be conservative with FBA API
                         
                         elif response.status == 429:
-                            logger.warning("🚚 Rate limited by Amazon FBA Inbound API, waiting 15 seconds...")
+                            # Rate limited - wait and retry
+                            logger.warning(" Rate limited by Amazon FBA API, waiting 15 seconds...")
                             await asyncio.sleep(15)
                             continue
                         else:
                             error_text = await response.text()
-                            logger.warning(f"🚚 Amazon FBA Inbound API error {response.status}: {error_text[:200]}")
+                            logger.warning(f" Amazon FBA API error {response.status}: {error_text[:200]}")
+                            # FBA API might not be accessible for all sellers, so don't fail completely
+                            logger.info(" FBA Inbound API might not be available for this seller account")
                             break
                 
-                total_items = sum(len(shipment.get('items', [])) for shipment in all_shipments)
-                logger.info(f"🚚 ✅ Fetched {len(all_shipments)} FBA inbound shipments with {total_items} items")
-                return all_shipments
+                logger.info(f" ✅ Fetched {len(all_inventory)} Amazon FBA incoming inventory items")
+                return all_inventory
                         
         except Exception as e:
-            logger.warning(f"🚚 Failed to fetch FBA inbound shipments: {e}")
-            return []
+            logger.warning(f" Failed to fetch Amazon incoming inventory (this is normal if FBA not enabled): {e}")
+            return []  # Return empty list instead of failing
     
-    async def _fetch_shipment_items(self, session, headers, shipment_id: str) -> List[Dict]:
-        """Fetch items for a specific FBA inbound shipment"""
+    async def _fetch_shipment_items(self, session, headers, shipment_id):
+        """Fetch items for a specific Amazon inbound shipment"""
         try:
+            params = {
+                'MarketplaceId': self.credentials.marketplace_ids[0]
+            }
+            
             async with session.get(
                 f"{self.base_url}/fba/inbound/v0/shipments/{shipment_id}/items",
-                headers=headers
+                headers=headers,
+                params=params
             ) as response:
                 
                 if response.status == 200:
@@ -1233,33 +1919,39 @@ class AmazonConnector:
                     payload = data.get('payload', {})
                     items = payload.get('ItemData', [])
                     
-                    # Transform items to standard format
+                    # Transform items to include expected dates and SKUs
                     shipment_items = []
                     for item in items:
                         shipment_items.append({
-                            'sku': item.get('SellerSKU'),
-                            'fnsku': item.get('FulfillmentNetworkSKU'),
-                            'quantity_shipped': int(item.get('QuantityShipped', 0)),
+                            'seller_sku': item.get('SellerSKU'),           # ⭐ YOUR SKU
+                            'sku': item.get('SellerSKU'),                  # ⭐ UNIFIED SKU FIELD
+                            'fulfillment_network_sku': item.get('FulfillmentNetworkSKU'),
+                            'quantity_shipped': int(item.get('QuantityShipped', 0)),    # ⭐ QUANTITY INCOMING
                             'quantity_received': int(item.get('QuantityReceived', 0)),
                             'quantity_in_case': int(item.get('QuantityInCase', 0)),
-                            'release_date': item.get('ReleaseDate'),
+                            'release_date': item.get('ReleaseDate'),       # ⭐ EXPECTED ARRIVAL DATE
                             'prep_details_list': item.get('PrepDetailsList', []),
                             'raw_data': item
                         })
                     
                     return shipment_items
                     
-                elif response.status == 429:
-                    logger.warning(f"🚚 Rate limited when fetching shipment items for {shipment_id}")
-                    await asyncio.sleep(2)
-                    return await self._fetch_shipment_items(session, headers, shipment_id)  # Retry
+                elif response.status == 404:
+                    logger.info(f"📦 No items found for shipment {shipment_id}")
+                    return []
+                    
                 else:
-                    logger.warning(f"🚚 Failed to fetch shipment items for {shipment_id}: HTTP {response.status}")
+                    response_text = await response.text()
+                    logger.warning(f"📦 Failed to fetch shipment items for {shipment_id}: HTTP {response.status} - {response_text[:100]}")
                     return []
                     
         except Exception as e:
-            logger.warning(f"🚚 Failed to fetch shipment items for {shipment_id}: {e}")
+            logger.warning(f"📦 Error fetching shipment items for {shipment_id}: {e}")
             return []
+
+    async def fetch_fba_inbound_shipments(self) -> List[Dict]:
+        """Fetch detailed FBA inbound shipments with SKU-level item data - Enhanced version"""
+        return await self.fetch_incoming_inventory()  # Redirect to existing method for now
 
     async def fetch_listings_pricing(self) -> List[Dict]:
         """Fetch product listings with pricing data per SKU"""
@@ -1387,203 +2079,15 @@ class AmazonConnector:
         except Exception as e:
             logger.warning(f"💰 Failed to fetch listings pricing: {e}")
             return []  # Return empty list instead of failing
-    
-    async def fetch_awd_inventory(self) -> List[Dict]:
-        """Fetch Amazon Warehousing and Distribution (AWD) inventory data"""
-        try:
-            all_awd_inventory = []
-            next_token = None
-            
-            access_token = await self._get_access_token()
-            
-            headers = {
-                'Authorization': f'Bearer {access_token}',
-                'x-amz-access-token': access_token,
-                'Content-Type': 'application/json'
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                while True:
-                    params = {
-                        'maxResultsPerPage': 100
-                    }
-                    
-                    if next_token:
-                        params['nextToken'] = next_token
-                    
-                    async with session.get(
-                        f"{self.base_url}/awd/2024-05-09/inventory",
-                        headers=headers,
-                        params=params
-                    ) as response:
-                        
-                        if response.status == 200:
-                            data = await response.json()
-                            inventory_summaries = data.get('inventorySummaries', [])
-                            
-                            # Transform to standard format
-                            page_inventory = []
-                            for summary in inventory_summaries:
-                                distribution_package = summary.get('distributionPackage', {})
-                                
-                                page_inventory.append({
-                                    'sku': summary.get('sku'),
-                                    'package_id': distribution_package.get('packageId'),
-                                    'package_status': distribution_package.get('packageStatus'),
-                                    'tracking_id': distribution_package.get('trackingId'),
-                                    'quantity': summary.get('quantity', 0),
-                                    'available_quantity': summary.get('availableQuantity', 0),
-                                    'reserved_quantity': summary.get('reservedQuantity', 0),
-                                    'product_title': summary.get('productTitle'),
-                                    'measurement_unit': summary.get('measurementUnit'),
-                                    'measurement_value': summary.get('measurementValue', 0),
-                                    'created_at': datetime.now().isoformat(),
-                                    'platform': 'amazon',
-                                    'inventory_type': 'awd',
-                                    'raw_data': summary
-                                })
-                            
-                            all_awd_inventory.extend(page_inventory)
-                            logger.info(f"🏭 Fetched page with {len(page_inventory)} AWD inventory items (Total: {len(all_awd_inventory)})")
-                            
-                            # Check for next page
-                            pagination = data.get('pagination', {})
-                            next_token = pagination.get('nextToken')
-                            if not next_token:
-                                break
-                                
-                            # Add delay to respect rate limits
-                            await asyncio.sleep(1)  # Be conservative with AWD API
-                        
-                        elif response.status == 429:
-                            # Rate limited - wait and retry
-                            logger.warning("🏭 Rate limited by Amazon AWD API, waiting 15 seconds...")
-                            await asyncio.sleep(15)
-                            continue
-                        else:
-                            error_text = await response.text()
-                            logger.warning(f"🏭 Amazon AWD API error {response.status}: {error_text[:200]}")
-                            # AWD API might not be accessible for all sellers
-                            logger.info("🏭 AWD API might not be available for this seller account")
-                            break
-                
-                logger.info(f"🏭 ✅ Fetched {len(all_awd_inventory)} AWD inventory items")
-                return all_awd_inventory
-                        
-        except Exception as e:
-            logger.warning(f"🏭 Failed to fetch AWD inventory: {e}")
-            return []  # Return empty list instead of failing
-    
-    async def fetch_awd_inbound_shipments(self) -> List[Dict]:
-        """Fetch AWD inbound shipments data"""
-        try:
-            all_awd_shipments = []
-            next_token = None
-            
-            access_token = await self._get_access_token()
-            
-            headers = {
-                'Authorization': f'Bearer {access_token}',
-                'x-amz-access-token': access_token,
-                'Content-Type': 'application/json'
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                while True:
-                    params = {
-                        'maxResultsPerPage': 100
-                    }
-                    
-                    if next_token:
-                        params['nextToken'] = next_token
-                    
-                    async with session.get(
-                        f"{self.base_url}/awd/2024-05-09/inboundShipments",
-                        headers=headers,
-                        params=params
-                    ) as response:
-                        
-                        if response.status == 200:
-                            data = await response.json()
-                            inbound_shipments = data.get('inboundShipments', [])
-                            
-                            # Transform to standard format
-                            page_shipments = []
-                            for shipment in inbound_shipments:
-                                # Get shipment items if available
-                                shipment_items = []
-                                distribution_packages = shipment.get('distributionPackages', [])
-                                for package in distribution_packages:
-                                    shipment_items.append({
-                                        'package_id': package.get('packageId'),
-                                        'sku': package.get('sku'),
-                                        'quantity': package.get('quantity', 0),
-                                        'measurement_unit': package.get('measurementUnit'),
-                                        'measurement_value': package.get('measurementValue', 0),
-                                        'package_status': package.get('packageStatus'),
-                                        'tracking_id': package.get('trackingId')
-                                    })
-                                
-                                page_shipments.append({
-                                    'shipment_id': shipment.get('shipmentId'),
-                                    'shipment_name': shipment.get('shipmentName'),
-                                    'shipment_status': shipment.get('shipmentStatus'),
-                                    'created_date': shipment.get('createdDate'),
-                                    'last_updated_date': shipment.get('lastUpdatedDate'),
-                                    'origin': shipment.get('origin', {}),
-                                    'destination': shipment.get('destination', {}),
-                                    'transportation': shipment.get('transportation', {}),
-                                    'distribution_packages': shipment_items,
-                                    'packages_count': len(shipment_items),
-                                    'total_units': sum(item.get('quantity', 0) for item in shipment_items),
-                                    'created_at': datetime.now().isoformat(),
-                                    'platform': 'amazon',
-                                    'inventory_type': 'awd_inbound',
-                                    'raw_data': shipment
-                                })
-                            
-                            all_awd_shipments.extend(page_shipments)
-                            logger.info(f"🚛 Fetched page with {len(page_shipments)} AWD inbound shipments (Total: {len(all_awd_shipments)})")
-                            
-                            # Check for next page
-                            pagination = data.get('pagination', {})
-                            next_token = pagination.get('nextToken')
-                            if not next_token:
-                                break
-                                
-                            # Add delay to respect rate limits
-                            await asyncio.sleep(1)  # Be conservative with AWD API
-                        
-                        elif response.status == 429:
-                            # Rate limited - wait and retry
-                            logger.warning("🚛 Rate limited by Amazon AWD Inbound API, waiting 15 seconds...")
-                            await asyncio.sleep(15)
-                            continue
-                        else:
-                            error_text = await response.text()
-                            logger.warning(f"🚛 Amazon AWD Inbound API error {response.status}: {error_text[:200]}")
-                            # AWD API might not be accessible for all sellers
-                            logger.info("🚛 AWD Inbound API might not be available for this seller account")
-                            break
-                
-                total_packages = sum(len(shipment.get('distribution_packages', [])) for shipment in all_awd_shipments)
-                logger.info(f"🚛 ✅ Fetched {len(all_awd_shipments)} AWD inbound shipments with {total_packages} packages")
-                return all_awd_shipments
-                        
-        except Exception as e:
-            logger.warning(f"🚛 Failed to fetch AWD inbound shipments: {e}")
-            return []  # Return empty list instead of failing
 
     async def extract_sku_pricing_from_orders(self, orders_data: List[Dict], days_back: int = 30) -> List[Dict]:
         """Extract pricing data per SKU from order line items - Better than Listings API!"""
         try:
-            from datetime import datetime, timedelta
             from collections import defaultdict
             import statistics
             
             cutoff_date = datetime.now() - timedelta(days=days_back)
             sku_pricing = defaultdict(list)
-            sku_stats = {}
             
             logger.info(f"📊 Extracting SKU pricing from {len(orders_data)} orders (last {days_back} days)")
             
@@ -1683,10 +2187,6 @@ class AmazonConnector:
             logger.error(f"💰 Failed to extract SKU pricing from orders: {e}")
             return []
 
-    async def fetch_incoming_inventory(self) -> List[Dict]:
-        """Legacy method - redirect to new enhanced inbound shipments"""
-        return await self.fetch_fba_inbound_shipments()
-
 class WooCommerceConnector:
     """WooCommerce REST API Connector"""
     
@@ -1780,7 +2280,40 @@ class APIDataFetcher:
                     logger.warning(f" Failed to fetch products from {platform_type}: {e}")
                     all_data['products'] = []
             
-            # ✅ ENHANCED: Fetch ALL Amazon inventory and pricing data
+            # NEW: Fetch incoming inventory (Amazon FBA / Shopify GraphQL)
+            if hasattr(connector, 'fetch_incoming_inventory'):
+                try:
+                    incoming_inventory = await connector.fetch_incoming_inventory()
+                    all_data['incoming_inventory'] = incoming_inventory
+                    if platform_type.value == 'shopify':
+                        logger.info(f"🚛 ✅ Fetched {len(incoming_inventory)} incoming inventory items via GraphQL from {platform_type}")
+                    else:
+                        logger.info(f" ✅ Fetched {len(incoming_inventory)} incoming inventory items from {platform_type}")
+                except Exception as e:
+                    logger.warning(f" Failed to fetch incoming inventory from {platform_type}: {e}")
+                    all_data['incoming_inventory'] = []
+            
+            # NEW: Fetch inventory levels (Shopify)
+            if hasattr(connector, 'fetch_inventory_levels'):
+                try:
+                    inventory_levels = await connector.fetch_inventory_levels()
+                    all_data['inventory_levels'] = inventory_levels
+                    logger.info(f"📦 ✅ Fetched {len(inventory_levels)} inventory levels from {platform_type}")
+                except Exception as e:
+                    logger.warning(f"📦 Failed to fetch inventory levels from {platform_type}: {e}")
+                    all_data['inventory_levels'] = []
+            
+            # NEW: Fetch inventory (Amazon FBA)
+            if hasattr(connector, 'fetch_inventory'):
+                try:
+                    inventory = await connector.fetch_inventory()
+                    all_data['inventory'] = inventory
+                    logger.info(f"📦 ✅ Fetched {len(inventory)} inventory items from {platform_type}")
+                except Exception as e:
+                    logger.warning(f"📦 Failed to fetch inventory from {platform_type}: {e}")
+                    all_data['inventory'] = []
+            
+            # NEW: Fetch enhanced FBA inventory (Amazon)
             if hasattr(connector, 'fetch_fba_inventory'):
                 try:
                     fba_inventory = await connector.fetch_fba_inventory()
@@ -1790,69 +2323,35 @@ class APIDataFetcher:
                     logger.warning(f"📦 Failed to fetch FBA inventory from {platform_type}: {e}")
                     all_data['fba_inventory'] = []
             
-            if hasattr(connector, 'fetch_fba_inbound_shipments'):
-                try:
-                    fba_inbound = await connector.fetch_fba_inbound_shipments()
-                    all_data['fba_inbound_shipments'] = fba_inbound
-                    total_inbound_items = sum(len(shipment.get('items', [])) for shipment in fba_inbound)
-                    logger.info(f"🚚 ✅ Fetched {len(fba_inbound)} FBA inbound shipments ({total_inbound_items} items) from {platform_type}")
-                except Exception as e:
-                    logger.warning(f"🚚 Failed to fetch FBA inbound shipments from {platform_type}: {e}")
-                    all_data['fba_inbound_shipments'] = []
-            
-            # ✅ ENHANCED: Extract pricing from orders (better than listings API!)
-            if hasattr(connector, 'extract_sku_pricing_from_orders') and all_data.get('orders'):
-                try:
-                    sku_pricing = await connector.extract_sku_pricing_from_orders(all_data['orders'], days_back=30)
-                    all_data['sku_pricing_from_orders'] = sku_pricing
-                    if sku_pricing:
-                        avg_price = sum(item.get('weighted_average_price', 0) for item in sku_pricing) / len(sku_pricing)
-                        total_revenue = sum(item.get('total_revenue', 0) for item in sku_pricing)
-                        logger.info(f"💰 ✅ Extracted pricing for {len(sku_pricing)} SKUs from orders (avg: ${avg_price:.2f}, total revenue: ${total_revenue:.2f}) from {platform_type}")
-                    else:
-                        logger.info(f"💰 No pricing data extracted from orders from {platform_type}")
-                except Exception as e:
-                    logger.warning(f"💰 Failed to extract pricing from orders from {platform_type}: {e}")
-                    all_data['sku_pricing_from_orders'] = []
-            
-            # Legacy listings pricing (keep for fallback)
+            # NEW: Fetch listings pricing (Amazon)
             if hasattr(connector, 'fetch_listings_pricing'):
                 try:
-                    listings_pricing = await connector.fetch_listings_pricing()
-                    all_data['listings_pricing'] = listings_pricing
-                    logger.info(f"💱 ✅ Fetched {len(listings_pricing)} product listings with pricing from {platform_type}")
+                    listings = await connector.fetch_listings_pricing()
+                    all_data['listings_pricing'] = listings
+                    logger.info(f"💰 ✅ Fetched {len(listings)} product listings with pricing from {platform_type}")
                 except Exception as e:
-                    logger.warning(f"💱 Failed to fetch listings pricing from {platform_type}: {e}")
+                    logger.warning(f"💰 Failed to fetch listings pricing from {platform_type}: {e}")
                     all_data['listings_pricing'] = []
             
-            if hasattr(connector, 'fetch_awd_inventory'):
+            # NEW: Fetch inventory items metadata (Shopify)
+            if hasattr(connector, 'fetch_inventory_items'):
                 try:
-                    awd_inventory = await connector.fetch_awd_inventory()
-                    all_data['awd_inventory'] = awd_inventory
-                    logger.info(f"🏭 ✅ Fetched {len(awd_inventory)} AWD inventory items from {platform_type}")
+                    inventory_items = await connector.fetch_inventory_items()
+                    all_data['inventory_items'] = inventory_items
+                    logger.info(f"🏷️ ✅ Fetched {len(inventory_items)} inventory items from {platform_type}")
                 except Exception as e:
-                    logger.warning(f"🏭 Failed to fetch AWD inventory from {platform_type}: {e}")
-                    all_data['awd_inventory'] = []
+                    logger.warning(f"🏷️ Failed to fetch inventory items from {platform_type}: {e}")
+                    all_data['inventory_items'] = []
             
-            if hasattr(connector, 'fetch_awd_inbound_shipments'):
+            # NEW: Fetch fulfillment orders (Shopify)
+            if hasattr(connector, 'fetch_fulfillment_orders'):
                 try:
-                    awd_inbound = await connector.fetch_awd_inbound_shipments()
-                    all_data['awd_inbound_shipments'] = awd_inbound
-                    total_awd_packages = sum(len(shipment.get('distribution_packages', [])) for shipment in awd_inbound)
-                    logger.info(f"🚛 ✅ Fetched {len(awd_inbound)} AWD inbound shipments ({total_awd_packages} packages) from {platform_type}")
+                    fulfillment_orders = await connector.fetch_fulfillment_orders()
+                    all_data['fulfillment_orders'] = fulfillment_orders
+                    logger.info(f"🚚 ✅ Fetched {len(fulfillment_orders)} fulfillment orders from {platform_type}")
                 except Exception as e:
-                    logger.warning(f"🚛 Failed to fetch AWD inbound shipments from {platform_type}: {e}")
-                    all_data['awd_inbound_shipments'] = []
-            
-            # Legacy incoming inventory (redirects to FBA inbound)
-            if hasattr(connector, 'fetch_incoming_inventory'):
-                try:
-                    incoming_inventory = await connector.fetch_incoming_inventory()
-                    all_data['incoming_inventory'] = incoming_inventory
-                    logger.info(f"📋 ✅ Fetched {len(incoming_inventory)} incoming inventory items from {platform_type}")
-                except Exception as e:
-                    logger.warning(f"📋 Failed to fetch incoming inventory from {platform_type}: {e}")
-                    all_data['incoming_inventory'] = []
+                    logger.warning(f"🚚 Failed to fetch fulfillment orders from {platform_type}: {e}")
+                    all_data['fulfillment_orders'] = []
             
             if hasattr(connector, 'fetch_customers'):
                 try:
@@ -1863,32 +2362,13 @@ class APIDataFetcher:
                     logger.warning(f" Failed to fetch customers from {platform_type}: {e}")
                     all_data['customers'] = []
             
-            # Log summary of what was fetched - ENHANCED with all new data types
+            # Log summary of what was fetched
             summary = []
             for data_type, data_list in all_data.items():
                 if data_list:
                     if data_type == 'orders':
                         total_line_items = sum(len(order.get('line_items', [])) for order in data_list)
                         summary.append(f"{len(data_list)} {data_type} ({total_line_items} line items)")
-                    elif data_type == 'fba_inbound_shipments':
-                        total_items = sum(len(shipment.get('items', [])) for shipment in data_list)
-                        summary.append(f"{len(data_list)} FBA inbound ({total_items} items)")
-                    elif data_type == 'awd_inbound_shipments':
-                        total_packages = sum(len(shipment.get('distribution_packages', [])) for shipment in data_list)
-                        summary.append(f"{len(data_list)} AWD inbound ({total_packages} packages)")
-                    elif data_type == 'fba_inventory':
-                        total_units = sum(item.get('total_quantity', 0) for item in data_list)
-                        summary.append(f"{len(data_list)} FBA inventory SKUs ({total_units} units)")
-                    elif data_type == 'awd_inventory':
-                        total_units = sum(item.get('quantity', 0) for item in data_list)
-                        summary.append(f"{len(data_list)} AWD inventory SKUs ({total_units} units)")
-                    elif data_type == 'sku_pricing_from_orders':
-                        avg_price = sum(item.get('weighted_average_price', 0) for item in data_list) / len(data_list) if data_list else 0
-                        total_revenue = sum(item.get('total_revenue', 0) for item in data_list)
-                        summary.append(f"{len(data_list)} SKU prices from orders (avg ${avg_price:.2f}, revenue ${total_revenue:.2f})")
-                    elif data_type == 'listings_pricing':
-                        avg_price = sum(item.get('listing_price', 0) for item in data_list) / len(data_list) if data_list else 0
-                        summary.append(f"{len(data_list)} listings (avg ${avg_price:.2f})")
                     else:
                         summary.append(f"{len(data_list)} {data_type}")
             
