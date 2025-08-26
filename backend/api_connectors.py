@@ -484,6 +484,34 @@ class AmazonConnector:
         self.access_token = None
         self.token_expires_at = None
     
+    def _safe_get(self, data: dict, key: str, default=None, data_type=None):
+        """Safely extract data with type conversion and error handling"""
+        try:
+            value = data.get(key, default)
+            if data_type and value is not None:
+                if data_type == float:
+                    return float(value) if value != '' else 0.0
+                elif data_type == int:
+                    return int(value) if value != '' else 0
+            return value
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Error converting {key}={value} to {data_type}: {e}")
+            return default if default is not None else (0.0 if data_type == float else 0 if data_type == int else None)
+    
+    def _safe_nested_get(self, data: dict, keys: list, default=None):
+        """Safely get nested dictionary values"""
+        try:
+            current = data
+            for key in keys:
+                if isinstance(current, dict):
+                    current = current.get(key, {})
+                else:
+                    return default
+            return current if current != {} else default
+        except Exception as e:
+            logger.warning(f"Error accessing nested path {keys}: {e}")
+            return default
+    
     async def _get_access_token(self) -> str:
         """Get or refresh Amazon SP-API access token"""
         if self.access_token and self.token_expires_at and datetime.now() < self.token_expires_at:
@@ -1019,49 +1047,59 @@ class AmazonConnector:
                                 # Get all inventory details for this SKU
                                 inventory_details = summary.get('inventoryDetails', {})
                                 
+                                # ✅ SAFE DATA EXTRACTION with error handling
+                                fulfillable_qty = self._safe_get(inventory_details, 'fulfillableQuantity', 0, int)
+                                inbound_working_qty = self._safe_get(inventory_details, 'inboundWorkingQuantity', 0, int)
+                                unfulfillable_qty = self._safe_get(inventory_details, 'unfulfillableQuantity', 0, int)
+                                researching_qty = self._safe_get(inventory_details, 'researchingQuantity', 0, int)
+                                
+                                # Handle reserved quantity (structure may vary)
+                                reserved_qty = inventory_details.get('reservedQuantity', {})
+                                if isinstance(reserved_qty, dict):
+                                    reserved_total = sum([
+                                        self._safe_get(reserved_qty, 'fcTransfers', 0, int),
+                                        self._safe_get(reserved_qty, 'fcProcessing', 0, int),
+                                        self._safe_get(reserved_qty, 'customerOrders', 0, int)
+                                    ])
+                                else:
+                                    reserved_total = self._safe_get({}, 'reservedQuantity', 0, int)
+                                
                                 page_inventory.append({
-                                    'sku': summary.get('sellerSku'),
-                                    'asin': summary.get('asin'),
-                                    'fnsku': summary.get('fnSku'),
-                                    'condition': summary.get('condition'),
-                                    'marketplace_id': summary.get('marketplaceId'),
+                                    'sku': self._safe_get(summary, 'sellerSku'),
+                                    'asin': self._safe_get(summary, 'asin'),
+                                    'fnsku': self._safe_get(summary, 'fnSku'),
+                                    'condition': self._safe_get(summary, 'condition'),
+                                    'marketplace_id': self._safe_get(summary, 'marketplaceId'),
                                     
-                                    # Available inventory (ready to ship)
-                                    'fulfillable_quantity': inventory_details.get('fulfillableQuantity', 0),
-                                    'available_quantity': inventory_details.get('fulfillableQuantity', 0),  # Alias
+                                    # ✅ SAFE: Available inventory (ready to ship)
+                                    'fulfillable_quantity': fulfillable_qty,
+                                    'available_quantity': fulfillable_qty,  # Alias
                                     
-                                    # Working inventory (being processed)
-                                    'inbound_working_quantity': inventory_details.get('inboundWorkingQuantity', 0),
-                                    'inbound_shipped_quantity': inventory_details.get('inboundShippedQuantity', 0),
-                                    'inbound_receiving_quantity': inventory_details.get('inboundReceivingQuantity', 0),
+                                    # ✅ SAFE: Working inventory (being processed)
+                                    'inbound_working_quantity': inbound_working_qty,
+                                    'inbound_shipped_quantity': self._safe_get(inventory_details, 'inboundShippedQuantity', 0, int),
+                                    'inbound_receiving_quantity': self._safe_get(inventory_details, 'inboundReceivingQuantity', 0, int),
                                     
-                                    # Reserved inventory (allocated but not yet shipped)
-                                    'reserved_quantity': inventory_details.get('reservedQuantity', {}),
-                                    'reserved_fc_transfers': inventory_details.get('reservedQuantity', {}).get('fcTransfers', 0),
-                                    'reserved_fc_processing': inventory_details.get('reservedQuantity', {}).get('fcProcessing', 0),
-                                    'reserved_customer_orders': inventory_details.get('reservedQuantity', {}).get('customerOrders', 0),
+                                    # ✅ SAFE: Reserved inventory (structure-agnostic)
+                                    'reserved_quantity_total': reserved_total,
+                                    'reserved_quantity_raw': reserved_qty,  # Keep raw for analysis
                                     
-                                    # Unfulfillable inventory
-                                    'unfulfillable_quantity': inventory_details.get('unfulfillableQuantity', 0),
-                                    'unsellable_quantity': inventory_details.get('unfulfillableQuantity', 0),  # Alias
+                                    # ✅ SAFE: Unfulfillable inventory
+                                    'unfulfillable_quantity': unfulfillable_qty,
+                                    'unsellable_quantity': unfulfillable_qty,  # Alias
                                     
-                                    # Research quantity
-                                    'researching_quantity': inventory_details.get('researchingQuantity', 0),
+                                    # ✅ SAFE: Research quantity
+                                    'researching_quantity': researching_qty,
                                     
-                                    # Total quantity calculations
-                                    'total_quantity': (
-                                        inventory_details.get('fulfillableQuantity', 0) + 
-                                        inventory_details.get('inboundWorkingQuantity', 0) + 
-                                        inventory_details.get('unfulfillableQuantity', 0) + 
-                                        inventory_details.get('researchingQuantity', 0)
-                                    ),
+                                    # ✅ SAFE: Total quantity calculations
+                                    'total_quantity': fulfillable_qty + inbound_working_qty + unfulfillable_qty + researching_qty,
                                     
                                     # Timestamps
-                                    'last_updated_time': summary.get('lastUpdatedTime'),
+                                    'last_updated_time': self._safe_get(summary, 'lastUpdatedTime'),
                                     'created_at': datetime.now().isoformat(),
                                     'platform': 'amazon',
                                     'inventory_type': 'fba_onhand',
-                                    'raw_data': summary
+                                    'raw_data': summary  # ✅ ALWAYS keep raw data for debugging
                                 })
                             
                             all_inventory.extend(page_inventory)
@@ -1110,9 +1148,11 @@ class AmazonConnector:
             }
             
             async with aiohttp.ClientSession() as session:
-                # First get list of shipments
+                # First get list of shipments with required parameters
                 while True:
-                    params = {}
+                    params = {
+                        'ShipmentStatusList': 'WORKING,SHIPPED,RECEIVING,CANCELLED,DELETED,CLOSED,ERROR'
+                    }
                     if next_token:
                         params['NextToken'] = next_token
                     
@@ -1263,22 +1303,24 @@ class AmazonConnector:
                                 attributes = listing.get('attributes', {})
                                 offers = listing.get('offers', [])
                                 
-                                # Extract pricing from offers
+                                # ✅ SAFE: Extract pricing from offers
                                 pricing_info = {}
                                 if offers:
                                     main_offer = offers[0]  # Use first offer as primary
                                     listing_price = main_offer.get('listingPrice', {})
                                     pricing_info = {
-                                        'listing_price': float(listing_price.get('Amount', 0)),
-                                        'currency': listing_price.get('CurrencyCode', 'USD'),
-                                        'minimum_seller_allowed_price': main_offer.get('minimumSellerAllowedPrice', {}),
-                                        'maximum_seller_allowed_price': main_offer.get('maximumSellerAllowedPrice', {}),
-                                        'buyer_price': main_offer.get('buyerPrice', {}),
-                                        'regular_price': main_offer.get('regularPrice', {}),
-                                        'fulfillment_channel': main_offer.get('fulfillmentChannel'),
-                                        'merchant_shipping_group': main_offer.get('merchantShippingGroup'),
+                                        'listing_price': self._safe_nested_get(listing_price, ['Amount'], 0.0),
+                                        'listing_price_float': self._safe_get(listing_price, 'Amount', 0.0, float),
+                                        'currency': self._safe_get(listing_price, 'CurrencyCode', 'USD'),
+                                        'minimum_seller_allowed_price': self._safe_nested_get(main_offer, ['minimumSellerAllowedPrice', 'Amount'], 0.0),
+                                        'maximum_seller_allowed_price': self._safe_nested_get(main_offer, ['maximumSellerAllowedPrice', 'Amount'], 0.0),
+                                        'buyer_price': self._safe_nested_get(main_offer, ['buyerPrice', 'Amount'], 0.0),
+                                        'regular_price': self._safe_nested_get(main_offer, ['regularPrice', 'Amount'], 0.0),
+                                        'fulfillment_channel': self._safe_get(main_offer, 'fulfillmentChannel'),
+                                        'merchant_shipping_group': self._safe_get(main_offer, 'merchantShippingGroup'),
                                         'points': main_offer.get('points', {}),
-                                        'prime': main_offer.get('prime', {})
+                                        'prime': main_offer.get('prime', {}),
+                                        'pricing_raw': main_offer  # ✅ Keep raw pricing data
                                     }
                                 
                                 # Extract basic listing info from summaries
@@ -1532,6 +1574,115 @@ class AmazonConnector:
             logger.warning(f"🚛 Failed to fetch AWD inbound shipments: {e}")
             return []  # Return empty list instead of failing
 
+    async def extract_sku_pricing_from_orders(self, orders_data: List[Dict], days_back: int = 30) -> List[Dict]:
+        """Extract pricing data per SKU from order line items - Better than Listings API!"""
+        try:
+            from datetime import datetime, timedelta
+            from collections import defaultdict
+            import statistics
+            
+            cutoff_date = datetime.now() - timedelta(days=days_back)
+            sku_pricing = defaultdict(list)
+            sku_stats = {}
+            
+            logger.info(f"📊 Extracting SKU pricing from {len(orders_data)} orders (last {days_back} days)")
+            
+            # Collect all price data per SKU
+            for order in orders_data:
+                try:
+                    order_date = datetime.fromisoformat(order.get('created_at', '').replace('Z', '+00:00'))
+                    if order_date >= cutoff_date:
+                        for item in order.get('line_items', []):
+                            sku = item.get('sku')
+                            price = item.get('price', 0)
+                            quantity = item.get('quantity', 0)
+                            
+                            if sku and price > 0:
+                                sku_pricing[sku].append({
+                                    'price': float(price),
+                                    'quantity': int(quantity),
+                                    'order_date': order_date.isoformat(),
+                                    'order_id': order.get('order_id'),
+                                    'currency': item.get('currency', 'USD')
+                                })
+                except Exception as e:
+                    logger.warning(f"Error processing order {order.get('order_id')}: {e}")
+                    continue
+            
+            # Calculate pricing statistics per SKU
+            pricing_results = []
+            for sku, price_data in sku_pricing.items():
+                if not price_data:
+                    continue
+                
+                prices = [item['price'] for item in price_data]
+                quantities = [item['quantity'] for item in price_data]
+                total_quantity = sum(quantities)
+                total_revenue = sum(item['price'] * item['quantity'] for item in price_data)
+                
+                # Calculate pricing metrics
+                avg_price = statistics.mean(prices)
+                median_price = statistics.median(prices)
+                min_price = min(prices)
+                max_price = max(prices)
+                price_std = statistics.stdev(prices) if len(prices) > 1 else 0
+                weighted_avg_price = total_revenue / total_quantity if total_quantity > 0 else 0
+                
+                # Most recent and oldest prices
+                sorted_by_date = sorted(price_data, key=lambda x: x['order_date'])
+                most_recent_price = sorted_by_date[-1]['price']
+                oldest_price = sorted_by_date[0]['price']
+                
+                pricing_results.append({
+                    'sku': sku,
+                    'currency': price_data[0]['currency'],
+                    
+                    # 🎯 KEY PRICING METRICS
+                    'average_price': round(avg_price, 2),
+                    'weighted_average_price': round(weighted_avg_price, 2),  # Revenue-weighted
+                    'median_price': round(median_price, 2),
+                    'min_price': round(min_price, 2),
+                    'max_price': round(max_price, 2),
+                    'price_std_dev': round(price_std, 2),
+                    'most_recent_price': round(most_recent_price, 2),
+                    'oldest_price': round(oldest_price, 2),
+                    
+                    # 📊 SALES METRICS
+                    'total_units_sold': total_quantity,
+                    'total_revenue': round(total_revenue, 2),
+                    'number_of_orders': len(price_data),
+                    'date_range_days': days_back,
+                    
+                    # 📈 PRICE TRENDS
+                    'price_change': round(most_recent_price - oldest_price, 2),
+                    'price_change_percent': round(((most_recent_price - oldest_price) / oldest_price * 100), 2) if oldest_price > 0 else 0,
+                    'price_volatility': 'HIGH' if price_std > avg_price * 0.1 else 'LOW',
+                    
+                    # 📅 TIME DATA
+                    'first_sale_date': sorted_by_date[0]['order_date'],
+                    'last_sale_date': sorted_by_date[-1]['order_date'],
+                    
+                    # 🎯 CALCULATED FIELDS FOR DASHBOARD
+                    'revenue_per_unit': round(weighted_avg_price, 2),
+                    'sales_frequency': round(len(price_data) / days_back, 3),  # Orders per day
+                    
+                    # 📋 RAW DATA
+                    'pricing_raw_data': price_data,
+                    'created_at': datetime.now().isoformat(),
+                    'platform': 'amazon',
+                    'data_type': 'sku_pricing_from_orders'
+                })
+            
+            # Sort by total revenue (highest first)
+            pricing_results.sort(key=lambda x: x['total_revenue'], reverse=True)
+            
+            logger.info(f"💰 ✅ Extracted pricing for {len(pricing_results)} SKUs from order data")
+            return pricing_results
+            
+        except Exception as e:
+            logger.error(f"💰 Failed to extract SKU pricing from orders: {e}")
+            return []
+
     async def fetch_incoming_inventory(self) -> List[Dict]:
         """Legacy method - redirect to new enhanced inbound shipments"""
         return await self.fetch_fba_inbound_shipments()
@@ -1649,13 +1800,29 @@ class APIDataFetcher:
                     logger.warning(f"🚚 Failed to fetch FBA inbound shipments from {platform_type}: {e}")
                     all_data['fba_inbound_shipments'] = []
             
+            # ✅ ENHANCED: Extract pricing from orders (better than listings API!)
+            if hasattr(connector, 'extract_sku_pricing_from_orders') and all_data.get('orders'):
+                try:
+                    sku_pricing = await connector.extract_sku_pricing_from_orders(all_data['orders'], days_back=30)
+                    all_data['sku_pricing_from_orders'] = sku_pricing
+                    if sku_pricing:
+                        avg_price = sum(item.get('weighted_average_price', 0) for item in sku_pricing) / len(sku_pricing)
+                        total_revenue = sum(item.get('total_revenue', 0) for item in sku_pricing)
+                        logger.info(f"💰 ✅ Extracted pricing for {len(sku_pricing)} SKUs from orders (avg: ${avg_price:.2f}, total revenue: ${total_revenue:.2f}) from {platform_type}")
+                    else:
+                        logger.info(f"💰 No pricing data extracted from orders from {platform_type}")
+                except Exception as e:
+                    logger.warning(f"💰 Failed to extract pricing from orders from {platform_type}: {e}")
+                    all_data['sku_pricing_from_orders'] = []
+            
+            # Legacy listings pricing (keep for fallback)
             if hasattr(connector, 'fetch_listings_pricing'):
                 try:
                     listings_pricing = await connector.fetch_listings_pricing()
                     all_data['listings_pricing'] = listings_pricing
-                    logger.info(f"💰 ✅ Fetched {len(listings_pricing)} product listings with pricing from {platform_type}")
+                    logger.info(f"💱 ✅ Fetched {len(listings_pricing)} product listings with pricing from {platform_type}")
                 except Exception as e:
-                    logger.warning(f"💰 Failed to fetch listings pricing from {platform_type}: {e}")
+                    logger.warning(f"💱 Failed to fetch listings pricing from {platform_type}: {e}")
                     all_data['listings_pricing'] = []
             
             if hasattr(connector, 'fetch_awd_inventory'):
@@ -1715,6 +1882,10 @@ class APIDataFetcher:
                     elif data_type == 'awd_inventory':
                         total_units = sum(item.get('quantity', 0) for item in data_list)
                         summary.append(f"{len(data_list)} AWD inventory SKUs ({total_units} units)")
+                    elif data_type == 'sku_pricing_from_orders':
+                        avg_price = sum(item.get('weighted_average_price', 0) for item in data_list) / len(data_list) if data_list else 0
+                        total_revenue = sum(item.get('total_revenue', 0) for item in data_list)
+                        summary.append(f"{len(data_list)} SKU prices from orders (avg ${avg_price:.2f}, revenue ${total_revenue:.2f})")
                     elif data_type == 'listings_pricing':
                         avg_price = sum(item.get('listing_price', 0) for item in data_list) / len(data_list) if data_list else 0
                         summary.append(f"{len(data_list)} listings (avg ${avg_price:.2f})")
