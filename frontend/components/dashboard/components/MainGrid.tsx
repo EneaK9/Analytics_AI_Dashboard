@@ -9,13 +9,9 @@ import { DateRange } from "./CustomDatePicker";
 // Lazy load components for better performance
 const TotalSalesKPIs = lazy(() => import("../../analytics/TotalSalesKPIs"));
 const InventoryTurnoverKPIs = lazy(() => import("../../analytics/InventoryTurnoverKPIs"));
-const DaysOfStockKPIs = lazy(() => import("../../analytics/DaysOfStockKPIs"));
 const InventoryLevelsCharts = lazy(() => import("../../analytics/InventoryLevelsCharts"));
 const UnitsSoldCharts = lazy(() => import("../../analytics/UnitsSoldCharts"));
 const HistoricalComparisonCharts = lazy(() => import("../../analytics/HistoricalComparisonCharts"));
-const LowStockAlerts = lazy(() => import("../../analytics/LowStockAlerts"));
-const OverstockAlerts = lazy(() => import("../../analytics/OverstockAlerts"));
-const SalesPerformanceAlerts = lazy(() => import("../../analytics/SalesPerformanceAlerts"));
 const PlatformSKUList = lazy(() => import("../../analytics/PlatformSKUList"));
 
 interface MainGridProps {
@@ -79,15 +75,6 @@ const MainGrid = React.memo(function MainGrid({
 				</Grid>
 			</Grid>
 
-			{/* Days of Stock KPIs */}
-			<Grid container spacing={3} sx={{ mb: 6 }}>
-				<Grid size={{ xs: 12 }}>
-					<Suspense fallback={<LoadingFallback height="150px" />}>
-						<DaysOfStockKPIs />
-					</Suspense>
-				</Grid>
-			</Grid>
-
 			{/* Inventory Levels Charts */}
 			<Grid container spacing={3} sx={{ mb: 6 }}>
 				<Grid size={{ xs: 12 }}>
@@ -111,33 +98,6 @@ const MainGrid = React.memo(function MainGrid({
 				<Grid size={{ xs: 12 }}>
 					<Suspense fallback={<LoadingFallback height="300px" />}>
 						<HistoricalComparisonCharts />
-					</Suspense>
-				</Grid>
-			</Grid>
-
-			{/* Low Stock Alerts */}
-			<Grid container spacing={3} sx={{ mb: 6 }}>
-				<Grid size={{ xs: 12 }}>
-					<Suspense fallback={<LoadingFallback height="200px" />}>
-						<LowStockAlerts />
-					</Suspense>
-				</Grid>
-			</Grid>
-
-			{/* Overstock Alerts */}
-			<Grid container spacing={3} sx={{ mb: 6 }}>
-				<Grid size={{ xs: 12 }}>
-					<Suspense fallback={<LoadingFallback height="200px" />}>
-						<OverstockAlerts />
-					</Suspense>
-				</Grid>
-			</Grid>
-
-			{/* Sales Performance Alerts */}
-			<Grid container spacing={3} sx={{ mb: 6 }}>
-				<Grid size={{ xs: 12 }}>
-					<Suspense fallback={<LoadingFallback height="200px" />}>
-						<SalesPerformanceAlerts />
 					</Suspense>
 				</Grid>
 			</Grid>
