@@ -1607,12 +1607,23 @@ class AmazonConnector:
                             payload = data.get('payload', {})
                             orders = payload.get('Orders', [])
                             
+                            # ✅ ARTICLE PATTERN: Process orders with progress tracking
+                            logger.info(f"🛒 Processing {len(orders)} orders to fetch SKU details...")
+                            
                             # Transform to standard format INCLUDING ALL AMAZON ORDER FIELDS
                             page_orders = []
-                            for order in orders:
+                            for order_index, order in enumerate(orders):
+                                # ✅ Show progress every 10 orders
+                                if order_index > 0 and order_index % 10 == 0:
+                                    logger.info(f"🛒 Processed {order_index}/{len(orders)} orders in this batch...")
+                                    # ✅ Add extra delay every 10 orders to be extra safe
+                                    await asyncio.sleep(2.0)
                                 # Amazon order structure
                                 order_total = order.get('OrderTotal', {})
                                 order_id = order.get('AmazonOrderId')
+                                
+                                # ✅ ARTICLE PATTERN: Add delay BEFORE fetching order items
+                                await asyncio.sleep(0.5)  # Half second delay before each order items call
                                 
                                 # Fetch order items (SKUs and quantities) for this order
                                 order_items = await self._fetch_order_items(session, headers, order_id)
@@ -1720,13 +1731,13 @@ class AmazonConnector:
                             if not next_token:
                                 break
                                 
-                            # Add delay to respect rate limits
-                            await asyncio.sleep(0.2)  # 5 requests per second max
+                            # ✅ ARTICLE PATTERN: Much more conservative delays for orders
+                            await asyncio.sleep(1.0)  # 1 request per second (much safer)
                         
                         elif response.status == 429:
-                            # Rate limited - wait and retry
-                            logger.warning(" Rate limited by Amazon SP-API, waiting 10 seconds...")
-                            await asyncio.sleep(10)
+                            # Rate limited - wait much longer like article suggests
+                            logger.warning(" Rate limited by Amazon Orders API, waiting 30 seconds...")
+                            await asyncio.sleep(30)  # Longer wait for orders API
                             continue
                         else:
                             raise APIConnectorError(f"Failed to fetch orders: HTTP {response.status}")
@@ -1860,9 +1871,9 @@ class AmazonConnector:
                     return line_items
                     
                 elif response.status == 429:
-                    # Rate limited - wait and retry
-                    logger.warning(f" Rate limited when fetching order items for {order_id}, waiting 2 seconds...")
-                    await asyncio.sleep(2)
+                    # ✅ ARTICLE PATTERN: Much longer wait for order items rate limiting
+                    logger.warning(f" Rate limited when fetching order items for {order_id}, waiting 15 seconds...")
+                    await asyncio.sleep(15)  # Much longer wait like article suggests
                     return await self._fetch_order_items(session, headers, order_id)  # Retry
                 else:
                     logger.warning(f" Failed to fetch order items for {order_id}: HTTP {response.status}")
