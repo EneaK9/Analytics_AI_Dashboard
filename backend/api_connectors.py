@@ -1961,6 +1961,156 @@ class AmazonConnector:
         except Exception as e:
             logger.error(f" Failed to fetch Amazon products: {e}")
             raise APIConnectorError(f"Amazon products fetch failed: {str(e)}")
+
+    async def fetch_product_details_from_catalog(self, asins: List[str]) -> List[Dict]:
+        """
+        Fetch detailed product information from Amazon Catalog API
+        Gets color, size, style, long sleeves, and all product attributes
+        """
+        logger.info(f"📋 Fetching detailed product info for {len(asins)} ASINs from Catalog API...")
+        
+        try:
+            access_token = await self._get_access_token()
+            
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'x-amz-access-token': access_token,
+                'Content-Type': 'application/json'
+            }
+            
+            all_catalog_data = []
+            
+            async with aiohttp.ClientSession() as session:
+                # Process ASINs in batches (Catalog API supports multiple ASINs)
+                batch_size = 20
+                for i in range(0, len(asins), batch_size):
+                    batch_asins = asins[i:i + batch_size]
+                    
+                    params = {
+                        'identifiers': ','.join(batch_asins),
+                        'identifiersType': 'ASIN',
+                        'marketplaceIds': ','.join(self.credentials.marketplace_ids),
+                        'includedData': 'attributes,dimensions,identifiers,images,productTypes,relationships,salesRanks,summaries'
+                    }
+                    
+                    try:
+                        async with session.get(
+                            f"{self.base_url}/catalog/2022-04-01/items",
+                            headers=headers,
+                            params=params
+                        ) as response:
+                            
+                            logger.info(f"📋 Catalog API response: {response.status}")
+                            
+                            if response.status == 200:
+                                data = await response.json()
+                                items = data.get('items', [])
+                                
+                                logger.info(f"📋 Received {len(items)} catalog items")
+                                
+                                for item in items:
+                                    # Extract detailed product information
+                                    asin = item.get('asin')
+                                    attributes = item.get('attributes', {})
+                                    summaries = item.get('summaries', [])
+                                    images = item.get('images', [])
+                                    
+                                    # Parse attributes for color, size, style, etc.
+                                    catalog_details = {
+                                        'asin': asin,
+                                        'platform': 'amazon',
+                                        'catalog_data': item,
+                                        
+                                        # Basic product info
+                                        'title': summaries[0].get('itemName') if summaries else None,
+                                        'brand': summaries[0].get('brand') if summaries else None,
+                                        'manufacturer': summaries[0].get('manufacturer') if summaries else None,
+                                        
+                                        # Product attributes (color, size, style, etc.)
+                                        'color': self._extract_attribute(attributes, ['color', 'Color', 'colour']),
+                                        'size': self._extract_attribute(attributes, ['size', 'Size', 'item_size']),
+                                        'style': self._extract_attribute(attributes, ['style', 'Style', 'item_style']),
+                                        'material': self._extract_attribute(attributes, ['material', 'Material', 'fabric_type']),
+                                        'sleeve_type': self._extract_attribute(attributes, ['sleeve_type', 'SleeveType', 'sleeve_length']),
+                                        'pattern': self._extract_attribute(attributes, ['pattern', 'Pattern', 'pattern_type']),
+                                        'fit_type': self._extract_attribute(attributes, ['fit_type', 'FitType', 'fit']),
+                                        'gender': self._extract_attribute(attributes, ['target_gender', 'Gender', 'gender']),
+                                        'age_group': self._extract_attribute(attributes, ['target_audience', 'AgeGroup', 'age_group']),
+                                        
+                                        # Physical characteristics
+                                        'item_weight': self._extract_attribute(attributes, ['item_weight', 'Weight', 'package_weight']),
+                                        'item_dimensions': self._extract_attribute(attributes, ['item_dimensions', 'Dimensions', 'package_dimensions']),
+                                        
+                                        # Product type and category
+                                        'product_type': item.get('productTypes', [{}])[0].get('displayName') if item.get('productTypes') else None,
+                                        'category': self._extract_attribute(attributes, ['item_type_name', 'Category', 'product_category']),
+                                        
+                                        # Images
+                                        'main_image_url': images[0].get('link') if images else None,
+                                        'all_images': [img.get('link') for img in images if img.get('link')],
+                                        'image_count': len(images),
+                                        
+                                        # Sales and ranking info
+                                        'sales_ranks': item.get('salesRanks', []),
+                                        'best_sellers_rank': self._get_best_rank(item.get('salesRanks', [])),
+                                        
+                                        # All raw attributes for custom analysis
+                                        'all_attributes': attributes,
+                                        'attribute_keys': list(attributes.keys()) if attributes else [],
+                                        
+                                        'created_at': datetime.now().isoformat(),
+                                        'last_updated': datetime.now().isoformat()
+                                    }
+                                    
+                                    all_catalog_data.append(catalog_details)
+                                    
+                            elif response.status == 429:
+                                logger.warning("📋 Rate limited by Catalog API, waiting...")
+                                await asyncio.sleep(5)
+                                continue
+                            else:
+                                error_text = await response.text()
+                                logger.warning(f"📋 Catalog API error {response.status}: {error_text[:200]}")
+                                
+                    except Exception as e:
+                        logger.error(f"📋 Error fetching catalog batch: {e}")
+                        continue
+                    
+                    # Small delay between batches
+                    await asyncio.sleep(1)
+            
+            logger.info(f"📋 ✅ Fetched detailed catalog data for {len(all_catalog_data)} products")
+            return all_catalog_data
+            
+        except Exception as e:
+            logger.error(f"📋 Failed to fetch catalog details: {e}")
+            return []
+    
+    def _extract_attribute(self, attributes: Dict, possible_keys: List[str]) -> str:
+        """Extract attribute value by trying multiple possible key names"""
+        for key in possible_keys:
+            if key in attributes:
+                value = attributes[key]
+                if isinstance(value, list) and value:
+                    return str(value[0].get('value', '')) if isinstance(value[0], dict) else str(value[0])
+                elif isinstance(value, dict):
+                    return str(value.get('value', ''))
+                else:
+                    return str(value)
+        return None
+    
+    def _get_best_rank(self, sales_ranks: List[Dict]) -> int:
+        """Get the best (lowest) sales rank across all categories"""
+        if not sales_ranks:
+            return None
+        
+        ranks = []
+        for rank_data in sales_ranks:
+            rank = rank_data.get('rank')
+            if rank and isinstance(rank, int):
+                ranks.append(rank)
+        
+        return min(ranks) if ranks else None
     
     async def fetch_incoming_inventory(self) -> List[Dict]:
         """Fetch incoming inventory from Amazon FBA"""
