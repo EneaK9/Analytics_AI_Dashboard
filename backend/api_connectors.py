@@ -2113,8 +2113,9 @@ class AmazonConnector:
         return min(ranks) if ranks else None
     
     async def fetch_incoming_inventory(self) -> List[Dict]:
-        """Fetch incoming inventory from Amazon FBA"""
+        """Fetch RECENT incoming inventory from Amazon FBA (last 90 days only)"""
         try:
+            logger.info("📦 Fetching RECENT inbound shipments (last 90 days, WORKING/SHIPPED/RECEIVING only)...")
             all_inventory = []
             next_token = None
             
@@ -2128,9 +2129,14 @@ class AmazonConnector:
             
             async with aiohttp.ClientSession() as session:
                 while True:
+                    # Only get RECENT shipments (last 90 days) - no old irrelevant data
+                    recent_date = (datetime.now() - timedelta(days=90)).isoformat()
+                    
                     params = {
-                        'marketplaceIds': ','.join(self.credentials.marketplace_ids),
-                        'maxResultsPerPage': 50  # FBA Inventory API max
+                        'MarketplaceIds': ','.join(self.credentials.marketplace_ids),
+                        'MaxResultsPerPage': 50,  # FBA Inventory API max  
+                        'ShipmentStatusList': 'WORKING,SHIPPED,RECEIVING',  # ✅ ONLY ACTIVE: No DELIVERED (already arrived)
+                        'LastUpdatedAfter': recent_date  # ✅ ONLY RECENT: Last 90 days only
                     }
                     
                     if next_token:
@@ -2152,7 +2158,7 @@ class AmazonConnector:
                             for shipment in shipments:
                                 shipment_id = shipment.get('ShipmentId')
                                 
-                                # Fetch shipment items for this specific shipment
+                                # Fetch shipment items for this specific shipment (with rate limiting)
                                 shipment_items = await self._fetch_shipment_items(session, headers, shipment_id)
                                 
                                 # Create record with shipment items
@@ -2197,7 +2203,8 @@ class AmazonConnector:
                             logger.info(" FBA Inbound API might not be available for this seller account")
                             break
                 
-                logger.info(f" ✅ Fetched {len(all_inventory)} Amazon FBA incoming inventory items")
+                recent_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
+                logger.info(f"📦 ✅ Fetched {len(all_inventory)} Amazon FBA incoming inventory items (since {recent_date})")
                 return all_inventory
                         
         except Exception as e:
@@ -2205,52 +2212,77 @@ class AmazonConnector:
             return []  # Return empty list instead of failing
     
     async def _fetch_shipment_items(self, session, headers, shipment_id):
-        """Fetch items for a specific Amazon inbound shipment"""
-        try:
-            params = {
-                'MarketplaceId': self.credentials.marketplace_ids[0]
-            }
-            
-            async with session.get(
-                f"{self.base_url}/fba/inbound/v0/shipments/{shipment_id}/items",
-                headers=headers,
-                params=params
-            ) as response:
-                
-                if response.status == 200:
-                    data = await response.json()
-                    payload = data.get('payload', {})
-                    items = payload.get('ItemData', [])
-                    
-                    # Transform items to include expected dates and SKUs
-                    shipment_items = []
-                    for item in items:
-                        shipment_items.append({
-                            'seller_sku': item.get('SellerSKU'),           # ⭐ YOUR SKU
-                            'sku': item.get('SellerSKU'),                  # ⭐ UNIFIED SKU FIELD
-                            'fulfillment_network_sku': item.get('FulfillmentNetworkSKU'),
-                            'quantity_shipped': int(item.get('QuantityShipped', 0)),    # ⭐ QUANTITY INCOMING
-                            'quantity_received': int(item.get('QuantityReceived', 0)),
-                            'quantity_in_case': int(item.get('QuantityInCase', 0)),
-                            'release_date': item.get('ReleaseDate'),       # ⭐ EXPECTED ARRIVAL DATE
-                            'prep_details_list': item.get('PrepDetailsList', []),
-                            'raw_data': item
-                        })
-                    
-                    return shipment_items
-                    
-                elif response.status == 404:
-                    logger.info(f"📦 No items found for shipment {shipment_id}")
-                    return []
-                    
+        """Fetch items for a specific Amazon inbound shipment with rate limiting ✅"""
+        max_retries = 3
+        base_delay = 2  # Start with 2 second delay
+        
+        for attempt in range(max_retries):
+            try:
+                # Add delay to prevent rate limiting
+                if attempt > 0:
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff: 2, 4, 8 seconds
+                    logger.info(f"📦 Rate limit retry {attempt + 1}/{max_retries} for {shipment_id}, waiting {delay}s...")
+                    await asyncio.sleep(delay)
                 else:
-                    response_text = await response.text()
-                    logger.warning(f"📦 Failed to fetch shipment items for {shipment_id}: HTTP {response.status} - {response_text[:100]}")
+                    # Always add a small delay between calls to prevent overwhelming the API
+                    await asyncio.sleep(1)
+                
+                params = {
+                    'MarketplaceId': self.credentials.marketplace_ids[0]
+                }
+                
+                async with session.get(
+                    f"{self.base_url}/fba/inbound/v0/shipments/{shipment_id}/items",
+                    headers=headers,
+                    params=params
+                ) as response:
+                    
+                    if response.status == 200:
+                        data = await response.json()
+                        payload = data.get('payload', {})
+                        items = payload.get('ItemData', [])
+                        
+                        # Transform items to include expected dates and SKUs
+                        shipment_items = []
+                        for item in items:
+                            shipment_items.append({
+                                'seller_sku': item.get('SellerSKU'),           # ⭐ YOUR SKU
+                                'sku': item.get('SellerSKU'),                  # ⭐ UNIFIED SKU FIELD
+                                'fulfillment_network_sku': item.get('FulfillmentNetworkSKU'),
+                                'quantity_shipped': int(item.get('QuantityShipped', 0)),    # ⭐ QUANTITY INCOMING
+                                'quantity_received': int(item.get('QuantityReceived', 0)),
+                                'quantity_in_case': int(item.get('QuantityInCase', 0)),
+                                'release_date': item.get('ReleaseDate'),       # ⭐ EXPECTED ARRIVAL DATE
+                                'expected_arrival_date': item.get('ReleaseDate'),  # ⭐ ALIAS
+                                'prep_details_list': item.get('PrepDetailsList', []),
+                                'raw_data': item
+                            })
+                        
+                        logger.info(f"📦 ✅ Fetched {len(shipment_items)} items for shipment {shipment_id}")
+                        return shipment_items
+                        
+                    elif response.status == 404:
+                        logger.info(f"📦 No items found for shipment {shipment_id}")
+                        return []
+                        
+                    elif response.status == 429:
+                        response_text = await response.text()
+                        logger.warning(f"📦 Rate limit hit for {shipment_id} (attempt {attempt + 1}): {response_text[:100]}")
+                        # Continue to retry with exponential backoff
+                        continue
+                        
+                    else:
+                        response_text = await response.text()
+                        logger.warning(f"📦 Failed to fetch shipment items for {shipment_id}: HTTP {response.status} - {response_text[:100]}")
+                        return []
+                        
+            except Exception as e:
+                logger.warning(f"📦 Error fetching shipment items for {shipment_id} (attempt {attempt + 1}): {e}")
+                if attempt == max_retries - 1:
                     return []
                     
-        except Exception as e:
-            logger.warning(f"📦 Error fetching shipment items for {shipment_id}: {e}")
-            return []
+        logger.warning(f"📦 ❌ Failed to fetch shipment items for {shipment_id} after {max_retries} attempts")
+        return []
 
     async def fetch_fba_inbound_shipments(self) -> List[Dict]:
         """Fetch detailed FBA inbound shipments with SKU-level item data - Enhanced version"""
