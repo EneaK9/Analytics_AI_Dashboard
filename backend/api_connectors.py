@@ -1113,11 +1113,22 @@ class AmazonConnector:
     async def _get_access_token(self) -> str:
         """Get or refresh Amazon SP-API access token"""
         if self.access_token and self.token_expires_at and datetime.now() < self.token_expires_at:
+            logger.info(f"[CACHED_TOKEN] Using cached token (expires: {self.token_expires_at})")
             return self.access_token
+        elif self.access_token and self.token_expires_at:
+            logger.info(f"[EXPIRED_TOKEN] Cached token expired at {self.token_expires_at}, refreshing...")
+        else:
+            logger.info("[NEW_TOKEN] No cached token, requesting new one...")
         
         try:
             # Amazon SP-API OAuth token exchange
             token_url = "https://api.amazon.com/auth/o2/token"
+            
+            # ✅ DEBUG: Log token request details (without sensitive data)
+            logger.info(f"[TOKEN_REQUEST] Requesting new Amazon token...")
+            logger.info(f"[TOKEN_REQUEST] URL: {token_url}")
+            logger.info(f"[TOKEN_REQUEST] Client ID: {self.credentials.access_key_id}")
+            logger.info(f"[TOKEN_REQUEST] Refresh token length: {len(self.credentials.refresh_token)}")
             
             data = {
                 'grant_type': 'refresh_token',
@@ -1135,7 +1146,14 @@ class AmazonConnector:
                         logger.info(" Amazon SP-API token refreshed")
                         return self.access_token
                     else:
-                        raise APIConnectorError(f"Failed to get Amazon access token: HTTP {response.status}")
+                        # ✅ DEBUG: Get detailed error info
+                        error_text = await response.text()
+                        logger.error(f"[TOKEN_ERROR] Amazon token request failed:")
+                        logger.error(f"[TOKEN_ERROR] Status: {response.status}")
+                        logger.error(f"[TOKEN_ERROR] Response: {error_text}")
+                        logger.error(f"[TOKEN_ERROR] URL: {token_url}")
+                        logger.error(f"[TOKEN_ERROR] Client ID: {self.credentials.access_key_id}")
+                        raise APIConnectorError(f"Failed to get Amazon access token: HTTP {response.status} - {error_text}")
                         
         except Exception as e:
             logger.error(f" Failed to get Amazon access token: {e}")
@@ -1924,11 +1942,11 @@ class AmazonConnector:
                     'inbound_quantity': inventory_item.get('inbound_working_quantity', 0),
                     'reserved_quantity': inventory_item.get('reserved_total', 0),
                     'unfulfillable_quantity': inventory_item.get('unfulfillable_quantity', 0),
-                    
-                    # METADATA
+                                    
+                                    # METADATA
                     'status': 'Active',
-                    'created_at': datetime.now().isoformat(),
-                    'platform': 'amazon',
+                                    'created_at': datetime.now().isoformat(),
+                                    'platform': 'amazon',
                     'last_updated': inventory_item.get('last_updated_time'),
                     
                     # Raw inventory data for reference
@@ -2327,29 +2345,32 @@ class AmazonConnector:
         Fetch product prices using Amazon Product Pricing API
         Following the exact pattern from the article
         """
-        logger.info("💰 Starting Amazon Product Pricing API fetch...")
+        logger.info("Starting Amazon Product Pricing API fetch...")
         
         # If no ASINs provided, get them from inventory
         if not asins:
-            logger.info("💰 Getting ASINs from inventory data...")
+            logger.info("Getting ASINs from inventory data...")
             inventory_data = await self.fetch_fba_inventory()
             asins = [item.get('asin') for item in inventory_data if item.get('asin')]
             asins = list(set(asins))  # Remove duplicates
             
-        logger.info(f"💰 Found {len(asins)} unique ASINs to get prices for")
+        logger.info(f"Found {len(asins)} unique ASINs to get prices for")
         
         if not asins:
-            logger.warning("💰 No ASINs found to fetch prices for")
+            logger.warning("No ASINs found to fetch prices for")
             return []
 
-        # Get access token
+        # ✅ FIXED: Use same SP-API token as inventory (works!)
         try:
             access_token = await self._get_access_token()
+            logger.info("[SUCCESS] SP-API access token obtained successfully")
         except Exception as e:
-            logger.error(f"💰 Failed to get access token: {str(e)}")
+            logger.error(f"[ERROR] Failed to get SP-API access token: {str(e)}")
             return []
 
+        # ✅ FIXED: Use SAME headers as working inventory API
         headers = {
+            'Authorization': f'Bearer {access_token}',  # ← This was missing!
             'x-amz-access-token': access_token,
             'Content-Type': 'application/json'
         }
@@ -2366,8 +2387,8 @@ class AmazonConnector:
             
             for chunk in chunk_list(asins):
                 chunk_count += 1
-                logger.info(f"💰 Processing chunk #{chunk_count} with {len(chunk)} ASINs")
-                logger.info(f"💰 ASINs: {chunk[:3]}{'...' if len(chunk) > 3 else ''}")
+                logger.info(f"[PRICING] Processing chunk #{chunk_count} with {len(chunk)} ASINs")
+                logger.info(f"[PRICING] ASINs: {chunk[:3]}{'...' if len(chunk) > 3 else ''}")
 
                 # ✅ ARTICLE PATTERN: Define params exactly like the article
                 request_params = {
@@ -2377,8 +2398,8 @@ class AmazonConnector:
                 }
 
                 try:
-                    # ✅ ARTICLE PATTERN: Call SP API to get prices
-                    url = f"{self.credentials.sp_api_base_url}/products/pricing/v0/price"
+                    # ✅ FIXED: Use self.base_url like all other working APIs
+                    url = f"{self.base_url}/products/pricing/v0/price"
                     
                     async with session.get(
                         url,
@@ -2386,7 +2407,7 @@ class AmazonConnector:
                         headers=headers
                     ) as response:
                         
-                        logger.info(f"💰 Response code: {response.status}")
+                        logger.info(f"[PRICING] Response code: {response.status}")
                         
                         if response.status == 200:
                             data = await response.json()
@@ -2394,12 +2415,12 @@ class AmazonConnector:
                             # ✅ ARTICLE PATTERN: Process payload
                             payload = data.get('payload', [])
                             loaded_qty = len(payload)
-                            logger.info(f"💰 ✅ Loaded {loaded_qty} price records")
+                            logger.info(f"[PRICING] Loaded {loaded_qty} price records")
                             
                             # ✅ DEBUG: Show sample price data structure
                             if payload:
                                 sample_price = payload[0]
-                                logger.info(f"💰 Sample price data: {json.dumps(sample_price, indent=2)[:500]}...")
+                                logger.info(f"[PRICING] Sample price data: {json.dumps(sample_price, indent=2)[:500]}...")
                             
                             # Process each price item
                             for item in payload:
@@ -2444,25 +2465,26 @@ class AmazonConnector:
                             
                         elif response.status == 429:
                             # Rate limited - wait and retry
-                            logger.warning("💰 Rate limited by Amazon Pricing API, waiting 15 seconds...")
+                            logger.warning("[PRICING] Rate limited by Amazon Pricing API, waiting 15 seconds...")
                             await asyncio.sleep(15)
                             continue
                             
                         else:
                             error_text = await response.text()
-                            logger.warning(f"💰 Amazon Pricing API error {response.status}: {error_text[:200]}")
+                            logger.warning(f"[PRICING] Amazon Pricing API error {response.status}: {error_text[:200]}")
                             # Continue with next chunk
                             continue
 
                 except Exception as e:
-                    logger.error(f"💰 Error fetching prices for chunk {chunk_count}: {str(e)}")
+                    logger.error(f"[PRICING] Error fetching prices for chunk {chunk_count}: {str(e)}")
                     continue
 
                 # ✅ ARTICLE PATTERN: Add delay between requests (article uses time.sleep(2))
                 await asyncio.sleep(2)
 
-        logger.info(f"💰 ✅ Fetched prices for {len(all_prices)} products")
+        logger.info(f"[PRICING] Fetched prices for {len(all_prices)} products")
         return all_prices
+
 
 class WooCommerceConnector:
     """WooCommerce REST API Connector"""
