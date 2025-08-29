@@ -296,22 +296,23 @@ class DashboardInventoryAnalyzer:
             return {"success": False, "error": str(e)}
     
     async def _get_shopify_data(self, client_id: str) -> Dict[str, Any]:
-        """ PARALLEL Shopify data fetch - NO WAITING!"""
+        """ PARALLEL Shopify data fetch with NEW TABLE STRUCTURE - NO WAITING!"""
         try:
             # Ensure database client is available
             admin_client = self._ensure_client()
             
-            products_table = f"{client_id.replace('-', '_')}_shopify_products"
-            orders_table = f"{client_id.replace('-', '_')}_shopify_orders"
+            products_table = "shopify_products"
+            orders_table = "shopify_orders"
+            order_items_table = "shopify_order_items"
             
-            logger.info(f" PARALLEL Shopify fetch for {client_id}")
+            logger.info(f" PARALLEL Shopify fetch for {client_id} with NEW table structure")
             
-            #  RUN BOTH QUERIES IN PARALLEL - NO SEQUENTIAL WAITING!
+            #  RUN ALL QUERIES IN PARALLEL - NO SEQUENTIAL WAITING!
             async def fetch_products():
                 try:
                     response = admin_client.table(products_table).select(
-                        "sku,title,variant_title,inventory_quantity,price,option1,option2,variant_id"
-                    ).execute()
+                        "sku,title,variant_title,on_hand_inventory,price,option1,option2,variant_id,available_quantity,reserved_inventory,incoming_inventory"
+                    ).eq('client_id', client_id).execute()
                     return response.data if response.data else []
                 except Exception as e:
                     logger.info(f"Shopify products table not found or empty: {e}")
@@ -320,16 +321,26 @@ class DashboardInventoryAnalyzer:
             async def fetch_orders():
                 try:
                     response = admin_client.table(orders_table).select(
-                        "order_id,total_price,created_at,line_items_count,financial_status,fulfillment_status,order_number,raw_data"
-                    ).execute()
+                        "order_id,total_price,created_at_shopify,financial_status,fulfillment_status,order_number,client_id"
+                    ).eq('client_id', client_id).execute()
                     return response.data if response.data else []
                 except Exception as e:
                     logger.info(f"Shopify orders table not found or empty: {e}")
                     return []
             
-            # Execute both queries simultaneously
-            products, orders = await asyncio.gather(
-                fetch_products(), fetch_orders(), return_exceptions=True
+            async def fetch_order_items():
+                try:
+                    response = admin_client.table(order_items_table).select(
+                        "order_id,sku,quantity,price,title,variant_title,fulfillment_status,client_id"
+                    ).eq('client_id', client_id).execute()
+                    return response.data if response.data else []
+                except Exception as e:
+                    logger.info(f"Shopify order items table not found or empty: {e}")
+                    return []
+            
+            # Execute all queries simultaneously
+            products, orders, order_items = await asyncio.gather(
+                fetch_products(), fetch_orders(), fetch_order_items(), return_exceptions=True
             )
             
             # Handle exceptions
@@ -339,30 +350,36 @@ class DashboardInventoryAnalyzer:
             if isinstance(orders, Exception):
                 logger.error(f" Orders fetch failed: {orders}")
                 orders = []
+            if isinstance(order_items, Exception):
+                logger.error(f" Order items fetch failed: {order_items}")
+                order_items = []
             
-            logger.info(f" PARALLEL complete: {len(products)} Shopify products, {len(orders)} orders")
+            logger.info(f" PARALLEL complete: {len(products)} Shopify products, {len(orders)} orders, {len(order_items)} order items")
             
-            return {"products": products, "orders": orders}
+            return {"products": products, "orders": orders, "order_items": order_items}
             
         except Exception as e:
             logger.warning(f"Could not get Shopify data: {e}")
-            return {"products": [], "orders": []}
+            return {"products": [], "orders": [], "order_items": []}
     
     async def _get_amazon_data(self, client_id: str) -> Dict[str, Any]:
-        """Get Amazon data from organized tables with optimized queries"""
+        """Get Amazon data from NEW TABLE STRUCTURE with optimized queries"""
         try:
             # Ensure database client is available
             admin_client = self._ensure_client()
             
-            orders_table = f"{client_id.replace('-', '_')}_amazon_orders"
-            products_table = f"{client_id.replace('-', '_')}_amazon_products"
+            orders_table = "amazon_orders"
+            products_table = "amazon_products"
+            order_items_table = "amazon_order_items"
             
-            #  RUN BOTH QUERIES IN PARALLEL - NO SEQUENTIAL WAITING!
+            logger.info(f" PARALLEL Amazon fetch for {client_id} with NEW table structure")
+            
+            #  RUN ALL QUERIES IN PARALLEL - NO SEQUENTIAL WAITING!
             async def fetch_orders():
                 try:
                     response = admin_client.table(orders_table).select(
-                        "order_id,total_price,created_at,number_of_items_shipped,order_status,order_number"
-                    ).execute()
+                        "order_id,order_total,purchase_date,number_of_items_shipped,number_of_items_unshipped,order_status,client_id"
+                    ).eq('client_id', client_id).execute()
                     return response.data if response.data else []
                 except Exception as e:
                     logger.info(f"Amazon orders table not found or empty: {e}")
@@ -371,16 +388,26 @@ class DashboardInventoryAnalyzer:
             async def fetch_products():
                 try:
                     response = admin_client.table(products_table).select(
-                        "sku,asin,title,quantity,price,brand,status"
-                    ).execute()
+                        "sku,asin,title,on_hand_inventory,listing_price,brand,available_quantity,reserved_inventory,incoming_inventory,client_id"
+                    ).eq('client_id', client_id).execute()
                     return response.data if response.data else []
                 except Exception as e:
                     logger.info(f"Amazon products table not found or empty: {e}")
                     return []
             
-            # Execute both queries simultaneously
-            orders, products = await asyncio.gather(
-                fetch_orders(), fetch_products(), return_exceptions=True
+            async def fetch_order_items():
+                try:
+                    response = admin_client.table(order_items_table).select(
+                        "order_id,sku,asin,quantity_ordered,quantity_shipped,item_price,title,client_id"
+                    ).eq('client_id', client_id).execute()
+                    return response.data if response.data else []
+                except Exception as e:
+                    logger.info(f"Amazon order items table not found or empty: {e}")
+                    return []
+            
+            # Execute all queries simultaneously
+            orders, products, order_items = await asyncio.gather(
+                fetch_orders(), fetch_products(), fetch_order_items(), return_exceptions=True
             )
             
             # Handle exceptions
@@ -390,14 +417,17 @@ class DashboardInventoryAnalyzer:
             if isinstance(products, Exception):
                 logger.error(f" Products fetch failed: {products}")
                 products = []
+            if isinstance(order_items, Exception):
+                logger.error(f" Order items fetch failed: {order_items}")
+                order_items = []
             
-            logger.info(f" PARALLEL complete: {len(orders)} Amazon orders, {len(products)} products")
+            logger.info(f" PARALLEL complete: {len(orders)} Amazon orders, {len(products)} products, {len(order_items)} order items")
             
-            return {"orders": orders, "products": products}
+            return {"orders": orders, "products": products, "order_items": order_items}
             
         except Exception as e:
             logger.warning(f"Could not get Amazon data: {e}")
-            return {"orders": [], "products": []}
+            return {"orders": [], "products": [], "order_items": []}
     
     async def get_sku_list(self, client_id: str, page: int = 1, page_size: int = 50, use_cache: bool = True, platform: str = "shopify") -> Dict[str, Any]:
         """Get optimized SKU list with fast calculations and caching support"""
@@ -507,10 +537,10 @@ class DashboardInventoryAnalyzer:
             }
 
     def _process_shopify_products(self, shopify_data: Dict, sku_list: List[Dict]):
-        """Process Shopify products and add to SKU list"""
+        """Process Shopify products with NEW TABLE STRUCTURE and add to SKU list"""
         shopify_products = shopify_data.get('products', [])
         
-        logger.info(f" Processing {len(shopify_products)} Shopify products for SKU list")
+        logger.info(f" Processing {len(shopify_products)} Shopify products for SKU list with NEW structure")
         
         skipped_count = 0
         processed_count = 0
@@ -529,10 +559,14 @@ class DashboardInventoryAnalyzer:
                     skipped_count += 1
                     continue  # Skip only if we have no identifier at all
             
-            on_hand = product.get('inventory_quantity', 0) or 0
-            incoming = 0  # TODO: Implement purchase order tracking
-            outgoing = self._calculate_outgoing_for_sku(sku, shopify_data.get('orders', []))
-            current_availability = max(0, on_hand + incoming - outgoing)
+            # NEW TABLE STRUCTURE: Use on_hand_inventory instead of inventory_quantity
+            on_hand = product.get('on_hand_inventory', 0) or 0
+            incoming = product.get('incoming_inventory', 0) or 0  # Now available directly from table
+            reserved = product.get('reserved_inventory', 0) or 0  # Now available directly from table
+            available_qty = product.get('available_quantity')  # Available directly from table (can be None)
+            
+            # Use available_quantity if available, otherwise calculate on_hand - reserved (allow negative values)
+            current_availability = available_qty if available_qty is not None else (on_hand - reserved)
             unit_price = product.get('price', 0) or 0
             
             sku_list.append({
@@ -542,10 +576,10 @@ class DashboardInventoryAnalyzer:
                 "variant_title": product.get('variant_title', ''),
                 "on_hand_inventory": on_hand,
                 "incoming_inventory": incoming,
-                "outgoing_inventory": outgoing,
+                "outgoing_inventory": reserved,  # Use reserved_inventory as outgoing
                 "current_availability": current_availability,
                 "unit_price": unit_price,
-                "total_value": current_availability * unit_price,
+                "total_value": max(0, current_availability) * unit_price,  # Only positive values for total value
                 "option1": product.get('option1'),
                 "option2": product.get('option2')
             })
@@ -554,10 +588,10 @@ class DashboardInventoryAnalyzer:
         logger.info(f" Shopify processing complete: {processed_count} processed, {skipped_count} skipped")
 
     def _process_amazon_products(self, amazon_data: Dict, sku_list: List[Dict]):
-        """Process Amazon products and add to SKU list"""
+        """Process Amazon products with NEW TABLE STRUCTURE and add to SKU list"""
         amazon_products = amazon_data.get('products', [])
         
-        logger.info(f" Processing {len(amazon_products)} Amazon products for SKU list")
+        logger.info(f" Processing {len(amazon_products)} Amazon products for SKU list with NEW structure")
         
         for product in amazon_products:
             sku = product.get('sku')
@@ -566,11 +600,15 @@ class DashboardInventoryAnalyzer:
             if not sku and not asin:
                 continue
             
-            on_hand = product.get('quantity', 0) or 0
-            incoming = 0  # TODO: Implement purchase order tracking  
-            outgoing = self._calculate_outgoing_for_asin(asin or sku, amazon_data.get('orders', []))
-            current_availability = max(0, on_hand + incoming - outgoing)
-            unit_price = product.get('price', 0) or 0
+            # NEW TABLE STRUCTURE: Use on_hand_inventory instead of quantity
+            on_hand = product.get('on_hand_inventory', 0) or 0
+            incoming = product.get('incoming_inventory', 0) or 0  # Now available directly from table
+            reserved = product.get('reserved_inventory', 0) or 0  # Now available directly from table
+            available_qty = product.get('available_quantity')  # Available directly from table (can be None)
+            
+            # Use available_quantity if available, otherwise calculate on_hand - reserved (allow negative values)
+            current_availability = available_qty if available_qty is not None else (on_hand - reserved)
+            unit_price = product.get('listing_price', 0) or 0  # Use listing_price instead of price
             
             sku_list.append({
                 "platform": "amazon",
@@ -579,10 +617,10 @@ class DashboardInventoryAnalyzer:
                 "asin": asin,
                 "on_hand_inventory": on_hand,
                 "incoming_inventory": incoming,
-                "outgoing_inventory": outgoing,
+                "outgoing_inventory": reserved,  # Use reserved_inventory as outgoing
                 "current_availability": current_availability,
                 "unit_price": unit_price,
-                "total_value": current_availability * unit_price,
+                "total_value": max(0, current_availability) * unit_price,  # Only positive values for total value
                 "brand": product.get('brand')
             })
     
@@ -648,8 +686,8 @@ class DashboardInventoryAnalyzer:
                 logger.debug(f"Error processing order {order.get('order_number', 'unknown')} for outgoing calculation: {e}")
                 continue
         
-        # Cap at reasonable maximum to prevent any edge cases
-        return min(outgoing, 50)
+        # Return actual calculated outgoing inventory without artificial caps
+        return outgoing
     
     def _calculate_outgoing_for_asin(self, identifier: str, orders: List[Dict]) -> int:
         """Calculate outgoing inventory for Amazon ASIN/SKU from unfulfilled orders"""
@@ -865,91 +903,50 @@ class DashboardInventoryAnalyzer:
             return {"error": str(e)}
     
     def _calculate_available_inventory(self, shopify_data: Dict, amazon_data: Dict) -> int:
-        """Calculate available (on-hand) inventory = total inventory - outgoing inventory"""
+        """Calculate available inventory using NEW TABLE STRUCTURE - use available_quantity directly"""
         available_inventory = 0
         
-        # Shopify available inventory
+        # Shopify available inventory - use available_quantity or calculate on_hand - reserved
         shopify_products = shopify_data.get('products', [])
-        shopify_orders = shopify_data.get('orders', [])
         
         for product in shopify_products:
-            total_inventory = product.get('inventory_quantity', 0) or 0
-            sku = product.get('sku')
+            # Use available_quantity directly if it exists (can be negative)
+            available_qty = product.get('available_quantity')
+            if available_qty is not None:
+                product_available = available_qty  # Keep negative values as-is
+            else:
+                # Fallback: calculate on_hand - reserved (can also be negative)
+                on_hand = product.get('on_hand_inventory', 0) or 0
+                reserved = product.get('reserved_inventory', 0) or 0
+                product_available = on_hand - reserved  # Allow negative values
             
-            # Calculate outgoing inventory for this SKU (reserved for unfulfilled orders)
-            outgoing = self._calculate_outgoing_for_sku(sku, shopify_orders) if sku else 0
-            
-            # Available = total - outgoing
-            product_available = max(0, total_inventory - outgoing)
             available_inventory += product_available
         
-        # Amazon available inventory  
+        # Amazon available inventory - use available_quantity or calculate on_hand - reserved
         amazon_products = amazon_data.get('products', [])
-        amazon_orders = amazon_data.get('orders', [])
         
         for product in amazon_products:
-            total_inventory = product.get('quantity', 0) or 0
-            sku = product.get('sku') or product.get('asin')
+            # Use available_quantity directly if it exists (can be negative)
+            available_qty = product.get('available_quantity')
+            if available_qty is not None:
+                product_available = available_qty  # Keep negative values as-is
+            else:
+                # Fallback: calculate on_hand - reserved (can also be negative)
+                on_hand = product.get('on_hand_inventory', 0) or 0
+                reserved = product.get('reserved_inventory', 0) or 0
+                product_available = on_hand - reserved  # Allow negative values
             
-            #  FIXED: Calculate Amazon outgoing using order_status and number_of_items_shipped
-            outgoing = self._calculate_amazon_outgoing_for_sku(sku, amazon_orders) if sku else 0
-            
-            # Available = total - outgoing
-            product_available = max(0, total_inventory - outgoing)
             available_inventory += product_available
         
-        logger.info(f" Available Inventory: {available_inventory} units (total minus outgoing/reserved)")
+        logger.info(f" Available Inventory: {available_inventory} units (using available_quantity from NEW table structure)")
         
         return available_inventory
 
     def _calculate_amazon_outgoing_for_sku(self, sku: str, orders: List[Dict]) -> int:
-        """ NEW: Calculate outgoing inventory for Amazon SKU using order_status and number_of_items_unshipped"""
-        if not sku:
-            return 0
-            
-        outgoing = 0
-        sku_normalized = str(sku).strip().lower()
-        recent_orders_checked = 0
-        max_orders_to_check = 20  # Limit for performance
-        
-        for order in orders:
-            if recent_orders_checked >= max_orders_to_check:
-                break
-                
-            try:
-                # Only count orders that are NOT yet shipped (still outgoing/reserved)
-                order_status = (order.get('order_status') or '').lower()
-                
-                # For Amazon: orders that are not 'shipped' are still outgoing
-                if order_status != 'shipped':
-                    recent_orders_checked += 1
-                    
-                    # Amazon uses number_of_items_unshipped for pending items
-                    unshipped_items = order.get('number_of_items_unshipped', 0) or 0
-                    
-                    # If we don't have unshipped count, estimate from total items
-                    if unshipped_items == 0:
-                        total_items = order.get('number_of_items_shipped', 0) or 0
-                        total_items += order.get('number_of_items_unshipped', 0) or 0
-                        # If order is not shipped, assume all items are unshipped
-                        if total_items > 0:
-                            unshipped_items = total_items
-                        else:
-                            unshipped_items = 1  # Conservative estimate
-                    
-                    # TODO: Ideally, we'd parse raw_data to match specific SKUs in order line items
-                    # For now, attribute proportionally if this order contains our SKU
-                    # This is a simplified approach - in practice, you'd want to parse order line items
-                    if unshipped_items > 0:
-                        outgoing += unshipped_items
-                        logger.debug(f"Amazon SKU {sku}: +{unshipped_items} outgoing from order {order.get('order_id')} (status: {order_status})")
-                        
-            except Exception as e:
-                logger.debug(f"Error processing Amazon order for outgoing calculation: {e}")
-                continue
-        
-        logger.info(f" Amazon SKU {sku} outgoing inventory: {outgoing} units from {recent_orders_checked} unshipped orders")
-        return outgoing
+        """DEPRECATED: This method has incorrect logic and should not be used.
+        Use _extract_units_from_order instead for accurate SKU-specific calculations."""
+        logger.warning(f"DEPRECATED: _calculate_amazon_outgoing_for_sku called for SKU {sku}. Use _extract_units_from_order instead.")
+        return 0
 
     def _calculate_average_inventory(self, current_inventory: int, units_sold: int, period_days: int = 30) -> float:
         """Calculate average inventory = (begin_inventory + end_inventory) / 2"""
@@ -965,14 +962,12 @@ class DashboardInventoryAnalyzer:
         logger.info(f" Avg Inventory: begin({current_inventory} + {units_sold}) + end({end_inventory}) / 2 = {avg_inventory}")
         logger.info(f" Logic: inventory {period_days} days ago ≈ current({current_inventory}) + sold_since_then({units_sold}) = {begin_inventory}")
         
-        #  FIXED: Allow 0 inventory when there are no products/sales 
-        # Only return 1 as minimum if we have actual inventory or sales (avoid false turnover rates)
-        if current_inventory == 0 and units_sold == 0:
-            return 0  # Truly no inventory or activity
-        return max(avg_inventory, 1)  # Avoid division by zero only when there's some activity
+        # Return actual calculated average inventory without artificial caps
+        # Division by zero should be handled by the calling function
+        return avg_inventory
 
     def _is_order_fulfilled(self, order: Dict) -> bool:
-        """Check if order should be counted for sales based on platform-specific status rules"""
+        """Check if order should be counted for sales based on platform-specific status rules for NEW TABLE STRUCTURE"""
         platform = order.get('platform', '').lower()
         
         if platform == 'shopify':
@@ -982,9 +977,9 @@ class DashboardInventoryAnalyzer:
             return financial_status == 'paid' and fulfillment_status == 'fulfilled'
         
         elif platform == 'amazon':
-            # Amazon: order_status = 'shipped'
+            # Amazon: order_status = 'Shipped' (note: Amazon uses 'Shipped' with capital S)
             order_status = (order.get('order_status', '') or '').lower()
-            return order_status == 'shipped'
+            return order_status in ['shipped', 'delivered']  # Include both shipped and delivered
         
         else:
             # For mixed data or unknown platform, try to detect from fields
@@ -994,9 +989,9 @@ class DashboardInventoryAnalyzer:
                 fulfillment_status = (order.get('fulfillment_status', '') or '').lower()
                 return financial_status == 'paid' and fulfillment_status == 'fulfilled'
             elif 'order_status' in order:
-                # Likely Amazon
+                # Likely Amazon - check for shipped status
                 order_status = (order.get('order_status', '') or '').lower()
-                return order_status == 'shipped'
+                return order_status in ['shipped', 'delivered']
             else:
                 # Fallback: include all orders if we can't determine platform
                 logger.warning(f"Could not determine platform for order {order.get('order_id', 'unknown')}, including in sales")
@@ -1013,7 +1008,19 @@ class DashboardInventoryAnalyzer:
         
         for order in orders:
             try:
-                created_at = order.get('created_at')
+                # NEW TABLE STRUCTURE: Use correct date fields for each platform
+                created_at = None
+                
+                # Check for Shopify date field first
+                if 'created_at_shopify' in order:
+                    created_at = order.get('created_at_shopify')
+                # Check for Amazon date field
+                elif 'purchase_date' in order:
+                    created_at = order.get('purchase_date')
+                # Fallback to generic created_at
+                else:
+                    created_at = order.get('created_at')
+                
                 if created_at:
                     # Handle different date formats
                     if isinstance(created_at, str):
@@ -1039,10 +1046,17 @@ class DashboardInventoryAnalyzer:
                     if start_date <= order_date <= end_date:
                         #  NEW: Check if order should be counted based on fulfillment status
                         if self._is_order_fulfilled(order):
-                            order_revenue = float(order.get('total_price', 0) or 0)
+                            # NEW TABLE STRUCTURE: Use correct price fields for each platform
+                            if 'order_total' in order:
+                                # Amazon order
+                                order_revenue = float(order.get('order_total', 0) or 0)
+                            else:
+                                # Shopify order
+                                order_revenue = float(order.get('total_price', 0) or 0)
+                            
                             revenue += order_revenue
                             
-                            # Better units estimation
+                            # Better units estimation with NEW TABLE STRUCTURE
                             if 'line_items_count' in order:
                                 units += int(order.get('line_items_count', 1) or 1)
                             elif 'number_of_items_shipped' in order:
@@ -1064,16 +1078,16 @@ class DashboardInventoryAnalyzer:
         return {"revenue": revenue, "units": units, "orders": order_count}
     
     def _calculate_total_inventory(self, shopify_data: Dict, amazon_data: Dict) -> int:
-        """Calculate total inventory units"""
+        """Calculate total inventory units using NEW TABLE STRUCTURE"""
         total = 0
         
-        # Shopify inventory
+        # Shopify inventory - use on_hand_inventory instead of inventory_quantity
         for product in shopify_data.get('products', []):
-            total += product.get('inventory_quantity', 0) or 0
+            total += product.get('on_hand_inventory', 0) or 0
         
-        # Amazon inventory
+        # Amazon inventory - use on_hand_inventory instead of quantity
         for product in amazon_data.get('products', []):
-            total += product.get('quantity', 0) or 0
+            total += product.get('on_hand_inventory', 0) or 0
         
         return total
     
@@ -1177,10 +1191,10 @@ class DashboardInventoryAnalyzer:
             low_stock_details = []
             overstock_details = []
             
-            # Process Shopify products for stock alerts
+            # Process Shopify products for stock alerts - use NEW TABLE STRUCTURE
             shopify_products = shopify_data.get('products', [])
             for product in shopify_products:
-                inventory = product.get('inventory_quantity', 0) or 0
+                inventory = product.get('on_hand_inventory', 0) or 0  # NEW: on_hand_inventory
                 title = product.get('title', 'Unknown Product')
                 sku = product.get('sku')
                 
@@ -1208,10 +1222,10 @@ class DashboardInventoryAnalyzer:
                             "alert_type": "overstock"
                         })
             
-            # Process Amazon products for stock alerts
+            # Process Amazon products for stock alerts - use NEW TABLE STRUCTURE
             amazon_products = amazon_data.get('products', [])
             for product in amazon_products:
-                quantity = product.get('quantity', 0) or 0
+                quantity = product.get('on_hand_inventory', 0) or 0  # NEW: on_hand_inventory
                 title = product.get('title', 'Unknown Product')
                 sku = product.get('sku')
                 asin = product.get('asin')
@@ -1334,15 +1348,15 @@ class DashboardInventoryAnalyzer:
             return {"error": str(e)}
 
     def _calculate_total_inventory_value(self, shopify_data: Dict, amazon_data: Dict) -> float:
-        """ FIXED: Calculate the total value of all inventory across platforms with better price handling"""
+        """ Calculate the total value of all inventory using NEW TABLE STRUCTURE with better price handling"""
         total_value = 0.0
         items_processed = 0
         items_with_value = 0
         
-        # Calculate Shopify inventory value
+        # Calculate Shopify inventory value - use on_hand_inventory instead of inventory_quantity
         shopify_products = shopify_data.get('products', [])
         for product in shopify_products:
-            quantity = product.get('inventory_quantity', 0) or 0
+            quantity = product.get('on_hand_inventory', 0) or 0  # NEW: on_hand_inventory
             price_raw = product.get('price')
             price = 0.0
             
@@ -1366,11 +1380,11 @@ class DashboardInventoryAnalyzer:
                 
             items_processed += 1
         
-        # Calculate Amazon inventory value  
+        # Calculate Amazon inventory value - use on_hand_inventory and listing_price
         amazon_products = amazon_data.get('products', [])
         for product in amazon_products:
-            quantity = product.get('quantity', 0) or 0
-            price_raw = product.get('price')
+            quantity = product.get('on_hand_inventory', 0) or 0  # NEW: on_hand_inventory
+            price_raw = product.get('listing_price')  # NEW: listing_price instead of price
             price = 0.0
             
             # Better price parsing - handle all formats
@@ -1393,22 +1407,22 @@ class DashboardInventoryAnalyzer:
                 
             items_processed += 1
         
-        logger.info(f" INVENTORY VALUE: ${total_value:.2f} from {items_with_value}/{items_processed} items with valid price & quantity")
+        logger.info(f" INVENTORY VALUE: ${total_value:.2f} from {items_with_value}/{items_processed} items with valid price & quantity (NEW table structure)")
         return round(total_value, 2)
     
     def _calculate_out_of_stock_count(self, shopify_data: Dict, amazon_data: Dict) -> int:
-        """Calculate the number of items that are completely out of stock"""
+        """Calculate the number of items that are completely out of stock using NEW TABLE STRUCTURE"""
         out_of_stock_count = 0
         
-        # Count Shopify products that are out of stock (0 or negative)
+        # Count Shopify products that are out of stock - use on_hand_inventory
         for product in shopify_data.get('products', []):
-            inventory = product.get('inventory_quantity', 0) or 0
+            inventory = product.get('on_hand_inventory', 0) or 0  # NEW: on_hand_inventory
             if inventory <= 0:
                 out_of_stock_count += 1
         
-        # Count Amazon products that are out of stock (0 or negative)
+        # Count Amazon products that are out of stock - use on_hand_inventory
         for product in amazon_data.get('products', []):
-            quantity = product.get('quantity', 0) or 0
+            quantity = product.get('on_hand_inventory', 0) or 0  # NEW: on_hand_inventory
             if quantity <= 0:
                 out_of_stock_count += 1
         
