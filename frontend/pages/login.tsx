@@ -55,16 +55,16 @@ const Login: React.FC = () => {
 			<div className="max-w-md w-full space-y-8">
 				{/* Header */}
 				<div className="text-center">
-					<div className="flex justify-center mb-6">
+					{/* <div className="flex justify-center mb-6">
 						<div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
 							<Building className="w-8 h-8 text-primary" />
 						</div>
-					</div>
+					</div> */}
 					<h2 className="text-3xl font-bold text-black">
-						AI Analytics Dashboard
+						Shfa AI
 					</h2>
 					<p className="mt-2 text-sm text-body">
-						Sign in to your analytics dashboard
+						Login to Shfa AI
 					</p>
 				</div>
 
