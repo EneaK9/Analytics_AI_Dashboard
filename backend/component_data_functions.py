@@ -3103,7 +3103,16 @@ class ComponentDataManager:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Get historical comparison data with period-over-period analysis"""
+        """
+        Get historical comparison data using the same sales calculation logic as get_total_sales_data.
+        
+        This ensures consistency between the sales comparison chart and total sales KPIs by:
+        - Using platform-specific price fields (order_total for Amazon, total_price for Shopify)
+        - Using platform-specific date fields (purchase_date for Amazon, created_at_shopify for Shopify)
+        - Applying the same order fulfillment status filtering
+        
+        Provides period-over-period analysis for historical comparison charts.
+        """
 
         logger.info(
             f" HISTORICAL COMPARISON REQUEST - Getting data for {client_id} - {platform} ({start_date} to {end_date})"
@@ -3277,9 +3286,19 @@ class ComponentDataManager:
 
             current_query = db_client.table(table_name).select("*")
 
-            current_query = current_query.gte("created_at", start_dt.isoformat()).lte(
-                "created_at", end_dt.isoformat()
-            )
+            # Use platform-specific date fields for filtering (same as total sales)
+            if platform == "shopify":
+                current_query = current_query.gte("created_at_shopify", start_dt.isoformat()).lte(
+                    "created_at_shopify", end_dt.isoformat()
+                )
+            elif platform == "amazon":
+                current_query = current_query.gte("purchase_date", start_dt.isoformat()).lte(
+                    "purchase_date", end_dt.isoformat()
+                )
+            else:
+                current_query = current_query.gte("created_at", start_dt.isoformat()).lte(
+                    "created_at", end_dt.isoformat()
+                )
 
             current_response = current_query.execute()
 
@@ -3289,9 +3308,19 @@ class ComponentDataManager:
 
             previous_query = db_client.table(table_name).select("*")
 
-            previous_query = previous_query.gte(
-                "created_at", previous_start_dt.isoformat()
-            ).lte("created_at", previous_end_dt.isoformat())
+            # Use platform-specific date fields for filtering (same as total sales)
+            if platform == "shopify":
+                previous_query = previous_query.gte("created_at_shopify", previous_start_dt.isoformat()).lte(
+                    "created_at_shopify", previous_end_dt.isoformat()
+                )
+            elif platform == "amazon":
+                previous_query = previous_query.gte("purchase_date", previous_start_dt.isoformat()).lte(
+                    "purchase_date", previous_end_dt.isoformat()
+                )
+            else:
+                previous_query = previous_query.gte("created_at", previous_start_dt.isoformat()).lte(
+                    "created_at", previous_end_dt.isoformat()
+                )
 
             previous_response = previous_query.execute()
 
@@ -3335,7 +3364,15 @@ class ComponentDataManager:
 
                 for order in current_orders:
 
-                    order_date = self._parse_date(order.get("created_at"))
+                    # Use platform-specific date field for parsing order date
+                    if platform == "shopify":
+                        created_at = order.get("created_at_shopify") or order.get("created_at")
+                    elif platform == "amazon":
+                        created_at = order.get("purchase_date") or order.get("created_at")
+                    else:
+                        created_at = order.get("created_at")
+
+                    order_date = self._parse_date(created_at)
 
                     if (
                         order_date
@@ -3346,11 +3383,25 @@ class ComponentDataManager:
 
                         if self._is_order_fulfilled(order):
 
-                            current_revenue += float(order.get("total_price", 0) or 0)
+                            # NEW TABLE STRUCTURE: Use correct price fields for each platform
+                            if platform == "amazon":
+                                order_value = float(order.get("order_total", 0) or 0)  # Amazon uses order_total
+                            else:
+                                order_value = float(order.get("total_price", 0) or 0)  # Shopify uses total_price
+
+                            current_revenue += order_value
 
                 for order in previous_orders:
 
-                    order_date = self._parse_date(order.get("created_at"))
+                    # Use platform-specific date field for parsing order date
+                    if platform == "shopify":
+                        created_at = order.get("created_at_shopify") or order.get("created_at")
+                    elif platform == "amazon":
+                        created_at = order.get("purchase_date") or order.get("created_at")
+                    else:
+                        created_at = order.get("created_at")
+
+                    order_date = self._parse_date(created_at)
 
                     if (
                         order_date
@@ -3361,7 +3412,13 @@ class ComponentDataManager:
 
                         if self._is_order_fulfilled(order):
 
-                            previous_revenue += float(order.get("total_price", 0) or 0)
+                            # NEW TABLE STRUCTURE: Use correct price fields for each platform
+                            if platform == "amazon":
+                                order_value = float(order.get("order_total", 0) or 0)  # Amazon uses order_total
+                            else:
+                                order_value = float(order.get("total_price", 0) or 0)  # Shopify uses total_price
+
+                            previous_revenue += order_value
 
                 comparison_data.append(
                     {
@@ -3407,7 +3464,7 @@ class ComponentDataManager:
                     "period_length": period_length,
                     "previous_start": previous_start_dt.strftime("%Y-%m-%d"),
                     "previous_end": previous_end_dt.strftime("%Y-%m-%d"),
-                    "calculation_method": "period_over_period_revenue",
+                    "calculation_method": "period_over_period_revenue_same_as_total_sales",
                 },
             }
 
