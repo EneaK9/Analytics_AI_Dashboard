@@ -4396,12 +4396,16 @@ async def get_available_tables(client_id: str):
 
         possible_tables = {
             "shopify": {
-                "products": f"{safe_client_id}_shopify_products",
-                "orders": f"{safe_client_id}_shopify_orders",
+                "products": "shopify_products",
+                "orders": "shopify_orders",
+                "order_items": "shopify_order_items",
             },
             "amazon": {
-                "products": f"{safe_client_id}_amazon_products",
-                "orders": f"{safe_client_id}_amazon_orders",
+                "products": "amazon_products",
+                "orders": "amazon_orders",
+                "order_items": "amazon_order_items",
+                "inbound_shipments": "amazon_inbound_shipments",
+                "inbound_shipment_items": "amazon_inbound_shipment_items",
             },
         }
 
@@ -4516,10 +4520,14 @@ async def get_raw_data_tables(
         # Define table mapping
 
         table_mapping = {
-            "shopify_products": f"{safe_client_id}_shopify_products",
-            "shopify_orders": f"{safe_client_id}_shopify_orders",
-            "amazon_products": f"{safe_client_id}_amazon_products",
-            "amazon_orders": f"{safe_client_id}_amazon_orders",
+            "shopify_products": "shopify_products",
+            "shopify_orders": "shopify_orders",
+            "shopify_order_items": "shopify_order_items",
+            "amazon_products": "amazon_products",
+            "amazon_orders": "amazon_orders",
+            "amazon_order_items": "amazon_order_items",
+            "amazon_inbound_shipments": "amazon_inbound_shipments",
+            "amazon_inbound_shipment_items": "amazon_inbound_shipment_items",
         }
 
         # Determine which table to query (now only one table at a time)
@@ -4535,8 +4543,12 @@ async def get_raw_data_tables(
         if table_key not in [
             "shopify_products",
             "shopify_orders",
+            "shopify_order_items",
             "amazon_products",
             "amazon_orders",
+            "amazon_order_items",
+            "amazon_inbound_shipments",
+            "amazon_inbound_shipment_items",
         ]:
 
             raise HTTPException(
@@ -4573,68 +4585,98 @@ async def get_raw_data_tables(
 
                 logger.info(f" Applying search filter for: '{search}'")
 
-                # Define search fields based on table type
+                # First, get the actual columns in the table to avoid searching in non-existent columns
+                try:
+                    sample_query = db_client.table(table_name).select("*").limit(1)
+                    sample_response = sample_query.execute()
+                    available_columns = list(sample_response.data[0].keys()) if sample_response.data else []
+                    logger.info(f" Available columns in {table_name}: {available_columns}")
+                    
+                    # Get column types to avoid searching in non-text columns (UUID, numbers, etc.)
+                    sample_row = sample_response.data[0] if sample_response.data else {}
+                    text_columns = []
+                    
+                    # Define columns to always exclude from search
+                    excluded_from_search = ['id', 'client_id', 'created_at', 'updated_at', 'processed_at']
+                    
+                    for col in available_columns:
+                        # Skip columns that are known to be problematic
+                        if col in excluded_from_search:
+                            continue
+                            
+                        # Skip columns that end with '_id' (likely UUIDs or foreign keys)
+                        if col.endswith('_id'):
+                            continue
+                            
+                        value = sample_row.get(col)
+                        if value is not None:
+                            # Only include columns that contain string/text data and are not UUIDs
+                            if isinstance(value, str) and len(str(value)) > 0:
+                                # Additional check: skip if it looks like a UUID (36 chars with dashes)
+                                if len(value) == 36 and value.count('-') == 4:
+                                    continue
+                                text_columns.append(col)
+                    
+                    logger.info(f" Text columns in {table_name}: {text_columns}")
+                    available_columns = text_columns  # Only use text columns for searching
+                    
+                except Exception as e:
+                    logger.error(f" Failed to get columns for {table_name}: {e}")
+                    available_columns = []
 
-                search_fields = []
-
+                # Define potential search fields based on table type
+                potential_search_fields = []
+                
                 if "products" in table_key:
-
-                    # Product tables: search in title, handle, sku, vendor, variant_title, option1, option2, option3
-
-                    search_fields = [
-                        "title",
-                        "handle",
-                        "sku",
-                        "vendor",
-                        "variant_title",
-                        "option1",
-                        "option2",
-                        "option3",
+                    potential_search_fields = [
+                        "title", "handle", "sku", "vendor", "variant_title", 
+                        "option1", "option2", "option3", "name", "product_name"
                     ]
-
                 elif "orders" in table_key:
-
-                    # Order tables: search fields based on platform
                     if "shopify" in table_key:
-                        # Shopify order tables: search in order_number, customer_email, financial_status, fulfillment_status, source_name, tags
-                        search_fields = [
-                            "order_number",
-                            "customer_email",
-                            "financial_status",
-                            "fulfillment_status",
-                            "source_name",
-                            "tags",
+                        potential_search_fields = [
+                            "order_number", "customer_email", "financial_status", 
+                            "fulfillment_status", "source_name", "tags", "order_id"
                         ]
                     elif "amazon" in table_key:
-                        # Amazon order tables: search in order_number, order_status, sales_channel, marketplace_id
-                        search_fields = [
-                            "order_number",
-                            "order_status",
-                            "sales_channel",
-                            "marketplace_id",
+                        potential_search_fields = [
+                            "order_number", "order_status", "sales_channel", 
+                            "marketplace_id", "order_id", "amazon_order_id"
                         ]
                     else:
-                        # Fallback for other order tables
-                        search_fields = [
-                            "order_number",
-                        ]
+                        potential_search_fields = ["order_number", "order_id"]
+                elif "order_items" in table_key:
+                    potential_search_fields = [
+                        "order_id", "product_id", "sku", "title", "variant_title"
+                    ]
+                elif "inbound_shipments" in table_key:
+                    potential_search_fields = [
+                        "shipment_id", "shipment_name", "status", "destination"
+                    ]
+                elif "inbound_shipment_items" in table_key:
+                    potential_search_fields = [
+                        "shipment_id", "sku", "product_name", "status"
+                    ]
+
+                # Filter to only include columns that actually exist in the table
+                search_fields = [field for field in potential_search_fields if field in available_columns]
+                
+                if not search_fields:
+                    # Fallback: search in any available text columns (already filtered above)
+                    search_fields = [col for col in available_columns if col not in excluded_columns and col not in ['id', 'client_id']][:5]
+
+                logger.info(f" Using search fields for {table_key}: {search_fields}")
 
                 # Build an OR condition for text search - use proper PostgREST syntax
-
                 search_conditions = []
 
                 for field in search_fields:
-
                     search_conditions.append(f"{field}.ilike.*{search}*")
 
                 # Apply OR search across multiple fields
-
                 if search_conditions:
-
                     search_filter = ",".join(search_conditions)
-
                     logger.info(f" Search filter: {search_filter}")
-
                     query = query.or_(search_filter)
 
             # Get total count first (for pagination)
@@ -4687,61 +4729,89 @@ async def get_raw_data_tables(
 
             if search and not search_fallback:
 
-                search_conditions = []
+                # Get text-only columns again for the data query
+                try:
+                    sample_query = db_client.table(table_name).select("*").limit(1)
+                    sample_response = sample_query.execute()
+                    sample_row = sample_response.data[0] if sample_response.data else {}
+                    text_columns = []
+                    
+                    # Define columns to always exclude from search
+                    excluded_from_search = ['id', 'client_id', 'created_at', 'updated_at', 'processed_at']
+                    
+                    for col in list(sample_row.keys()):
+                        # Skip columns that are known to be problematic
+                        if col in excluded_from_search:
+                            continue
+                            
+                        # Skip columns that end with '_id' (likely UUIDs or foreign keys)
+                        if col.endswith('_id'):
+                            continue
+                            
+                        value = sample_row.get(col)
+                        if value is not None:
+                            # Only include columns that contain string/text data and are not UUIDs
+                            if isinstance(value, str) and len(str(value)) > 0:
+                                # Additional check: skip if it looks like a UUID (36 chars with dashes)
+                                if len(value) == 36 and value.count('-') == 4:
+                                    continue
+                                text_columns.append(col)
+                except Exception as e:
+                    logger.error(f" Failed to get text columns for data query in {table_name}: {e}")
+                    text_columns = []
 
+                # Define potential search fields based on table type
+                potential_search_fields = []
+                
                 if "products" in table_key:
-
-                    search_fields = [
-                        "title",
-                        "handle",
-                        "sku",
-                        "vendor",
-                        "variant_title",
-                        "option1",
-                        "option2",
-                        "option3",
+                    potential_search_fields = [
+                        "title", "handle", "sku", "vendor", "variant_title", 
+                        "option1", "option2", "option3", "name", "product_name"
                     ]
-
                 elif "orders" in table_key:
-
-                    # Order tables: search fields based on platform
                     if "shopify" in table_key:
-                        # Shopify order tables: search in order_number, customer_email, financial_status, fulfillment_status, source_name, tags
-                        search_fields = [
-                            "order_number",
-                            "customer_email",
-                            "financial_status",
-                            "fulfillment_status",
-                            "source_name",
-                            "tags",
+                        potential_search_fields = [
+                            "order_number", "customer_email", "financial_status", 
+                            "fulfillment_status", "source_name", "tags", "order_id"
                         ]
                     elif "amazon" in table_key:
-                        # Amazon order tables: search in order_number, order_status, sales_channel, marketplace_id
-                        search_fields = [
-                            "order_number",
-                            "order_status",
-                            "sales_channel",
-                            "marketplace_id",
+                        potential_search_fields = [
+                            "order_number", "order_status", "sales_channel", 
+                            "marketplace_id", "order_id", "amazon_order_id"
                         ]
                     else:
-                        # Fallback for other order tables
-                        search_fields = [
-                            "order_number",
-                        ]
+                        potential_search_fields = ["order_number", "order_id"]
+                elif "order_items" in table_key:
+                    potential_search_fields = [
+                        "order_id", "product_id", "sku", "title", "variant_title"
+                    ]
+                elif "inbound_shipments" in table_key:
+                    potential_search_fields = [
+                        "shipment_id", "shipment_name", "status", "destination"
+                    ]
+                elif "inbound_shipment_items" in table_key:
+                    potential_search_fields = [
+                        "shipment_id", "sku", "product_name", "status"
+                    ]
 
+                # Filter to only include columns that actually exist and are text columns
+                search_fields = [field for field in potential_search_fields if field in text_columns]
+                
+                if not search_fields:
+                    # Fallback: search in any available text columns
+                    search_fields = [col for col in text_columns if col not in excluded_columns and col not in ['id', 'client_id']][:5]
+
+                search_conditions = []
                 for field in search_fields:
-
                     search_conditions.append(f"{field}.ilike.*{search}*")
 
                 if search_conditions:
-
                     search_filter = ",".join(search_conditions)
-
                     main_query = main_query.or_(search_filter)
 
             # Apply pagination and ordering
-
-            main_query = main_query.order("processed_at", desc=True).range(
+            # Order by id as a safe fallback since processed_at might not exist
+            main_query = main_query.order("id", desc=True).range(
                 offset, offset + page_size - 1
             )
 

@@ -113,7 +113,7 @@ interface GlobalDataState {
   // Raw data filters (both platform and dataType are required now)
   rawDataFilters: {
     platform: 'shopify' | 'amazon';
-    dataType: 'products' | 'orders';
+    dataType: 'products' | 'orders' | 'order_items' | 'inbound_shipments' | 'inbound_shipment_items';
     page: number;
     pageSize: number;
     search: string;
@@ -262,7 +262,7 @@ export const useGlobalDataStore = create<GlobalDataState>()((set, get) => ({
         rawDataFilters: {
           ...state.rawDataFilters,
           platform: preferredPlatform,
-          dataType: preferredDataType as 'products' | 'orders',
+          dataType: preferredDataType as 'products' | 'orders' | 'order_items' | 'inbound_shipments' | 'inbound_shipment_items',
           page: 1, // Reset to first page
         }
       }));

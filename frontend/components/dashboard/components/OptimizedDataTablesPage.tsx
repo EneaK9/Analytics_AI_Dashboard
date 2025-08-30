@@ -104,7 +104,7 @@ export default function OptimizedDataTablesPage({
 		const combinations: Array<{
 			id: string;
 			platform?: "shopify" | "amazon";
-			dataType?: "products" | "orders";
+			dataType?: "products" | "orders" | "order_items" | "inbound_shipments" | "inbound_shipment_items";
 			count?: number;
 			displayName: string;
 			type: 'data';
@@ -116,12 +116,16 @@ export default function OptimizedDataTablesPage({
 			Object.entries(availableTables.available_tables).forEach(([platform, tables]) => {
 				(tables as any[]).forEach((table) => {
 					const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
-					const dataTypeName = table.data_type.charAt(0).toUpperCase() + table.data_type.slice(1);
+					// Format display name for compound data types
+					const dataTypeName = table.data_type
+						.split('_')
+						.map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+						.join(' ');
 					
 					combinations.push({
 						id: `${platform}-${table.data_type}`,
 						platform: platform as "shopify" | "amazon",
-						dataType: table.data_type as "products" | "orders",
+						dataType: table.data_type as "products" | "orders" | "order_items" | "inbound_shipments" | "inbound_shipment_items",
 						count: table.count,
 						displayName: `${platformName} ${dataTypeName}`,
 						type: 'data'
@@ -129,13 +133,26 @@ export default function OptimizedDataTablesPage({
 				});
 			});
 			
-			// Sort data combinations: Amazon first, then Shopify, orders before products
+			// Sort data combinations: Amazon first, then Shopify, with logical data type ordering
 			const dataCombinations = combinations.filter(c => c.type === 'data');
 			dataCombinations.sort((a, b) => {
 				if (a.platform !== b.platform) {
 					return a.platform === "amazon" ? -1 : 1;
 				}
-				return a.dataType === "orders" ? -1 : 1;
+				
+				// Define priority order for data types
+				const dataTypePriority: Record<string, number> = {
+					"products": 1,
+					"orders": 2,
+					"order_items": 3,
+					"inbound_shipments": 4,
+					"inbound_shipment_items": 5
+				};
+				
+				const aPriority = dataTypePriority[a.dataType || ""] || 999;
+				const bPriority = dataTypePriority[b.dataType || ""] || 999;
+				
+				return aPriority - bPriority;
 			});
 			
 			// Return sorted data combinations only
