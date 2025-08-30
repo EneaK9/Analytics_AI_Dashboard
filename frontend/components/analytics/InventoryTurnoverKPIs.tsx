@@ -163,10 +163,23 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 			const turnoverData = data.data;
 			const turnoverRate = turnoverData.inventory_turnover_ratio || 0;
 			
+			// Debug logging to see what data we're getting
+			console.log('Turnover data received:', turnoverData);
+			console.log('Turnover rate extracted:', turnoverRate);
+			
 			// Calculate trend from within-period comparison if available
 			const comparisonData = turnoverData.turnover_comparison;
-			const trendValue = comparisonData && comparisonData.first_half_turnover_rate > 0 ? 
-				((comparisonData.second_half_turnover_rate - comparisonData.first_half_turnover_rate) / comparisonData.first_half_turnover_rate) * 100 : 0;
+			
+			// Use the growth_rate directly from the API response if available
+			let trendValue = 0;
+			if (comparisonData && comparisonData.growth_rate !== undefined) {
+				trendValue = comparisonData.growth_rate;
+			} else if (comparisonData && comparisonData.first_half_turnover_rate > 0) {
+				trendValue = ((comparisonData.second_half_turnover_rate - comparisonData.first_half_turnover_rate) / comparisonData.first_half_turnover_rate) * 100;
+			}
+			
+			console.log('Comparison data:', comparisonData);
+			console.log('Trend value calculated:', trendValue);
 
 			const isPositive = trendValue >= 0;
 			const trendFormatted = `${Math.abs(trendValue).toFixed(1)}%`;
@@ -332,8 +345,13 @@ const InventoryTurnoverKPIs = React.memo(function InventoryTurnoverKPIs({
 
 	// Format turnover rate with proper precision
 	const formatTurnover = (value: number) => {
-		// Show 2 decimal places for small values, 1 for larger values
-		if (value < 0.1) {
+		// Debug logging to see what value is being formatted
+		console.log('Formatting turnover value:', value, 'Type:', typeof value);
+		
+		// Handle very small values with better precision
+		if (value < 0.01) {
+			return `${value.toFixed(3)}x`;
+		} else if (value < 0.1) {
 			return `${value.toFixed(2)}x`;
 		} else if (value < 1) {
 			return `${value.toFixed(1)}x`;

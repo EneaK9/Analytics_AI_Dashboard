@@ -1431,12 +1431,12 @@ class ComponentDataManager:
             if platform == "shopify":
 
                 orders_table = table_name.replace(
-                    "_shopify_products", "_shopify_orders"
+                    "shopify_products", "shopify_orders"
                 )
 
             elif platform == "amazon":
 
-                orders_table = table_name.replace("_amazon_products", "_amazon_orders")
+                orders_table = table_name.replace("amazon_products", "amazon_orders")
 
             else:
 
@@ -1968,7 +1968,10 @@ class ComponentDataManager:
 
             avg_days_to_sell = 365 / turnover_rate if turnover_rate > 0 else 999
 
-            # Simple result - no complex trend analysis needed for basic turnover
+            # Calculate turnover comparison for first and second half of the period
+            turnover_comparison = await self._calculate_turnover_comparison(
+                client_id, platform, start_date, end_date, current_inventory
+            )
 
             result = {
                 "inventory_turnover_ratio": round(turnover_rate, 3),
@@ -1976,11 +1979,7 @@ class ComponentDataManager:
                 "total_revenue": 0,  # Not needed for basic turnover
                 "total_inventory_value": current_inventory,
                 "fast_moving_items": 0,
-                "turnover_comparison": {
-                    "first_half_turnover_rate": 0,
-                    "second_half_turnover_rate": 0,
-                    "growth_rate": 0,
-                },
+                "turnover_comparison": turnover_comparison,
                 "period_info": {
                     "start_date": start_date,
                     "end_date": end_date,
@@ -2220,7 +2219,7 @@ class ComponentDataManager:
             if platform in ["shopify", "combined"]:
 
                 shopify_data = await self._get_platform_units_sold(
-                    tables["shopify_orders"], "shopify", start_date, end_date
+                    tables["shopify_orders"], "shopify", start_date, end_date, client_id
                 )
 
                 result["shopify"] = shopify_data
@@ -2228,7 +2227,7 @@ class ComponentDataManager:
             if platform in ["amazon", "combined"]:
 
                 amazon_data = await self._get_platform_units_sold(
-                    tables["amazon_orders"], "amazon", start_date, end_date
+                    tables["amazon_orders"], "amazon", start_date, end_date, client_id
                 )
 
                 result["amazon"] = amazon_data
@@ -2313,6 +2312,7 @@ class ComponentDataManager:
         platform: str,
         start_date: Optional[str],
         end_date: Optional[str],
+        client_id: str,
     ) -> Dict[str, Any]:
         """Get REAL units sold data using orders data with SAME date filtering as total sales"""
 
@@ -2496,10 +2496,11 @@ class ComponentDataManager:
                         f" UNITS SOLD FILTERING: {len(orders)} total orders → {len(fulfilled_orders)} fulfilled orders"
                     )
 
-                    # Calculate daily sales from fulfilled orders only
+                    # Calculate daily units sold individually using _get_units_sold_in_period
+                    # This gives actual units sold per day, not cumulative totals
 
-                    daily_sales = await self._calculate_daily_sales_from_orders(
-                        fulfilled_orders, platform, start_dt, end_dt
+                    daily_sales = await self._calculate_daily_units_sold_individually(
+                        client_id, platform, start_dt, end_dt
                     )
 
                     # Convert daily sales to chart format
@@ -2576,15 +2577,19 @@ class ComponentDataManager:
 
             try:
 
-                # Parse order date
-
-                created_at = order.get("created_at")
+                # Use platform-specific date field for parsing order date
+                if platform == "shopify":
+                    created_at = order.get("created_at_shopify") or order.get("created_at")
+                elif platform == "amazon":
+                    created_at = order.get("purchase_date") or order.get("created_at")
+                else:
+                    created_at = order.get("created_at")
 
                 if not created_at:
 
                     if orders_processed <= 5:  # Log first few
 
-                        logger.info(f" Order {orders_processed}: No created_at date")
+                        logger.info(f" Order {orders_processed}: No date field found")
 
                     continue
 
@@ -2847,7 +2852,7 @@ class ComponentDataManager:
 
                     # This shouldn't happen since orders are pre-filtered, but log it
 
-                    logger.warning(f" Order date {date_str} not in expected range!")
+                    logger.warning(f" Order date {date_str} not in expected range! Available dates: {list(daily_sales.keys())[:5]}...")
 
             except Exception as e:
 
@@ -2868,6 +2873,15 @@ class ComponentDataManager:
         logger.info(f"    Total units extracted: {total_units_extracted}")
 
         logger.info(f"    Active sales days: {non_zero_days}")
+        
+        # Log daily breakdown for debugging
+        if non_zero_days > 0:
+            logger.info(f"    Daily breakdown:")
+            for date_str, units in daily_sales.items():
+                if units > 0:
+                    logger.info(f"      {date_str}: {units} units")
+        else:
+            logger.info(f"    No sales found in any day of the period")
 
         if total_units_extracted == 0:
 
@@ -2892,6 +2906,195 @@ class ComponentDataManager:
                 logger.info(f"   Check the order data structure and quantity fields")
 
         return daily_sales
+
+    async def _calculate_daily_units_sold_individually(
+        self,
+        client_id: str,
+        platform: str,
+        start_dt: datetime,
+        end_dt: datetime,
+    ) -> Dict[str, int]:
+        """Calculate units sold for each individual day by querying orders directly for each day"""
+        
+        daily_sales = {}
+        
+        logger.info(f" Calculating individual daily units sold by querying each day separately ({platform})")
+        
+        db_client = get_admin_client()
+        tables = self._get_table_names(client_id)
+        
+        # Calculate units sold for each individual day separately
+        current_date = start_dt
+        total_days_processed = 0
+        days_with_sales = 0
+        
+        while current_date <= end_dt:
+            date_str = current_date.strftime("%Y-%m-%d")
+            
+            # Create start and end datetime for this specific day
+            day_start = current_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            day_end = current_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+            
+            day_units = 0
+            
+            try:
+                if platform == "shopify":
+                    # Query orders for this specific day
+                    query = (
+                        db_client.table(tables["shopify_orders"])
+                        .select("order_id, created_at_shopify")
+                        .eq("client_id", client_id)
+                        .gte("created_at_shopify", day_start.isoformat())
+                        .lte("created_at_shopify", day_end.isoformat())
+                    )
+                    
+                    orders_response = query.execute()
+                    orders = orders_response.data or []
+                    order_ids = [order["order_id"] for order in orders]
+                    
+                    if order_ids:
+                        # Get quantities for these orders
+                        items_query = (
+                            db_client.table(tables["shopify_order_items"])
+                            .select("order_id, quantity")
+                            .eq("client_id", client_id)
+                            .in_("order_id", order_ids)
+                        )
+                        
+                        items_response = items_query.execute()
+                        items = items_response.data or []
+                        
+                        for item in items:
+                            quantity = item.get("quantity", 0)
+                            if quantity:
+                                day_units += int(quantity)
+                
+                elif platform == "amazon":
+                    # Query Amazon orders for this specific day
+                    query = (
+                        db_client.table(tables["amazon_orders"])
+                        .select("order_id, number_of_items_shipped, purchase_date")
+                        .eq("client_id", client_id)
+                        .gte("purchase_date", day_start.isoformat())
+                        .lte("purchase_date", day_end.isoformat())
+                    )
+                    
+                    response = query.execute()
+                    orders = response.data or []
+                    
+                    for order in orders:
+                        shipped = order.get("number_of_items_shipped", 0)
+                        if shipped:
+                            day_units += int(shipped)
+                            
+            except Exception as e:
+                logger.error(f"Error calculating units for {date_str}: {e}")
+                day_units = 0
+            
+            daily_sales[date_str] = day_units
+            total_days_processed += 1
+            
+            if day_units > 0:
+                days_with_sales += 1
+                logger.info(f"    {date_str}: {day_units} units sold")
+            
+            current_date += timedelta(days=1)
+        
+        logger.info(f" INDIVIDUAL DAILY CALCULATION SUMMARY:")
+        logger.info(f"    Days processed: {total_days_processed}")
+        logger.info(f"    Days with sales: {days_with_sales}")
+        logger.info(f"    Sample daily values: {dict(list(daily_sales.items())[:3])}")
+        
+        return daily_sales
+
+    async def _calculate_turnover_comparison(
+        self,
+        client_id: str,
+        platform: str,
+        start_date: Optional[str],
+        end_date: Optional[str],
+        current_inventory: int,
+    ) -> Dict[str, float]:
+        """Calculate inventory turnover comparison between first and second half of the period"""
+        
+        try:
+            if not start_date or not end_date:
+                return {
+                    "first_half_turnover_rate": 0,
+                    "second_half_turnover_rate": 0,
+                    "growth_rate": 0,
+                }
+            
+            start_dt = self._parse_date(start_date)
+            end_dt = self._parse_date(end_date)
+            
+            if not start_dt or not end_dt:
+                return {
+                    "first_half_turnover_rate": 0,
+                    "second_half_turnover_rate": 0,
+                    "growth_rate": 0,
+                }
+            
+            # Calculate the midpoint of the period
+            total_days = (end_dt - start_dt).days
+            mid_point = start_dt + timedelta(days=total_days // 2)
+            
+            # Define first and second half periods
+            first_half_start = start_dt.strftime("%Y-%m-%d")
+            first_half_end = mid_point.strftime("%Y-%m-%d")
+            second_half_start = (mid_point + timedelta(days=1)).strftime("%Y-%m-%d")
+            second_half_end = end_dt.strftime("%Y-%m-%d")
+            
+            logger.info(f" Calculating turnover comparison:")
+            logger.info(f"   First half: {first_half_start} to {first_half_end}")
+            logger.info(f"   Second half: {second_half_start} to {second_half_end}")
+            
+            # Get units sold for each half
+            first_half_units = await self._get_units_sold_in_period(
+                client_id, platform, first_half_start, first_half_end
+            )
+            
+            second_half_units = await self._get_units_sold_in_period(
+                client_id, platform, second_half_start, second_half_end
+            )
+            
+            logger.info(f"   First half units sold: {first_half_units}")
+            logger.info(f"   Second half units sold: {second_half_units}")
+            
+            # Calculate turnover rates for each half
+            # Use current inventory as approximation for average inventory
+            average_inventory = current_inventory if current_inventory > 0 else 1
+            
+            first_half_days = (mid_point - start_dt).days + 1
+            second_half_days = (end_dt - mid_point).days
+            
+            # Normalize turnover rates to account for different period lengths
+            first_half_turnover = (first_half_units / average_inventory) * (30 / first_half_days) if first_half_days > 0 else 0
+            second_half_turnover = (second_half_units / average_inventory) * (30 / second_half_days) if second_half_days > 0 else 0
+            
+            # Calculate growth rate
+            if first_half_turnover > 0:
+                growth_rate = ((second_half_turnover - first_half_turnover) / first_half_turnover) * 100
+            else:
+                growth_rate = 100 if second_half_turnover > 0 else 0
+            
+            logger.info(f"   First half turnover rate: {first_half_turnover:.3f}")
+            logger.info(f"   Second half turnover rate: {second_half_turnover:.3f}")
+            logger.info(f"   Growth rate: {growth_rate:.1f}%")
+            
+            return {
+                "first_half_turnover_rate": round(first_half_turnover, 3),
+                "second_half_turnover_rate": round(second_half_turnover, 3),
+                "growth_rate": round(growth_rate, 1),
+            }
+            
+        except Exception as e:
+            logger.error(f"Error calculating turnover comparison: {e}")
+            return {
+                "first_half_turnover_rate": 0,
+                "second_half_turnover_rate": 0,
+                "growth_rate": 0,
+            }
 
     async def get_historical_comparison_data(
         self,
