@@ -6924,9 +6924,15 @@ async def get_inventory_analytics(
                     else {}
                 )
 
-                combined_analytics = inventory_analyzer.analyze_inventory_data(
-                    client_data
-                )  # All data together
+                # Use the new dashboard inventory analyzer for proper combined analytics
+                from dashboard_inventory_analyzer import dashboard_inventory_analyzer
+
+                # Get proper combined analytics using component data functions
+                combined_analytics_result = await dashboard_inventory_analyzer.get_dashboard_inventory_analytics(
+                    client_id, "all", start_date, end_date
+                )
+                
+                combined_analytics = combined_analytics_result.get("platforms", {}).get("combined", {})
 
                 # Create multi-platform response structure
 

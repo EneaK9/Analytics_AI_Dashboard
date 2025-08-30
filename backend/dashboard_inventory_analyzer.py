@@ -1754,17 +1754,17 @@ class DashboardInventoryAnalyzer:
 
             if platform == "combined":
 
-                # For combined platform, data is returned directly
+                # For combined platform, data is under "combined" key
 
-                platform_sales = total_sales_data
+                platform_sales = total_sales_data.get("combined", {})
 
-                platform_turnover = inventory_turnover_data
+                platform_turnover = inventory_turnover_data.get("combined", {})
 
-                platform_days_stock = days_of_stock_data
+                platform_days_stock = days_of_stock_data.get("combined", {})
 
-                platform_units_sold = units_sold_data
+                platform_units_sold = units_sold_data.get("combined", {})
 
-                platform_inventory = inventory_levels_data
+                platform_inventory = inventory_levels_data.get("combined", {})
 
             else:
 
@@ -2336,13 +2336,13 @@ class DashboardInventoryAnalyzer:
 
             if platform == "combined":
 
-                # For combined platform, data is returned directly
+                # For combined platform, data is under "combined" key
 
-                platform_historical = historical_comparison_data
+                platform_historical = historical_comparison_data.get("combined", {})
 
-                platform_inventory = inventory_levels_data
+                platform_inventory = inventory_levels_data.get("combined", {})
 
-                platform_units_sold = units_sold_data
+                platform_units_sold = units_sold_data.get("combined", {})
 
             else:
 
@@ -2368,23 +2368,23 @@ class DashboardInventoryAnalyzer:
 
                 "historical_comparison_30_days": {
 
-                    "current_period_revenue": platform_historical.get('current_period_revenue', 0),
+                    "current_period_revenue": platform_historical.get('total_current_period', 0),
 
-                    "previous_period_revenue": platform_historical.get('previous_period_revenue', 0),
+                    "previous_period_revenue": platform_historical.get('total_previous_period', 0),
 
-                    "revenue_change_percent": platform_historical.get('revenue_change_percent', 0),
+                    "revenue_change_percent": platform_historical.get('growth_rate', 0),
 
-                    "current_period_units": platform_historical.get('current_period_units', 0),
+                    "current_period_units": 0,  # Units data not available in historical comparison
 
-                    "previous_period_units": platform_historical.get('previous_period_units', 0),
+                    "previous_period_units": 0,  # Units data not available in historical comparison
 
-                    "units_change_percent": platform_historical.get('units_change_percent', 0),
+                    "units_change_percent": 0,  # Units data not available in historical comparison
 
-                    "current_period_orders": platform_historical.get('current_period_orders', 0),
+                    "current_period_orders": 0,  # Orders data not available in historical comparison
 
-                    "previous_period_orders": platform_historical.get('previous_period_orders', 0),
+                    "previous_period_orders": 0,  # Orders data not available in historical comparison
 
-                    "orders_change_percent": platform_historical.get('orders_change_percent', 0)
+                    "orders_change_percent": 0  # Orders data not available in historical comparison
 
                 },
 
