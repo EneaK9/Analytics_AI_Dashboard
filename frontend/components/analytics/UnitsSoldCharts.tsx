@@ -163,7 +163,7 @@ export default function UnitsSoldCharts({
 	// Derived loading/error states
 	const shopifyLoading = shopifyUseCustomDate ? shopifyCustomLoading : multiLoading;
 	const amazonLoading = amazonUseCustomDate ? amazonCustomLoading : multiLoading;
-	const allLoading = allUseCustomDate ? allCustomLoading : (multiLoading || shopifyLoading || amazonLoading);
+	const allLoading = allUseCustomDate ? allCustomLoading : multiLoading;
 	const shopifyError = multiError;
 	const amazonError = multiError;
 

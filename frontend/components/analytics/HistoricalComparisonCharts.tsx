@@ -231,15 +231,19 @@ const HistoricalComparisonCharts = memo(function HistoricalComparisonCharts({
 			return processComparisonData(allCustomData.combined, allDateRange);
 		}
 
+		// Use original platform data (not affected by individual platform date changes)
+		const originalShopifyData = shopifyPlatformData?.trend_analysis;
+		const originalAmazonData = amazonPlatformData?.trend_analysis;
+
 		// Handle new API response format
-		if (shopifyData?.total_current_period !== undefined && amazonData?.total_current_period !== undefined) {
+		if (originalShopifyData?.total_current_period !== undefined && originalAmazonData?.total_current_period !== undefined) {
 			const combinedHistoricalRevenue =
-				(shopifyData.total_previous_period || 0) +
-				(amazonData.total_previous_period || 0);
+				(originalShopifyData.total_previous_period || 0) +
+				(originalAmazonData.total_previous_period || 0);
 
 			const combinedCurrentRevenue =
-				(shopifyData.total_current_period || 0) +
-				(amazonData.total_current_period || 0);
+				(originalShopifyData.total_current_period || 0) +
+				(originalAmazonData.total_current_period || 0);
 
 			return [
 				{
@@ -260,13 +264,13 @@ const HistoricalComparisonCharts = memo(function HistoricalComparisonCharts({
 		}
 
 		// Fallback to combining individual platform data (old format)
-		if (!shopifyData?.sales_comparison || !amazonData?.sales_comparison) {
+		if (!originalShopifyData?.sales_comparison || !originalAmazonData?.sales_comparison) {
 			return [];
 		}
 
-		// Combine data from both platforms
-		const shopifyComparison = shopifyData.sales_comparison as any;
-		const amazonComparison = amazonData.sales_comparison as any;
+		// Combine data from both platforms using original data
+		const shopifyComparison = originalShopifyData.sales_comparison as any;
+		const amazonComparison = originalAmazonData.sales_comparison as any;
 
 		const combinedHistoricalRevenue =
 			(shopifyComparison.historical_avg_revenue || 0) +
@@ -300,7 +304,7 @@ const HistoricalComparisonCharts = memo(function HistoricalComparisonCharts({
 				period: `Current ${allDateRange.label.toLowerCase()}`,
 			},
 		];
-	}, [shopifyData, amazonData, allDateRange, allUseCustomDate, allCustomData]);
+	}, [shopifyPlatformData, amazonPlatformData, allDateRange, allUseCustomDate, allCustomData]);
 
 	// Calculate comparison stats
 	const calculateComparisonStats = (data: any[]) => {
