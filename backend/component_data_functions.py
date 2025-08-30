@@ -2493,7 +2493,7 @@ class ComponentDataManager:
                     ]
 
                     logger.info(
-                        f" UNITS SOLD FILTERING: {len(orders)} total orders → {len(fulfilled_orders)} fulfilled orders"
+                        f" UNITS SOLD FILTERING: {len(orders)} total orders -> {len(fulfilled_orders)} fulfilled orders"
                     )
 
                     # Calculate daily units sold individually using _get_units_sold_in_period

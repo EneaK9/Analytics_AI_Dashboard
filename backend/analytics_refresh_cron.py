@@ -50,7 +50,7 @@ class AnalyticsRefreshCronJob:
         self.base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
         self.timeout = 300  # 5 minutes timeout
         self.use_direct_calls = True  # Use direct function calls instead of HTTP
-        logger.info("📊 Analytics Refresh Cron Job initialized - DIRECT CALLS MODE (no HTTP)")
+        logger.info("Analytics Refresh Cron Job initialized - DIRECT CALLS MODE (no HTTP)")
     
     def _get_admin_client(self):
         """Get Supabase admin client"""

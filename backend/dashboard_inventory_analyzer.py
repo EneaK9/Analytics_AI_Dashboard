@@ -67,15 +67,16 @@ class DashboardInventoryAnalyzer:
             trends_task = asyncio.create_task(self._get_trend_visualizations(client_id, shopify_data, amazon_data))
             alerts_task = asyncio.create_task(self._get_alerts_summary(client_id, shopify_data, amazon_data))
             
-            # Wait for all calculations with 3 second timeout - NO WAITING!
+            # Wait for all calculations with timeout - NO WAITING!
+            timeout_seconds = 60.0
             try:
                 sales_kpis, trend_analysis, alerts_summary = await asyncio.wait_for(
                     asyncio.gather(kpis_task, trends_task, alerts_task, return_exceptions=True),
-                    timeout=3.0
+                    timeout=timeout_seconds
                 )
-                logger.info(f" TURBO COMPLETE: All calculations finished in <3s for {client_id}")
+                logger.info(f" TURBO COMPLETE: All calculations finished in <{timeout_seconds}s for {client_id}")
             except asyncio.TimeoutError:
-                logger.warning(f" Calculations timeout after 3s, using partial results")
+                logger.warning(f" Calculations timeout after {timeout_seconds}s, using partial results")
                 # Get whatever completed - NO WAITING!
                 sales_kpis = kpis_task.result() if kpis_task.done() else {}
                 trend_analysis = trends_task.result() if trends_task.done() else {}
@@ -858,12 +859,19 @@ class DashboardInventoryAnalyzer:
             units_sold_data = safe_get_data(units_sold_data)
             inventory_levels_data = safe_get_data(inventory_levels_data)
             
-            # Extract the consistent 30-day metrics
+            # Extract the consistent 30-day metrics - component functions return data under platform keys
             combined_sales = total_sales_data.get('combined', {})
             combined_turnover = inventory_turnover_data.get('combined', {})
             combined_days_stock = days_of_stock_data.get('combined', {})
             combined_units_sold = units_sold_data.get('combined', {})
             combined_inventory = inventory_levels_data.get('combined', {})
+            
+            # Debug logging to see what data we're getting
+            logger.info(f" KPI Data Debug:")
+            logger.info(f"   Sales data keys: {list(total_sales_data.keys())}")
+            logger.info(f"   Turnover data keys: {list(inventory_turnover_data.keys())}")
+            logger.info(f"   Combined sales: {combined_sales}")
+            logger.info(f"   Combined turnover: {combined_turnover}")
             
             logger.info(f" Component data functions completed for consistent metrics")
             
@@ -1127,10 +1135,15 @@ class DashboardInventoryAnalyzer:
             inventory_levels_data = safe_get_data(inventory_levels_data)
             units_sold_data = safe_get_data(units_sold_data)
             
-            # Extract the consistent trend data
+            # Extract the consistent trend data - component functions return data under platform keys
             combined_historical = historical_comparison_data.get('combined', {})
             combined_inventory = inventory_levels_data.get('combined', {})
             combined_units_sold = units_sold_data.get('combined', {})
+            
+            # Debug logging to see what data we're getting
+            logger.info(f" Trend Data Debug:")
+            logger.info(f"   Historical data keys: {list(historical_comparison_data.keys())}")
+            logger.info(f"   Combined historical: {combined_historical}")
             
             logger.info(f" Component data functions completed for consistent trend analysis")
             
@@ -1138,15 +1151,15 @@ class DashboardInventoryAnalyzer:
                 "inventory_levels_chart_30_days": combined_inventory.get('inventory_levels_chart', []),
                 "units_sold_chart_30_days": combined_units_sold.get('units_sold_chart', []),
                 "historical_comparison_30_days": {
-                    "current_period_revenue": combined_historical.get('current_period_revenue', 0),
-                    "previous_period_revenue": combined_historical.get('previous_period_revenue', 0),
-                    "revenue_change_percent": combined_historical.get('revenue_change_percent', 0),
-                    "current_period_units": combined_historical.get('current_period_units', 0),
-                    "previous_period_units": combined_historical.get('previous_period_units', 0),
-                    "units_change_percent": combined_historical.get('units_change_percent', 0),
-                    "current_period_orders": combined_historical.get('current_period_orders', 0),
-                    "previous_period_orders": combined_historical.get('previous_period_orders', 0),
-                    "orders_change_percent": combined_historical.get('orders_change_percent', 0)
+                    "current_period_revenue": combined_historical.get('total_current_period', 0),
+                    "previous_period_revenue": combined_historical.get('total_previous_period', 0),
+                    "revenue_change_percent": combined_historical.get('growth_rate', 0),
+                    "current_period_units": 0,  # Not available from historical comparison
+                    "previous_period_units": 0,  # Not available from historical comparison
+                    "units_change_percent": 0,  # Not available from historical comparison
+                    "current_period_orders": 0,  # Not available from historical comparison
+                    "previous_period_orders": 0,  # Not available from historical comparison
+                    "orders_change_percent": 0  # Not available from historical comparison
                 },
                 "velocity_metrics_30_days": combined_units_sold.get('velocity_metrics', {}),
                 "data_source": "component_data_functions",
